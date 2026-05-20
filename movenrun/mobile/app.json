@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "MovenRun",
+    "slug": "movenrun",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d0d0d"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "io.movenrun.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MovenRun tracks your route to earn $MOVE tokens.",
+        "NSLocationAlwaysUsageDescription": "MovenRun tracks your route in the background to earn $MOVE tokens.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "MovenRun tracks your route to earn $MOVE tokens.",
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d0d0d"
+      },
+      "package": "io.movenrun.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "MovenRun tracks your route to earn $MOVE tokens."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "FILL_ME_IN"
+      }
+    }
+  }
+}

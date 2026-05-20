@@ -1,0 +1,148 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import "./MoveToken.sol";
+
+contract ZoneNFT is ERC721, AccessControl {
+    using ECDSA for bytes32;
+
+    bytes32 public constant ZONE_ADMIN_ROLE = keccak256("ZONE_ADMIN_ROLE");
+
+    // Base mint cost before sqrt(weeklyMoverCount) scaling (in $MOVE wei)
+    uint256 public constant BASE_MINT_COST = 500 ether;
+
+    // Loyalty multiplier thresholds (in seconds)
+    uint256 public constant LOYALTY_TIER1 = 30 days;   // 1.0x  → 100
+    uint256 public constant LOYALTY_TIER2 = 90 days;   // 1.25x → 125
+    uint256 public constant LOYALTY_TIER3 = 180 days;  // 1.5x  → 150
+    uint256 public constant LOYALTY_TIER4 = 365 days;  // 1.75x → 175
+
+    uint256 public constant DORMANCY_PERIOD = 180 days;
+    uint256 public constant RECLAIM_PERIOD  = 210 days;
+
+    MoveToken public moveToken;
+    address public trustedOracle;
+    address public challengeContract;
+
+    // hexId → ownership start timestamp
+    mapping(uint64 => uint256) public ownershipStart;
+
+    // hexId → last movement activity timestamp
+    mapping(uint64 => uint256) public lastActivity;
+
+    // hexId → accumulated zone yield (2% tax from MoveToken)
+    mapping(uint64 => uint256) public accumulatedYield;
+
+    // hexId → dormant flag
+    mapping(uint64 => bool) public isDormant;
+
+    // Prevent sig replay for minting
+    mapping(bytes32 => bool) public usedMintSigs;
+
+    event ZoneMinted(uint64 indexed hexId, address indexed owner, uint256 mintCost);
+    event ZoneYieldCredited(uint64 indexed hexId, address indexed owner, uint256 amount);
+    event ZoneDormant(uint64 indexed hexId);
+    event ZoneReclaimed(uint64 indexed hexId);
+    event YieldWithdrawn(uint64 indexed hexId, address indexed owner, uint256 amount);
+
+    constructor(address _moveToken, address _trustedOracle, address admin) ERC721("MovenRun Zone", "ZONE") {
+        moveToken = MoveToken(_moveToken);
+        trustedOracle = _trustedOracle;
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ZONE_ADMIN_ROLE, admin);
+    }
+
+    function setChallengeContract(address _challengeContract) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        challengeContract = _challengeContract;
+    }
+
+    // Called by MoveToken when crediting 2% zone tax
+    function creditZoneYield(uint64 hexId, uint256 amount) external {
+        require(msg.sender == address(moveToken), "ZoneNFT: only MoveToken");
+        require(_ownerOf(uint256(hexId)) != address(0), "ZoneNFT: zone not minted");
+        accumulatedYield[hexId] += amount;
+        lastActivity[hexId] = block.timestamp;
+        emit ZoneYieldCredited(hexId, _ownerOf(uint256(hexId)), amount);
+    }
+
+    function mintZone(
+        uint64 hexId,
+        uint256 mintCost,
+        bytes calldata oracleSig
+    ) external {
+        require(_ownerOf(uint256(hexId)) == address(0), "ZoneNFT: already minted");
+        require(!isDormant[hexId], "ZoneNFT: hex in reclaim state");
+
+        // Oracle signs: (hexId, msg.sender as topMover, mintCost)
+        bytes32 sigHash = keccak256(abi.encodePacked(hexId, msg.sender, mintCost));
+        require(!usedMintSigs[sigHash], "ZoneNFT: sig already used");
+        bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(sigHash);
+        address recovered = ECDSA.recover(ethHash, oracleSig);
+        require(recovered == trustedOracle, "ZoneNFT: invalid oracle sig");
+        usedMintSigs[sigHash] = true;
+
+        // Burn mintCost $MOVE from caller
+        moveToken.burnFrom(msg.sender, mintCost);
+
+        _mint(msg.sender, uint256(hexId));
+        ownershipStart[hexId] = block.timestamp;
+        lastActivity[hexId] = block.timestamp;
+
+        emit ZoneMinted(hexId, msg.sender, mintCost);
+    }
+
+    function getLoyaltyMultiplier(uint64 hexId) external view returns (uint256) {
+        uint256 start = ownershipStart[hexId];
+        if (start == 0) return 100;
+        uint256 elapsed = block.timestamp - start;
+        if (elapsed >= LOYALTY_TIER4) return 175;
+        if (elapsed >= LOYALTY_TIER3) return 150;
+        if (elapsed >= LOYALTY_TIER2) return 125;
+        return 100;
+    }
+
+    function markDormant(uint64 hexId) external {
+        require(_ownerOf(uint256(hexId)) != address(0), "ZoneNFT: not minted");
+        require(block.timestamp - lastActivity[hexId] > DORMANCY_PERIOD, "ZoneNFT: not dormant yet");
+        isDormant[hexId] = true;
+        emit ZoneDormant(hexId);
+    }
+
+    function reclaimDormant(uint64 hexId) external {
+        require(isDormant[hexId], "ZoneNFT: not dormant");
+        require(block.timestamp - lastActivity[hexId] > RECLAIM_PERIOD, "ZoneNFT: reclaim period not elapsed");
+
+        address owner = _ownerOf(uint256(hexId));
+        _burn(uint256(hexId));
+        delete ownershipStart[hexId];
+        delete isDormant[hexId];
+        // accumulatedYield stays in contract; owner forfeits unclaimed yield
+        emit ZoneReclaimed(hexId);
+    }
+
+    function withdrawYield(uint64 hexId) external {
+        require(ownerOf(uint256(hexId)) == msg.sender, "ZoneNFT: not owner");
+        uint256 amount = accumulatedYield[hexId];
+        require(amount > 0, "ZoneNFT: no yield");
+        accumulatedYield[hexId] = 0;
+        // Transfer $MOVE from this contract to owner
+        // ZoneNFT must hold the $MOVE balance credited by MoveToken
+        moveToken.transfer(msg.sender, amount);
+        emit YieldWithdrawn(hexId, msg.sender, amount);
+    }
+
+    function zoneOwner(uint64 hexId) external view returns (address) {
+        return _ownerOf(uint256(hexId));
+    }
+
+    // ZoneNFT must exist in AccessControl hierarchy for ERC721 + AccessControl
+    function supportsInterface(bytes4 interfaceId)
+        public view override(ERC721, AccessControl) returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+}

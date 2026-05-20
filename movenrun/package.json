@@ -1,0 +1,17 @@
+{
+  "name": "movenrun",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "contracts",
+    "backend",
+    "mobile"
+  ],
+  "scripts": {
+    "build": "yarn workspaces run build",
+    "test": "yarn workspaces run test",
+    "lint": "yarn workspaces run lint"
+  },
+  "packageManager": "yarn@4.9.1"
+}
