@@ -10,11 +10,12 @@
     "worker:gps": "tsx src/workers/gps.worker.ts",
     "worker:keeper": "tsx src/workers/keeper.worker.ts",
     "db:migrate": "drizzle-kit migrate",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "test": "node --experimental-vm-modules ../node_modules/.bin/jest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
-    "@movenrun/shared": "workspace:*",
+    "@movenrun/shared": "../shared",
     "bullmq": "^5.7.8",
     "drizzle-orm": "^0.31.0",
     "ethers": "^6.12.1",
@@ -26,9 +27,12 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
     "@types/node": "^20.12.7",
     "@types/pg": "^8.11.5",
     "drizzle-kit": "^0.22.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.4",
     "tsx": "^4.9.3",
     "typescript": "^5.4.5"
   }

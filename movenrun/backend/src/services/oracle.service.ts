@@ -17,11 +17,11 @@ export class OracleService {
   async signRouteProof(
     walletAddress: string,
     routeHash: string,
-    distanceMeters: number
+    distanceMeters: number,
   ): Promise<string> {
     const message = ethers.solidityPackedKeccak256(
       ["address", "bytes32", "uint256"],
-      [walletAddress, routeHash, BigInt(distanceMeters)]
+      [walletAddress, routeHash, BigInt(distanceMeters)],
     );
     return this.wallet.signMessage(ethers.getBytes(message));
   }
@@ -31,7 +31,7 @@ export class OracleService {
     const hexIdUint64 = BigInt("0x" + hexId);
     const message = ethers.solidityPackedKeccak256(
       ["uint64", "address", "uint256"],
-      [hexIdUint64, topMover, mintCost]
+      [hexIdUint64, topMover, mintCost],
     );
     return this.wallet.signMessage(ethers.getBytes(message));
   }
@@ -40,12 +40,12 @@ export class OracleService {
   async signChallengeDeclaration(
     hexId: string,
     defenderAddress: string,
-    defenderBaseScore: bigint
+    defenderBaseScore: bigint,
   ): Promise<string> {
     const hexIdUint64 = BigInt("0x" + hexId);
     const message = ethers.solidityPackedKeccak256(
       ["uint64", "address", "uint256"],
-      [hexIdUint64, defenderAddress, defenderBaseScore]
+      [hexIdUint64, defenderAddress, defenderBaseScore],
     );
     return this.wallet.signMessage(ethers.getBytes(message));
   }
@@ -55,7 +55,22 @@ export class OracleService {
     const hexIdUint64 = BigInt("0x" + hexId);
     const message = ethers.solidityPackedKeccak256(
       ["uint64", "address", "uint256"],
-      [hexIdUint64, submitter, score]
+      [hexIdUint64, submitter, score],
+    );
+    return this.wallet.signMessage(ethers.getBytes(message));
+  }
+
+  // Sign zone mint eligibility for frontend: (hexId, userAddress, mintCost, expiry)
+  async signMintEligibility(
+    hexId: string,
+    userAddress: string,
+    mintCost: bigint,
+    expiry: number,
+  ): Promise<string> {
+    const hexIdUint64 = BigInt("0x" + hexId);
+    const message = ethers.solidityPackedKeccak256(
+      ["uint64", "address", "uint256", "uint256"],
+      [hexIdUint64, userAddress, mintCost, BigInt(expiry)],
     );
     return this.wallet.signMessage(ethers.getBytes(message));
   }
@@ -65,7 +80,7 @@ export class OracleService {
     const abiCoder = ethers.AbiCoder.defaultAbiCoder();
     const payload = abiCoder.encode(
       ["uint256", "uint64[]", "uint256[]"],
-      [BigInt(seasonNumber), hexIds, yields]
+      [BigInt(seasonNumber), hexIds, yields],
     );
     const hash = ethers.keccak256(payload);
     return this.wallet.signMessage(ethers.getBytes(hash));

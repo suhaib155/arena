@@ -40,3 +40,35 @@ export interface ZoneMintEligibility {
   mintCost: bigint;
   oracleSig: string;
 }
+
+export interface ZoneActivity {
+  hexId: string;
+  uniqueUsers: number;
+  topMover: string;
+  topMoverDistance: number;
+  totalDistance: number;
+}
+
+export interface HexData {
+  hexId: string;
+  status: ZoneStatus;
+  owner?: string;
+  totalDistanceMeters?: number;
+}
+
+export interface MintEligibility {
+  hexId: string;
+  eligible: boolean;
+  isTopMover: boolean;
+  hasEnoughUsers: boolean;
+  mintCost: bigint;
+  oracleSig?: string;
+  reason?: string;
+}
+
+export interface BoundingBox {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}

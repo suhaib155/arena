@@ -4,9 +4,7 @@
   "private": true,
   "workspaces": [
     "shared",
-    "contracts",
-    "backend",
-    "mobile"
+    "backend"
   ],
   "scripts": {
     "build": "yarn workspaces run build",

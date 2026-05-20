@@ -1,83 +1,118 @@
 import { Worker, Queue } from "bullmq";
 import IORedis from "ioredis";
+import { eq, sql } from "drizzle-orm";
 import { getConfig } from "../config.js";
-import { GpsService } from "../services/gps.service.js";
-import { HexService } from "../services/hex.service.js";
+import { getDb } from "../db/index.js";
+import { gpsSubmissions, hexActivityDaily } from "../db/schema.js";
+import { GpsService, type GpsPoint } from "../services/gps.service.js";
 import { OracleService } from "../services/oracle.service.js";
-import { GPSRoute, RouteStatus } from "@movenrun/shared";
 
 const config = getConfig();
 const redis = new IORedis(config.REDIS_URL, { maxRetriesPerRequest: null });
 
 export const gpsQueue = new Queue("gps-verification", { connection: redis });
 
-const gpsService   = new GpsService();
-const hexService   = new HexService();
-const oracleService = new OracleService();
-
 interface GpsJob {
-  routeId: string;
-  walletAddress: string;
-  points: Array<{ lat: number; lng: number; accuracy: number; timestamp: number }>;
-  startTime: number;
-  endTime: number;
+  jobId: string;
+  userAddress: string;
+  gpsPoints: GpsPoint[];
+  deviceId: string;
 }
 
 const worker = new Worker<GpsJob>(
   "gps-verification",
   async (job) => {
-    const { routeId, walletAddress, points, startTime, endTime } = job.data;
+    const { jobId, userAddress, gpsPoints, deviceId } = job.data;
+    const db = getDb();
+    const oracle = new OracleService();
+    const gpsService = new GpsService(oracle, redis);
 
-    const route: GPSRoute = {
-      id: routeId,
-      userId: walletAddress,
-      walletAddress,
-      points,
-      startTime,
-      endTime,
-      distanceMeters: 0,
-      hexIds: [],
-      status: RouteStatus.Processing,
-    };
+    // ── Layer 1: Plausibility ─────────────────────────────────────────────────
+    const plausibility = gpsService.checkPlausibility(gpsPoints);
+    if (!plausibility.valid) {
+      await db
+        .update(gpsSubmissions)
+        .set({ status: "REJECTED", rejectionReason: plausibility.reason })
+        .where(eq(gpsSubmissions.id, jobId));
 
-    // 1. Anomaly detection
-    const anomaly = gpsService.validateRoute(route);
-    if (anomaly.isAnomaly) {
-      console.log(`[GPS Worker] Route ${routeId} rejected:`, anomaly.reasons);
-      // TODO: update DB status to REJECTED
-      return { status: RouteStatus.Rejected, reasons: anomaly.reasons };
+      console.log(`[GPS Worker] Job ${jobId} rejected: ${plausibility.reason}`);
+      return { status: "REJECTED", reason: plausibility.reason };
     }
 
-    // 2. Calculate distance
-    const distanceMeters = Math.round(gpsService.calculateDistance(points));
-    route.distanceMeters = distanceMeters;
+    // ── Layer 2: H3 Hex Assignment ────────────────────────────────────────────
+    const hexActivity = gpsService.buildHexActivity(gpsPoints);
+    const hexActivityRecord = Object.fromEntries(
+      [...hexActivity.entries()].map(([k, v]) => [k, Math.round(v)]),
+    );
 
-    // 3. Get hex IDs covered
-    const hexIds = hexService.getHexIdsForPoints(points);
-    route.hexIds = hexIds;
+    // ── Layer 3: Oracle Attestation ───────────────────────────────────────────
+    const routeHash = gpsService.buildRouteHash(userAddress, gpsPoints, hexActivityRecord);
+    const distanceMeters = plausibility.distance_meters;
+    const oracleSig = await oracle.signRouteProof(userAddress, routeHash, distanceMeters);
 
-    // 4. Build route hash
-    const routeHash = gpsService.buildRouteHash(route);
+    // Store attestation in Redis with 1-hour TTL for client retrieval
+    await redis.setex(
+      `attestation:${routeHash}`,
+      3600,
+      JSON.stringify({ routeHash, userAddress, hexActivity: hexActivityRecord, distanceMeters, deviceId, oracleSig }),
+    );
 
-    // 5. Get oracle signature
-    const oracleSig = await oracleService.signRouteProof(walletAddress, routeHash, distanceMeters);
+    // ── Persist result to DB ──────────────────────────────────────────────────
+    await db
+      .update(gpsSubmissions)
+      .set({ status: "VERIFIED", routeHash, hexActivity: hexActivityRecord, distanceMeters, oracleSig })
+      .where(eq(gpsSubmissions.id, jobId));
 
-    // TODO: persist to DB, emit event for mobile to poll
+    // ── Update hex_activity_daily per hex ─────────────────────────────────────
+    const today = new Date().toISOString().slice(0, 10);
+    for (const [hexId, meters] of hexActivity) {
+      if (meters < 1) continue;
+      await db
+        .insert(hexActivityDaily)
+        .values({
+          hexId,
+          userAddress,
+          date: today,
+          distanceMeters: Math.round(meters),
+          moveEarned: "0",
+        })
+        .onConflictDoUpdate({
+          target: [hexActivityDaily.hexId, hexActivityDaily.userAddress, hexActivityDaily.date],
+          set: {
+            distanceMeters: sql`${hexActivityDaily.distanceMeters} + excluded.distance_meters`,
+          },
+        });
+    }
 
-    console.log(`[GPS Worker] Route ${routeId} verified: ${distanceMeters}m across ${hexIds.length} hexes`);
+    console.log(
+      `[GPS Worker] Job ${jobId} verified: ${distanceMeters}m across ${hexActivity.size} hexes`,
+    );
+
+    // TODO: emit WebSocket notification to userAddress
     return {
-      status: RouteStatus.Verified,
+      status: "VERIFIED",
       routeHash,
       distanceMeters,
-      hexIds,
+      hexIds: Array.from(hexActivity.keys()),
       oracleSig,
     };
   },
-  { connection: redis, concurrency: 10 }
+  { connection: redis, concurrency: 10 },
 );
 
-worker.on("failed", (job, err) => {
+worker.on("failed", async (job, err) => {
   console.error(`[GPS Worker] Job ${job?.id} failed:`, err);
+  if (job?.data?.jobId) {
+    try {
+      const db = getDb();
+      await db
+        .update(gpsSubmissions)
+        .set({ status: "FAILED", rejectionReason: err.message })
+        .where(eq(gpsSubmissions.id, job.data.jobId));
+    } catch {
+      // best-effort DB update on worker failure
+    }
+  }
 });
 
 console.log("[GPS Worker] Started");
