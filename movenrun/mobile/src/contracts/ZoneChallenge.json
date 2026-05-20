@@ -1,0 +1,42 @@
+{
+  "contractName": "ZoneChallenge",
+  "abi": [
+    {
+      "inputs": [
+        { "internalType": "uint64", "name": "hexId", "type": "uint64" },
+        { "internalType": "uint256", "name": "defenderBaseScore", "type": "uint256" },
+        { "internalType": "bytes", "name": "oracleSig", "type": "bytes" }
+      ],
+      "name": "declareChallenge",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint64", "name": "hexId", "type": "uint64" }],
+      "name": "getChallenge",
+      "outputs": [
+        {
+          "components": [
+            { "internalType": "address", "name": "challenger", "type": "address" },
+            { "internalType": "address", "name": "defender", "type": "address" },
+            { "internalType": "uint256", "name": "challengeStart", "type": "uint256" },
+            { "internalType": "uint256", "name": "challengeEnd", "type": "uint256" },
+            { "internalType": "uint256", "name": "challengerScore", "type": "uint256" },
+            { "internalType": "uint256", "name": "defenderScore", "type": "uint256" },
+            { "internalType": "uint256", "name": "defenderBaseScore", "type": "uint256" },
+            { "internalType": "uint256", "name": "strongholdBoostExpiry", "type": "uint256" },
+            { "internalType": "uint8", "name": "strongholdStacks", "type": "uint8" },
+            { "internalType": "bool", "name": "timeExtensionUsed", "type": "bool" },
+            { "internalType": "bool", "name": "resolved", "type": "bool" }
+          ],
+          "internalType": "struct ZoneChallenge.Challenge",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "contractName": "ZoneNFT",
+  "abi": [
+    {
+      "inputs": [
+        { "internalType": "uint64", "name": "hexId", "type": "uint64" },
+        { "internalType": "uint256", "name": "mintCost", "type": "uint256" },
+        { "internalType": "bytes", "name": "oracleSig", "type": "bytes" }
+      ],
+      "name": "mintZone",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint64", "name": "hexId", "type": "uint64" }],
+      "name": "withdrawYield",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint64", "name": "hexId", "type": "uint64" }],
+      "name": "zoneOwner",
+      "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint64", "name": "hexId", "type": "uint64" }],
+      "name": "getLoyaltyMultiplier",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint64", "name": "hexId", "type": "uint64" }],
+      "name": "accumulatedYield",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "address", "name": "account", "type": "address" }],
+      "name": "balanceOf",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ]
+}
