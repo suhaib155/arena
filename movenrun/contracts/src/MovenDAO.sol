@@ -1,27 +1,31 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./MoveToken.sol";
 import "./MoveVault.sol";
 
-// MovenDAO: 3-tier governance
-// Tier 1 (Core): zone owners with >6 month loyalty multiplier — 3x voting weight
-// Tier 2 (Active): wallets with ≥1000 $MOVE staked — 1.5x voting weight
-// Tier 3 (Community): any $MOVE holder — 1x voting weight
+/// @title MovenDAO — 3-tier governance for MovenRun protocol
+/// @notice Voting weight tiers:
+///   Tier 3 (Community) — any $MOVE holder: 1× weight (balance + staked)
+///   Tier 2 (Active)    — ≥1000 $MOVE staked: 1.5× weight
+///   Tier 1 (Core)      — zone owners with 6-month+ loyalty (handled off-chain via snapshot)
+///
+/// Proposals require 100 $MOVE to create, a 7-day voting period, 2-day execution delay,
+/// and quorum of 10% of total staked $MOVE.
 contract MovenDAO is AccessControl, ReentrancyGuard {
     bytes32 public constant DAO_ADMIN_ROLE = keccak256("DAO_ADMIN_ROLE");
 
-    uint256 public constant VOTING_PERIOD = 7 days;
-    uint256 public constant EXECUTION_DELAY = 2 days;
-    uint256 public constant QUORUM_BPS = 1_000; // 10% of total staked
+    uint256 public constant VOTING_PERIOD    = 7 days;
+    uint256 public constant EXECUTION_DELAY  = 2 days;
+    uint256 public constant QUORUM_BPS       = 1_000; // 10% of total staked
 
     MoveToken public moveToken;
     MoveVault public moveVault;
 
     enum ProposalState { Active, Succeeded, Defeated, Executed, Cancelled }
-    enum ProposalType { ParameterChange, TreasurySpend, ContractUpgrade, EmissionAdjust }
+    enum ProposalType  { ParameterChange, TreasurySpend, ContractUpgrade, EmissionAdjust }
 
     struct Proposal {
         uint256 id;
@@ -54,6 +58,12 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
         _grantRole(DAO_ADMIN_ROLE, admin);
     }
 
+    /// @notice Create a new governance proposal. Requires 100 $MOVE balance.
+    /// @param pType       Proposal category
+    /// @param description Human-readable summary (stored on-chain for transparency)
+    /// @param target      Contract address the proposal will call on execution
+    /// @param callData    Encoded function call data for the target contract
+    /// @return proposalId The newly created proposal ID
     function propose(
         ProposalType pType,
         string calldata description,
@@ -79,6 +89,11 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
         emit ProposalCreated(proposalId, msg.sender, pType, description);
     }
 
+    /// @notice Cast a vote on an active proposal.
+    ///         Voting weight = (staked + balance) × tier multiplier.
+    ///         Tier 2 bonus applies when ≥1000 $MOVE is staked.
+    /// @param proposalId The proposal to vote on
+    /// @param support    true = for, false = against
     function vote(uint256 proposalId, bool support) external {
         Proposal storage p = proposals[proposalId];
         require(block.timestamp < p.endTime, "MovenDAO: voting ended");
@@ -97,6 +112,10 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
         emit Voted(proposalId, msg.sender, support, weight);
     }
 
+    /// @notice Execute a passed proposal after the execution delay.
+    ///         Requires: forVotes > againstVotes AND forVotes ≥ quorum (10% of totalStaked).
+    ///         The target call is made with a reentrancy guard; a reverted call reverts execution.
+    /// @param proposalId The proposal to execute
     function execute(uint256 proposalId) external nonReentrant {
         Proposal storage p = proposals[proposalId];
         require(!p.executed && !p.cancelled, "MovenDAO: invalid state");
@@ -113,6 +132,9 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
         emit ProposalExecuted(proposalId);
     }
 
+    /// @notice Cancel a proposal. Only the proposer or DAO admin may cancel.
+    ///         Cannot cancel an already-executed proposal.
+    /// @param proposalId The proposal to cancel
     function cancel(uint256 proposalId) external {
         Proposal storage p = proposals[proposalId];
         require(msg.sender == p.proposer || hasRole(DAO_ADMIN_ROLE, msg.sender), "MovenDAO: not authorized");
@@ -121,6 +143,8 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
         emit ProposalCancelled(proposalId);
     }
 
+    /// @notice Returns the current state of a proposal.
+    /// @param proposalId The proposal to query
     function getProposalState(uint256 proposalId) external view returns (ProposalState) {
         Proposal storage p = proposals[proposalId];
         if (p.cancelled) return ProposalState.Cancelled;
@@ -135,7 +159,7 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
         uint256 balance = moveToken.balanceOf(voter);
         uint256 totalPower = staked + balance;
 
-        // Tier 2: ≥1000 $MOVE staked → 1.5x
+        // Tier 2: ≥1000 $MOVE staked → 1.5×
         if (staked >= 1_000 ether) {
             return (totalPower * 15) / 10;
         }
@@ -143,7 +167,6 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
     }
 
     function _stakeInfo(address user) internal view returns (uint256 amount, uint256 stakedAt, uint256 lastClaim) {
-        MoveVault.StakeInfo memory info = moveVault.stakes(user);
-        return (info.amount, info.stakedAt, info.lastRewardClaim);
+        (amount, stakedAt, lastClaim) = moveVault.stakes(user);
     }
 }

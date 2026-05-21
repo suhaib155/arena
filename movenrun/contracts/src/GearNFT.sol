@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./MoveToken.sol";
 
+/// @title GearNFT — ERC-1155 equipment system for MovenRun
+/// @notice Players mint gear NFTs by burning $MOVE. Each gear slot (Shoes, Jacket, Watch,
+///         Headband) provides a movement score multiplier. Equipping a new item for a slot
+///         replaces the previous one. The combined multiplier across all slots is applied
+///         to a user's $MOVE earnings by MoveToken.
 contract GearNFT is ERC1155, AccessControl {
     bytes32 public constant GEAR_ADMIN_ROLE = keccak256("GEAR_ADMIN_ROLE");
 
@@ -15,7 +20,7 @@ contract GearNFT is ERC1155, AccessControl {
     struct GearStats {
         string name;
         GearSlot slot;
-        uint256 multiplierBps; // basis points on top of 10000 base; e.g. 10500 = 1.05x
+        uint256 multiplierBps; // basis points on top of 10000 base; e.g. 10500 = 1.05×
         uint256 mintCost;      // $MOVE cost to mint
         bool active;
     }
@@ -26,7 +31,6 @@ contract GearNFT is ERC1155, AccessControl {
     // user → slot → equipped tokenId (0 = none)
     mapping(address => mapping(GearSlot => uint256)) public equippedGear;
 
-    // Track next gear type ID
     uint256 public nextGearId = 1;
 
     event GearMinted(address indexed to, uint256 indexed tokenId, uint256 amount);
@@ -39,6 +43,12 @@ contract GearNFT is ERC1155, AccessControl {
         _grantRole(GEAR_ADMIN_ROLE, admin);
     }
 
+    /// @notice Register a new gear type. Restricted to GEAR_ADMIN_ROLE.
+    /// @param name          Display name (e.g. "Sprint Shoes")
+    /// @param slot          Equipment slot (Shoes, Jacket, Watch, Headband)
+    /// @param multiplierBps Multiplier in basis points (10000 = 1.0×, 10500 = 1.05×)
+    /// @param mintCost      $MOVE cost to mint one unit
+    /// @return tokenId      The newly assigned ERC-1155 token ID
     function addGearType(
         string calldata name,
         GearSlot slot,
@@ -56,6 +66,10 @@ contract GearNFT is ERC1155, AccessControl {
         emit GearTypeAdded(tokenId, name, slot, multiplierBps);
     }
 
+    /// @notice Mint `amount` units of a gear type by burning $MOVE.
+    ///         Caller must have approved this contract for `gearStats[tokenId].mintCost × amount`.
+    /// @param tokenId Gear type token ID
+    /// @param amount  Number of units to mint
     function mintGear(uint256 tokenId, uint256 amount) external {
         GearStats memory stats = gearStats[tokenId];
         require(stats.active, "GearNFT: gear type not active");
@@ -65,6 +79,9 @@ contract GearNFT is ERC1155, AccessControl {
         emit GearMinted(msg.sender, tokenId, amount);
     }
 
+    /// @notice Equip a gear item to its slot. Caller must own at least one unit.
+    ///         Replaces any previously equipped item in the same slot.
+    /// @param tokenId Gear type token ID to equip
     function equipGear(uint256 tokenId) external {
         require(balanceOf(msg.sender, tokenId) > 0, "GearNFT: not owned");
         GearSlot slot = gearStats[tokenId].slot;
@@ -72,7 +89,11 @@ contract GearNFT is ERC1155, AccessControl {
         emit GearEquipped(msg.sender, slot, tokenId);
     }
 
-    // Returns the combined multiplier in 1e18 form for a user (product of all equipped gear)
+    /// @notice Compute the combined equipment multiplier for a user across all four slots.
+    ///         Result is expressed in 1e18 units (1e18 = 1.0×, 1.5e18 = 1.5×).
+    ///         The loop is bounded to exactly 4 iterations (one per GearSlot enum value).
+    /// @param user Wallet address
+    /// @return Combined multiplier in 1e18 scale
     function getUserMultiplier(address user) external view returns (uint256) {
         uint256 result = 1 ether;
         for (uint256 s = 0; s < 4; s++) {

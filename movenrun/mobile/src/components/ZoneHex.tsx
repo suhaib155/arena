@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { Polygon } from "react-native-maps";
 import * as h3 from "h3-js";
 import { Zone, ZoneStatus } from "@movenrun/shared";
@@ -29,18 +29,26 @@ function hexStroke(zone: Zone | null): string {
   }
 }
 
-export function ZoneHex({ hexId, zone, onPress }: Props) {
-  const boundary = h3.cellToBoundary(hexId);
-  const coordinates = boundary.map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
+// Memoized: only re-renders when hexId, zone status, or onPress changes.
+// Boundary coordinates are stable per hexId so no recalculation is needed on unrelated state changes.
+export const ZoneHex = memo(
+  function ZoneHex({ hexId, zone, onPress }: Props) {
+    const boundary = h3.cellToBoundary(hexId);
+    const coordinates = boundary.map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
 
-  return (
-    <Polygon
-      coordinates={coordinates}
-      fillColor={hexColor(zone)}
-      strokeColor={hexStroke(zone)}
-      strokeWidth={1}
-      tappable
-      onPress={onPress}
-    />
-  );
-}
+    return (
+      <Polygon
+        coordinates={coordinates}
+        fillColor={hexColor(zone)}
+        strokeColor={hexStroke(zone)}
+        strokeWidth={1}
+        tappable
+        onPress={onPress}
+      />
+    );
+  },
+  (prev, next) =>
+    prev.hexId === next.hexId &&
+    prev.zone?.status === next.zone?.status &&
+    prev.onPress === next.onPress
+);

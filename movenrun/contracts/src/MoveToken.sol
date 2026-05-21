@@ -1,21 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
+/// @title MoveToken — ERC-20 $MOVE token for MovenRun
+/// @notice 1 billion max supply. Minting requires a Chainlink-oracle-signed GPS route proof.
+///         Emission halves every HALVING_INTERVAL blocks. A 2% zone tax is routed to the
+///         ZoneNFT contract when a minted route passes through a claimed zone.
 contract MoveToken is ERC20, AccessControl {
     using ECDSA for bytes32;
 
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant MINTER_ROLE   = keccak256("MINTER_ROLE");
     bytes32 public constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
-    bytes32 public constant SEASON_ROLE = keccak256("SEASON_ROLE");
+    bytes32 public constant SEASON_ROLE   = keccak256("SEASON_ROLE");
 
-    uint256 public constant MAX_SUPPLY = 1_000_000_000 ether;
+    uint256 public constant MAX_SUPPLY       = 1_000_000_000 ether;
     uint256 public constant HALVING_INTERVAL = 2_600_000;
-    uint256 public constant ZONE_TAX_BPS = 200; // 2%
+    uint256 public constant ZONE_TAX_BPS     = 200; // 2%
 
     address public trustedOracle;
     address public zoneNFT;
@@ -52,16 +56,29 @@ contract MoveToken is ERC20, AccessControl {
         _grantRole(GOVERNOR_ROLE, admin);
     }
 
+    /// @notice Set the ZoneNFT contract address for zone tax routing. Admin only.
+    /// @param _zoneNFT Address of the deployed ZoneNFT contract
     function setZoneNFT(address _zoneNFT) external onlyRole(DEFAULT_ADMIN_ROLE) {
         zoneNFT = _zoneNFT;
     }
 
+    /// @notice Set a user's gear multiplier (1e18 = 1.0×, max 3e18 = 3.0×).
+    ///         Called by GearNFT when a user equips gear.
+    /// @param user       Wallet address
+    /// @param multiplier Multiplier expressed as 1e18 = 1.0×
     function setGearMultiplier(address user, uint256 multiplier) external onlyRole(MINTER_ROLE) {
-        // multiplier expressed as 1e18 = 1.0x baseline
         require(multiplier >= 1 ether && multiplier <= 3 ether, "MoveToken: multiplier out of range");
         gearMultiplier[user] = multiplier;
     }
 
+    /// @notice Mint $MOVE for a completed GPS route. Requires a valid oracle signature.
+    ///         Routes may only be submitted once (replay protection via routeHash).
+    ///         Enforces per-address daily cap and global max supply.
+    ///         2% of earned tokens are minted to the ZoneNFT contract as zone tax.
+    /// @param to             Recipient wallet address
+    /// @param routeHash      SHA-256 hash of the route payload (built by backend)
+    /// @param oracleSig      Oracle signature over keccak256(to, routeHash, distanceMeters)
+    /// @param distanceMeters Total route distance in metres
     function mintMOVE(
         address to,
         bytes32 routeHash,
@@ -70,7 +87,6 @@ contract MoveToken is ERC20, AccessControl {
     ) external {
         require(!usedRoutes[routeHash], "MoveToken: route already used");
 
-        // Verify oracle signature over (to, routeHash, distanceMeters)
         bytes32 message = keccak256(abi.encodePacked(to, routeHash, distanceMeters));
         bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(message);
         address recovered = ECDSA.recover(ethHash, oracleSig);
@@ -99,7 +115,6 @@ contract MoveToken is ERC20, AccessControl {
 
         require(totalSupply() + earned <= MAX_SUPPLY, "MoveToken: max supply exceeded");
 
-        // Zone tax: 2% goes to zone owner if zone exists
         uint256 zoneTax = 0;
         if (zoneNFT != address(0)) {
             zoneTax = (earned * ZONE_TAX_BPS) / 10_000;
@@ -108,36 +123,43 @@ contract MoveToken is ERC20, AccessControl {
         weeklyMint += earned;
         _mint(to, earned - zoneTax);
         if (zoneTax > 0) {
-            _mint(zoneNFT, zoneTax); // ZoneNFT contract distributes to owner
+            _mint(zoneNFT, zoneTax);
         }
 
         emit MoveMinted(to, routeHash, distanceMeters, earned);
     }
 
+    /// @notice Burn $MOVE from the caller's balance.
+    /// @param amount Amount of $MOVE to burn
     function burnMOVE(uint256 amount) external {
         weeklyBurn += amount;
         _burn(msg.sender, amount);
     }
 
-    // Called by contracts that burn on behalf of users (challenge, zone mint)
-    function burnFrom(address from, uint256 amount) public override {
+    /// @notice Burn $MOVE from `from`'s balance on behalf of the caller (requires allowance).
+    ///         Used by ZoneNFT (mint), ZoneChallenge (stronghold/extension), etc.
+    function burnFrom(address from, uint256 amount) public {
+        _spendAllowance(from, msg.sender, amount);
         weeklyBurn += amount;
-        super.burnFrom(from, amount);
+        _burn(from, amount);
     }
 
+    /// @notice Update the base emission rate. Restricted to GOVERNOR_ROLE.
+    /// @param newRate New base rate in $MOVE wei per km
     function updateBaseRate(uint256 newRate) external onlyRole(GOVERNOR_ROLE) {
         emit BaseRateUpdated(baseRate, newRate);
         baseRate = newRate;
     }
 
-    // Called weekly by SeasonController / Keeper
+    /// @notice Adjust the emission rate downward by 10% if the weekly burn/mint ratio < 0.7.
+    ///         Called weekly by SeasonController / Keeper (SEASON_ROLE).
     function adjustEmissionRate() external onlyRole(SEASON_ROLE) {
         if (weeklyMint > 0) {
             uint256 ratioBps = (weeklyBurn * 10_000) / weeklyMint;
-            // If burn/mint < 0.7 (7000 bps), reduce baseRate by 10%
             if (ratioBps < 7_000) {
-                baseRate = (baseRate * 9_000) / 10_000;
-                emit BaseRateUpdated(baseRate, baseRate);
+                uint256 newRate = (baseRate * 9_000) / 10_000;
+                emit BaseRateUpdated(baseRate, newRate);
+                baseRate = newRate;
             }
         }
         emit WeeklyStatsReset(weeklyMint, weeklyBurn);
@@ -145,21 +167,33 @@ contract MoveToken is ERC20, AccessControl {
         weeklyBurn = 0;
     }
 
+    /// @notice Reset weekly mint/burn counters without rate adjustment. SEASON_ROLE only.
     function resetWeeklyStats() external onlyRole(SEASON_ROLE) {
         emit WeeklyStatsReset(weeklyMint, weeklyBurn);
         weeklyMint = 0;
         weeklyBurn = 0;
     }
 
+    /// @notice Update the trusted oracle address. Admin only.
+    /// @param newOracle New oracle signer address
     function updateOracle(address newOracle) external onlyRole(DEFAULT_ADMIN_ROLE) {
         emit OracleUpdated(trustedOracle, newOracle);
         trustedOracle = newOracle;
     }
 
+    /// @notice Returns the current effective mint rate in $MOVE wei per km, after halvings.
+    function currentRate() external view returns (uint256) {
+        return _currentRate();
+    }
+
+    /// @notice Returns the current per-address daily mint cap in $MOVE wei, after halvings.
+    function currentDailyCap() external view returns (uint256) {
+        return _currentDailyCap();
+    }
+
     function _currentRate() internal view returns (uint256) {
         uint256 halvings = (block.number - deployBlock) / HALVING_INTERVAL;
         uint256 rate = baseRate;
-        // Cap halvings to avoid underflow
         if (halvings > 20) halvings = 20;
         for (uint256 i = 0; i < halvings; i++) {
             rate = rate / 2;
@@ -175,13 +209,5 @@ contract MoveToken is ERC20, AccessControl {
             cap = cap / 2;
         }
         return cap;
-    }
-
-    function currentRate() external view returns (uint256) {
-        return _currentRate();
-    }
-
-    function currentDailyCap() external view returns (uint256) {
-        return _currentDailyCap();
     }
 }
