@@ -14,61 +14,62 @@ interface UserState {
   moveBalance: bigint;
   stakedBalance: bigint;
   ownedZoneIds: string[];
+  allyAddresses: string[];
+  cityName: string;
 }
 
 interface ZoneState {
   visibleZones: Zone[];
   selectedHexId: string | null;
+  currentHexId: string | null;
   activeBattles: ZoneChallenge[];
 }
 
 interface AppStore extends TrackingState, UserState, ZoneState {
-  // Tracking actions
   startTracking: () => void;
   stopTracking: () => void;
   addGPSPoint: (point: GPSPoint) => void;
   resetRun: () => void;
 
-  // User actions
   setWalletAddress: (address: string | null) => void;
   setMoveBalance: (balance: bigint) => void;
+  setCityName: (name: string) => void;
 
-  // Zone actions
   setVisibleZones: (zones: Zone[]) => void;
   selectHex: (hexId: string | null) => void;
+  setCurrentHexId: (hexId: string | null) => void;
   setActiveBattles: (battles: ZoneChallenge[]) => void;
 }
 
-export const useStore = create<AppStore>((set, get) => ({
-  // Tracking
+export const useStore = create<AppStore>((set) => ({
   isTracking: false,
   currentPoints: [],
   currentDistanceMeters: 0,
   earnedThisRun: 0n,
 
-  // User
   walletAddress: null,
   moveBalance: 0n,
   stakedBalance: 0n,
   ownedZoneIds: [],
+  allyAddresses: [],
+  cityName: "",
 
-  // Zones
   visibleZones: [],
   selectedHexId: null,
+  currentHexId: null,
   activeBattles: [],
 
   startTracking: () => set({ isTracking: true, currentPoints: [], currentDistanceMeters: 0, earnedThisRun: 0n }),
   stopTracking: () => set({ isTracking: false }),
-  addGPSPoint: (point) =>
-    set((state) => ({
-      currentPoints: [...state.currentPoints, point],
-    })),
+  addGPSPoint: (point) => set((state) => ({ currentPoints: [...state.currentPoints, point] })),
   resetRun: () => set({ currentPoints: [], currentDistanceMeters: 0, earnedThisRun: 0n }),
 
   setWalletAddress: (address) => set({ walletAddress: address }),
   setMoveBalance: (balance) => set({ moveBalance: balance }),
+  setCityName: (name) => set({ cityName: name }),
 
   setVisibleZones: (zones) => set({ visibleZones: zones }),
   selectHex: (hexId) => set({ selectedHexId: hexId }),
+  setCurrentHexId: (hexId) => set({ currentHexId: hexId }),
   setActiveBattles: (battles) => set({ activeBattles: battles }),
 }));

@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0d0d0d"
+      "backgroundColor": "#080b12"
     },
     "ios": {
       "supportsTablet": false,
@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0d0d0d"
+        "backgroundColor": "#080b12"
       },
       "package": "io.movenrun.app",
       "permissions": [
@@ -39,7 +39,14 @@
         {
           "locationAlwaysAndWhenInUsePermission": "MovenRun tracks your route to earn $MOVE tokens."
         }
-      ]
+      ],
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsDownloadToken": "MAPBOX_DOWNLOADS_TOKEN"
+        }
+      ],
+      "@shopify/react-native-skia"
     ],
     "extra": {
       "eas": {
