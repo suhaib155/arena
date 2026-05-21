@@ -1,58 +1,77 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, Text, StyleSheet, View } from "react-native";
-import { useStore } from "../store/index.js";
+import React, { useEffect, useRef } from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated';
+import { useStore } from '../store/index.js';
+import { AnimatedNumber } from './AnimatedNumber';
+import { colors, fonts, radius, space, textSize } from '../theme/tokens';
 
 export function TokenBalance() {
   const moveBalance = useStore((s) => s.moveBalance);
-  const animatedValue = useRef(new Animated.Value(0)).current;
-  const prevBalance = useRef(0n);
+  const glowOpacity = useSharedValue(0);
+  const prevBalance = useRef<bigint>(0n);
+
+  const valueAsNumber = Number(moveBalance) / 1e18;
 
   useEffect(() => {
     if (moveBalance !== prevBalance.current) {
-      // Flash animation when balance changes
-      Animated.sequence([
-        Animated.timing(animatedValue, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.timing(animatedValue, { toValue: 0, duration: 400, useNativeDriver: true }),
-      ]).start();
+      glowOpacity.value = withTiming(0.5, { duration: 150 }, () => {
+        glowOpacity.value = withTiming(0, { duration: 500 });
+      });
       prevBalance.current = moveBalance;
     }
-  }, [moveBalance, animatedValue]);
+  }, [moveBalance, glowOpacity]);
 
-  const glowOpacity = animatedValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 0.6],
-  });
-
-  const formatted = (Number(moveBalance) / 1e18).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.glow, { opacity: glowOpacity }]} />
-      <Text style={styles.label}>$MOVE</Text>
-      <Text style={styles.balance}>{formatted}</Text>
+      <Animated.View style={[styles.glow, glowStyle]} />
+      <Animated.Text style={styles.label}>$MOVE</Animated.Text>
+      <AnimatedNumber
+        value={valueAsNumber}
+        decimals={2}
+        compact
+        showMoveGlyph
+        style={styles.balance}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(0,0,0,0.85)",
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.glass,
+    borderRadius: radius.lg,
+    paddingVertical: space[3],
+    paddingHorizontal: space[5],
     borderWidth: 1,
-    borderColor: "#00ff8840",
-    overflow: "hidden",
+    borderColor: `${colors.signal}33`,
+    overflow: 'hidden',
   },
   glow: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#00ff88",
-    borderRadius: 20,
+    backgroundColor: colors.signal,
+    borderRadius: radius.lg,
   },
-  label: { color: "#00ff88", fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.5 },
-  balance: { color: "#fff", fontSize: 22, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  label: {
+    color: colors.signal,
+    fontFamily: fonts.mono,
+    fontSize: textSize.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  },
+  balance: {
+    color: colors.snow,
+    fontFamily: fonts.mono,
+    fontSize: textSize.xl,
+    fontWeight: '700',
+  },
 });
