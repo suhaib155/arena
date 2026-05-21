@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@movenrun/shared": "workspace:*",
+    "@movenrun/shared": "*",
     "@privy-io/expo": "^0.5.0",
     "ethers": "^6.12.1",
     "expo": "~51.0.0",
