@@ -2,23 +2,27 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-contract MoveToken is ERC20, AccessControl {
+contract MoveToken is ERC20Burnable, AccessControl {
     using ECDSA for bytes32;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
     bytes32 public constant SEASON_ROLE = keccak256("SEASON_ROLE");
+    bytes32 public constant ORACLE_ROLE = keccak256("ORACLE_ROLE");
 
     uint256 public constant MAX_SUPPLY = 1_000_000_000 ether;
     uint256 public constant HALVING_INTERVAL = 2_600_000;
     uint256 public constant ZONE_TAX_BPS = 200; // 2%
+    uint256 public constant MIN_DEPOSIT = 50 ether; // 50 $MOVE security deposit
 
     address public trustedOracle;
     address public zoneNFT;
+    address public daoTreasury;
 
     uint256 public baseRate = 10 ether; // 10 $MOVE per km
     uint256 public deployBlock;
@@ -40,13 +44,20 @@ contract MoveToken is ERC20, AccessControl {
     // Prevent route replay
     mapping(bytes32 => bool) public usedRoutes;
 
+    // Stake-to-earn security deposits
+    mapping(address => uint256) public securityDeposit;
+    mapping(address => bool) public earnBanned;
+
     event MoveMinted(address indexed to, bytes32 indexed routeHash, uint256 distanceMeters, uint256 earned);
     event BaseRateUpdated(uint256 oldRate, uint256 newRate);
     event OracleUpdated(address oldOracle, address newOracle);
     event WeeklyStatsReset(uint256 weeklyMint, uint256 weeklyBurn);
+    event StakeDeposited(address indexed user, uint256 amount);
+    event StakeSlashed(address indexed cheater, string reason);
 
     constructor(address _trustedOracle, address admin) ERC20("MoveToken", "$MOVE") {
         trustedOracle = _trustedOracle;
+        daoTreasury = admin;
         deployBlock = block.number;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(GOVERNOR_ROLE, admin);
@@ -56,11 +67,46 @@ contract MoveToken is ERC20, AccessControl {
         zoneNFT = _zoneNFT;
     }
 
+    function setDaoTreasury(address _treasury) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        daoTreasury = _treasury;
+    }
+
     function setGearMultiplier(address user, uint256 multiplier) external onlyRole(MINTER_ROLE) {
         // multiplier expressed as 1e18 = 1.0x baseline
         require(multiplier >= 1 ether && multiplier <= 3 ether, "MoveToken: multiplier out of range");
         gearMultiplier[user] = multiplier;
     }
+
+    // ─── Stake-to-earn ──────────────────────────────────────────────────────────
+
+    /// @notice Deposit 50 $MOVE as an anti-cheat security bond before earning
+    function depositStake() external {
+        require(securityDeposit[msg.sender] == 0, "MoveToken: already deposited");
+        _transfer(msg.sender, address(this), MIN_DEPOSIT);
+        securityDeposit[msg.sender] = MIN_DEPOSIT;
+        emit StakeDeposited(msg.sender, MIN_DEPOSIT);
+    }
+
+    /// @notice Slash a cheater's deposit to the DAO treasury and ban them from earning
+    /// @param cheater Address of the banned user
+    /// @param reason Human-readable reason for the slash (logged to event)
+    function slashStake(address cheater, string calldata reason) external onlyRole(ORACLE_ROLE) {
+        uint256 amount = securityDeposit[cheater];
+        require(amount > 0, "MoveToken: no deposit to slash");
+        securityDeposit[cheater] = 0;
+        earnBanned[cheater] = true;
+        _transfer(address(this), daoTreasury, amount);
+        emit StakeSlashed(cheater, reason);
+    }
+
+    /// @notice Admin bootstrap mint — used for initial distribution, liquidity, and treasury seeding.
+    ///         Does NOT require a security deposit (used to onboard new users pre-staking).
+    function adminMint(address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(totalSupply() + amount <= MAX_SUPPLY, "MoveToken: max supply exceeded");
+        _mint(to, amount);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
 
     function mintMOVE(
         address to,
@@ -69,6 +115,8 @@ contract MoveToken is ERC20, AccessControl {
         uint256 distanceMeters
     ) external {
         require(!usedRoutes[routeHash], "MoveToken: route already used");
+        require(!earnBanned[to], "MoveToken: account banned");
+        require(securityDeposit[to] >= MIN_DEPOSIT, "MoveToken: deposit required");
 
         // Verify oracle signature over (to, routeHash, distanceMeters)
         bytes32 message = keccak256(abi.encodePacked(to, routeHash, distanceMeters));

@@ -49,7 +49,13 @@ describe("ZoneChallenge", function () {
     );
     await zoneChallenge.waitForDeployment();
 
-    // Mint tokens for both parties
+    // Fund defender and challenger with stake deposits before any mintMOVE
+    await moveToken.connect(admin).adminMint(defender.address, ethers.parseEther("50"));
+    await moveToken.connect(admin).adminMint(challenger.address, ethers.parseEther("50"));
+    await moveToken.connect(defender).depositStake();
+    await moveToken.connect(challenger).depositStake();
+
+    // Mint tokens for both parties (now deposit is in place)
     await mintTokens(defender, 20_000n);
     await mintTokens(challenger, 20_000n);
 

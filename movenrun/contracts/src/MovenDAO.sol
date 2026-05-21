@@ -143,7 +143,6 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
     }
 
     function _stakeInfo(address user) internal view returns (uint256 amount, uint256 stakedAt, uint256 lastClaim) {
-        MoveVault.StakeInfo memory info = moveVault.stakes(user);
-        return (info.amount, info.stakedAt, info.lastRewardClaim);
+        (amount, stakedAt, lastClaim) = moveVault.stakes(user);
     }
 }

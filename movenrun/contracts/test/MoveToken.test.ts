@@ -15,6 +15,10 @@ describe("MoveToken", function () {
     const MoveTokenFactory = await ethers.getContractFactory("MoveToken");
     moveToken = await MoveTokenFactory.deploy(oracle.address, admin.address);
     await moveToken.waitForDeployment();
+
+    // Fund user with 50 $MOVE so they can depositStake
+    await moveToken.connect(admin).adminMint(user.address, ethers.parseEther("50"));
+    await moveToken.connect(user).depositStake();
   });
 
   describe("Deployment", function () {
@@ -27,8 +31,9 @@ describe("MoveToken", function () {
       expect(await moveToken.trustedOracle()).to.equal(oracle.address);
     });
 
-    it("starts with zero supply", async function () {
-      expect(await moveToken.totalSupply()).to.equal(0n);
+    it("starts with zero earning supply (only stake balance)", async function () {
+      // User has 0 earnable balance (their 50 $MOVE went into stake)
+      expect(await moveToken.balanceOf(user.address)).to.equal(0n);
     });
 
     it("baseRate is 10 $MOVE", async function () {
@@ -93,6 +98,31 @@ describe("MoveToken", function () {
         moveToken.mintMOVE(user.address, routeHash2, sig2, 1_000n)
       ).to.be.revertedWith("MoveToken: daily cap reached");
     });
+
+    it("reverts if no security deposit", async function () {
+      const routeHash = ethers.hexlify(ethers.randomBytes(32));
+      const distance = 1_000n;
+      const sig = await buildMintSig(other.address, routeHash, distance);
+      await expect(
+        moveToken.mintMOVE(other.address, routeHash, sig, distance)
+      ).to.be.revertedWith("MoveToken: deposit required");
+    });
+
+    it("reverts if earn banned", async function () {
+      // Grant oracle role and slash user
+      await moveToken.connect(admin).grantRole(
+        await moveToken.ORACLE_ROLE(),
+        admin.address
+      );
+      await moveToken.connect(admin).slashStake(user.address, "cheating");
+
+      const routeHash = ethers.hexlify(ethers.randomBytes(32));
+      const distance = 1_000n;
+      const sig = await buildMintSig(user.address, routeHash, distance);
+      await expect(
+        moveToken.mintMOVE(user.address, routeHash, sig, distance)
+      ).to.be.revertedWith("MoveToken: account banned");
+    });
   });
 
   describe("burnMOVE", function () {
@@ -122,6 +152,37 @@ describe("MoveToken", function () {
     it("reverts for non-governor", async function () {
       await expect(
         moveToken.connect(user).updateBaseRate(ethers.parseEther("7"))
+      ).to.be.reverted;
+    });
+  });
+
+  describe("depositStake / slashStake", function () {
+    it("records correct deposit amount", async function () {
+      expect(await moveToken.securityDeposit(user.address)).to.equal(ethers.parseEther("50"));
+    });
+
+    it("reverts double deposit", async function () {
+      await moveToken.connect(admin).adminMint(user.address, ethers.parseEther("50"));
+      await expect(moveToken.connect(user).depositStake()).to.be.revertedWith("MoveToken: already deposited");
+    });
+
+    it("slashStake moves deposit to treasury and bans user", async function () {
+      const oracleRole = await moveToken.ORACLE_ROLE();
+      await moveToken.connect(admin).grantRole(oracleRole, admin.address);
+
+      const treasuryBefore = await moveToken.balanceOf(admin.address);
+      await moveToken.connect(admin).slashStake(user.address, "GPS spoofing");
+
+      expect(await moveToken.earnBanned(user.address)).to.be.true;
+      expect(await moveToken.securityDeposit(user.address)).to.equal(0n);
+      expect(await moveToken.balanceOf(admin.address)).to.equal(
+        treasuryBefore + ethers.parseEther("50")
+      );
+    });
+
+    it("slashStake reverts for non-ORACLE_ROLE callers", async function () {
+      await expect(
+        moveToken.connect(other).slashStake(user.address, "hack attempt")
       ).to.be.reverted;
     });
   });

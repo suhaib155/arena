@@ -28,7 +28,11 @@ describe("ZoneNFT", function () {
     );
     await zoneNFT.waitForDeployment();
 
-    // Give mover some $MOVE to burn for mint cost
+    // Fund mover with stake deposit (50 $MOVE) + earning tokens (200 $MOVE for 20km route)
+    await moveToken.connect(admin).adminMint(mover.address, ethers.parseEther("250"));
+    await moveToken.connect(mover).depositStake();
+
+    // Give mover some $MOVE to burn for mint cost (via mintMOVE — now works with deposit in place)
     const routeHash = ethers.hexlify(ethers.randomBytes(32));
     const message = ethers.solidityPackedKeccak256(
       ["address", "bytes32", "uint256"],
