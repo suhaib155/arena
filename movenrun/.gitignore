@@ -32,3 +32,8 @@ ios/
 .DS_Store
 *.log
 coverage/
+
+# Yarn local artifacts
+.pnp.cjs
+.pnp.loader.mjs
+.yarn/
