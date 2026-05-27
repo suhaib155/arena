@@ -11,11 +11,13 @@ describe("ZoneNFT", function () {
   let oracle:    SignerWithAddress;
   let mover:     SignerWithAddress;
   let other:     SignerWithAddress;
+  let chainId:   bigint;
 
   const HEX_ID = 613177413693333503n;
 
   beforeEach(async function () {
     [admin, oracle, mover, other] = await ethers.getSigners();
+    chainId = (await ethers.provider.getNetwork()).chainId;
 
     const MoveTokenFactory = await ethers.getContractFactory("MoveToken");
     moveToken = await MoveTokenFactory.deploy(admin.address);
@@ -36,23 +38,24 @@ describe("ZoneNFT", function () {
     );
     await zoneNFT.waitForDeployment();
 
-    // Mint $MOVE for mover via oracle route
+    // Mint $MOVE for mover via oracle route (hexId=0, no zone)
     const routeHash = ethers.hexlify(ethers.randomBytes(32));
     const message = ethers.solidityPackedKeccak256(
-      ["address", "bytes32", "uint256"],
-      [mover.address, routeHash, 20_000n]
+      ["uint256", "address", "bytes32", "uint256", "uint64"],
+      [chainId, mover.address, routeHash, 20_000n, 0n]
     );
     const moveSig = await oracle.signMessage(ethers.getBytes(message));
-    await gpsOracle.submitRoute(mover.address, routeHash, 20_000n, moveSig);
+    await gpsOracle.submitRoute(mover.address, routeHash, 20_000n, 0n, moveSig);
 
     // Approve ZoneNFT to burn mover's $MOVE
     await moveToken.connect(mover).approve(await zoneNFT.getAddress(), ethers.MaxUint256);
   });
 
+  // FIX-001: mintZone signatures now include chainId
   async function buildMintSig(hexId: bigint, toAddress: string, mintCost: bigint) {
     const sigHash = ethers.solidityPackedKeccak256(
-      ["uint64", "address", "uint256"],
-      [hexId, toAddress, mintCost]
+      ["uint256", "uint64", "address", "uint256"],
+      [chainId, hexId, toAddress, mintCost]
     );
     return oracle.signMessage(ethers.getBytes(sigHash));
   }
@@ -82,8 +85,12 @@ describe("ZoneNFT", function () {
 
     it("reverts on invalid oracle sig", async function () {
       const mintCost = ethers.parseEther("100");
+      // fakeSig signed by wrong key
       const fakeSig = await other.signMessage(ethers.getBytes(
-        ethers.solidityPackedKeccak256(["uint64", "address", "uint256"], [HEX_ID, mover.address, mintCost])
+        ethers.solidityPackedKeccak256(
+          ["uint256", "uint64", "address", "uint256"],
+          [chainId, HEX_ID, mover.address, mintCost]
+        )
       ));
       await expect(
         zoneNFT.connect(mover).mintZone(HEX_ID, mintCost, fakeSig)

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -39,6 +39,7 @@ contract ZoneNFT is ERC721, AccessControl {
     event YieldWithdrawn(uint64 indexed hexId, address indexed owner, uint256 amount);
 
     constructor(address _moveToken, address _gpsOracle) ERC721("MovenRun Zone", "ZONE") {
+        require(_moveToken != address(0) && _gpsOracle != address(0), "ZoneNFT: zero address"); // FIX-003
         moveToken = MoveToken(_moveToken);
         gpsOracle = _gpsOracle;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -70,7 +71,7 @@ contract ZoneNFT is ERC721, AccessControl {
         require(!isDormant[hexId], "ZoneNFT: hex in reclaim state");
 
         address trustedSigner = IGPSOracle(gpsOracle).oracleOperator();
-        bytes32 sigHash = keccak256(abi.encodePacked(hexId, msg.sender, mintCost));
+        bytes32 sigHash = keccak256(abi.encodePacked(block.chainid, hexId, msg.sender, mintCost)); // FIX-001
         require(!usedMintSigs[sigHash], "ZoneNFT: sig already used");
         bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(sigHash);
         require(ECDSA.recover(ethHash, oracleSig) == trustedSigner, "ZoneNFT: invalid oracle sig");

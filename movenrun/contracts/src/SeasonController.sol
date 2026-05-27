@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -34,6 +34,8 @@ contract SeasonController is AccessControl {
     event GreatBurn(uint256 indexed season, uint256 totalBurned);
 
     constructor(address _moveToken, address _zoneNFT, address _zoneChallenge) {
+        require(_moveToken != address(0) && _zoneNFT != address(0) && _zoneChallenge != address(0), // FIX-003
+            "SeasonController: zero address");
         moveToken     = MoveToken(_moveToken);
         zoneNFT       = ZoneNFT(_zoneNFT);
         zoneChallenge = _zoneChallenge;
@@ -80,7 +82,7 @@ contract SeasonController is AccessControl {
         require(gpsOracle != address(0), "SeasonController: gpsOracle not set");
 
         address trustedSigner = IGPSOracle(gpsOracle).oracleOperator();
-        bytes32 payload  = keccak256(abi.encode(seasonNumber, topHexIds, yields));
+        bytes32 payload  = keccak256(abi.encode(block.chainid, seasonNumber, topHexIds, yields)); // FIX-001
         bytes32 ethHash  = MessageHashUtils.toEthSignedMessageHash(payload);
         require(ECDSA.recover(ethHash, oracleSig) == trustedSigner, "SeasonController: invalid sig");
 
@@ -95,8 +97,10 @@ contract SeasonController is AccessControl {
             uint256 burnAmount = (yield * GREAT_BURN_PCT) / 10_000;
             if (burnAmount == 0) continue;
 
-            moveToken.transferFrom(owner, daoTreasury, burnAmount);
-            totalBurned += burnAmount;
+            // FIX-005: skip zones where owner lacks approval or balance; don't revert whole burn
+            try moveToken.transferFrom(owner, daoTreasury, burnAmount) {
+                totalBurned += burnAmount;
+            } catch {}
         }
 
         moveToken.adjustEmissionRate();

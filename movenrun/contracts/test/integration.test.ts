@@ -19,6 +19,7 @@ describe("MovenRun Integration", function () {
   let alice:      SignerWithAddress; // runner / zone minter
   let bob:        SignerWithAddress; // challenger
   let treasury:   SignerWithAddress;
+  let chainId:    bigint;
 
   let moveToken:       MoveToken;
   let gpsOracle:       GPSOracle;
@@ -34,6 +35,7 @@ describe("MovenRun Integration", function () {
   // ── Deploy all contracts ──────────────────────────────────────────────────
   before(async function () {
     [deployer, oracle, alice, bob, treasury] = await ethers.getSigners();
+    chainId = (await ethers.provider.getNetwork()).chainId;
 
     // 1. MoveToken
     const MoveTokenF = await ethers.getContractFactory("MoveToken");
@@ -110,38 +112,38 @@ describe("MovenRun Integration", function () {
     await moveToken.setZoneNFT(await zoneNFT.getAddress());
   });
 
-  // ── Helper: build oracle signature for mintMOVE ──────────────────────────
-  async function buildRouteSig(to: string, routeHash: string, distanceMeters: bigint) {
+  // ── Helper: build oracle signature for submitRoute (FIX-001: includes chainId + hexId) ──
+  async function buildRouteSig(to: string, routeHash: string, distanceMeters: bigint, hexId: bigint = 0n) {
     const message = ethers.solidityPackedKeccak256(
-      ["address", "bytes32", "uint256"],
-      [to, routeHash, distanceMeters]
+      ["uint256", "address", "bytes32", "uint256", "uint64"],
+      [chainId, to, routeHash, distanceMeters, hexId]
     );
     return oracle.signMessage(ethers.getBytes(message));
   }
 
-  // ── Helper: build oracle sig for zone mint ───────────────────────────────
+  // ── Helper: build oracle sig for zone mint (FIX-001: includes chainId) ───
   async function buildZoneMintSig(hexId: bigint, toAddress: string, mintCost: bigint) {
     const sigHash = ethers.solidityPackedKeccak256(
-      ["uint64", "address", "uint256"],
-      [hexId, toAddress, mintCost]
+      ["uint256", "uint64", "address", "uint256"],
+      [chainId, hexId, toAddress, mintCost]
     );
     return oracle.signMessage(ethers.getBytes(sigHash));
   }
 
-  // ── Helper: build oracle sig for challenge declare ────────────────────────
+  // ── Helper: build oracle sig for challenge declare (FIX-001: includes chainId) ─
   async function buildDeclareSig(hexId: bigint, defenderAddr: string, baseScore: bigint) {
     const message = ethers.solidityPackedKeccak256(
-      ["uint64", "address", "uint256"],
-      [hexId, defenderAddr, baseScore]
+      ["uint256", "uint64", "address", "uint256"],
+      [chainId, hexId, defenderAddr, baseScore]
     );
     return oracle.signMessage(ethers.getBytes(message));
   }
 
-  // ── Helper: build oracle sig for score submission ─────────────────────────
+  // ── Helper: build oracle sig for score submission (FIX-001: includes chainId) ─
   async function buildScoreSig(hexId: bigint, submitter: string, score: bigint) {
     const message = ethers.solidityPackedKeccak256(
-      ["uint64", "address", "uint256"],
-      [hexId, submitter, score]
+      ["uint256", "uint64", "address", "uint256"],
+      [chainId, hexId, submitter, score]
     );
     return oracle.signMessage(ethers.getBytes(message));
   }
@@ -158,26 +160,26 @@ describe("MovenRun Integration", function () {
     const routeHash = ethers.keccak256(ethers.toUtf8Bytes(JSON.stringify(fakeRoute)));
     const distanceMeters = 5_000n; // 5 km
 
-    const sig = await buildRouteSig(alice.address, routeHash, distanceMeters);
+    // hexId=0: runner not in any zone, full amount goes to alice (FIX-004)
+    const sig = await buildRouteSig(alice.address, routeHash, distanceMeters, 0n);
     const balanceBefore = await moveToken.balanceOf(alice.address);
 
     // GPSOracle verifies sig and calls moveToken.mintMOVE
-    await gpsOracle.submitRoute(alice.address, routeHash, distanceMeters, sig);
+    await gpsOracle.submitRoute(alice.address, routeHash, distanceMeters, 0n, sig);
 
     const balanceAfter = await moveToken.balanceOf(alice.address);
     expect(balanceAfter).to.be.gt(balanceBefore);
-    // 5km * 10 $MOVE/km = 50 $MOVE (minus 2% zone tax = 49 $MOVE since zoneNFT set)
-    // Zone tax goes to zoneNFT contract (no zone minted yet, but contract gets the tax)
-    expect(balanceAfter - balanceBefore).to.equal(ethers.parseEther("49")); // 98% of 50
+    // 5km * 10 $MOVE/km = 50 $MOVE; hexId=0 means no zone tax (FIX-004)
+    expect(balanceAfter - balanceBefore).to.equal(ethers.parseEther("50"));
     console.log("    Alice earned:", ethers.formatEther(balanceAfter - balanceBefore), "$MOVE");
   });
 
   it("Step 4b: route replay reverts", async function () {
     const routeHash = ethers.keccak256(ethers.toUtf8Bytes("duplicate-route"));
-    const sig = await buildRouteSig(alice.address, routeHash, 1000n);
-    await gpsOracle.submitRoute(alice.address, routeHash, 1000n, sig);
+    const sig = await buildRouteSig(alice.address, routeHash, 1000n, 0n);
+    await gpsOracle.submitRoute(alice.address, routeHash, 1000n, 0n, sig);
     await expect(
-      gpsOracle.submitRoute(alice.address, routeHash, 1000n, sig)
+      gpsOracle.submitRoute(alice.address, routeHash, 1000n, 0n, sig)
     ).to.be.revertedWith("MoveToken: route already used");
   });
 
@@ -187,13 +189,13 @@ describe("MovenRun Integration", function () {
   it("Step 5: Mint Zone NFT for eligible hex (oracle signature)", async function () {
     // Give alice more $MOVE to cover zone mint cost
     const fundHash = ethers.hexlify(ethers.randomBytes(32));
-    const fundSig  = await buildRouteSig(alice.address, fundHash, 20_000n);
-    await gpsOracle.submitRoute(alice.address, fundHash, 20_000n, fundSig);
+    const fundSig  = await buildRouteSig(alice.address, fundHash, 20_000n, 0n);
+    await gpsOracle.submitRoute(alice.address, fundHash, 20_000n, 0n, fundSig);
 
     // Also fund bob for challenges
     const bobHash1 = ethers.hexlify(ethers.randomBytes(32));
-    const bobSig1  = await buildRouteSig(bob.address, bobHash1, 20_000n);
-    await gpsOracle.submitRoute(bob.address, bobHash1, 20_000n, bobSig1);
+    const bobSig1  = await buildRouteSig(bob.address, bobHash1, 20_000n, 0n);
+    await gpsOracle.submitRoute(bob.address, bobHash1, 20_000n, 0n, bobSig1);
 
     const mintCost = ethers.parseEther("100");
     const zoneSig  = await buildZoneMintSig(HEX_ID, alice.address, mintCost);
@@ -250,8 +252,8 @@ describe("MovenRun Integration", function () {
 
     // Give alice enough tokens and mint a second zone
     const fundHash = ethers.hexlify(ethers.randomBytes(32));
-    const fundSig  = await buildRouteSig(alice.address, fundHash, 20_000n);
-    await gpsOracle.submitRoute(alice.address, fundHash, 20_000n, fundSig);
+    const fundSig  = await buildRouteSig(alice.address, fundHash, 20_000n, 0n);
+    await gpsOracle.submitRoute(alice.address, fundHash, 20_000n, 0n, fundSig);
 
     const mintCost = ethers.parseEther("100");
     const zoneSig2 = await buildZoneMintSig(HEX_ID_2, alice.address, mintCost);
@@ -260,8 +262,8 @@ describe("MovenRun Integration", function () {
 
     // Give bob more tokens for declaration
     const bobFundHash = ethers.hexlify(ethers.randomBytes(32));
-    const bobFundSig  = await buildRouteSig(bob.address, bobFundHash, 20_000n);
-    await gpsOracle.submitRoute(bob.address, bobFundHash, 20_000n, bobFundSig);
+    const bobFundSig  = await buildRouteSig(bob.address, bobFundHash, 20_000n, 0n);
+    await gpsOracle.submitRoute(bob.address, bobFundHash, 20_000n, 0n, bobFundSig);
     await moveToken.connect(bob).approve(await zoneChallenge.getAddress(), ethers.MaxUint256);
     await zoneNFT.connect(alice).setApprovalForAll(await zoneChallenge.getAddress(), true);
 
@@ -278,7 +280,7 @@ describe("MovenRun Integration", function () {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Step 8: Season end → greatBurn
+  // Step 8: Season end → greatBurn (FIX-001: signature includes chainId)
   // ─────────────────────────────────────────────────────────────────────────
   it("Step 8: greatBurn burns 10% of top-zone yields at season end", async function () {
     // Start a season
@@ -286,11 +288,10 @@ describe("MovenRun Integration", function () {
 
     // Give alice some $MOVE and approve SeasonController to transfer on her behalf
     const earnHash = ethers.hexlify(ethers.randomBytes(32));
-    const earnSig  = await buildRouteSig(alice.address, earnHash, 20_000n);
-    await gpsOracle.submitRoute(alice.address, earnHash, 20_000n, earnSig);
+    const earnSig  = await buildRouteSig(alice.address, earnHash, 20_000n, 0n);
+    await gpsOracle.submitRoute(alice.address, earnHash, 20_000n, 0n, earnSig);
 
-    const aliceBalance = await moveToken.balanceOf(alice.address);
-    const zoneYield    = ethers.parseEther("100");
+    const zoneYield = ethers.parseEther("100");
 
     // Pre-approve so SeasonController can burn
     await moveToken.connect(alice).approve(await seasonController.getAddress(), ethers.MaxUint256);
@@ -301,17 +302,17 @@ describe("MovenRun Integration", function () {
     const topHexIds: bigint[] = [HEX_ID + 1n]; // alice owns HEX_ID+1
     const yields:   bigint[] = [zoneYield];
 
-    // Build oracle signature over (seasonNumber, topHexIds, yields)
+    // Build oracle signature over (chainId, seasonNumber, topHexIds, yields) — FIX-001
     const seasonNumber = await seasonController.seasonNumber();
     const payload = ethers.keccak256(
       ethers.AbiCoder.defaultAbiCoder().encode(
-        ["uint256", "uint64[]", "uint256[]"],
-        [seasonNumber, topHexIds, yields]
+        ["uint256", "uint256", "uint64[]", "uint256[]"],
+        [chainId, seasonNumber, topHexIds, yields]
       )
     );
     const burnSig = await oracle.signMessage(ethers.getBytes(payload));
 
-    const aliceBalBefore   = await moveToken.balanceOf(alice.address);
+    const aliceBalBefore    = await moveToken.balanceOf(alice.address);
     const treasuryBalBefore = await moveToken.balanceOf(treasury.address);
 
     await seasonController.greatBurn(topHexIds, yields, burnSig);
@@ -323,19 +324,17 @@ describe("MovenRun Integration", function () {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Bonus: zone tax flow
+  // Bonus: zone tax credited to zone owner via pull-payment (FIX-004)
   // ─────────────────────────────────────────────────────────────────────────
   it("Bonus: zone tax accumulates in ZoneNFT contract when moving through a zone", async function () {
+    const HEX_ID_2 = HEX_ID + 1n; // alice's zone (minted in Step 6b)
     const routeHash = ethers.hexlify(ethers.randomBytes(32));
-    const sig = await buildRouteSig(alice.address, routeHash, 10_000n); // 10 km
+    // Pass hexId = HEX_ID_2 so the 2% zone tax is credited to that zone (FIX-004)
+    const sig = await buildRouteSig(alice.address, routeHash, 10_000n, HEX_ID_2);
 
-    // Read current base rate (may have been reduced by adjustEmissionRate in greatBurn)
-    const currentRate = await moveToken.currentRate();
-    // Alice has hit daily cap — use a fresh route for a new user isn't possible here,
-    // so just verify the tax delta is > 0 and equals 2% of earned.
     const zoneNFTBalBefore = await moveToken.balanceOf(await zoneNFT.getAddress());
     const aliceBalBefore   = await moveToken.balanceOf(alice.address);
-    await gpsOracle.submitRoute(alice.address, routeHash, 10_000n, sig);
+    await gpsOracle.submitRoute(alice.address, routeHash, 10_000n, HEX_ID_2, sig);
     const zoneNFTBalAfter = await moveToken.balanceOf(await zoneNFT.getAddress());
     const aliceBalAfter   = await moveToken.balanceOf(alice.address);
 

@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "./MoveToken.sol";
 import "./ZoneNFT.sol";
 import "./interfaces/IGPSOracle.sol";
 
-contract ZoneChallenge is AccessControl {
+contract ZoneChallenge is AccessControl, ReentrancyGuard {
     using ECDSA for bytes32;
 
-    uint256 public constant CHALLENGE_DURATION    = 14 days;
-    uint256 public constant TIME_EXTENSION        = 3 days;
-    uint256 public constant DECLARATION_COST      = 100 ether;
-    uint256 public constant STRONGHOLD_COST       = 300 ether;
-    uint256 public constant TIME_EXT_COST         = 500 ether;
-    uint256 public constant STRONGHOLD_DURATION   = 24 hours;
-    uint256 public constant MAX_STRONGHOLD_STACKS = 3;
-    uint256 public constant COOLDOWN_DURATION     = 30 days;
+    uint256 public constant CHALLENGE_DURATION       = 14 days;
+    uint256 public constant TIME_EXTENSION           = 3 days;
+    uint256 public constant DECLARATION_COST         = 100 ether;
+    uint256 public constant STRONGHOLD_COST          = 300 ether;
+    uint256 public constant TIME_EXT_COST            = 500 ether;
+    uint256 public constant STRONGHOLD_DURATION      = 24 hours;
+    uint256 public constant MAX_STRONGHOLD_STACKS    = 3;
+    uint256 public constant COOLDOWN_DURATION        = 30 days;
+    uint256 public constant SCORE_SUBMISSION_CUTOFF  = 1 hours; // FIX-011
 
     MoveToken public moveToken;
     ZoneNFT   public zoneNFT;
@@ -51,6 +53,8 @@ contract ZoneChallenge is AccessControl {
     event DefenderWon(uint64 indexed hexId, address indexed defender);
 
     constructor(address _zoneNFT, address _moveToken, address _gpsOracle) {
+        require(_zoneNFT != address(0) && _moveToken != address(0) && _gpsOracle != address(0), // FIX-003
+            "ZoneChallenge: zero address");
         zoneNFT    = ZoneNFT(_zoneNFT);
         moveToken  = MoveToken(_moveToken);
         gpsOracle  = _gpsOracle;
@@ -74,7 +78,7 @@ contract ZoneChallenge is AccessControl {
         require(block.timestamp > cooldowns[msg.sender][hexId], "ZoneChallenge: cooldown active");
 
         address trustedSigner = IGPSOracle(gpsOracle).oracleOperator();
-        bytes32 message = keccak256(abi.encodePacked(hexId, zoneNFT.zoneOwner(hexId), defenderBaseScore));
+        bytes32 message = keccak256(abi.encodePacked(block.chainid, hexId, zoneNFT.zoneOwner(hexId), defenderBaseScore)); // FIX-001
         bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(message);
         require(ECDSA.recover(ethHash, oracleSig) == trustedSigner, "ZoneChallenge: invalid sig");
 
@@ -105,11 +109,11 @@ contract ZoneChallenge is AccessControl {
     ) external {
         Challenge storage c = challenges[hexId];
         require(!c.resolved, "ZoneChallenge: resolved");
-        require(block.timestamp < c.challengeEnd, "ZoneChallenge: window closed");
+        require(block.timestamp < c.challengeEnd - SCORE_SUBMISSION_CUTOFF, "ZoneChallenge: window closed"); // FIX-011
         require(msg.sender == c.challenger || msg.sender == c.defender, "ZoneChallenge: not participant");
 
         address trustedSigner = IGPSOracle(gpsOracle).oracleOperator();
-        bytes32 sigHash = keccak256(abi.encodePacked(hexId, msg.sender, score));
+        bytes32 sigHash = keccak256(abi.encodePacked(block.chainid, hexId, msg.sender, score)); // FIX-001
         require(!usedScoreSigs[sigHash], "ZoneChallenge: sig reused");
         bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(sigHash);
         require(ECDSA.recover(ethHash, oracleSig) == trustedSigner, "ZoneChallenge: invalid sig");
@@ -152,7 +156,7 @@ contract ZoneChallenge is AccessControl {
         emit TimeExtensionUsed(hexId, c.challengeEnd);
     }
 
-    function resolveChallenge(uint64 hexId) external {
+    function resolveChallenge(uint64 hexId) external nonReentrant { // defense-in-depth
         Challenge storage c = challenges[hexId];
         require(!c.resolved, "ZoneChallenge: already resolved");
         require(block.timestamp >= c.challengeEnd, "ZoneChallenge: window not closed");

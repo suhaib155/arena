@@ -13,6 +13,7 @@ describe("ZoneChallenge", function () {
   let oracle:       SignerWithAddress;
   let defender:     SignerWithAddress;
   let challenger:   SignerWithAddress;
+  let chainId:      bigint;
 
   const HEX_ID        = 613177413693333503n;
   const MINT_COST     = ethers.parseEther("100");
@@ -21,15 +22,16 @@ describe("ZoneChallenge", function () {
   async function mintTokens(to: SignerWithAddress, distanceMeters: bigint) {
     const routeHash = ethers.hexlify(ethers.randomBytes(32));
     const message = ethers.solidityPackedKeccak256(
-      ["address", "bytes32", "uint256"],
-      [to.address, routeHash, distanceMeters]
+      ["uint256", "address", "bytes32", "uint256", "uint64"],
+      [chainId, to.address, routeHash, distanceMeters, 0n]
     );
     const sig = await oracle.signMessage(ethers.getBytes(message));
-    await gpsOracle.submitRoute(to.address, routeHash, distanceMeters, sig);
+    await gpsOracle.submitRoute(to.address, routeHash, distanceMeters, 0n, sig);
   }
 
   beforeEach(async function () {
     [admin, oracle, defender, challenger] = await ethers.getSigners();
+    chainId = (await ethers.provider.getNetwork()).chainId;
 
     const MoveTokenFactory = await ethers.getContractFactory("MoveToken");
     moveToken = await MoveTokenFactory.deploy(admin.address);
@@ -68,10 +70,10 @@ describe("ZoneChallenge", function () {
     await moveToken.connect(defender).approve(challengeAddr, ethers.MaxUint256);
     await moveToken.connect(challenger).approve(challengeAddr, ethers.MaxUint256);
 
-    // Mint the zone to defender
+    // Mint the zone to defender — FIX-001: mintZone sig includes chainId
     const mintSigHash = ethers.solidityPackedKeccak256(
-      ["uint64", "address", "uint256"],
-      [HEX_ID, defender.address, MINT_COST]
+      ["uint256", "uint64", "address", "uint256"],
+      [chainId, HEX_ID, defender.address, MINT_COST]
     );
     const mintSig = await oracle.signMessage(ethers.getBytes(mintSigHash));
     await zoneNFT.connect(defender).mintZone(HEX_ID, MINT_COST, mintSig);
@@ -80,18 +82,19 @@ describe("ZoneChallenge", function () {
     await zoneNFT.connect(defender).setApprovalForAll(challengeAddr, true);
   });
 
+  // FIX-001: all challenge sigs include chainId
   async function buildDeclareSig(hexId: bigint, defenderAddr: string, baseScore: bigint) {
     const message = ethers.solidityPackedKeccak256(
-      ["uint64", "address", "uint256"],
-      [hexId, defenderAddr, baseScore]
+      ["uint256", "uint64", "address", "uint256"],
+      [chainId, hexId, defenderAddr, baseScore]
     );
     return oracle.signMessage(ethers.getBytes(message));
   }
 
   async function buildScoreSig(hexId: bigint, submitter: string, score: bigint) {
     const message = ethers.solidityPackedKeccak256(
-      ["uint64", "address", "uint256"],
-      [hexId, submitter, score]
+      ["uint256", "uint64", "address", "uint256"],
+      [chainId, hexId, submitter, score]
     );
     return oracle.signMessage(ethers.getBytes(message));
   }

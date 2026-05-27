@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -37,6 +37,7 @@ contract MoveVault is AccessControl, ReentrancyGuard {
     event POLAdded(uint256 amount);
 
     constructor(address _moveToken) {
+        require(_moveToken != address(0), "MoveVault: zero address"); // FIX-003
         moveToken = MoveToken(_moveToken);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(VAULT_ADMIN_ROLE, msg.sender);
@@ -70,8 +71,10 @@ contract MoveVault is AccessControl, ReentrancyGuard {
     function _claimReward(address user) internal {
         uint256 elapsed = block.timestamp - stakes[user].lastRewardClaim;
         uint256 reward = (stakes[user].amount * rewardRatePerSecond * elapsed) / 1 ether;
-        stakes[user].lastRewardClaim = block.timestamp;
+        // Only advance the claim timestamp when reward is actually paid;
+        // if treasury is dry the accrual window stays open so nothing is lost.
         if (reward > 0 && treasuryBalance >= reward) {
+            stakes[user].lastRewardClaim = block.timestamp;
             treasuryBalance -= reward;
             moveToken.transfer(user, reward);
             emit RewardClaimed(user, reward);

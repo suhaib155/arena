@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -50,6 +50,8 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
     event ProposalCancelled(uint256 indexed id);
 
     constructor(address _moveToken, address _zoneNFT, address _moveVault) {
+        require(_moveToken != address(0) && _zoneNFT != address(0) && _moveVault != address(0), // FIX-003
+            "MovenDAO: zero address");
         moveToken = MoveToken(_moveToken);
         zoneNFT   = ZoneNFT(_zoneNFT);
         moveVault = MoveVault(_moveVault);
