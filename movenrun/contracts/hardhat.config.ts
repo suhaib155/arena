@@ -9,12 +9,13 @@ const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY ?? "";
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.24",
+    version: "0.8.26",
     settings: {
       optimizer: {
         enabled: true,
         runs: 200,
       },
+      evmVersion: "cancun",
     },
   },
   networks: {
@@ -35,11 +36,17 @@ const config: HardhatUserConfig = {
       chainId: 8453,
       accounts: [DEPLOYER_KEY],
     },
+    baseMainnet: {
+      url: process.env.BASE_RPC_URL ?? "https://mainnet.base.org",
+      chainId: 8453,
+      accounts: [DEPLOYER_KEY],
+    },
   },
   etherscan: {
     apiKey: {
-      baseSepolia: BASESCAN_API_KEY,
-      base: BASESCAN_API_KEY,
+      baseSepolia:  BASESCAN_API_KEY,
+      base:         BASESCAN_API_KEY,
+      baseMainnet:  BASESCAN_API_KEY,
     },
     customChains: [
       {

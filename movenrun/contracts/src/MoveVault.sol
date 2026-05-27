@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -36,11 +36,11 @@ contract MoveVault is AccessControl, ReentrancyGuard {
     event TreasuryWithdrawal(address indexed to, uint256 amount);
     event POLAdded(uint256 amount);
 
-    constructor(address _moveToken, address admin) {
+    constructor(address _moveToken) {
         moveToken = MoveToken(_moveToken);
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(VAULT_ADMIN_ROLE, admin);
-        _grantRole(DAO_ROLE, admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(VAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DAO_ROLE, msg.sender);
     }
 
     function stake(uint256 amount) external nonReentrant {

@@ -2,19 +2,20 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { MoveToken, ZoneNFT, ZoneChallenge } from "../typechain-types";
+import { MoveToken, GPSOracle, ZoneNFT, ZoneChallenge } from "../typechain-types";
 
 describe("ZoneChallenge", function () {
-  let moveToken: MoveToken;
-  let zoneNFT: ZoneNFT;
+  let moveToken:    MoveToken;
+  let gpsOracle:    GPSOracle;
+  let zoneNFT:      ZoneNFT;
   let zoneChallenge: ZoneChallenge;
-  let admin: SignerWithAddress;
-  let oracle: SignerWithAddress;
-  let defender: SignerWithAddress;
-  let challenger: SignerWithAddress;
+  let admin:        SignerWithAddress;
+  let oracle:       SignerWithAddress;
+  let defender:     SignerWithAddress;
+  let challenger:   SignerWithAddress;
 
-  const HEX_ID = 613177413693333503n;
-  const MINT_COST = ethers.parseEther("100");
+  const HEX_ID        = 613177413693333503n;
+  const MINT_COST     = ethers.parseEther("100");
   const DECLARATION_COST = ethers.parseEther("100");
 
   async function mintTokens(to: SignerWithAddress, distanceMeters: bigint) {
@@ -24,28 +25,35 @@ describe("ZoneChallenge", function () {
       [to.address, routeHash, distanceMeters]
     );
     const sig = await oracle.signMessage(ethers.getBytes(message));
-    await moveToken.mintMOVE(to.address, routeHash, sig, distanceMeters);
+    await gpsOracle.submitRoute(to.address, routeHash, distanceMeters, sig);
   }
 
   beforeEach(async function () {
     [admin, oracle, defender, challenger] = await ethers.getSigners();
 
     const MoveTokenFactory = await ethers.getContractFactory("MoveToken");
-    moveToken = await MoveTokenFactory.deploy(oracle.address, admin.address);
+    moveToken = await MoveTokenFactory.deploy(admin.address);
     await moveToken.waitForDeployment();
+
+    const GPSOracleFactory = await ethers.getContractFactory("GPSOracle");
+    gpsOracle = await GPSOracleFactory.deploy(oracle.address);
+    await gpsOracle.waitForDeployment();
+    await gpsOracle.setMoveToken(await moveToken.getAddress());
+    const ORACLE_ROLE = ethers.id("ORACLE_ROLE");
+    await moveToken.connect(admin).grantRole(ORACLE_ROLE, await gpsOracle.getAddress());
 
     const ZoneNFTFactory = await ethers.getContractFactory("ZoneNFT");
     zoneNFT = await ZoneNFTFactory.deploy(
-      await moveToken.getAddress(), oracle.address, admin.address
+      await moveToken.getAddress(),
+      await gpsOracle.getAddress()
     );
     await zoneNFT.waitForDeployment();
 
     const ZoneChallengeFactory = await ethers.getContractFactory("ZoneChallenge");
     zoneChallenge = await ZoneChallengeFactory.deploy(
-      await moveToken.getAddress(),
       await zoneNFT.getAddress(),
-      oracle.address,
-      admin.address
+      await moveToken.getAddress(),
+      await gpsOracle.getAddress()
     );
     await zoneChallenge.waitForDeployment();
 
@@ -54,7 +62,7 @@ describe("ZoneChallenge", function () {
     await mintTokens(challenger, 20_000n);
 
     // Approve spending
-    const zoneAddr = await zoneNFT.getAddress();
+    const zoneAddr      = await zoneNFT.getAddress();
     const challengeAddr = await zoneChallenge.getAddress();
     await moveToken.connect(defender).approve(zoneAddr, ethers.MaxUint256);
     await moveToken.connect(defender).approve(challengeAddr, ethers.MaxUint256);
@@ -68,7 +76,7 @@ describe("ZoneChallenge", function () {
     const mintSig = await oracle.signMessage(ethers.getBytes(mintSigHash));
     await zoneNFT.connect(defender).mintZone(HEX_ID, MINT_COST, mintSig);
 
-    // Approve zoneChallenge to transfer zone NFT on behalf of defender (for resolveChallenge)
+    // Approve zoneChallenge to transfer zone NFT on defender's behalf
     await zoneNFT.connect(defender).setApprovalForAll(challengeAddr, true);
   });
 
@@ -107,16 +115,14 @@ describe("ZoneChallenge", function () {
 
   describe("resolveChallenge", function () {
     it("transfers NFT to challenger when challenger wins", async function () {
-      const baseScore = 0n;
-      const declareSig = await buildDeclareSig(HEX_ID, defender.address, baseScore);
+      const baseScore   = 0n;
+      const declareSig  = await buildDeclareSig(HEX_ID, defender.address, baseScore);
       await zoneChallenge.connect(challenger).declareChallenge(HEX_ID, baseScore, declareSig);
 
-      // Challenger submits high score
       const challengerScore = ethers.parseEther("1000");
-      const scoreSig = await buildScoreSig(HEX_ID, challenger.address, challengerScore);
+      const scoreSig        = await buildScoreSig(HEX_ID, challenger.address, challengerScore);
       await zoneChallenge.connect(challenger).submitScore(HEX_ID, challengerScore, scoreSig);
 
-      // Advance time past challenge end
       await time.increase(14 * 24 * 3600 + 1);
 
       await zoneChallenge.connect(admin).resolveChallenge(HEX_ID);
@@ -124,7 +130,7 @@ describe("ZoneChallenge", function () {
     });
 
     it("defender retains NFT when defender wins", async function () {
-      const baseScore = ethers.parseEther("999");
+      const baseScore  = ethers.parseEther("999");
       const declareSig = await buildDeclareSig(HEX_ID, defender.address, baseScore);
       await zoneChallenge.connect(challenger).declareChallenge(HEX_ID, baseScore, declareSig);
 

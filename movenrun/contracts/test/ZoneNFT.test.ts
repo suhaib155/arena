@@ -1,41 +1,49 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { MoveToken, ZoneNFT } from "../typechain-types";
+import { MoveToken, GPSOracle, ZoneNFT } from "../typechain-types";
 
 describe("ZoneNFT", function () {
   let moveToken: MoveToken;
-  let zoneNFT: ZoneNFT;
-  let admin: SignerWithAddress;
-  let oracle: SignerWithAddress;
-  let mover: SignerWithAddress;
-  let other: SignerWithAddress;
+  let gpsOracle: GPSOracle;
+  let zoneNFT:   ZoneNFT;
+  let admin:     SignerWithAddress;
+  let oracle:    SignerWithAddress;
+  let mover:     SignerWithAddress;
+  let other:     SignerWithAddress;
 
-  const HEX_ID = 613177413693333503n; // example H3 res-8 hex ID
+  const HEX_ID = 613177413693333503n;
 
   beforeEach(async function () {
     [admin, oracle, mover, other] = await ethers.getSigners();
 
     const MoveTokenFactory = await ethers.getContractFactory("MoveToken");
-    moveToken = await MoveTokenFactory.deploy(oracle.address, admin.address);
+    moveToken = await MoveTokenFactory.deploy(admin.address);
     await moveToken.waitForDeployment();
+
+    const GPSOracleFactory = await ethers.getContractFactory("GPSOracle");
+    gpsOracle = await GPSOracleFactory.deploy(oracle.address);
+    await gpsOracle.waitForDeployment();
+
+    await gpsOracle.setMoveToken(await moveToken.getAddress());
+    const ORACLE_ROLE = ethers.id("ORACLE_ROLE");
+    await moveToken.connect(admin).grantRole(ORACLE_ROLE, await gpsOracle.getAddress());
 
     const ZoneNFTFactory = await ethers.getContractFactory("ZoneNFT");
     zoneNFT = await ZoneNFTFactory.deploy(
       await moveToken.getAddress(),
-      oracle.address,
-      admin.address
+      await gpsOracle.getAddress()
     );
     await zoneNFT.waitForDeployment();
 
-    // Give mover some $MOVE to burn for mint cost
+    // Mint $MOVE for mover via oracle route
     const routeHash = ethers.hexlify(ethers.randomBytes(32));
     const message = ethers.solidityPackedKeccak256(
       ["address", "bytes32", "uint256"],
       [mover.address, routeHash, 20_000n]
     );
     const moveSig = await oracle.signMessage(ethers.getBytes(message));
-    await moveToken.mintMOVE(mover.address, routeHash, moveSig, 20_000n);
+    await gpsOracle.submitRoute(mover.address, routeHash, 20_000n, moveSig);
 
     // Approve ZoneNFT to burn mover's $MOVE
     await moveToken.connect(mover).approve(await zoneNFT.getAddress(), ethers.MaxUint256);

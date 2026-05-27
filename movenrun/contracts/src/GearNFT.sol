@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -33,10 +33,10 @@ contract GearNFT is ERC1155, AccessControl {
     event GearEquipped(address indexed user, GearSlot slot, uint256 tokenId);
     event GearTypeAdded(uint256 indexed tokenId, string name, GearSlot slot, uint256 multiplierBps);
 
-    constructor(address _moveToken, address admin) ERC1155("https://api.movenrun.io/gear/{id}.json") {
+    constructor(address _moveToken) ERC1155("https://api.movenrun.io/gear/{id}.json") {
         moveToken = MoveToken(_moveToken);
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(GEAR_ADMIN_ROLE, admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(GEAR_ADMIN_ROLE, msg.sender);
     }
 
     function addGearType(
