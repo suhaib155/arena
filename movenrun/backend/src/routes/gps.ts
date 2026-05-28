@@ -1,8 +1,8 @@
-import { Router } from "express";
+import express from "express";
 import { z } from "zod";
 import { gpsQueue } from "../workers/gps.worker.js";
 
-const router = Router();
+const router = express.Router();
 
 const GPSPointSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -48,3 +48,6 @@ router.get("/verify/:id", async (req, res) => {
 });
 
 export default router;
+
+
+

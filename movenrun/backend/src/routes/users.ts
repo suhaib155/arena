@@ -1,7 +1,7 @@
-import { Router } from "express";
+import express from "express";
 import { TokenService } from "../services/token.service.js";
 
-const router = Router();
+const router = express.Router();
 const tokenService = new TokenService();
 
 // GET /users/:address — user stats
@@ -20,3 +20,6 @@ router.get("/:address", async (req, res) => {
 });
 
 export default router;
+
+
+

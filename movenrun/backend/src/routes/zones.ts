@@ -1,9 +1,9 @@
-import { Router } from "express";
+import express from "express";
 import { z } from "zod";
 import { HexService } from "../services/hex.service.js";
 import { OracleService } from "../services/oracle.service.js";
 
-const router = Router();
+const router = express.Router();
 const hexService = new HexService();
 const oracleService = new OracleService();
 
@@ -44,3 +44,6 @@ router.post("/mint", async (req, res) => {
 });
 
 export default router;
+
+
+

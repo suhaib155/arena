@@ -9,11 +9,59 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./src/constants/contracts.js": {
+      "import": "./dist/constants/contracts.js",
+      "types": "./dist/constants/contracts.d.ts"
+    },
+    "./src/constants/emission.js": {
+      "import": "./dist/constants/emission.js",
+      "types": "./dist/constants/emission.d.ts"
+    },
+    "./src/constants/h3.js": {
+      "import": "./dist/constants/h3.js",
+      "types": "./dist/constants/h3.d.ts"
+    },
+    "./src/types/gps.js": {
+      "import": "./dist/types/gps.js",
+      "types": "./dist/types/gps.d.ts"
+    },
+    "./src/types/token.js": {
+      "import": "./dist/types/token.js",
+      "types": "./dist/types/token.d.ts"
+    },
+    "./src/types/zone.js": {
+      "import": "./dist/types/zone.js",
+      "types": "./dist/types/zone.d.ts"
+    },
+    "./constants/contracts.js": {
+      "import": "./dist/constants/contracts.js",
+      "types": "./dist/constants/contracts.d.ts"
+    },
+    "./constants/emission.js": {
+      "import": "./dist/constants/emission.js",
+      "types": "./dist/constants/emission.d.ts"
+    },
+    "./constants/h3.js": {
+      "import": "./dist/constants/h3.js",
+      "types": "./dist/constants/h3.d.ts"
+    },
+    "./types/gps.js": {
+      "import": "./dist/types/gps.js",
+      "types": "./dist/types/gps.d.ts"
+    },
+    "./types/token.js": {
+      "import": "./dist/types/token.js",
+      "types": "./dist/types/token.d.ts"
+    },
+    "./types/zone.js": {
+      "import": "./dist/types/zone.js",
+      "types": "./dist/types/zone.d.ts"
     }
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch"
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

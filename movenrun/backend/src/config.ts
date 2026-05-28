@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { z } from "zod";
 import fs from "fs";
 import path from "path";
@@ -109,3 +110,4 @@ export function getContractAddresses(): ContractAddresses {
     movenDAO:         resolve(cfg.MOVEN_DAO_ADDRESS,         "MovenDAO"),
   };
 }
+

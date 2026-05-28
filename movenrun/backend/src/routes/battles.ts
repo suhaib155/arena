@@ -1,9 +1,9 @@
-import { Router } from "express";
+import express from "express";
 import { z } from "zod";
 import { OracleService } from "../services/oracle.service.js";
 import { HexService } from "../services/hex.service.js";
 
-const router = Router();
+const router = express.Router();
 const oracleService = new OracleService();
 const hexService = new HexService();
 
@@ -44,3 +44,6 @@ router.get("/:hexId", async (req, res) => {
 });
 
 export default router;
+
+
+
