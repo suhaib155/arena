@@ -1,0 +1,149 @@
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { Screen } from "@/components/Screen";
+import { Badge } from "@/components/Badge";
+import { Button } from "@/components/Button";
+import { categoryColor, colors, difficultyColor, radius, spacing } from "@/theme";
+import { getQuest } from "@/data/quests";
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m === 0) return `${s} sec`;
+  return s === 0 ? `${m} min` : `${m}m ${s}s`;
+}
+
+export default function QuestDetailScreen() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const quest = getQuest(id);
+
+  if (!quest) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: "Quest" }} />
+        <View style={styles.notFound}>
+          <Ionicons name="alert-circle-outline" size={40} color={colors.textFaint} />
+          <Text style={styles.notFoundText}>That quest doesn&apos;t exist.</Text>
+          <Button label="Back to quests" variant="secondary" onPress={() => router.back()} />
+        </View>
+      </Screen>
+    );
+  }
+
+  const tint = categoryColor[quest.category] ?? colors.primary;
+
+  return (
+    <Screen>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
+        <View style={styles.topBar}>
+          <Ionicons
+            name="chevron-back"
+            size={28}
+            color={colors.text}
+            onPress={() => router.back()}
+          />
+        </View>
+
+        <View style={[styles.iconWrap, { backgroundColor: `${tint}22` }]}>
+          <Ionicons name={quest.icon} size={40} color={tint} />
+        </View>
+
+        <Text style={styles.title}>{quest.title}</Text>
+        <Text style={styles.summary}>{quest.description}</Text>
+
+        <View style={styles.badges}>
+          <Badge label={quest.category} color={tint} />
+          <Badge label={quest.difficulty} color={difficultyColor[quest.difficulty] ?? colors.textDim} />
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Ionicons name="time-outline" size={18} color={colors.textDim} />
+            <Text style={styles.statValue}>{formatDuration(quest.durationSeconds)}</Text>
+            <Text style={styles.statLabel}>Duration</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.stat}>
+            <Ionicons name="flash-outline" size={18} color={colors.warning} />
+            <Text style={[styles.statValue, { color: colors.warning }]}>+{quest.xpReward}</Text>
+            <Text style={styles.statLabel}>XP Reward</Text>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>How it works</Text>
+        <View style={styles.steps}>
+          {quest.instructions.map((step, i) => (
+            <View key={i} style={styles.step}>
+              <View style={styles.stepNum}>
+                <Text style={styles.stepNumText}>{i + 1}</Text>
+              </View>
+              <Text style={styles.stepText}>{step}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <Button
+          label="Start Quest"
+          icon="play"
+          onPress={() => router.push({ pathname: "/active", params: { id: quest.id } })}
+        />
+      </View>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { paddingBottom: spacing.xl, gap: spacing.md },
+  topBar: { paddingTop: spacing.sm, marginBottom: spacing.xs },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: { color: colors.text, fontSize: 28, fontWeight: "800" },
+  summary: { color: colors.textDim, fontSize: 15, lineHeight: 22 },
+  badges: { flexDirection: "row", gap: spacing.sm },
+  statsRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  stat: { flex: 1, alignItems: "center", gap: spacing.xs },
+  statValue: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  statLabel: { color: colors.textDim, fontSize: 12 },
+  divider: { width: 1, backgroundColor: colors.border },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: spacing.md,
+  },
+  steps: { gap: spacing.md },
+  step: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
+  stepNum: {
+    width: 26,
+    height: 26,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepNumText: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  stepText: { flex: 1, color: colors.textDim, fontSize: 15, lineHeight: 22 },
+  footer: { paddingVertical: spacing.md },
+  notFound: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg },
+  notFoundText: { color: colors.textDim, fontSize: 16 },
+});
