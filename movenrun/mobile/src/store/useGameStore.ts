@@ -3,7 +3,9 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Quest } from "@/types";
 import { getLevelInfo } from "@/lib/leveling";
-import { dayKey, daysBetween } from "@/lib/date";
+import { getLocalDateKey, daysBetween } from "@/lib/date";
+
+const EMPTY_IDS: readonly string[] = [];
 
 export interface CompletionRecord {
   questId: string;
@@ -22,8 +24,10 @@ export interface CompletionOutcome {
   levelAfter: number;
   leveledUp: boolean;
   streak: number;
+  /** True when this completion was the first quest of the day (streak bumped). */
   streakIncreased: boolean;
-  alreadyCompletedToday: boolean;
+  /** True when this quest was already completed today, so no XP was awarded. */
+  alreadyAwarded: boolean;
 }
 
 interface GameState {
@@ -31,6 +35,9 @@ interface GameState {
   streak: number;
   /** Day key of the last day a quest was completed. */
   lastActiveDay: string | null;
+  /** Quest ids already completed (and awarded) on `lastActiveDay`. Used to
+   *  prevent earning XP twice for the same quest on the same local day. */
+  completedQuestIds: string[];
   questsCompleted: number;
   history: CompletionRecord[];
   /** Whether the user has seen the onboarding flow. */
@@ -49,6 +56,7 @@ export const useGameStore = create<GameState>()(
       totalXp: 0,
       streak: 0,
       lastActiveDay: null,
+      completedQuestIds: [],
       questsCompleted: 0,
       history: [],
       hasOnboarded: false,
@@ -56,27 +64,39 @@ export const useGameStore = create<GameState>()(
 
       completeQuest: (quest) => {
         const state = get();
-        const today = dayKey();
+        const today = getLocalDateKey();
+        const isNewDay = state.lastActiveDay !== today;
+        // Ids completed *today* (yesterday's list is stale on a new day).
+        const todaysIds = isNewDay ? [] : state.completedQuestIds;
+
         const totalXpBefore = state.totalXp;
         const levelBefore = getLevelInfo(totalXpBefore).level;
 
-        // Streak logic: +1 if last active was yesterday, unchanged if already
-        // today, otherwise the streak resets to 1.
-        let streak = state.streak;
-        let streakIncreased = false;
-        const alreadyCompletedToday = state.lastActiveDay === today;
+        // Anti-farming: a quest awards XP at most once per local day. A replay
+        // is idempotent — no XP, no streak change, no history entry.
+        if (todaysIds.includes(quest.id)) {
+          return {
+            xpGained: 0,
+            totalXpBefore,
+            totalXpAfter: totalXpBefore,
+            levelBefore,
+            levelAfter: levelBefore,
+            leveledUp: false,
+            streak: state.streak,
+            streakIncreased: false,
+            alreadyAwarded: true,
+          };
+        }
 
-        if (!alreadyCompletedToday) {
+        // Streak: +1 if the previous active day was yesterday, otherwise reset
+        // to 1. Only the first completion of a new day moves the streak.
+        let streak = state.streak;
+        if (isNewDay) {
           const gap =
             state.lastActiveDay === null
               ? Infinity
               : daysBetween(state.lastActiveDay, today);
-          if (gap === 1) {
-            streak += 1;
-          } else {
-            streak = 1;
-          }
-          streakIncreased = true;
+          streak = gap === 1 ? streak + 1 : 1;
         }
 
         const totalXpAfter = totalXpBefore + quest.xpReward;
@@ -93,6 +113,7 @@ export const useGameStore = create<GameState>()(
           totalXp: totalXpAfter,
           streak,
           lastActiveDay: today,
+          completedQuestIds: [...todaysIds, quest.id],
           questsCompleted: state.questsCompleted + 1,
           history: [record, ...state.history].slice(0, 50),
         });
@@ -105,8 +126,8 @@ export const useGameStore = create<GameState>()(
           levelAfter,
           leveledUp: levelAfter > levelBefore,
           streak,
-          streakIncreased,
-          alreadyCompletedToday,
+          streakIncreased: isNewDay,
+          alreadyAwarded: false,
         };
       },
 
@@ -118,6 +139,7 @@ export const useGameStore = create<GameState>()(
           totalXp: 0,
           streak: 0,
           lastActiveDay: null,
+          completedQuestIds: [],
           questsCompleted: 0,
           history: [],
         }),
@@ -125,6 +147,16 @@ export const useGameStore = create<GameState>()(
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
+      // Older persisted state (PR #3) has no `completedQuestIds`. Backfill it so
+      // upgrading users don't crash and aren't wrongly blocked from quests.
+      migrate: (persisted, _version) => {
+        const state = (persisted ?? {}) as Partial<GameState>;
+        if (!Array.isArray(state.completedQuestIds)) {
+          state.completedQuestIds = [];
+        }
+        return state as GameState;
+      },
       // Don't persist the transient hydration flag.
       partialize: ({ _hydrated, ...rest }) => rest,
       // Flip the hydration flag once AsyncStorage has loaded so screens can
@@ -136,7 +168,23 @@ export const useGameStore = create<GameState>()(
   ),
 );
 
-/** Convenience hook: has the user already finished a quest today? */
+/** Has the user finished *any* quest today (drives the "you've moved" banner)? */
 export function useCompletedToday(): boolean {
-  return useGameStore((s) => s.lastActiveDay === dayKey());
+  return useGameStore((s) => s.lastActiveDay === getLocalDateKey());
+}
+
+/** Quest ids the user has already completed (and been awarded XP for) today. */
+export function useCompletedTodayIds(): readonly string[] {
+  return useGameStore((s) =>
+    s.lastActiveDay === getLocalDateKey() ? s.completedQuestIds : EMPTY_IDS,
+  );
+}
+
+/** Has this specific quest already been completed today (no more XP today)? */
+export function useIsCompletedToday(questId: string): boolean {
+  return useGameStore(
+    (s) =>
+      s.lastActiveDay === getLocalDateKey() &&
+      s.completedQuestIds.includes(questId),
+  );
 }

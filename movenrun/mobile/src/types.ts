@@ -22,3 +22,17 @@ export interface Quest {
   /** Step-by-step coaching cues shown on the detail screen. */
   instructions: string[];
 }
+
+/**
+ * Context passed to the quest service when requesting quests. Today the local
+ * mock service only reads `date` (to anchor the daily quest to the local day).
+ * The other fields are a forward-looking seam: a future server-side, AI-driven
+ * implementation could use them to personalize quests — without changing the
+ * screens that call the service.
+ */
+export interface QuestRequestContext {
+  /** Anchor date for "daily" selection. Defaults to now. */
+  date?: Date;
+  /** Reserved for future personalization. Unused by the mock service. */
+  preferredCategories?: QuestCategory[];
+}

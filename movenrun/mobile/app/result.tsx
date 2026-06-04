@@ -7,7 +7,7 @@ import { Button } from "@/components/Button";
 import { XPBar } from "@/components/XPBar";
 import { ShareCard } from "@/components/ShareCard";
 import { colors, radius, spacing } from "@/theme";
-import { getQuest } from "@/data/quests";
+import { questService } from "@/services/questService";
 import { useGameStore, type CompletionOutcome } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
 import { successFeedback } from "@/lib/haptics";
@@ -15,7 +15,7 @@ import { successFeedback } from "@/lib/haptics";
 export default function ResultScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const quest = getQuest(id);
+  const quest = questService.getQuestById(id ?? "");
   const completeQuest = useGameStore((s) => s.completeQuest);
 
   const [outcome, setOutcome] = useState<CompletionOutcome | null>(null);
@@ -117,7 +117,11 @@ export default function ResultScreen() {
           </View>
         </View>
 
-        {outcome.alreadyCompletedToday ? (
+        {outcome.alreadyAwarded ? (
+          <Text style={styles.note}>
+            You already completed this quest today — no extra XP. Come back tomorrow!
+          </Text>
+        ) : !outcome.streakIncreased ? (
           <Text style={styles.note}>
             You already moved today — streak stays the same. Keep it up tomorrow!
           </Text>

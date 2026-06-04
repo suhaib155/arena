@@ -17,8 +17,19 @@ app**:
 - A **profile/streak** screen with recent activity.
 
 **Implementation:** `mobile/` (Expo SDK 51, React Native 0.74, Expo Router v3,
-TypeScript, Zustand + AsyncStorage). Quests come from local mock data
+TypeScript, Zustand + AsyncStorage). Quests are served through a quest service
+seam (`mobile/src/services/questService.ts`), backed today by local mock data
 (`mobile/src/data/quests.ts`).
+
+**Quest service seam (prep for AI quests):** screens depend only on
+`questService`, never on raw quest arrays. When AI-generated quests arrive they
+must be produced **server-side** (no provider keys in the app) and exposed via an
+alternate `QuestService` implementation prefetched at session start — without
+rewriting screens. Do not bypass `questService` when adding a new quest source.
+
+**Anti-farming:** each quest awards XP at most once per local day
+(`completedQuestIds` + `getLocalDateKey()`), surfaced as a "completed today"
+state. This keeps daily XP/streaks honest.
 
 **Deliberately out of scope until the basic app is stable:**
 
@@ -88,8 +99,10 @@ each should land as its own branch + PR once the basic app is stable.
 3. **Wallet / rewards** — convert XP into real rewards or tokens (Privy +
    `$MOVE`, building on `contracts/`).
 4. **Social leaderboard** — friends, streak rankings, zone leaderboards.
-5. **AI-generated quests** — replace the mock quest catalogue with quests
-   generated server-side (keys stay on the backend, never in the app).
+5. **AI-generated quests** — implement an alternate `QuestService` backed by a
+   server endpoint that returns AI-generated quests (keys stay on the backend,
+   never in the app). The `questService` seam + `useSessionStart` prefetch point
+   already exist, so this should not require screen rewrites.
 6. **Supabase / backend** — accounts, cloud sync of XP/streak/history, quest
    delivery (extend the existing `backend/`).
 7. **Health integrations** — Apple Health / Google Fit / wearables for steps,

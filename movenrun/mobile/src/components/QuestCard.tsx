@@ -9,6 +9,8 @@ interface QuestCardProps {
   onPress: () => void;
   /** Larger "hero" treatment for the daily quest. */
   featured?: boolean;
+  /** Show a "Done today" state (quest already completed this local day). */
+  completed?: boolean;
 }
 
 function formatDuration(seconds: number): string {
@@ -18,7 +20,7 @@ function formatDuration(seconds: number): string {
   return s === 0 ? `${m} min` : `${m}m ${s}s`;
 }
 
-export function QuestCard({ quest, onPress, featured }: QuestCardProps) {
+export function QuestCard({ quest, onPress, featured, completed }: QuestCardProps) {
   const tint = categoryColor[quest.category] ?? colors.primary;
   return (
     <Pressable
@@ -26,6 +28,7 @@ export function QuestCard({ quest, onPress, featured }: QuestCardProps) {
       style={({ pressed }) => [
         styles.card,
         featured && styles.featured,
+        completed && styles.completed,
         pressed && styles.pressed,
       ]}
     >
@@ -41,6 +44,12 @@ export function QuestCard({ quest, onPress, featured }: QuestCardProps) {
             {quest.summary}
           </Text>
         </View>
+        {completed ? (
+          <View style={styles.doneBadge}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.accent} />
+            <Text style={styles.doneBadgeText}>Done today</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.metaRow}>
@@ -73,6 +82,9 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.surfaceAlt,
   },
+  completed: {
+    borderColor: `${colors.accent}66`,
+  },
   pressed: {
     opacity: 0.9,
     transform: [{ scale: 0.995 }],
@@ -82,6 +94,17 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     alignItems: "center",
   },
+  doneBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    backgroundColor: `${colors.accent}1A`,
+    borderRadius: radius.pill,
+    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+  },
+  doneBadgeText: { color: colors.accent, fontSize: 11, fontWeight: "700" },
   iconWrap: {
     width: 48,
     height: 48,

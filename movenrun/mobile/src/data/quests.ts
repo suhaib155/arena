@@ -1,9 +1,10 @@
 import type { Quest } from "@/types";
 
 /**
- * Mock quest catalogue for the MVP. No backend / AI calls yet — this is the
- * single source of truth the app reads from. Swap this module for a real API
- * (or AI-generated quests) later without touching the screens.
+ * Mock quest catalogue for the MVP. This module is the raw *data* only — all
+ * access goes through `@/services/questService` (the seam where future
+ * AI/server-generated quests will plug in). Screens should not import this
+ * directly; import the service instead.
  */
 export const QUESTS: Quest[] = [
   {
@@ -97,23 +98,3 @@ export const QUESTS: Quest[] = [
     ],
   },
 ];
-
-/** Map for O(1) lookups by id from route params. */
-export const QUESTS_BY_ID: Record<string, Quest> = Object.fromEntries(
-  QUESTS.map((q) => [q.id, q]),
-);
-
-/**
- * Deterministically pick a "daily" quest so it stays stable across a single
- * day but rotates day to day. Keeps the home screen feeling fresh without any
- * backend.
- */
-export function getDailyQuest(date: Date = new Date()): Quest {
-  const dayNumber = Math.floor(date.getTime() / 86_400_000);
-  return QUESTS[dayNumber % QUESTS.length];
-}
-
-export function getQuest(id: string | undefined): Quest | undefined {
-  if (!id) return undefined;
-  return QUESTS_BY_ID[id];
-}

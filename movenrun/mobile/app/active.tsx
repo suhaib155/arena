@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { categoryColor, colors, radius, spacing } from "@/theme";
-import { getQuest } from "@/data/quests";
+import { questService } from "@/services/questService";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 
 function mmss(totalSeconds: number): string {
@@ -17,7 +17,7 @@ function mmss(totalSeconds: number): string {
 export default function ActiveQuestScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const quest = getQuest(id);
+  const quest = questService.getQuestById(id ?? "");
   const duration = quest?.durationSeconds ?? 0;
 
   const [remaining, setRemaining] = useState(duration);

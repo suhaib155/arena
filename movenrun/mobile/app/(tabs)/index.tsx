@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,8 +6,8 @@ import { QuestCard } from "@/components/QuestCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { XPBar } from "@/components/XPBar";
 import { colors, radius, spacing } from "@/theme";
-import { QUESTS, getDailyQuest } from "@/data/quests";
-import { useCompletedToday, useGameStore } from "@/store/useGameStore";
+import { useGameStore } from "@/store/useGameStore";
+import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { tapFeedback } from "@/lib/haptics";
 
@@ -21,15 +20,15 @@ function greeting(date = new Date()): string {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const daily = useMemo(() => getDailyQuest(), []);
-  const otherQuests = useMemo(
-    () => QUESTS.filter((q) => q.id !== daily.id),
-    [daily.id],
-  );
+  const {
+    dailyQuest,
+    recommendedQuests,
+    completedTodayIds,
+    dailyCompletedToday,
+  } = useSessionStart();
 
   const totalXp = useGameStore((s) => s.totalXp);
   const streak = useGameStore((s) => s.streak);
-  const completedToday = useCompletedToday();
   const level = getLevelInfo(totalXp);
 
   const openQuest = (id: string) => {
@@ -47,7 +46,7 @@ export default function HomeScreen() {
           <View style={styles.headerText}>
             <Text style={styles.greeting}>{greeting()}</Text>
             <Text style={styles.brand}>
-              {completedToday ? "You've moved today" : "Ready to move?"}
+              {dailyCompletedToday ? "You've moved today" : "Ready to move?"}
             </Text>
           </View>
           <View style={styles.streakChip}>
@@ -56,11 +55,11 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {completedToday ? (
+        {dailyCompletedToday ? (
           <View style={styles.doneBanner}>
             <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
             <Text style={styles.doneText}>
-              Nice work — you kept your streak alive. Bonus quests below.
+              Daily quest done — streak safe. Try a bonus quest below for more XP.
             </Text>
           </View>
         ) : null}
@@ -76,12 +75,22 @@ export default function HomeScreen() {
         </View>
 
         <SectionHeader title="Today's Quest" />
-        <QuestCard quest={daily} featured onPress={() => openQuest(daily.id)} />
+        <QuestCard
+          quest={dailyQuest}
+          featured
+          completed={dailyCompletedToday}
+          onPress={() => openQuest(dailyQuest.id)}
+        />
 
-        <SectionHeader title="More Quests" trailing={`${otherQuests.length}`} />
+        <SectionHeader title="More Quests" trailing={`${recommendedQuests.length}`} />
         <View style={styles.list}>
-          {otherQuests.map((q) => (
-            <QuestCard key={q.id} quest={q} onPress={() => openQuest(q.id)} />
+          {recommendedQuests.map((q) => (
+            <QuestCard
+              key={q.id}
+              quest={q}
+              completed={completedTodayIds.includes(q.id)}
+              onPress={() => openQuest(q.id)}
+            />
           ))}
         </View>
       </ScrollView>
