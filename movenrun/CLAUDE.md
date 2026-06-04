@@ -1,36 +1,54 @@
 # MovenRun — Claude Context
 
-## What It Is
-GPS-based move-to-earn territory protocol on Base chain. Users run/walk/cycle through
-real-world locations. GPS routes verified on-chain via Chainlink oracle. Moving through
-a hexagonal zone earns $MOVE tokens. Top mover in a zone can mint it as a Zone NFT.
-Zone NFT owners earn 2% of all $MOVE earned by anyone moving through their zone.
-Zones can be challenged in 14-day battles.
+## Current direction — AI Movement Quest MVP
+The **active app** is a lightweight **AI movement-quest** app: a daily movement
+quest, a start → active timer → finish → XP-result flow, plus XP/levels and a
+daily streak. It lives in `mobile/` (Expo SDK 51, React Native 0.74, **Expo
+Router v3**, TypeScript, Zustand + AsyncStorage). Quests come from local mock
+data (`mobile/src/data/quests.ts`).
+
+The full product plan — both this MVP and the preserved legacy direction — is in
+**`docs/ROADMAP.md`**. Read it before making product-scope decisions.
+
+### Until the basic app is stable, do NOT add:
+- Real AI API calls or any AI provider keys in the app.
+- Wallet / blockchain / token logic.
+- Supabase or other backend wiring from the mobile app.
+- Payments.
+
+Keep the MVP simple and working first.
+
+## Preserved legacy direction — GPS / Blockchain / Move-to-Earn
+The original concept (GPS move-to-earn territory protocol on Base chain: H3 hex
+zones, $MOVE token, Zone NFTs, 14-day battles, Chainlink oracle) is **preserved,
+not abandoned**. Its details and future integration plan live in
+`docs/ROADMAP.md`. The earlier mobile code is parked in **`mobile/_legacy/`**
+(see `mobile/_legacy/README.md`); contracts/backend/shared work remains in
+`contracts/`, `backend/`, `shared/`.
+
+> ⚠️ **Do not delete the legacy code** (`mobile/_legacy/`, or the GPS/blockchain
+> work in `contracts/` / `backend/`) unless the owner explicitly requests it.
+> Preserve old product ideas by moving them into `docs/ROADMAP.md`, never by
+> deleting them.
 
 ## Monorepo Layout
-- `shared/` — TypeScript types and constants used by all packages
-- `contracts/` — Hardhat + Solidity smart contracts (deploy to Base / Base Sepolia)
-- `backend/` — Express API + BullMQ workers + Drizzle ORM (Postgres + Redis)
-- `mobile/` — Expo React Native app (Privy wallet, Mapbox, H3 hex overlay)
+- `shared/` — TypeScript types and constants used by all packages (legacy/Web3).
+- `contracts/` — Hardhat + Solidity smart contracts (legacy/Web3).
+- `backend/` — Express API + BullMQ workers + Drizzle ORM (legacy/Web3).
+- `mobile/` — Expo React Native app.
+  - `mobile/app/` — **active** Expo Router routes (the AI movement-quest MVP).
+  - `mobile/src/` — **active** MVP components, data, store, theme, helpers.
+  - `mobile/_legacy/` — **parked** GPS/blockchain mobile scaffold (excluded from
+    the MVP build; do not delete).
 
-## Key Technical Decisions
-See `docs/ARCHITECTURE.md` for contract interaction diagram and oracle flow.
-See `docs/TOKENOMICS.md` for emission schedule and burn sink details.
+## Reference docs
+- `docs/ROADMAP.md` — active vs. legacy direction and future integrations.
+- `docs/ARCHITECTURE.md` — legacy contract interaction diagram and oracle flow.
+- `docs/TOKENOMICS.md` — legacy emission schedule and burn sink details.
+- `mobile/README.md` — how to run the MVP app.
 
-## Contracts (Base chain)
-- **MoveToken** — ERC-20 $MOVE, 1B supply, oracle-gated minting, halving every HALVING_INTERVAL blocks
-- **ZoneNFT** — ERC-721, tokenId = H3 hex ID (uint64), 2% zone tax, dormancy system
-- **GearNFT** — ERC-1155, gear with stat multipliers
-- **ZoneChallenge** — 14-day battle system, stronghold boost, time extension
-- **SeasonController** — 90-day seasons, Great Burn, Chainlink Keeper integration
-- **MoveVault** — staking, POL, treasury
-- **MovenDAO** — 3-tier governance voting
-
-## H3 Resolution
-Resolution 8 hexagons (~0.74 km² each). See `shared/src/constants/h3.ts`.
-
-## Never Ask Me About
-- Whether to use Privy for wallet auth — it's decided
-- Whether to use H3 for hex grid — it's decided (resolution 8)
-- Whether to use Base chain — it's decided
-- Package manager — yarn workspaces
+## Working agreement
+- Always work through **feature branches and pull requests** (never commit
+  straight to `main`).
+- Keep the MVP simple and working before adding future integrations.
+- Package manager is **yarn workspaces**.
