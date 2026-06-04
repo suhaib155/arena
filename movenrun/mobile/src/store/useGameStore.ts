@@ -33,10 +33,13 @@ interface GameState {
   lastActiveDay: string | null;
   questsCompleted: number;
   history: CompletionRecord[];
+  /** Whether the user has seen the onboarding flow. */
+  hasOnboarded: boolean;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
   _hydrated: boolean;
 
   completeQuest: (quest: Quest) => CompletionOutcome;
+  completeOnboarding: () => void;
   reset: () => void;
 }
 
@@ -48,6 +51,7 @@ export const useGameStore = create<GameState>()(
       lastActiveDay: null,
       questsCompleted: 0,
       history: [],
+      hasOnboarded: false,
       _hydrated: false,
 
       completeQuest: (quest) => {
@@ -106,6 +110,9 @@ export const useGameStore = create<GameState>()(
         };
       },
 
+      completeOnboarding: () => set({ hasOnboarded: true }),
+
+      // Resets progress only — keeps the user past onboarding.
       reset: () =>
         set({
           totalXp: 0,
@@ -128,3 +135,8 @@ export const useGameStore = create<GameState>()(
     },
   ),
 );
+
+/** Convenience hook: has the user already finished a quest today? */
+export function useCompletedToday(): boolean {
+  return useGameStore((s) => s.lastActiveDay === dayKey());
+}

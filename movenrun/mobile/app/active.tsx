@@ -6,6 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { categoryColor, colors, radius, spacing } from "@/theme";
 import { getQuest } from "@/data/quests";
+import { successFeedback, tapFeedback } from "@/lib/haptics";
 
 function mmss(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
@@ -29,6 +30,7 @@ export default function ActiveQuestScreen() {
     if (finishedRef.current || !quest) return;
     finishedRef.current = true;
     if (intervalRef.current) clearInterval(intervalRef.current);
+    successFeedback();
     router.replace({ pathname: "/result", params: { id: quest.id } });
   }, [quest, router]);
 
@@ -108,7 +110,10 @@ export default function ActiveQuestScreen() {
           label={paused ? "Resume" : "Pause"}
           icon={paused ? "play" : "pause"}
           variant="secondary"
-          onPress={() => setPaused((p) => !p)}
+          onPress={() => {
+            tapFeedback();
+            setPaused((p) => !p);
+          }}
           style={styles.controlBtn}
         />
         <Button

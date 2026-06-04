@@ -6,6 +6,7 @@ import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { categoryColor, colors, difficultyColor, radius, spacing } from "@/theme";
 import { getQuest } from "@/data/quests";
+import { tapFeedback } from "@/lib/haptics";
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -92,7 +93,10 @@ export default function QuestDetailScreen() {
         <Button
           label="Start Quest"
           icon="play"
-          onPress={() => router.push({ pathname: "/active", params: { id: quest.id } })}
+          onPress={() => {
+            tapFeedback();
+            router.push({ pathname: "/active", params: { id: quest.id } });
+          }}
         />
       </View>
     </Screen>
