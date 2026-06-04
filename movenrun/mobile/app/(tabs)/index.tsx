@@ -1,13 +1,16 @@
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { QuestCard } from "@/components/QuestCard";
+import { SectionHeader } from "@/components/SectionHeader";
 import { XPBar } from "@/components/XPBar";
-import { colors, spacing } from "@/theme";
+import { colors, radius, spacing } from "@/theme";
 import { QUESTS, getDailyQuest } from "@/data/quests";
-import { useGameStore } from "@/store/useGameStore";
+import { useCompletedToday, useGameStore } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
+import { tapFeedback } from "@/lib/haptics";
 
 function greeting(date = new Date()): string {
   const h = date.getHours();
@@ -26,10 +29,13 @@ export default function HomeScreen() {
 
   const totalXp = useGameStore((s) => s.totalXp);
   const streak = useGameStore((s) => s.streak);
+  const completedToday = useCompletedToday();
   const level = getLevelInfo(totalXp);
 
-  const openQuest = (id: string) =>
+  const openQuest = (id: string) => {
+    tapFeedback();
     router.push({ pathname: "/quest/[id]", params: { id } });
+  };
 
   return (
     <Screen>
@@ -38,15 +44,26 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
       >
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
+          <View style={styles.headerText}>
             <Text style={styles.greeting}>{greeting()}</Text>
-            <Text style={styles.brand}>Ready to move?</Text>
+            <Text style={styles.brand}>
+              {completedToday ? "You've moved today" : "Ready to move?"}
+            </Text>
           </View>
           <View style={styles.streakChip}>
             <Text style={styles.streakNum}>{streak}</Text>
             <Text style={styles.streakLabel}>day streak</Text>
           </View>
         </View>
+
+        {completedToday ? (
+          <View style={styles.doneBanner}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
+            <Text style={styles.doneText}>
+              Nice work — you kept your streak alive. Bonus quests below.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.levelBox}>
           <View style={styles.levelHeader}>
@@ -58,10 +75,10 @@ export default function HomeScreen() {
           <XPBar progress={level.progress} />
         </View>
 
-        <Text style={styles.sectionTitle}>Today&apos;s Quest</Text>
+        <SectionHeader title="Today's Quest" />
         <QuestCard quest={daily} featured onPress={() => openQuest(daily.id)} />
 
-        <Text style={styles.sectionTitle}>More Quests</Text>
+        <SectionHeader title="More Quests" trailing={`${otherQuests.length}`} />
         <View style={styles.list}>
           {otherQuests.map((q) => (
             <QuestCard key={q.id} quest={q} onPress={() => openQuest(q.id)} />
@@ -73,12 +90,14 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: spacing.xxl, gap: spacing.lg },
+  content: { paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.lg },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.md,
     paddingTop: spacing.md,
   },
+  headerText: { flex: 1 },
   greeting: { color: colors.textDim, fontSize: 15 },
   brand: { color: colors.text, fontSize: 26, fontWeight: "800" },
   streakChip: {
@@ -86,15 +105,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 14,
+    borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
   streakNum: { color: colors.warning, fontSize: 22, fontWeight: "800" },
   streakLabel: { color: colors.textDim, fontSize: 11 },
+  doneBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: `${colors.accent}14`,
+    borderWidth: 1,
+    borderColor: `${colors.accent}40`,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  doneText: { flex: 1, color: colors.text, fontSize: 13, lineHeight: 18 },
   levelBox: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.lg,
@@ -107,11 +137,5 @@ const styles = StyleSheet.create({
   },
   levelText: { color: colors.text, fontSize: 16, fontWeight: "700" },
   xpText: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "700",
-    marginTop: spacing.sm,
-  },
   list: { gap: spacing.md },
 });

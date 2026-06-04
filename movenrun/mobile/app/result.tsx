@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { XPBar } from "@/components/XPBar";
+import { ShareCard } from "@/components/ShareCard";
 import { colors, radius, spacing } from "@/theme";
 import { getQuest } from "@/data/quests";
 import { useGameStore, type CompletionOutcome } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
+import { successFeedback } from "@/lib/haptics";
 
 export default function ResultScreen() {
   const router = useRouter();
@@ -19,14 +21,20 @@ export default function ResultScreen() {
   const [outcome, setOutcome] = useState<CompletionOutcome | null>(null);
   // Award XP exactly once, even if the component re-renders.
   const awardedRef = useRef(false);
+  const pop = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (awardedRef.current || !quest) return;
     awardedRef.current = true;
     setOutcome(completeQuest(quest));
-  }, [quest, completeQuest]);
-
-  const goHome = () => router.dismissAll();
+    successFeedback();
+    Animated.timing(pop, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.back(1.6)),
+      useNativeDriver: true,
+    }).start();
+  }, [quest, completeQuest, pop]);
 
   if (!quest || !outcome) {
     return (
@@ -38,12 +46,33 @@ export default function ResultScreen() {
 
   const level = getLevelInfo(outcome.totalXpAfter);
 
+  const onShare = async () => {
+    try {
+      await Share.share({
+        message:
+          `I just completed "${quest.title}" on MovenRun and earned +${outcome.xpGained} XP! ` +
+          `Level ${level.level} • ${outcome.streak}-day streak 🔥`,
+      });
+    } catch {
+      // User dismissed the share sheet or sharing is unavailable — ignore.
+    }
+  };
+
   return (
     <Screen edgeTop>
-      <View style={styles.body}>
-        <View style={styles.badge}>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        style={{ opacity: pop }}
+      >
+        <Animated.View
+          style={[
+            styles.badge,
+            { transform: [{ scale: pop }] },
+          ]}
+        >
           <Ionicons name="checkmark" size={48} color={colors.bg} />
-        </View>
+        </Animated.View>
 
         <Text style={styles.title}>Quest Complete!</Text>
         <Text style={styles.questName}>{quest.title}</Text>
@@ -93,10 +122,19 @@ export default function ResultScreen() {
             You already moved today — streak stays the same. Keep it up tomorrow!
           </Text>
         ) : null}
-      </View>
+
+        <Text style={styles.shareHint}>Share your win</Text>
+        <ShareCard
+          questTitle={quest.title}
+          xpGained={outcome.xpGained}
+          level={level.level}
+          streak={outcome.streak}
+        />
+      </Animated.ScrollView>
 
       <View style={styles.footer}>
-        <Button label="Done" icon="home" onPress={goHome} />
+        <Button label="Share" icon="share-social-outline" variant="secondary" onPress={onShare} />
+        <Button label="Done" icon="home" onPress={() => router.dismissAll()} />
       </View>
     </Screen>
   );
@@ -104,7 +142,7 @@ export default function ResultScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1 },
-  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
+  content: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
   badge: {
     width: 96,
     height: 96,
@@ -169,5 +207,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: spacing.lg,
   },
-  footer: { paddingVertical: spacing.md },
+  shareHint: {
+    color: colors.textDim,
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    alignSelf: "flex-start",
+    marginTop: spacing.sm,
+  },
+  footer: { paddingVertical: spacing.md, gap: spacing.sm },
 });

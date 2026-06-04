@@ -1,12 +1,16 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { StatCard } from "@/components/StatCard";
+import { SectionHeader } from "@/components/SectionHeader";
+import { EmptyState } from "@/components/EmptyState";
 import { XPBar } from "@/components/XPBar";
 import { Button } from "@/components/Button";
 import { colors, radius, spacing } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
+import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -19,12 +23,18 @@ function timeAgo(iso: string): string {
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const totalXp = useGameStore((s) => s.totalXp);
   const streak = useGameStore((s) => s.streak);
   const questsCompleted = useGameStore((s) => s.questsCompleted);
   const history = useGameStore((s) => s.history);
   const reset = useGameStore((s) => s.reset);
   const level = getLevelInfo(totalXp);
+
+  const onReset = () => {
+    tapFeedback();
+    reset();
+  };
 
   return (
     <Screen>
@@ -52,14 +62,15 @@ export default function ProfileScreen() {
           <StatCard icon="checkmark-done" value={questsCompleted} label="Completed" tint={colors.primary} />
         </View>
 
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        <SectionHeader title="Recent Activity" trailing={history.length ? `${history.length}` : undefined} />
         {history.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="walk-outline" size={28} color={colors.textFaint} />
-            <Text style={styles.emptyText}>
-              No quests yet. Complete your first quest to start a streak!
-            </Text>
-          </View>
+          <EmptyState
+            icon="walk-outline"
+            title="No quests yet"
+            message="Complete your first quest to earn XP and start a daily streak."
+            actionLabel="Browse quests"
+            onAction={() => router.navigate("/")}
+          />
         ) : (
           <View style={styles.list}>
             {history.slice(0, 10).map((rec, i) => (
@@ -67,7 +78,7 @@ export default function ProfileScreen() {
                 <View style={styles.rowIcon}>
                   <Ionicons name="checkmark" size={16} color={colors.accent} />
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>{rec.questTitle}</Text>
                   <Text style={styles.rowTime}>{timeAgo(rec.completedAt)}</Text>
                 </View>
@@ -82,7 +93,7 @@ export default function ProfileScreen() {
             label="Reset progress"
             variant="ghost"
             icon="refresh-outline"
-            onPress={reset}
+            onPress={onReset}
             style={styles.resetBtn}
           />
         ) : null}
@@ -109,17 +120,6 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontSize: 14 },
   heroBar: { alignSelf: "stretch", marginTop: spacing.md },
   statsRow: { flexDirection: "row", gap: spacing.md },
-  sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
-  empty: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xl,
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  emptyText: { color: colors.textDim, fontSize: 14, textAlign: "center", lineHeight: 20 },
   list: { gap: spacing.sm },
   row: {
     flexDirection: "row",
@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  rowText: { flex: 1 },
   rowTitle: { color: colors.text, fontSize: 15, fontWeight: "600" },
   rowTime: { color: colors.textFaint, fontSize: 12 },
   rowXp: { color: colors.warning, fontSize: 14, fontWeight: "700" },
