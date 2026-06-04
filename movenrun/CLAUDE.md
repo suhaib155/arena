@@ -4,8 +4,13 @@
 The **active app** is a lightweight **AI movement-quest** app: a daily movement
 quest, a start → active timer → finish → XP-result flow, plus XP/levels and a
 daily streak. It lives in `mobile/` (Expo SDK 51, React Native 0.74, **Expo
-Router v3**, TypeScript, Zustand + AsyncStorage). Quests come from local mock
-data (`mobile/src/data/quests.ts`).
+Router v3**, TypeScript, Zustand + AsyncStorage).
+
+**Quest data goes through `mobile/src/services/questService.ts`** (backed by mock
+data in `mobile/src/data/quests.ts`) — screens never import raw quest arrays.
+This is the seam for future **server-side, AI-generated** quests; do not bypass
+it, and never put AI provider keys in the app. Each quest awards XP at most once
+per local day (completed-today anti-farming).
 
 The full product plan — both this MVP and the preserved legacy direction — is in
 **`docs/ROADMAP.md`**. Read it before making product-scope decisions.

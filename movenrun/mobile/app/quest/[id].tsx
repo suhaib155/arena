@@ -5,7 +5,8 @@ import { Screen } from "@/components/Screen";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { categoryColor, colors, difficultyColor, radius, spacing } from "@/theme";
-import { getQuest } from "@/data/quests";
+import { questService } from "@/services/questService";
+import { useIsCompletedToday } from "@/store/useGameStore";
 import { tapFeedback } from "@/lib/haptics";
 
 function formatDuration(seconds: number): string {
@@ -18,7 +19,8 @@ function formatDuration(seconds: number): string {
 export default function QuestDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const quest = getQuest(id);
+  const quest = questService.getQuestById(id ?? "");
+  const completedToday = useIsCompletedToday(id ?? "");
 
   if (!quest) {
     return (
@@ -90,14 +92,23 @@ export default function QuestDetailScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button
-          label="Start Quest"
-          icon="play"
-          onPress={() => {
-            tapFeedback();
-            router.push({ pathname: "/active", params: { id: quest.id } });
-          }}
-        />
+        {completedToday ? (
+          <>
+            <Button label="Completed today" icon="checkmark-done" disabled onPress={() => {}} />
+            <Text style={styles.doneHint}>
+              You&apos;ve earned XP for this quest today. Come back tomorrow!
+            </Text>
+          </>
+        ) : (
+          <Button
+            label="Start Quest"
+            icon="play"
+            onPress={() => {
+              tapFeedback();
+              router.push({ pathname: "/active", params: { id: quest.id } });
+            }}
+          />
+        )}
       </View>
     </Screen>
   );
@@ -147,7 +158,13 @@ const styles = StyleSheet.create({
   },
   stepNumText: { color: colors.text, fontSize: 13, fontWeight: "700" },
   stepText: { flex: 1, color: colors.textDim, fontSize: 15, lineHeight: 22 },
-  footer: { paddingVertical: spacing.md },
+  footer: { paddingVertical: spacing.md, gap: spacing.sm },
+  doneHint: {
+    color: colors.textDim,
+    fontSize: 13,
+    textAlign: "center",
+    paddingHorizontal: spacing.lg,
+  },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   notFoundText: { color: colors.textDim, fontSize: 16 },
 });
