@@ -64,6 +64,64 @@ CI runs this type-check automatically on every PR and on pushes to `main`
 > on the Profile tab (which clears stats) or clear the app's storage — note that
 > Reset intentionally keeps you past onboarding.
 
+## Test on your phone (GitHub Codespaces + Expo tunnel)
+
+The dev server runs in the cloud (Codespaces), and your phone connects over an
+Expo **tunnel** — no shared Wi‑Fi/LAN needed, no port forwarding.
+
+### 1. Open a Codespace
+- On the GitHub repo: **Code ▸ Codespaces ▸ Create codespace on `main`**.
+- Wait for it to boot, then open the integrated terminal.
+
+### 2. Install dependencies
+```bash
+cd movenrun
+yarn install
+```
+
+### 3. Start the tunnel
+```bash
+yarn workspace @movenrun/mobile start --tunnel --clear
+```
+- `--tunnel` routes through Expo's tunnel (ngrok) so a phone on cellular or any
+  network can reach the Codespace. This is the key flag for phone-only testing.
+- `--clear` clears the Metro cache (use it whenever things look stale).
+- **First run only:** Expo may prompt to install `@expo/ngrok` — accept it. To
+  avoid the prompt you can pre-install it once: `yarn add -D @expo/ngrok` inside
+  `movenrun/mobile`.
+- Keep this terminal/tab open while testing. Press `r` to reload, `j` to open the
+  debugger.
+
+### 4. Open the project in Expo Go
+After Metro starts it prints a QR code and an `exp://…` tunnel URL. Either:
+- **Scan the QR code** — iPhone: Camera app; Android: the "Scan QR code" button in
+  Expo Go, **or**
+- In **Expo Go ▸ Enter URL manually**, paste the `exp://…` URL from the terminal.
+
+### ⚠️ Expo Go version must match the SDK (this app is **SDK 51**)
+Expo Go from the App Store / Play Store tracks the **latest** SDK and will refuse
+to open an older project ("Project is incompatible with this version of Expo
+Go"). This app is on **Expo SDK 51**, so use a **matching** runtime:
+
+**Android**
+- Install an Expo Go build for SDK 51 from Expo's downloads page:
+  `https://expo.dev/go?sdkVersion=51&platform=android&device=true`
+- Then scan the QR / open the `exp://…` URL in that Expo Go.
+
+**iPhone**
+- The App Store only offers the **latest** Expo Go (older versions can't be
+  installed), so an SDK 51 project generally **won't open** in it. Options:
+  1. Build an iOS **development build** and open the tunnel URL in it:
+     `npx eas build --profile development --platform ios` (requires an Expo
+     account; one‑time), then run the same `--tunnel` command and open it in the
+     dev build.
+  2. **Upgrade the app to the latest Expo SDK** so the App Store Expo Go can open
+     it — tracked separately (see `docs/ROADMAP.md`); intentionally not part of
+     this change.
+
+> Android via a matching Expo Go is the fastest phone-only path on SDK 51. For
+> iPhone-via-App-Store-Expo-Go, an SDK upgrade is required.
+
 ## Screens & flow
 
 ```
@@ -104,3 +162,7 @@ _legacy/             Earlier GPS/blockchain mobile scaffold, parked out of the b
 - The share card is a **mock**: it shares a text blurb (the on-screen card is not
   yet captured as an image).
 - App icon/splash use Expo defaults (no custom art committed yet).
+- The app targets **Expo SDK 51**, so the latest App Store / Play Store Expo Go
+  may not open it. Use a matching Expo Go (Android) or a dev build (iPhone) — see
+  "Test on your phone" above. A future SDK upgrade would let the latest Expo Go
+  open it directly.
