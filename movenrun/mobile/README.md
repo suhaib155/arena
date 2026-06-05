@@ -124,6 +124,42 @@ After Metro starts, the terminal prints a QR code and an `exp://…` tunnel URL.
   where `npx expo install --fix` and `npx expo-doctor` can run successfully and
   the result can be device-tested (see `docs/ROADMAP.md`).
 
+## Build an installable Android APK (GitHub Actions + EAS)
+
+Build a real, installable `.apk` in the cloud with **EAS Build** — **no Expo Go
+required**. The build runs from a manual GitHub Actions workflow
+(`.github/workflows/eas-apk-build.yml`) and authenticates with a single secret.
+
+### One-time prerequisites
+- **`EXPO_TOKEN` secret** — an Expo access token stored in **repo Settings ▸
+  Secrets and variables ▸ Actions ▸ `EXPO_TOKEN`**. (Already done.) Never commit
+  Expo tokens/passwords.
+- **Link the EAS project once** — EAS needs a real project id. `app.json` currently
+  has `extra.eas.projectId: "FILL_ME_IN"`. From `movenrun/mobile`, run
+  `npx eas-cli@latest init` (or `eas init`) once on your machine while logged in;
+  commit the resulting real `projectId`. Until this is set, the build will fail
+  asking to configure the project.
+
+### Run the build
+1. Go to the **GitHub repo**.
+2. Open the **Actions** tab.
+3. Select the **EAS APK Build** workflow.
+4. Click **Run workflow** (on `main`).
+5. Wait for the job to print an **EAS build link** (in the step log).
+6. Open the **EAS build page** from that link.
+7. **Download the APK** when the build finishes.
+8. **Transfer/open the APK** on your Android phone.
+9. **Install and test** (allow "install from unknown sources" if prompted).
+10. **No Expo Go is required** — this is a standalone app.
+
+### Profiles (`eas.json`)
+- **`preview`** → builds an **APK** (`buildType: apk`) for direct install. ← use this.
+- **`production`** → builds an **AAB** (`buildType: app-bundle`) for the Play Store
+  later.
+
+> Security: the workflow uses **only** the `EXPO_TOKEN` GitHub Actions secret.
+> Never commit Expo tokens, passwords, or `.env` files.
+
 ## Screens & flow
 
 ```
