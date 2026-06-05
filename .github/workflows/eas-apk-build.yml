@@ -1,0 +1,60 @@
+name: EAS APK Build
+
+# Manually-triggered Android APK build via EAS Build.
+# Requires a single GitHub Actions secret: EXPO_TOKEN (an Expo access token).
+# No other secrets are used. Produces an installable APK (preview profile).
+on:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Android APK (EAS, preview)
+    runs-on: ubuntu-latest
+    env:
+      # Authenticates EAS CLI non-interactively. Set in:
+      # repo Settings -> Secrets and variables -> Actions -> EXPO_TOKEN
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      # No yarn.lock is committed yet, and Yarn 4 enables immutable installs
+      # under CI; allow the lockfile to be created here.
+      YARN_ENABLE_IMMUTABLE_INSTALLS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The repo pins Yarn 4 via package.json "packageManager"; Corepack
+      # provisions the right Yarn version.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Verify EXPO_TOKEN secret is present
+        run: |
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo "::error::EXPO_TOKEN secret is not set. Add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "EXPO_TOKEN is present."
+
+      # Fail fast (before the install/build) if the EAS project isn't linked yet.
+      - name: Preflight - ensure EAS projectId is linked
+        working-directory: movenrun/mobile
+        run: |
+          if grep -q "FILL_ME_IN" app.json; then
+            echo "::error::EAS projectId is not linked. Run 'eas init' from movenrun/mobile and commit the generated extra.eas.projectId before running this workflow."
+            exit 1
+          fi
+          echo "EAS projectId is linked."
+
+      # Install from the Yarn workspaces root (movenrun/).
+      - name: Install dependencies
+        working-directory: movenrun
+        run: yarn install
+
+      # Build the APK from the mobile package (where app.json + eas.json live).
+      # `eas build` submits to EAS Build and prints the build details URL.
+      - name: Build Android APK (EAS preview profile)
+        working-directory: movenrun/mobile
+        run: npx eas-cli@latest build -p android --profile preview --non-interactive

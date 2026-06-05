@@ -61,3 +61,10 @@ not abandoned**. Its details and future integration plan live in
   (`mobile/README.md`). Any Expo SDK upgrade is a **separate PR** done where
   `expo install --fix` / `expo-doctor` can run and be device-tested — never an
   unverified bump.
+- For installable **Android APK** builds, use the **EAS GitHub Actions workflow**
+  (`.github/workflows/eas-apk-build.yml`, preview profile). It authenticates with
+  the **`EXPO_TOKEN`** GitHub Actions secret only. Never ask for the Expo
+  password, and never commit `EXPO_TOKEN`, Expo tokens, or `.env` files.
+  The EAS project must be **linked first** (`eas init` writes a real
+  `extra.eas.projectId` into `app.json`); the workflow fails fast on the
+  `FILL_ME_IN` placeholder. Never fabricate a `projectId`.
