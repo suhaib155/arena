@@ -57,3 +57,7 @@ not abandoned**. Its details and future integration plan live in
   straight to `main`).
 - Keep the MVP simple and working before adding future integrations.
 - Package manager is **yarn workspaces**.
+- App is on **Expo SDK 51**; phone-test via the SDK 51 Android Expo Go + tunnel
+  (`mobile/README.md`). Any Expo SDK upgrade is a **separate PR** done where
+  `expo install --fix` / `expo-doctor` can run and be device-tested — never an
+  unverified bump.

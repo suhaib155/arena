@@ -110,6 +110,20 @@ each should land as its own branch + PR once the basic app is stable.
 
 ---
 
+## Dev environment & device testing
+
+- The app is on **Expo SDK 51**. Phone testing today uses the **SDK 51** Android
+  Expo Go over an Expo **tunnel** from GitHub Codespaces — see the "Test on your
+  Android phone" section of `mobile/README.md`.
+- **iPhone** physical testing needs the latest Expo SDK (App Store Expo Go) or an
+  EAS development build — set up later.
+- **Expo SDK upgrade** is its own task: do it in a **separate PR**, from an
+  environment where `npx expo install --fix` and `npx expo-doctor` run
+  successfully and the result can be device-tested. Do not perform an unverified
+  SDK upgrade.
+
+---
+
 ## Working agreement
 
 - Always work through **feature branches and pull requests**.
