@@ -175,6 +175,20 @@ Merge this PR so `.github/workflows/eas-apk-build.yml` is on `main` (manual
 - **`production`** → builds an **AAB** (`buildType: app-bundle`) for the Play Store
   later.
 
+### Corepack on the EAS remote builder
+The EAS remote builder may start with **Yarn 1** (global), but this repo pins
+**Yarn 4** via `packageManager` (`yarn@4.9.1`). Yarn 1 refuses to run install for
+a Yarn-4 project and tells you to enable **Corepack**. EAS installs from the
+workspace root (`.../build/movenrun`), so without Corepack the remote
+`yarn install` fails.
+
+Fix: an **`eas-build-pre-install`** hook runs `corepack enable` before EAS
+installs dependencies. It's defined in **both** `movenrun/package.json` (the
+workspace root EAS installs from) and `movenrun/mobile/package.json` (the build
+target), so Corepack is enabled regardless of which one EAS reads. Combined with
+`nodeLinker: node-modules` (in `movenrun/.yarnrc.yml`), Yarn 4 then installs
+cleanly on EAS.
+
 > Security: the workflow uses **only** the `EXPO_TOKEN` GitHub Actions secret.
 > Never commit Expo tokens, passwords, or `.env` files.
 
