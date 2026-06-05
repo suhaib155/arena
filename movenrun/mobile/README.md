@@ -128,29 +128,47 @@ After Metro starts, the terminal prints a QR code and an `exp://…` tunnel URL.
 
 Build a real, installable `.apk` in the cloud with **EAS Build** — **no Expo Go
 required**. The build runs from a manual GitHub Actions workflow
-(`.github/workflows/eas-apk-build.yml`) and authenticates with a single secret.
+(`.github/workflows/eas-apk-build.yml`) and authenticates with a single secret
+(`EXPO_TOKEN`, already configured in repo Settings ▸ Secrets and variables ▸
+Actions). **Never commit Expo tokens, passwords, or `.env` files.**
 
-### One-time prerequisites
-- **`EXPO_TOKEN` secret** — an Expo access token stored in **repo Settings ▸
-  Secrets and variables ▸ Actions ▸ `EXPO_TOKEN`**. (Already done.) Never commit
-  Expo tokens/passwords.
-- **Link the EAS project once** — EAS needs a real project id. `app.json` currently
-  has `extra.eas.projectId: "FILL_ME_IN"`. From `movenrun/mobile`, run
-  `npx eas-cli@latest init` (or `eas init`) once on your machine while logged in;
-  commit the resulting real `projectId`. Until this is set, the build will fail
-  asking to configure the project.
+Do the three steps in order.
 
-### Run the build
-1. Go to the **GitHub repo**.
-2. Open the **Actions** tab.
-3. Select the **EAS APK Build** workflow.
-4. Click **Run workflow** (on `main`).
-5. Wait for the job to print an **EAS build link** (in the step log).
-6. Open the **EAS build page** from that link.
-7. **Download the APK** when the build finishes.
-8. **Transfer/open the APK** on your Android phone.
-9. **Install and test** (allow "install from unknown sources" if prompted).
-10. **No Expo Go is required** — this is a standalone app.
+### Step A — Link the EAS project once (required first)
+EAS needs a real project id. `app.json` ships with a placeholder
+(`extra.eas.projectId: "FILL_ME_IN"`), and the workflow **fails fast** until it's
+replaced. Link it once from your machine:
+
+```bash
+cd movenrun/mobile          # Windows example: cd E:\MovenRun\arena\movenrun\mobile
+npx eas-cli@latest login    # or: eas login
+npx eas-cli@latest init     # or: eas init
+```
+
+`eas init` creates/links the project under your Expo account and writes the real
+`extra.eas.projectId` into `app.json`. **Commit that one-line `app.json` change**
+(a small commit/PR). It's a one-time step. Only the `projectId` is committed —
+never your token/password.
+
+> Why isn't this automated in CI? Linking creates/owns a project under *your*
+> Expo account and the id must live in `app.json`. The workflow intentionally
+> does **not** auto-create projects or mutate committed config — it just checks
+> that the project is linked and fails with instructions if not.
+
+### Step B — Merge the workflow to `main`
+Merge this PR so `.github/workflows/eas-apk-build.yml` is on `main` (manual
+`workflow_dispatch` workflows are launched from the default branch).
+
+### Step C — Run the build (produces the APK)
+1. Go to the **GitHub repo** → **Actions** tab.
+2. Select the **EAS APK Build** workflow.
+3. Click **Run workflow** (on `main`).
+4. Wait for the job to print an **EAS build link** (in the step log).
+5. Open the **EAS build page** from that link.
+6. **Download the APK** when the build finishes.
+7. **Transfer/open the APK** on your Android phone.
+8. **Install and test** (allow "install from unknown sources" if prompted).
+9. **No Expo Go is required** — this is a standalone app.
 
 ### Profiles (`eas.json`)
 - **`preview`** → builds an **APK** (`buildType: apk`) for direct install. ← use this.

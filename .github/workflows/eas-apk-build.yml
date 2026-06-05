@@ -38,6 +38,16 @@ jobs:
           fi
           echo "EXPO_TOKEN is present."
 
+      # Fail fast (before the install/build) if the EAS project isn't linked yet.
+      - name: Preflight - ensure EAS projectId is linked
+        working-directory: movenrun/mobile
+        run: |
+          if grep -q "FILL_ME_IN" app.json; then
+            echo "::error::EAS projectId is not linked. Run 'eas init' from movenrun/mobile and commit the generated extra.eas.projectId before running this workflow."
+            exit 1
+          fi
+          echo "EAS projectId is linked."
+
       # Install from the Yarn workspaces root (movenrun/).
       - name: Install dependencies
         working-directory: movenrun

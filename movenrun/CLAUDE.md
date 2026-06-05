@@ -65,3 +65,6 @@ not abandoned**. Its details and future integration plan live in
   (`.github/workflows/eas-apk-build.yml`, preview profile). It authenticates with
   the **`EXPO_TOKEN`** GitHub Actions secret only. Never ask for the Expo
   password, and never commit `EXPO_TOKEN`, Expo tokens, or `.env` files.
+  The EAS project must be **linked first** (`eas init` writes a real
+  `extra.eas.projectId` into `app.json`); the workflow fails fast on the
+  `FILL_ME_IN` placeholder. Never fabricate a `projectId`.
