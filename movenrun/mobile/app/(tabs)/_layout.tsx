@@ -19,7 +19,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Quests",
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Ionicons name="flame-outline" size={size} color={color} />
           ),
         }}
@@ -28,7 +28,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
