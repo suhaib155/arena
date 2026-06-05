@@ -11,7 +11,8 @@
   "scripts": {
     "build": "yarn workspaces run build",
     "test": "yarn workspaces run test",
-    "lint": "yarn workspaces run lint"
+    "lint": "yarn workspaces run lint",
+    "eas-build-pre-install": "corepack enable"
   },
   "packageManager": "yarn@4.9.1"
 }

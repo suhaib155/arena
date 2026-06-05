@@ -68,3 +68,8 @@ not abandoned**. Its details and future integration plan live in
   The EAS project must be **linked first** (`eas init` writes a real
   `extra.eas.projectId` into `app.json`); the workflow fails fast on the
   `FILL_ME_IN` placeholder. Never fabricate a `projectId`.
+  EAS remote builders may start with **Yarn 1** but the repo pins **Yarn 4**
+  (`packageManager`), so an **`eas-build-pre-install": "corepack enable"`** hook
+  (in both `movenrun/package.json` and `movenrun/mobile/package.json`) enables
+  Corepack before the remote `yarn install`. Keep `nodeLinker: node-modules` in
+  `movenrun/.yarnrc.yml`. Don't change `packageManager`.

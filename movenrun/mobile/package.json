@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "eas-build-pre-install": "corepack enable"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",
