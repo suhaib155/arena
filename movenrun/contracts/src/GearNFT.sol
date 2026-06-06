@@ -33,10 +33,11 @@ contract GearNFT is ERC1155, AccessControl {
     event GearEquipped(address indexed user, GearSlot slot, uint256 tokenId);
     event GearTypeAdded(uint256 indexed tokenId, string name, GearSlot slot, uint256 multiplierBps);
 
-    constructor(address _moveToken, address admin) ERC1155("https://api.movenrun.io/gear/{id}.json") {
+    constructor(address _moveToken) ERC1155("https://api.movenrun.io/gear/{id}.json") {
+        require(_moveToken != address(0), "GearNFT: zero address"); // FIX-003
         moveToken = MoveToken(_moveToken);
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(GEAR_ADMIN_ROLE, admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(GEAR_ADMIN_ROLE, msg.sender);
     }
 
     function addGearType(

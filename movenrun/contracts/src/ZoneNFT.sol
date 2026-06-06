@@ -6,42 +6,31 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "./MoveToken.sol";
+import "./interfaces/IGPSOracle.sol";
 
 contract ZoneNFT is ERC721, AccessControl {
     using ECDSA for bytes32;
 
     bytes32 public constant ZONE_ADMIN_ROLE = keccak256("ZONE_ADMIN_ROLE");
 
-    // Base mint cost before sqrt(weeklyMoverCount) scaling (in $MOVE wei)
-    uint256 public constant BASE_MINT_COST = 500 ether;
-
-    // Loyalty multiplier thresholds (in seconds)
-    uint256 public constant LOYALTY_TIER1 = 30 days;   // 1.0x  → 100
-    uint256 public constant LOYALTY_TIER2 = 90 days;   // 1.25x → 125
-    uint256 public constant LOYALTY_TIER3 = 180 days;  // 1.5x  → 150
-    uint256 public constant LOYALTY_TIER4 = 365 days;  // 1.75x → 175
-
-    uint256 public constant DORMANCY_PERIOD = 180 days;
-    uint256 public constant RECLAIM_PERIOD  = 210 days;
+    uint256 public constant BASE_MINT_COST   = 500 ether;
+    uint256 public constant LOYALTY_TIER1    = 30 days;
+    uint256 public constant LOYALTY_TIER2    = 90 days;
+    uint256 public constant LOYALTY_TIER3    = 180 days;
+    uint256 public constant LOYALTY_TIER4    = 365 days;
+    uint256 public constant DORMANCY_PERIOD  = 180 days;
+    uint256 public constant RECLAIM_PERIOD   = 210 days;
 
     MoveToken public moveToken;
-    address public trustedOracle;
-    address public challengeContract;
+    address   public gpsOracle;
+    address   public challengeContract;
+    address   public seasonController;
 
-    // hexId → ownership start timestamp
     mapping(uint64 => uint256) public ownershipStart;
-
-    // hexId → last movement activity timestamp
     mapping(uint64 => uint256) public lastActivity;
-
-    // hexId → accumulated zone yield (2% tax from MoveToken)
     mapping(uint64 => uint256) public accumulatedYield;
-
-    // hexId → dormant flag
-    mapping(uint64 => bool) public isDormant;
-
-    // Prevent sig replay for minting
-    mapping(bytes32 => bool) public usedMintSigs;
+    mapping(uint64 => bool)    public isDormant;
+    mapping(bytes32 => bool)   public usedMintSigs;
 
     event ZoneMinted(uint64 indexed hexId, address indexed owner, uint256 mintCost);
     event ZoneYieldCredited(uint64 indexed hexId, address indexed owner, uint256 amount);
@@ -49,18 +38,22 @@ contract ZoneNFT is ERC721, AccessControl {
     event ZoneReclaimed(uint64 indexed hexId);
     event YieldWithdrawn(uint64 indexed hexId, address indexed owner, uint256 amount);
 
-    constructor(address _moveToken, address _trustedOracle, address admin) ERC721("MovenRun Zone", "ZONE") {
+    constructor(address _moveToken, address _gpsOracle) ERC721("MovenRun Zone", "ZONE") {
+        require(_moveToken != address(0) && _gpsOracle != address(0), "ZoneNFT: zero address"); // FIX-003
         moveToken = MoveToken(_moveToken);
-        trustedOracle = _trustedOracle;
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(ZONE_ADMIN_ROLE, admin);
+        gpsOracle = _gpsOracle;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ZONE_ADMIN_ROLE, msg.sender);
     }
 
     function setChallengeContract(address _challengeContract) external onlyRole(DEFAULT_ADMIN_ROLE) {
         challengeContract = _challengeContract;
     }
 
-    // Called by MoveToken when crediting 2% zone tax
+    function setSeasonController(address _seasonController) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        seasonController = _seasonController;
+    }
+
     function creditZoneYield(uint64 hexId, uint256 amount) external {
         require(msg.sender == address(moveToken), "ZoneNFT: only MoveToken");
         require(_ownerOf(uint256(hexId)) != address(0), "ZoneNFT: zone not minted");
@@ -77,15 +70,13 @@ contract ZoneNFT is ERC721, AccessControl {
         require(_ownerOf(uint256(hexId)) == address(0), "ZoneNFT: already minted");
         require(!isDormant[hexId], "ZoneNFT: hex in reclaim state");
 
-        // Oracle signs: (hexId, msg.sender as topMover, mintCost)
-        bytes32 sigHash = keccak256(abi.encodePacked(hexId, msg.sender, mintCost));
+        address trustedSigner = IGPSOracle(gpsOracle).oracleOperator();
+        bytes32 sigHash = keccak256(abi.encodePacked(block.chainid, hexId, msg.sender, mintCost)); // FIX-001
         require(!usedMintSigs[sigHash], "ZoneNFT: sig already used");
         bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(sigHash);
-        address recovered = ECDSA.recover(ethHash, oracleSig);
-        require(recovered == trustedOracle, "ZoneNFT: invalid oracle sig");
+        require(ECDSA.recover(ethHash, oracleSig) == trustedSigner, "ZoneNFT: invalid oracle sig");
         usedMintSigs[sigHash] = true;
 
-        // Burn mintCost $MOVE from caller
         moveToken.burnFrom(msg.sender, mintCost);
 
         _mint(msg.sender, uint256(hexId));
@@ -115,12 +106,9 @@ contract ZoneNFT is ERC721, AccessControl {
     function reclaimDormant(uint64 hexId) external {
         require(isDormant[hexId], "ZoneNFT: not dormant");
         require(block.timestamp - lastActivity[hexId] > RECLAIM_PERIOD, "ZoneNFT: reclaim period not elapsed");
-
-        address owner = _ownerOf(uint256(hexId));
         _burn(uint256(hexId));
         delete ownershipStart[hexId];
         delete isDormant[hexId];
-        // accumulatedYield stays in contract; owner forfeits unclaimed yield
         emit ZoneReclaimed(hexId);
     }
 
@@ -129,8 +117,6 @@ contract ZoneNFT is ERC721, AccessControl {
         uint256 amount = accumulatedYield[hexId];
         require(amount > 0, "ZoneNFT: no yield");
         accumulatedYield[hexId] = 0;
-        // Transfer $MOVE from this contract to owner
-        // ZoneNFT must hold the $MOVE balance credited by MoveToken
         moveToken.transfer(msg.sender, amount);
         emit YieldWithdrawn(hexId, msg.sender, amount);
     }
@@ -139,7 +125,6 @@ contract ZoneNFT is ERC721, AccessControl {
         return _ownerOf(uint256(hexId));
     }
 
-    // ZoneNFT must exist in AccessControl hierarchy for ERC721 + AccessControl
     function supportsInterface(bytes4 interfaceId)
         public view override(ERC721, AccessControl) returns (bool)
     {
