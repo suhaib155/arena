@@ -168,3 +168,9 @@ address on Basescan (`https://sepolia.basescan.org/address/<addr>`).
 4. **Read-only testnet integration only** (Phase 2): start by *reading*
    `ZoneNFT` ownership and `ZoneChallenge` state from Base Sepolia. No minting,
    no writes, no mainnet, no wallet UI yet.
+
+> ⚠️ **No liquid reward economy may be exposed yet.** These are **Base Sepolia
+> testnet** contracts only. No mainnet addresses exist, and per `docs/ROADMAP.md`
+> no liquid rewards / real token emissions / earning claims ship before Phase 1
+> density and reliable GPS verification. This PR reconciles artifacts; it does
+> **not** enable any economy in the app.
