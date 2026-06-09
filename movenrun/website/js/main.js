@@ -85,25 +85,114 @@
       if (Math.abs(s.p - s.target) < 0.0005) s.p = s.target;
       s.update(s.p, t);
     }
-    updateRail();
+    updateJourney();
     requestAnimationFrame(loop);
   }
 
-  /* ───────────────────────── runner rail ───────────────────────── */
-  var railFill = $("#railFill"), railOrb = $("#railOrb");
-  function updateRail() {
-    if (!railFill) return;
-    var doc = document.documentElement;
-    var p = clamp(doc.scrollTop / (doc.scrollHeight - window.innerHeight), 0, 1);
-    var span = window.innerHeight * 0.76;
-    railFill.style.height = (p * span) + "px";
-    railOrb.style.top = "calc(12vh + " + (p * span) + "px)";
+  /* ───────────────────── the journey spine ─────────────────────
+     One continuous route drawn from the hero to the final CTA. The
+     path is rebuilt from section positions, drawn by scroll, and a
+     glowing runner orb travels it with milestone hexes lighting up. */
+  var journey = $("#journey");
+  var journeyTrack = $("#journeyTrack"), journeyFill = $("#journeyFill");
+  var journeyNodesG = $("#journeyNodes"), journeyOrb = $("#journeyOrb");
+  var journeySvgEl = $("#journeySvg");
+  var journeyLen = 0, journeyLUT = [], journeyNodeList = [];
+
+  function buildJourney() {
+    if (!journey || REDUCED || window.innerWidth <= 1100) { journeyLen = 0; return; }
+    var docH = document.documentElement.scrollHeight;
+    var w = document.documentElement.clientWidth;
+    journey.style.height = docH + "px";
+    journeySvgEl.setAttribute("viewBox", "0 0 " + w + " " + docH);
+
+    function wp(sel, fx, fy) {
+      var el = $(sel);
+      if (!el) return null;
+      var top = el.getBoundingClientRect().top + window.scrollY;
+      return [w * fx, top + el.offsetHeight * fy];
+    }
+    var pts = [
+      [w * 0.085, window.innerHeight * 0.88],
+      wp(".descent", 0.4, 0.16),
+      wp(".descent", 0.62, 0.55),
+      wp("#loop", 0.1, 0.45),
+      wp("#app", 0.84, 0.28),
+      wp("#session", 0.1, 0.5),
+      wp("#rewards", 0.8, 0.5),
+      wp("#economy", 0.14, 0.5),
+      wp("#clubs", 0.84, 0.5),
+      wp("#base", 0.12, 0.5),
+      wp("#roadmap", 0.5, 0.05),
+      wp("#roadmap", 0.5, 0.97),
+      wp("#join", 0.5, 0.6)
+    ].filter(Boolean);
+
+    /* catmull-rom → cubic beziers for a soft, hand-drawn route */
+    var d = "M " + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+      d += " C " + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + " " + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) +
+           " " + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + " " + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) +
+           " " + p2[0].toFixed(1) + " " + p2[1].toFixed(1);
+    }
+    journeyTrack.setAttribute("d", d);
+    journeyFill.setAttribute("d", d);
+    journeyLen = journeyFill.getTotalLength();
+    journeyFill.style.strokeDasharray = journeyLen;
+    journeyFill.style.strokeDashoffset = journeyLen;
+
+    /* length → page-y lookup so the orb tracks the viewport center */
+    journeyLUT = [];
+    var SAMPLES = 360;
+    for (var k = 0; k <= SAMPLES; k++) {
+      var pt = journeyFill.getPointAtLength(journeyLen * k / SAMPLES);
+      journeyLUT.push([journeyLen * k / SAMPLES, pt.x, pt.y]);
+    }
+
+    /* milestone hexes at each section waypoint */
+    journeyNodesG.innerHTML = "";
+    journeyNodeList = [];
+    pts.forEach(function (p, idx) {
+      if (idx === 0) return;
+      var poly = document.createElementNS(SVGNS, "polygon");
+      var str = [];
+      for (var k2 = 0; k2 < 6; k2++) {
+        var a = Math.PI / 180 * (60 * k2 - 30);
+        str.push((p[0] + 9 * Math.cos(a)).toFixed(1) + "," + (p[1] + 9 * Math.sin(a)).toFixed(1));
+      }
+      poly.setAttribute("points", str.join(" "));
+      journeyNodesG.appendChild(poly);
+      journeyNodeList.push({ el: poly, y: p[1] });
+    });
   }
+
+  function updateJourney() {
+    if (!journeyLen) return;
+    var targetY = window.scrollY + window.innerHeight * 0.55;
+    var lo = 0, hi = journeyLUT.length - 1;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (journeyLUT[mid][2] < targetY) lo = mid + 1; else hi = mid; }
+    var a = journeyLUT[Math.max(0, lo - 1)], b = journeyLUT[lo];
+    var t = clamp((targetY - a[2]) / Math.max(1, b[2] - a[2]), 0, 1);
+    var len = lerp(a[0], b[0], t);
+    journeyFill.style.strokeDashoffset = Math.max(0, journeyLen - len);
+    journeyOrb.style.transform = "translate(" + lerp(a[1], b[1], t).toFixed(1) + "px," + lerp(a[2], b[2], t).toFixed(1) + "px)";
+    for (var i = 0; i < journeyNodeList.length; i++) {
+      journeyNodeList[i].el.classList.toggle("lit", targetY >= journeyNodeList[i].y);
+    }
+  }
+  var journeyResizeT = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(journeyResizeT);
+    journeyResizeT = setTimeout(buildJourney, 280);
+  });
+  window.addEventListener("load", function () { setTimeout(buildJourney, 900); });
 
   /* ───────────────────────── hero globe ────────────────────────── */
   var heroCanvas = $("#heroGlobe");
   var heroGlobe = heroCanvas ? new MRGlobe(heroCanvas) : null;
   var heroRot = 18;
+  var heroHazeA = $(".hero-haze-a"), heroHazeB = $(".hero-haze-b"), heroRouteSvg = $(".hero-route");
   function heroFrame(t) {
     if (!heroGlobe) return;
     var rect = heroCanvas.getBoundingClientRect();
@@ -116,6 +205,14 @@
         cloudDrift: t * 0.0015
       });
     }
+    /* depth parallax as the hero scrolls away */
+    var sy = window.scrollY;
+    if (sy < window.innerHeight * 1.3) {
+      heroCanvas.style.transform = "translateY(" + (sy * 0.16).toFixed(1) + "px) scale(" + (1 + sy * 0.00012).toFixed(4) + ")";
+      if (heroHazeA) heroHazeA.style.transform = "translateY(" + (sy * 0.26).toFixed(1) + "px)";
+      if (heroHazeB) heroHazeB.style.transform = "translateY(" + (sy * 0.12).toFixed(1) + "px)";
+      if (heroRouteSvg) heroRouteSvg.style.transform = "translateY(" + (sy * 0.08).toFixed(1) + "px)";
+    }
     if (!REDUCED) requestAnimationFrame(heroFrame);
   }
 
@@ -127,6 +224,7 @@
   var cityPlane = $("#cityPlane");
   var cityMarker = $("#cityMarker");
   var descentAlt = $("#descentAlt");
+  var cloudEls = $all("#descentClouds i");
   var descentMeterFill = $("#descentMeterFill");
   var phases = $all(".descent-phase");
 
@@ -157,7 +255,7 @@
     var cy = h / 2 - gp.y * R * aim + lerp(h * 0.06, 0, zoomP);
 
     var detail = 1 - smooth(clamp((p - 0.3) / 0.3, 0, 1));
-    var canvasFade = 1 - smooth(clamp((p - 0.52) / 0.16, 0, 1));
+    var canvasFade = 1 - smooth(clamp((p - 0.5) / 0.2, 0, 1));
     descentCanvas.style.opacity = canvasFade;
     if (canvasFade > 0.01) {
       descentGlobe.render({
@@ -168,16 +266,30 @@
       });
     }
 
+    /* clouds rush past the camera through the hand-off */
+    for (var ci = 0; ci < cloudEls.length; ci++) {
+      var cStart = 0.28 + ci * 0.05;
+      var cl = clamp((p - cStart) / 0.32, 0, 1);
+      var cop = Math.sin(cl * Math.PI);
+      var csc = 0.5 + cl * (2.1 + ci * 0.35);
+      var cty = lerp(h * 0.35, -h * 0.75, cl) * (1 + ci * 0.12);
+      var ctx2 = (ci % 2 ? 1 : -1) * cl * w * 0.16;
+      cloudEls[ci].style.opacity = (cop * 0.95).toFixed(3);
+      cloudEls[ci].style.transform = "translate3d(" + ctx2.toFixed(1) + "px," + cty.toFixed(1) + "px,0) scale(" + csc.toFixed(3) + ")";
+    }
+
     /* white haze swells through the hand-off */
-    var haze = Math.exp(-Math.pow((p - 0.56) / 0.13, 2));
-    descentHaze.style.opacity = (haze * 0.95).toFixed(3);
+    var haze = Math.exp(-Math.pow((p - 0.55) / 0.16, 2));
+    descentHaze.style.opacity = (haze * 0.97).toFixed(3);
 
     /* city plane lands */
-    var cp = smooth(clamp((p - 0.52) / 0.22, 0, 1));
+    var landE = easeCine(clamp((p - 0.47) / 0.5, 0, 1));
+    var cp = smooth(clamp((p - 0.47) / 0.24, 0, 1));
     cityStage.style.opacity = cp.toFixed(3);
-    var rx = lerp(56, 28, easeCine(clamp((p - 0.52) / 0.45, 0, 1)));
-    var sc = lerp(1.32, 1.0, easeCine(clamp((p - 0.52) / 0.45, 0, 1)));
-    cityPlane.style.transform = "rotateX(" + rx + "deg) scale(" + sc + ")";
+    var rx = lerp(62, 26, landE);
+    var sc = lerp(1.42, 1.0, landE);
+    var tz = lerp(h * 0.06, 0, landE);
+    cityPlane.style.transform = "translateY(" + tz.toFixed(1) + "px) rotateX(" + rx.toFixed(2) + "deg) scale(" + sc.toFixed(3) + ")";
 
     if (cityMarker) cityMarker.classList.toggle("on", p > 0.6);
     for (var i = 0; i < cityHexes.length; i++) {
@@ -193,7 +305,7 @@
 
     /* altitude meter */
     if (descentAlt) {
-      var alt = 6371 * Math.pow(1 - clamp(p, 0, 0.99), 2.4);
+      var alt = 6371 * Math.pow(1 - clamp(p, 0, 0.99), 4.2);
       descentAlt.textContent = p > 0.92 ? "STREET LEVEL" :
         (p < 0.04 ? "SAT · 6,371 km" : "ALT · " + (alt > 10 ? Math.round(alt).toLocaleString() + " km" : alt.toFixed(1) + " km"));
       descentMeterFill.style.width = (p * 100) + "%";
@@ -228,6 +340,7 @@
   var pscreens = $all(".pscreen");
   var appSteps = $all("#appSteps li");
   var appBgRoute = $("#appBgRoute");
+  var phoneBackplate = $("#phoneBackplate"), phoneBackplate2 = $("#phoneBackplate2");
   var lastScreen = -1;
 
   /* tiny map fills for the phone screens */
@@ -258,6 +371,9 @@
     var ry = lerp(-9, 9, p);
     var rx = 4 * Math.sin(p * Math.PI);
     phone.style.transform = "perspective(1100px) rotateY(" + ry + "deg) rotateX(" + rx + "deg) translateY(" + (-8 * Math.sin(p * Math.PI)) + "px)";
+    phone.style.setProperty("--glare", easeCine(p).toFixed(3));
+    if (phoneBackplate) phoneBackplate.style.transform = "rotate(" + lerp(-8, 4, p).toFixed(2) + "deg) translateY(" + lerp(24, -24, p).toFixed(1) + "px)";
+    if (phoneBackplate2) phoneBackplate2.style.transform = "rotate(" + lerp(7, -5, p).toFixed(2) + "deg) translate(" + lerp(-34, 34, p).toFixed(1) + "px," + lerp(-18, 26, p).toFixed(1) + "px)";
     if (appBgRoute) appBgRoute.style.strokeDashoffset = 2200 * (1 - easeCine(p));
   }
 
@@ -289,9 +405,13 @@
     });
   })();
 
+  var sessionSvgEl = $(".session-svg");
   function sessionUpdate(p) {
     if (!sessionRoute) return;
     var dp = easeCine(p);
+    if (sessionSvgEl && !REDUCED) {
+      sessionSvgEl.style.transform = "scale(" + (1.06 - 0.06 * dp).toFixed(4) + ") translateX(" + ((0.5 - dp) * 2.5).toFixed(2) + "%)";
+    }
     sessionRoute.style.strokeDashoffset = routeLen * (1 - dp);
     var pt = sessionRoute.getPointAtLength(routeLen * dp);
     sessionMarkerEl.setAttribute("transform", "translate(" + pt.x + "," + pt.y + ")");
@@ -372,19 +492,28 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var colors = ["#F7B955", "#18C987", "#58F2B3", "#7657FF"];
     var parts = [];
-    for (var i = 0; i < 54; i++) {
-      var a = Math.random() * Math.PI * 2;
-      var sp = 0.6 + Math.random() * 2.4;
-      parts.push({
-        x: rect.width * (0.2 + Math.random() * 0.25),
-        y: rect.height * (0.25 + Math.random() * 0.3),
-        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.6,
-        life: 0, max: 70 + Math.random() * 60,
-        c: colors[i % colors.length],
-        hex: Math.random() < 0.45, s: 2 + Math.random() * 3.2,
-        delay: Math.random() * 50
-      });
+
+    function emit(x, y, n, spread, delayBase) {
+      for (var i = 0; i < n; i++) {
+        var a = -Math.PI / 2 + (Math.random() - 0.5) * spread;
+        var sp = 1.0 + Math.random() * 2.6;
+        parts.push({
+          x: x + (Math.random() - 0.5) * 36, y: y + (Math.random() - 0.5) * 20,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+          life: 0, max: 90 + Math.random() * 70,
+          c: colors[(Math.random() * colors.length) | 0],
+          hex: Math.random() < 0.5,
+          s: 1.6 + Math.random() * 3,
+          rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.1,
+          ph: Math.random() * Math.PI * 2,          /* 3D flip phase */
+          delay: delayBase + Math.random() * 45
+        });
+      }
     }
+    /* one burst from the Captured stamp, a softer one from the XP rows */
+    emit(rect.width * 0.4, rect.height * 0.18, 32, 2.2, 0);
+    emit(rect.width * 0.72, rect.height * 0.5, 24, 1.9, 30);
+
     function frame() {
       ctx.clearRect(0, 0, rect.width, rect.height);
       var alive = false;
@@ -393,23 +522,36 @@
         pp.life++;
         if (pp.life > pp.max) return;
         alive = true;
-        pp.x += pp.vx; pp.y += pp.vy; pp.vy += 0.015; pp.vx *= 0.985;
-        var o = 1 - pp.life / pp.max;
-        ctx.globalAlpha = o * 0.9;
+        pp.x += pp.vx; pp.y += pp.vy;
+        pp.vy = pp.vy * 0.992 + 0.012;   /* drag + the gentlest gravity */
+        pp.vx *= 0.985;
+        pp.rot += pp.vr;
+        var o = 1 - smooth(pp.life / pp.max);
+        ctx.globalAlpha = o * 0.92;
         ctx.fillStyle = pp.c;
+        ctx.shadowColor = pp.c;
+        ctx.shadowBlur = 9;
         if (pp.hex) {
+          /* tiny hex with a slow 3D flip (scaleX oscillation) */
+          var flip = Math.cos(pp.ph + pp.life * 0.07);
+          ctx.save();
+          ctx.translate(pp.x, pp.y);
+          ctx.rotate(pp.rot);
+          ctx.scale(Math.max(0.12, Math.abs(flip)), 1);
           ctx.beginPath();
           for (var k = 0; k < 6; k++) {
-            var a2 = Math.PI / 180 * (60 * k - 30) + pp.life * 0.04;
-            var px = pp.x + pp.s * Math.cos(a2), py = pp.y + pp.s * Math.sin(a2);
+            var a2 = Math.PI / 180 * (60 * k - 30);
+            var px = pp.s * Math.cos(a2), py = pp.s * Math.sin(a2);
             if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
           }
           ctx.closePath(); ctx.fill();
+          ctx.restore();
         } else {
-          ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.s * 0.6, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.s * 0.55, 0, Math.PI * 2); ctx.fill();
         }
       });
       ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
       if (alive) requestAnimationFrame(frame);
       else ctx.clearRect(0, 0, rect.width, rect.height);
     }
