@@ -23,11 +23,22 @@
   </div>
 </div>
 
-<!-- ───────────────────────── Page-long runner rail ───────────────────────── -->
-<div class="route-rail" id="routeRail" aria-hidden="true">
-  <div class="route-rail-track"></div>
-  <div class="route-rail-fill" id="railFill"></div>
-  <div class="route-rail-orb" id="railOrb"><span></span></div>
+<!-- ─────────── The Journey: one continuous route through the page ─────────── -->
+<div class="journey" id="journey" aria-hidden="true">
+  <svg id="journeySvg" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="journeyGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#246BFE"/>
+        <stop offset="0.45" stop-color="#18C987"/>
+        <stop offset="0.8" stop-color="#58F2B3"/>
+        <stop offset="1" stop-color="#7657FF"/>
+      </linearGradient>
+    </defs>
+    <path id="journeyTrack" fill="none"/>
+    <path id="journeyFill" fill="none"/>
+    <g id="journeyNodes"></g>
+  </svg>
+  <div class="journey-orb" id="journeyOrb"><span></span></div>
 </div>
 
 <!-- ───────────────────────── Navigation ───────────────────────── -->
@@ -55,8 +66,15 @@
     <div class="hero-haze hero-haze-a"></div>
     <div class="hero-haze hero-haze-b"></div>
     <svg class="hero-route" viewBox="0 0 900 700" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="heroGrad" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#246BFE"/>
+          <stop offset="1" stop-color="#58F2B3"/>
+        </linearGradient>
+      </defs>
       <path id="heroRoutePath" d="M -40 560 C 140 520 180 420 320 430 S 520 520 640 440 S 800 260 950 280" fill="none" />
       <path id="heroRoutePathGlow" d="M -40 560 C 140 520 180 420 320 430 S 520 520 640 440 S 800 260 950 280" fill="none" />
+      <circle id="heroRouteHead" r="6" />
     </svg>
   </div>
 
@@ -69,7 +87,7 @@
         <span class="rise r2">Move.&nbsp;Capture.</span>
         <span class="rise r3 hero-h1-grad">Own your city.</span>
       </h1>
-      <p class="hero-sub rise r4">Turn real-world movement into territory. Run, walk, or cycle to capture hex zones, defend your land, and build your city on Base.</p>
+      <p class="hero-sub rise r4">Run, walk, or cycle to capture hex zones, defend your territory, and own your city on Base.</p>
       <div class="hero-ctas rise r5">
         <a class="btn btn-primary btn-lg" href="#join">Join the Beta <span class="btn-arrow">→</span></a>
         <a class="btn btn-ghost btn-lg" href="#descent"><span class="play-ring"><span></span></span>Watch the Map Wake Up</a>
@@ -100,7 +118,7 @@
   </div>
 
   <div class="hero-scroll-hint rise r6" aria-hidden="true">
-    <span>Scroll to descend</span>
+    <span>Descend</span>
     <div class="scroll-line"><i></i></div>
   </div>
 </section>
@@ -109,6 +127,9 @@
 <section class="descent" id="descent">
   <div class="descent-sticky">
     <canvas id="descentGlobe" class="descent-canvas" aria-hidden="true"></canvas>
+    <div class="descent-clouds" id="descentClouds" aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
     <div class="descent-haze" id="descentHaze" aria-hidden="true"></div>
 
     <div class="city-stage" id="cityStage" aria-hidden="true">
@@ -193,7 +214,7 @@
       <div class="loop-body">
         <span class="loop-num font-mono">01</span>
         <h3>Move</h3>
-        <p>Run, walk, or cycle. Your GPS trace becomes a glowing route through the live map.</p>
+        <p>Your GPS trace becomes a glowing route through the live map.</p>
         <span class="loop-cta">Start a session <i class="btn-arrow">→</i></span>
       </div>
     </article>
@@ -219,7 +240,7 @@
       <div class="loop-body">
         <span class="loop-num font-mono">02</span>
         <h3>Capture</h3>
-        <p>Close a loop around a hex and it flips to your color. Territory, claimed by your feet.</p>
+        <p>Close a loop and the hex flips to your color — claimed by your feet.</p>
         <span class="loop-cta">Claim a hex <i class="btn-arrow">→</i></span>
       </div>
     </article>
@@ -238,7 +259,7 @@
       <div class="loop-body">
         <span class="loop-num font-mono">03</span>
         <h3>Defend</h3>
-        <p>Rivals decay your hold. Re-run your zones to refresh shields and keep your streets yours.</p>
+        <p>Re-run your zones to refresh shields before rivals wear them down.</p>
         <span class="loop-cta">Hold the line <i class="btn-arrow">→</i></span>
       </div>
     </article>
@@ -261,7 +282,7 @@
       <div class="loop-body">
         <span class="loop-num font-mono">04</span>
         <h3>Own</h3>
-        <p>Committed players mint Zone Deeds on Base — a durable claim to the city's deeper layer.</p>
+        <p>Mint Zone Deeds on Base — a durable claim to the deeper layer.</p>
         <span class="loop-cta">Read the deed <i class="btn-arrow">→</i></span>
       </div>
     </article>
@@ -291,6 +312,8 @@
     </div>
 
     <div class="phone-wrap" aria-hidden="true">
+      <div class="phone-backplate" id="phoneBackplate"></div>
+      <div class="phone-backplate two" id="phoneBackplate2"></div>
       <div class="phone" id="phone">
         <div class="phone-frame">
           <div class="phone-notch"></div>
@@ -374,6 +397,12 @@
 
     <div class="session-map glass-edge" aria-hidden="true">
       <svg class="session-svg" viewBox="0 0 960 520" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="sessionGrad" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stop-color="#246BFE"/>
+            <stop offset="1" stop-color="#58F2B3"/>
+          </linearGradient>
+        </defs>
         <rect width="960" height="520" rx="32" fill="#F4F8F4"/>
         <path d="M -20 420 C 180 380 300 460 520 410 S 800 330 980 380 L 980 540 L -20 540 Z" fill="#DCEEFB"/>
         <ellipse cx="210" cy="140" rx="130" ry="85" fill="#DDF2E2"/>
@@ -409,7 +438,7 @@
     <h2 class="h2">Every move leaves a mark.</h2>
   </div>
 
-  <div class="reward-card glass reveal" id="rewardCard">
+  <div class="reward-card glass stacked reveal" id="rewardCard">
     <canvas class="reward-particles" id="rewardParticles" aria-hidden="true"></canvas>
     <div class="reward-left">
       <div class="reward-maptile" aria-hidden="true">
@@ -434,7 +463,7 @@
         <div class="rrow mv"><span class="rrow-ic">⬡</span><span>Locked MOVE</span><strong class="num font-mono" data-count="35" data-prefix="+">+0</strong></div>
         <div class="rrow zn"><span class="rrow-ic">⬢</span><span>Zone captured</span><strong class="font-mono">1</strong></div>
       </div>
-      <p class="reward-note">Locked MOVE is in-app progress — it tracks your contribution to the map, not a payout. Nothing here implies guaranteed earnings.</p>
+      <p class="reward-note">Locked MOVE is in-app progress, not a payout — nothing here implies earnings.</p>
     </div>
   </div>
 </section>
@@ -459,8 +488,8 @@
       </div>
       <ul class="eco-list">
         <li>Capture common green hexes</li>
-        <li>Earn XP + Locked MOVE every session</li>
-        <li>Climb club &amp; city leaderboards</li>
+        <li>Earn XP + Locked MOVE</li>
+        <li>Climb city leaderboards</li>
       </ul>
     </article>
 
@@ -483,14 +512,14 @@
         <div class="eco-float two glass-soft"><span>Defense</span><span class="meter-track wide"><i class="eco-def-meter"></i></span></div>
       </div>
       <ul class="eco-list violet">
-        <li>Own premium violet zones as Zone Deed NFTs</li>
-        <li>Land defense bonuses &amp; zone identity</li>
-        <li>First in line when the economy deepens</li>
+        <li>Own premium violet zones</li>
+        <li>Land defense &amp; zone identity</li>
+        <li>First in when the economy deepens</li>
       </ul>
     </article>
   </div>
 
-  <p class="eco-note reveal">Liquid rewards come later — only after reliable GPS verification, real city density, and genuine sponsor demand. No shortcuts.</p>
+  <p class="eco-note reveal">Liquid rewards come later — after reliable GPS verification, real city density, and genuine sponsor demand.</p>
 </section>
 
 <!-- ═════════════════════ SECTION 8 · CLUBS & CITY WARS ═════════════════════ -->
@@ -498,7 +527,7 @@
   <div class="section-head reveal">
     <p class="kicker">Clubs &amp; city wars</p>
     <h2 class="h2">Your city is a competition layer.</h2>
-    <p class="lede">Form a club, paint the map in your colors, and race rival crews for districts every week.</p>
+    <p class="lede">Form a club, paint the map, and race rival crews for districts.</p>
   </div>
 
   <div class="clubs-grid">
@@ -516,7 +545,7 @@
         <div class="board-row" data-club="2"><span class="club-color c-gold"></span><div class="club-info"><strong>Campus Crew</strong><span class="font-mono">187 hexes</span></div><span class="club-trend down">▼</span></div>
         <div class="board-row" data-club="3"><span class="club-color c-coral"></span><div class="club-info"><strong>Morning Miles</strong><span class="font-mono">142 hexes</span></div><span class="club-trend up">▲</span></div>
       </div>
-      <footer class="board-foot"><span>Season rewards settle on Base</span><span class="font-mono">block #18,204,113</span></footer>
+      <footer class="board-foot"><span>Season settles on Base</span><span class="font-mono">week 14 · live</span></footer>
     </div>
   </div>
 </section>
@@ -569,6 +598,13 @@
 
   <div class="roadmap-track" id="roadmapTrack">
     <svg class="roadmap-svg" viewBox="0 0 120 1200" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#246BFE"/>
+          <stop offset="0.55" stop-color="#18C987"/>
+          <stop offset="1" stop-color="#7657FF"/>
+        </linearGradient>
+      </defs>
       <path id="roadTrackPath" class="road-track" d="M 60 0 C 20 150 100 250 60 400 C 20 550 100 650 60 800 C 20 950 100 1050 60 1200" fill="none"/>
       <path id="roadFillPath" class="road-fill" d="M 60 0 C 20 150 100 250 60 400 C 20 550 100 650 60 800 C 20 950 100 1050 60 1200" fill="none"/>
     </svg>
@@ -578,28 +614,28 @@
       <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
       <span class="phase-tag font-mono">Phase 1</span>
       <h3>Free Map Beta</h3>
-      <p>GPS sessions, hex capture, XP + Locked MOVE, clubs. No wallet needed.</p>
+      <p>GPS sessions, hex capture, XP + Locked MOVE. No wallet needed.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass right" data-phase="1">
       <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
       <span class="phase-tag font-mono">Phase 2</span>
       <h3>Deed Testnet</h3>
-      <p>Zone Deeds mint on Base Sepolia. GPSOracle verification hardens in the wild.</p>
+      <p>Zone Deeds mint on Base Sepolia. GPS verification hardens in the wild.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass" data-phase="2">
       <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
       <span class="phase-tag font-mono">Phase 3</span>
       <h3>Mainnet City Launch</h3>
-      <p>First cities go live on Base mainnet with deeds, defense, and city wars.</p>
+      <p>First cities live on Base mainnet — deeds, defense, city wars.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass right" data-phase="3">
       <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
       <span class="phase-tag font-mono">Phase 4</span>
       <h3>Expansion</h3>
-      <p>More cities, sponsor zones, deeper economy — only once density earns it.</p>
+      <p>More cities, sponsor zones, deeper economy — once density earns it.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
   </div>
@@ -609,6 +645,12 @@
 <section class="final" id="join">
   <div class="final-map" aria-hidden="true">
     <svg viewBox="0 0 1400 760" preserveAspectRatio="xMidYMid slice" id="finalMap">
+      <defs>
+        <linearGradient id="finalGrad" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#246BFE"/>
+          <stop offset="1" stop-color="#58F2B3"/>
+        </linearGradient>
+      </defs>
       <rect width="1400" height="760" fill="#F3F8F4"/>
       <path d="M -40 560 C 300 500 500 620 800 540 S 1200 460 1440 520 L 1440 800 L -40 800 Z" fill="#DCEEFB"/>
       <ellipse cx="300" cy="200" rx="190" ry="120" fill="#DFF3E4"/>
@@ -621,7 +663,7 @@
     <div class="final-veil"></div>
   </div>
 
-  <div class="final-card glass reveal">
+  <div class="final-card glass stacked reveal">
     <div class="final-brand">
       <svg viewBox="0 0 40 44" class="brand-hex big"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg>
       <span>MovenRun</span>
