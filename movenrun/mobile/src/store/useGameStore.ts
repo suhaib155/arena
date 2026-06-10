@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { Quest } from "@/types";
+import type { Quest, Zone } from "@/types";
 import { getLevelInfo } from "@/lib/leveling";
 import { getLocalDateKey, daysBetween } from "@/lib/date";
 
@@ -13,6 +13,15 @@ export interface CompletionRecord {
   xp: number;
   /** ISO timestamp of when it was completed. */
   completedAt: string;
+}
+
+/** Outcome of a zone capture attempt. */
+export interface CaptureOutcome {
+  /** True when the zone was newly added to the portfolio. */
+  captured: boolean;
+  /** True when the zone was already owned (touch refreshed instead). */
+  alreadyOwned: boolean;
+  zone: Zone;
 }
 
 /** Result returned to the UI so the Result screen can show what happened. */
@@ -40,12 +49,17 @@ interface GameState {
   completedQuestIds: string[];
   questsCompleted: number;
   history: CompletionRecord[];
+  /** Captured common zones (Free Map Beta — local simulation only). */
+  zones: Zone[];
   /** Whether the user has seen the onboarding flow. */
   hasOnboarded: boolean;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
   _hydrated: boolean;
 
   completeQuest: (quest: Quest) => CompletionOutcome;
+  /** Add a captured zone (or refresh it when already owned). Demo zones are
+   *  rejected here as a final guard — they must never persist. */
+  captureZone: (zone: Zone) => CaptureOutcome;
   completeOnboarding: () => void;
   reset: () => void;
 }
@@ -59,6 +73,7 @@ export const useGameStore = create<GameState>()(
       completedQuestIds: [],
       questsCompleted: 0,
       history: [],
+      zones: [],
       hasOnboarded: false,
       _hydrated: false,
 
@@ -131,6 +146,26 @@ export const useGameStore = create<GameState>()(
         };
       },
 
+      captureZone: (zone) => {
+        const state = get();
+        const existing = state.zones.find((z) => z.id === zone.id);
+        if (zone.isDemo) {
+          // Demo zones are display-only; never enter the portfolio.
+          return { captured: false, alreadyOwned: Boolean(existing), zone: existing ?? zone };
+        }
+        if (existing) {
+          const touched: Zone = {
+            ...existing,
+            lastTouchedAt: new Date().toISOString(),
+            controlPercent: Math.min(100, existing.controlPercent + 10),
+          };
+          set({ zones: state.zones.map((z) => (z.id === zone.id ? touched : z)) });
+          return { captured: false, alreadyOwned: true, zone: touched };
+        }
+        set({ zones: [zone, ...state.zones].slice(0, 100) });
+        return { captured: true, alreadyOwned: false, zone };
+      },
+
       completeOnboarding: () => set({ hasOnboarded: true }),
 
       // Resets progress only — keeps the user past onboarding.
@@ -142,18 +177,22 @@ export const useGameStore = create<GameState>()(
           completedQuestIds: [],
           questsCompleted: 0,
           history: [],
+          zones: [],
         }),
     }),
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
-      // Older persisted state (PR #3) has no `completedQuestIds`. Backfill it so
-      // upgrading users don't crash and aren't wrongly blocked from quests.
+      version: 3,
+      // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
+      // state (v2) has no `zones`. Backfill both so upgrades never crash.
       migrate: (persisted, _version) => {
         const state = (persisted ?? {}) as Partial<GameState>;
         if (!Array.isArray(state.completedQuestIds)) {
           state.completedQuestIds = [];
+        }
+        if (!Array.isArray(state.zones)) {
+          state.zones = [];
         }
         return state as GameState;
       },

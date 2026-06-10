@@ -60,6 +60,11 @@ function RootNavigator() {
           name="move/summary"
           options={{ gestureEnabled: false, animation: "fade" }}
         />
+        <Stack.Screen
+          name="move/captured"
+          options={{ gestureEnabled: false, animation: "fade" }}
+        />
+        <Stack.Screen name="zone/[id]" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="result"

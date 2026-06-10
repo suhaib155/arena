@@ -31,6 +31,7 @@ export default function ProfileScreen() {
   const streak = useGameStore((s) => s.streak);
   const questsCompleted = useGameStore((s) => s.questsCompleted);
   const history = useGameStore((s) => s.history);
+  const zones = useGameStore((s) => s.zones);
   const reset = useGameStore((s) => s.reset);
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
@@ -96,18 +97,33 @@ export default function ProfileScreen() {
           </View>
         </FadeSlideIn>
 
-        {/* Territory portfolio placeholder */}
+        {/* Territory portfolio — captured common zones (local simulation) */}
         <FadeSlideIn delay={STAGGER_MS * 3}>
           <View style={styles.portfolio}>
             <View style={styles.portfolioHexes}>
-              <Hexagon size={26} color="#E8EDF0" />
-              <Hexagon size={26} color="#E8EDF0" />
-              <Hexagon size={26} color="#C9EEDE" coreColor={palette.pulseGreen} />
+              {zones.length === 0 ? (
+                <>
+                  <Hexagon size={26} color="#E8EDF0" />
+                  <Hexagon size={26} color="#E8EDF0" />
+                  <Hexagon size={26} color="#C9EEDE" coreColor={palette.pulseGreen} />
+                </>
+              ) : (
+                <>
+                  {zones.slice(0, 3).map((z) => (
+                    <Hexagon key={z.id} size={26} color="#C9EEDE" coreColor={palette.pulseGreen} />
+                  ))}
+                  {zones.length > 3 ? (
+                    <Text style={styles.portfolioMore}>+{zones.length - 3}</Text>
+                  ) : null}
+                </>
+              )}
             </View>
             <View style={styles.portfolioText}>
               <Text style={styles.portfolioTitle}>Territory portfolio</Text>
               <Text style={styles.portfolioNote}>
-                0 zones owned — capture starts with the map beta.
+                {zones.length === 0
+                  ? "0 zones owned — capture a zone with a saved session."
+                  : `${zones.length} common zone${zones.length === 1 ? "" : "s"} · latest: ${zones[0].name}`}
               </Text>
             </View>
           </View>
@@ -218,6 +234,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   portfolioHexes: { flexDirection: "row", alignItems: "center", gap: 4 },
+  portfolioMore: { ...type.caption, fontSize: 12, fontWeight: "700", color: "#0A8F60" },
   portfolioText: { flex: 1, gap: 2 },
   portfolioTitle: { ...type.heading, fontSize: 15 },
   portfolioNote: { ...type.caption, fontSize: 12 },

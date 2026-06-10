@@ -36,3 +36,35 @@ export interface QuestRequestContext {
   /** Reserved for future personalization. Unused by the mock service. */
   preferredCategories?: QuestCategory[];
 }
+
+/* ── Territory (Free Map Beta — local, on-device simulation only) ── */
+
+export type ZoneState =
+  | "unclaimed"
+  | "yours"
+  | "contested"
+  | "dormant"
+  | "deedPreview";
+
+/**
+ * A mock territory zone. Ids come from the pseudo-H3 lattice in
+ * `lib/zones.ts` (real H3 indexing arrives with the live map). No ownership
+ * beyond this device is implied — common zones are in-app progress only.
+ */
+export interface Zone {
+  id: string;
+  name: string;
+  state: ZoneState;
+  /** 0..100 — how firmly the zone is held. */
+  controlPercent: number;
+  /** 0..100 — placeholder until the Defend loop lands. */
+  defensePercent: number;
+  /** ISO timestamp of the last route touch. */
+  lastTouchedAt: string;
+  /** ISO timestamp of the capture. */
+  capturedAt: string;
+  /** Future Deed-tier accent only — never an ownership claim. */
+  isDeedPreview: boolean;
+  /** True when produced by a demo route (never persisted as progress). */
+  isDemo: boolean;
+}
