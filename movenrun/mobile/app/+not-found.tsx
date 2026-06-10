@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { colors, spacing } from "@/theme";
+import { colors, spacing, type } from "@/theme";
 
 export default function NotFound() {
   const router = useRouter();
@@ -21,6 +21,6 @@ export default function NotFound() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
-  title: { color: colors.text, fontSize: 22, fontWeight: "800" },
-  subtitle: { color: colors.textDim, fontSize: 15, marginBottom: spacing.md },
+  title: { ...type.title },
+  subtitle: { ...type.body, marginBottom: spacing.md },
 });

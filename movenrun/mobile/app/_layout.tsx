@@ -2,17 +2,18 @@ import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Stack, useRootNavigationState, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { colors, spacing } from "@/theme";
+import { colors, palette, spacing, type } from "@/theme";
+import { Hexagon } from "@/components/Hexagon";
 import { useGameStore } from "@/store/useGameStore";
 
 /** Branded loading view shown until persisted state has hydrated. */
 function SplashView() {
   return (
     <View style={styles.splash}>
-      <Ionicons name="flame" size={48} color={colors.accent} />
+      <Hexagon size={44} color={palette.pulseGreen} coreColor={colors.surface} />
       <Text style={styles.splashText}>MovenRun</Text>
+      <Text style={styles.splashLoop}>Move → Capture → Defend → Own</Text>
     </View>
   );
 }
@@ -71,7 +72,7 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <RootNavigator />
     </SafeAreaProvider>
   );
@@ -85,10 +86,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     gap: spacing.md,
   },
-  splashText: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
+  splashText: { ...type.title, fontSize: 24 },
+  splashLoop: { ...type.mono, fontSize: 12, color: colors.textFaint },
 });

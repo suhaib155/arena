@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors, radius, spacing } from "@/theme";
+import { colors, palette, radius, spacing, type } from "@/theme";
 
 interface XPBarProps {
   progress: number; // 0..1
@@ -29,11 +29,7 @@ const styles = StyleSheet.create({
   fill: {
     height: "100%",
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: palette.pulseGreen,
   },
-  label: {
-    color: colors.textDim,
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  label: { ...type.caption, fontWeight: "600" },
 });

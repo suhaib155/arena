@@ -5,11 +5,14 @@ import { Screen } from "@/components/Screen";
 import { StatCard } from "@/components/StatCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { EmptyState } from "@/components/EmptyState";
-import { XPBar } from "@/components/XPBar";
+import { RoutePath } from "@/components/RoutePath";
+import { Hexagon } from "@/components/Hexagon";
+import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
-import { colors, radius, spacing } from "@/theme";
+import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
+import { lockedMovePreview } from "@/lib/lockedMove";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -30,6 +33,7 @@ export default function ProfileScreen() {
   const history = useGameStore((s) => s.history);
   const reset = useGameStore((s) => s.reset);
   const level = getLevelInfo(totalXp);
+  const lockedMove = lockedMovePreview(totalXp);
 
   const onReset = () => {
     tapFeedback();
@@ -42,31 +46,81 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.hero}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={36} color={colors.text} />
+        {/* Movement identity card */}
+        <FadeSlideIn>
+          <View style={styles.hero}>
+            <View style={styles.avatarRing}>
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={32} color={colors.primary} />
+              </View>
+            </View>
+            <Text style={styles.name}>Mover</Text>
+            <Text style={styles.subtitle}>
+              Level {level.level} · {totalXp.toLocaleString()} XP total
+            </Text>
+            <View style={styles.heroBar}>
+              <RoutePath
+                progress={level.progress}
+                label={`${level.xpForLevel - level.xpIntoLevel} XP to level ${level.level + 1}`}
+              />
+            </View>
           </View>
-          <Text style={styles.name}>Mover</Text>
-          <Text style={styles.subtitle}>Level {level.level} • {totalXp} XP total</Text>
-          <View style={styles.heroBar}>
-            <XPBar
-              progress={level.progress}
-              label={`${level.xpForLevel - level.xpIntoLevel} XP to level ${level.level + 1}`}
+        </FadeSlideIn>
+
+        <FadeSlideIn delay={STAGGER_MS}>
+          <View style={styles.statsRow}>
+            <StatCard icon="flame" value={streak} label="Day streak" tint={palette.heatCoral} />
+            <StatCard icon="trophy" value={level.level} label="Level" tint={colors.primary} />
+            <StatCard
+              icon="checkmark-done"
+              value={questsCompleted}
+              label="Completed"
+              tint={palette.pulseGreen}
             />
           </View>
-        </View>
+        </FadeSlideIn>
 
-        <View style={styles.statsRow}>
-          <StatCard icon="flame" value={streak} label="Day streak" tint={colors.warning} />
-          <StatCard icon="trophy" value={level.level} label="Level" tint={colors.accent} />
-          <StatCard icon="checkmark-done" value={questsCompleted} label="Completed" tint={colors.primary} />
-        </View>
+        {/* Locked MOVE — in-app progress only */}
+        <FadeSlideIn delay={STAGGER_MS * 2}>
+          <View style={styles.moveCard}>
+            <View style={styles.moveIcon}>
+              <Hexagon size={20} color={palette.moveGold} />
+            </View>
+            <View style={styles.moveText}>
+              <Text style={styles.moveValue}>{lockedMove.toLocaleString()} Locked MOVE</Text>
+              <Text style={styles.moveNote}>
+                Preview · in-app progress, not a payout. Unlocks with the
+                territory beta.
+              </Text>
+            </View>
+          </View>
+        </FadeSlideIn>
 
-        <SectionHeader title="Recent Activity" trailing={history.length ? `${history.length}` : undefined} />
+        {/* Territory portfolio placeholder */}
+        <FadeSlideIn delay={STAGGER_MS * 3}>
+          <View style={styles.portfolio}>
+            <View style={styles.portfolioHexes}>
+              <Hexagon size={26} color="#E8EDF0" />
+              <Hexagon size={26} color="#E8EDF0" />
+              <Hexagon size={26} color="#C9EEDE" coreColor={palette.pulseGreen} />
+            </View>
+            <View style={styles.portfolioText}>
+              <Text style={styles.portfolioTitle}>Territory portfolio</Text>
+              <Text style={styles.portfolioNote}>
+                0 zones owned — capture starts with the map beta.
+              </Text>
+            </View>
+          </View>
+        </FadeSlideIn>
+
+        <SectionHeader
+          title="Recent activity"
+          trailing={history.length ? `${history.length}` : undefined}
+        />
         {history.length === 0 ? (
           <EmptyState
             icon="walk-outline"
-            title="No quests yet"
+            title="No moves yet"
             message="Complete your first quest to earn XP and start a daily streak."
             actionLabel="Browse quests"
             onAction={() => router.navigate("/")}
@@ -76,7 +130,7 @@ export default function ProfileScreen() {
             {history.slice(0, 10).map((rec, i) => (
               <View key={`${rec.questId}-${i}`} style={styles.row}>
                 <View style={styles.rowIcon}>
-                  <Ionicons name="checkmark" size={16} color={colors.accent} />
+                  <Ionicons name="checkmark" size={15} color={palette.pulseGreen} />
                 </View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>{rec.questTitle}</Text>
@@ -103,45 +157,91 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
-  hero: { alignItems: "center", gap: spacing.xs },
-  avatar: {
-    width: 84,
-    height: 84,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 2,
-    borderColor: colors.primary,
+  // Extra bottom padding clears the floating tab bar.
+  content: { paddingTop: spacing.lg, paddingBottom: 110, gap: spacing.lg },
+  hero: {
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    ...shadows.float,
+  },
+  avatarRing: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 3,
+    borderColor: palette.pulseGreen,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.sm,
   },
-  name: { color: colors.text, fontSize: 24, fontWeight: "800" },
-  subtitle: { color: colors.textDim, fontSize: 14 },
+  avatar: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  name: { ...type.title, fontSize: 24 },
+  subtitle: { ...type.caption, fontSize: 14 },
   heroBar: { alignSelf: "stretch", marginTop: spacing.md },
   statsRow: { flexDirection: "row", gap: spacing.md },
+  moveCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  moveIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: `${palette.moveGold}1A`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moveText: { flex: 1, gap: 2 },
+  moveValue: { ...type.heading, fontSize: 16 },
+  moveNote: { ...type.caption, fontSize: 12, lineHeight: 16 },
+  portfolio: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.lg,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  portfolioHexes: { flexDirection: "row", alignItems: "center", gap: 4 },
+  portfolioText: { flex: 1, gap: 2 },
+  portfolioTitle: { ...type.heading, fontSize: 15 },
+  portfolioNote: { ...type.caption, fontSize: 12 },
   list: { gap: spacing.sm },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.lg,
     padding: spacing.md,
+    ...shadows.card,
   },
   rowIcon: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: radius.pill,
-    backgroundColor: `${colors.accent}22`,
+    backgroundColor: `${palette.pulseGreen}1A`,
     alignItems: "center",
     justifyContent: "center",
   },
   rowText: { flex: 1 },
-  rowTitle: { color: colors.text, fontSize: 15, fontWeight: "600" },
-  rowTime: { color: colors.textFaint, fontSize: 12 },
-  rowXp: { color: colors.warning, fontSize: 14, fontWeight: "700" },
-  resetBtn: { marginTop: spacing.sm },
+  rowTitle: { ...type.heading, fontSize: 14.5 },
+  rowTime: { ...type.caption, fontSize: 12, color: colors.textFaint },
+  rowXp: { ...type.mono, fontSize: 13, color: "#B07908", fontWeight: "700" },
+  resetBtn: { marginTop: spacing.xs, alignSelf: "center" },
 });

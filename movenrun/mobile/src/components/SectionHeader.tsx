@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors, spacing } from "@/theme";
+import { type } from "@/theme";
 
 interface SectionHeaderProps {
   title: string;
@@ -23,6 +23,6 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     justifyContent: "space-between",
   },
-  title: { color: colors.text, fontSize: 18, fontWeight: "700" },
-  trailing: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
+  title: { ...type.heading, fontSize: 18 },
+  trailing: { ...type.caption, fontWeight: "600" },
 });

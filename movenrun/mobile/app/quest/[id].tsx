@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
-import { categoryColor, colors, difficultyColor, radius, spacing } from "@/theme";
+import { categoryColor, colors, difficultyColor, palette, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { useIsCompletedToday } from "@/store/useGameStore";
 import { tapFeedback } from "@/lib/haptics";
@@ -72,8 +72,8 @@ export default function QuestDetailScreen() {
           </View>
           <View style={styles.divider} />
           <View style={styles.stat}>
-            <Ionicons name="flash-outline" size={18} color={colors.warning} />
-            <Text style={[styles.statValue, { color: colors.warning }]}>+{quest.xpReward}</Text>
+            <Ionicons name="flash" size={18} color={palette.moveGold} />
+            <Text style={[styles.statValue, { color: "#B07908" }]}>+{quest.xpReward}</Text>
             <Text style={styles.statLabel}>XP Reward</Text>
           </View>
         </View>
@@ -124,26 +124,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { color: colors.text, fontSize: 28, fontWeight: "800" },
-  summary: { color: colors.textDim, fontSize: 15, lineHeight: 22 },
+  title: { ...type.display, fontSize: 28 },
+  summary: { ...type.body, lineHeight: 22 },
   badges: { flexDirection: "row", gap: spacing.sm },
   statsRow: {
     flexDirection: "row",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.lg,
     marginTop: spacing.sm,
+    ...shadows.card,
   },
   stat: { flex: 1, alignItems: "center", gap: spacing.xs },
-  statValue: { color: colors.text, fontSize: 20, fontWeight: "800" },
-  statLabel: { color: colors.textDim, fontSize: 12 },
-  divider: { width: 1, backgroundColor: colors.border },
+  statValue: { ...type.title, fontSize: 20 },
+  statLabel: { ...type.caption, fontSize: 12 },
+  divider: { width: 1, backgroundColor: colors.surfaceAlt },
   sectionTitle: {
-    color: colors.text,
+    ...type.heading,
     fontSize: 18,
-    fontWeight: "700",
     marginTop: spacing.md,
   },
   steps: { gap: spacing.md },
@@ -156,7 +154,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  stepNumText: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  stepNumText: { color: colors.primary, fontSize: 13, fontWeight: "700" },
   stepText: { flex: 1, color: colors.textDim, fontSize: 15, lineHeight: 22 },
   footer: { paddingVertical: spacing.md, gap: spacing.sm },
   doneHint: {

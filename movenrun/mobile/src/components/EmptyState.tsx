@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, spacing } from "@/theme";
+import { colors, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { Button } from "./Button";
 
@@ -31,29 +31,28 @@ export function EmptyState({ icon, title, message, actionLabel, onAction }: Empt
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.xl,
     paddingVertical: spacing.xxl,
     paddingHorizontal: spacing.xl,
     alignItems: "center",
     gap: spacing.sm,
+    ...shadows.card,
   },
   iconCircle: {
     width: 56,
     height: 56,
     borderRadius: radius.pill,
-    backgroundColor: `${colors.primary}1A`,
+    backgroundColor: colors.primaryDim,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.xs,
   },
-  title: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  title: { ...type.heading },
   message: {
-    color: colors.textDim,
+    ...type.body,
     fontSize: 14,
-    textAlign: "center",
     lineHeight: 20,
+    textAlign: "center",
   },
   action: { marginTop: spacing.md },
 });

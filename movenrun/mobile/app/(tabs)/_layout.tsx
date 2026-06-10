@@ -1,26 +1,37 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "@/theme";
+import { colors, radius, shadows, spacing } from "@/theme";
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.accent,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textFaint,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        // Floating glass-style bar: white, rounded, soft shadow, no top border.
         tabBarStyle: {
+          position: "absolute",
+          left: spacing.lg,
+          right: spacing.lg,
+          bottom: spacing.md,
+          height: 62,
+          paddingTop: 6,
+          paddingBottom: 8,
+          borderRadius: radius.xl,
+          borderTopWidth: 0,
           backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          ...shadows.float,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Quests",
+          title: "Today",
           tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <Ionicons name="flame-outline" size={size} color={color} />
+            <Ionicons name="map-outline" size={size} color={color} />
           ),
         }}
       />

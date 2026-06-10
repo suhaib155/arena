@@ -9,6 +9,30 @@ streak, then share your win.
 > no Supabase/backend. Progress (XP, level, streak, history, onboarding) is stored
 > locally on-device via AsyncStorage.
 
+## Design system — Daylight Cartography
+
+The UI follows the **Daylight Cartography** design language shared with the
+marketing site (`movenrun/website/`): bright Morning White light mode, soft
+white cards with layered shadows, hex-zone identity, and the territory accents
+(Base Blue / Pulse Green / Deed Violet / Heat Coral / MOVE Gold).
+
+- All tokens live in **`src/theme.ts`**: `palette`, semantic `colors`,
+  `zoneColors`, `gradients`, `spacing`, `radius`, `shadows` + `glow()`,
+  the `type` scale, and `motion` timing. Never hardcode hex values in screens.
+- Motion uses core `Animated` only (`ScalePress`, `FadeSlideIn`,
+  `CountUpText`) — no animation libraries.
+- The hex motif (`Hexagon`, `TerritoryPreview`) is plain Views — no SVG/map
+  dependency yet. The territory card is explicitly a **non-functional preview**
+  ("Territory map coming next").
+- **Locked MOVE is a display preview only** (`src/lib/lockedMove.ts`): a value
+  derived from XP, always labeled "preview · in-app progress, not a payout".
+  No balance is stored and no earning is implied.
+- **Fonts follow-up:** the `type` scale targets Sora (display), Plus Jakarta
+  Sans (body) and Space Grotesk (numeric) with platform-sans fallbacks today.
+  A future PR should add `expo-font` + `@expo-google-fonts/sora`,
+  `@expo-google-fonts/plus-jakarta-sans`, `@expo-google-fonts/space-grotesk`
+  and set `fontFamily` in `src/theme.ts` once the build is device-verified.
+
 ## Quest data: always go through `questService`
 
 All quest access goes through **`src/services/questService.ts`** — screens never
