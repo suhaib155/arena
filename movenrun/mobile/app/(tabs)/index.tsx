@@ -83,12 +83,15 @@ export default function TodayScreen() {
             <Button
               label="Start Move"
               icon="play"
-              onPress={() => openQuest(dailyQuest.id)}
+              onPress={() => {
+                tapFeedback();
+                router.push("/move");
+              }}
               style={styles.heroCta}
             />
             <Text style={styles.heroNote}>
-              GPS sessions arrive with the territory beta — today, your warmup
-              quest is the move.
+              Foreground GPS session — your route, distance, and pace, all
+              on-device. Territory capture comes next.
             </Text>
           </View>
         </FadeSlideIn>

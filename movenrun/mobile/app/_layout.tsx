@@ -54,6 +54,12 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
         <Stack.Screen name="quest/[id]" />
+        <Stack.Screen name="move/index" />
+        <Stack.Screen name="move/session" options={{ gestureEnabled: false }} />
+        <Stack.Screen
+          name="move/summary"
+          options={{ gestureEnabled: false, animation: "fade" }}
+        />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="result"

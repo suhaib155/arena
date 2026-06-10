@@ -25,7 +25,15 @@
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MovenRun uses location during a movement session to draw your route and calculate progress."
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "73abbcb8-9466-4e52-b912-e2812e170abc"
