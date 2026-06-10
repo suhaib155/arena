@@ -7,6 +7,8 @@ interface CountUpTextProps {
   prefix?: string;
   suffix?: string;
   duration?: number;
+  /** Render with fixed decimal places (e.g. km). Defaults to whole numbers. */
+  decimals?: number;
   style?: TextStyle | TextStyle[];
 }
 
@@ -20,6 +22,7 @@ export function CountUpText({
   prefix = "",
   suffix = "",
   duration = motion.slow,
+  decimals = 0,
   style,
 }: CountUpTextProps) {
   const [shown, setShown] = useState(0);
@@ -30,7 +33,7 @@ export function CountUpText({
     const tick = () => {
       const t = Math.min(1, (Date.now() - start) / duration);
       const eased = 1 - Math.pow(1 - t, 3);
-      setShown(Math.round(value * eased));
+      setShown(value * eased);
       if (t < 1) raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
@@ -42,7 +45,7 @@ export function CountUpText({
   return (
     <Text style={style}>
       {prefix}
-      {shown.toLocaleString()}
+      {decimals > 0 ? shown.toFixed(decimals) : Math.round(shown).toLocaleString()}
       {suffix}
     </Text>
   );
