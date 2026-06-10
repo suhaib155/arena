@@ -6,6 +6,7 @@ import { QuestCard } from "@/components/QuestCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { RoutePath } from "@/components/RoutePath";
 import { TerritoryPreview } from "@/components/TerritoryPreview";
+import { ZoneCard } from "@/components/ZoneCard";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
@@ -35,6 +36,8 @@ export default function TodayScreen() {
   const totalXp = useGameStore((s) => s.totalXp);
   const streak = useGameStore((s) => s.streak);
   const history = useGameStore((s) => s.history);
+  const zones = useGameStore((s) => s.zones);
+  const latestZone = zones[0] ?? null;
   const level = getLevelInfo(totalXp);
 
   // Presentation-only derivations — no store/data changes.
@@ -123,11 +126,32 @@ export default function TodayScreen() {
           </View>
         ) : null}
 
-        {/* Territory teaser — visual only, no GPS yet */}
+        {/* Territory portfolio — captured common zones (local simulation) */}
         <FadeSlideIn delay={STAGGER_MS * 2}>
-          <SectionHeader title="Your territory" trailing="soon" />
+          <SectionHeader
+            title="Your territory"
+            trailing={zones.length > 0 ? `${zones.length} zone${zones.length === 1 ? "" : "s"}` : "soon"}
+          />
           <View style={styles.sectionGap} />
-          <TerritoryPreview />
+          {latestZone ? (
+            <View style={styles.territoryWrap}>
+              <ZoneCard
+                zone={latestZone}
+                onPress={() => {
+                  tapFeedback();
+                  router.push({ pathname: "/zone/[id]", params: { id: latestZone.id } });
+                }}
+              />
+              <View style={styles.defendTeaser}>
+                <Ionicons name="shield-outline" size={14} color={colors.textFaint} />
+                <Text style={styles.defendTeaserText}>
+                  Defend arrives next — keep your zones warm.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <TerritoryPreview />
+          )}
         </FadeSlideIn>
 
         <FadeSlideIn delay={STAGGER_MS * 3}>
@@ -224,6 +248,15 @@ const styles = StyleSheet.create({
   },
   doneText: { flex: 1, ...type.caption, fontSize: 13, lineHeight: 18, color: colors.text },
   sectionGap: { height: spacing.md },
+  territoryWrap: { gap: spacing.sm },
+  defendTeaser: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: spacing.xs,
+  },
+  defendTeaserText: { ...type.caption, fontSize: 12, color: colors.textFaint },
   list: { gap: spacing.md },
   footerLoop: {
     ...type.mono,

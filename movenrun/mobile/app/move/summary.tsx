@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -16,6 +16,7 @@ import {
   isSaveable,
   sessionXp,
 } from "@/services/moveSession";
+import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import type { Quest } from "@/types";
@@ -31,6 +32,8 @@ export default function MoveSummaryScreen() {
   const router = useRouter();
   const session = useMemo(() => getLastSession(), []);
   const completeQuest = useGameStore((s) => s.completeQuest);
+  const captureZone = useGameStore((s) => s.captureZone);
+  const ownedZones = useGameStore((s) => s.zones);
   const totalXp = useGameStore((s) => s.totalXp);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
   const [saved, setSaved] = useState(false);
@@ -52,6 +55,14 @@ export default function MoveSummaryScreen() {
   const pace = formatPace(session.distanceM, session.durationMs);
   const saveable = session.mode === "gps" && isSaveable(session.distanceM, session.durationMs);
 
+  /* Territory touched — mock pseudo-H3 zones derived from the in-memory
+     route (local simulation; real H3 arrives with the live map). */
+  const zonesTouched = deriveZonesFromRoute(session.points);
+  const candidate =
+    zonesTouched.find((t) => !ownedZones.some((z) => z.id === t.id)) ?? null;
+  const captureEligible =
+    saveable && !alreadySavedToday && candidate !== null;
+
   const save = () => {
     tapFeedback();
     /* Synthetic "quest" routes the award through the existing store: same
@@ -70,6 +81,14 @@ export default function MoveSummaryScreen() {
     };
     completeQuest(sessionQuest);
     successFeedback();
+    /* One common zone per saved session (and saves are once per day). */
+    if (candidate) {
+      const outcome = captureZone(newCapturedZone(candidate, false));
+      if (outcome.captured) {
+        router.replace({ pathname: "/move/captured", params: { id: outcome.zone.id } });
+        return;
+      }
+    }
     setSaved(true);
   };
 
@@ -80,6 +99,7 @@ export default function MoveSummaryScreen() {
 
   return (
     <Screen>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <Text style={styles.kicker}>
           {session.mode === "demo" ? "Demo session" : "Session complete"}
@@ -135,9 +155,68 @@ export default function MoveSummaryScreen() {
         </View>
       </FadeSlideIn>
 
+      {/* Territory touched — Free Map Beta simulation */}
+      <FadeSlideIn delay={STAGGER_MS * 3}>
+        <View style={styles.zoneCard}>
+          <View style={styles.zoneHead}>
+            <Text style={styles.zoneTitle}>Territory touched</Text>
+            <Text style={styles.zoneCount}>
+              {zonesTouched.length} zone{zonesTouched.length === 1 ? "" : "s"}
+            </Text>
+          </View>
+
+          <View style={styles.zoneHexRow}>
+            {zonesTouched.slice(0, 5).map((t, i) => {
+              const owned = ownedZones.some((z) => z.id === t.id);
+              const isCandidate = candidate?.id === t.id;
+              return (
+                <Hexagon
+                  key={t.id}
+                  size={i === 0 ? 36 : 30}
+                  color={owned ? "#C9EEDE" : isCandidate ? "#D9F0E5" : "#E8EDF0"}
+                  coreColor={
+                    owned
+                      ? palette.pulseGreen
+                      : isCandidate
+                        ? palette.voltMint
+                        : undefined
+                  }
+                />
+              );
+            })}
+            {zonesTouched.length === 0 ? (
+              <Text style={styles.zoneEmpty}>No zones reached yet</Text>
+            ) : null}
+          </View>
+
+          {candidate ? (
+            <View style={styles.candidateRow}>
+              <View style={styles.candidateBadge}>
+                <Text style={styles.candidateBadgeText}>Common Zone</Text>
+              </View>
+              <Text style={styles.candidateName} numberOfLines={1}>
+                {candidate.name}
+              </Text>
+              <Text style={styles.candidateHint}>
+                {session.mode === "demo"
+                  ? "demo only"
+                  : captureEligible
+                    ? "ready to capture"
+                    : "capture preview"}
+              </Text>
+            </View>
+          ) : zonesTouched.length > 0 ? (
+            <Text style={styles.zoneEmpty}>All touched zones are already yours.</Text>
+          ) : null}
+
+          <Text style={styles.zoneBeta}>Local territory preview · on-device simulation</Text>
+        </View>
+      </FadeSlideIn>
+
       {session.mode === "demo" ? (
         <Text style={styles.note}>
-          Demo route — not real GPS, so this session isn't saved as progress.
+          Demo route — not real GPS. Demo zones are preview only and are never
+          saved as territory.
         </Text>
       ) : alreadySavedToday && !saved ? (
         <Text style={styles.note}>
@@ -154,9 +233,14 @@ export default function MoveSummaryScreen() {
         </View>
       ) : null}
 
+      </ScrollView>
       <View style={styles.footer}>
         {saveable && !saved && !alreadySavedToday ? (
-          <Button label="Save session" icon="bookmark" onPress={save} />
+          <Button
+            label={captureEligible ? "Save + Capture Zone" : "Save session"}
+            icon={captureEligible ? "flag" : "bookmark"}
+            onPress={save}
+          />
         ) : null}
         <Button
           label="Back to Today"
@@ -170,6 +254,7 @@ export default function MoveSummaryScreen() {
 }
 
 const styles = StyleSheet.create({
+  scroll: { paddingBottom: spacing.lg },
   header: { paddingTop: spacing.lg, paddingBottom: spacing.lg, gap: spacing.xs },
   kicker: { ...type.kicker, color: colors.primary },
   title: { ...type.display, fontSize: 28 },
@@ -223,6 +308,30 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   savedText: { ...type.caption, fontSize: 13, color: colors.text, fontWeight: "600" },
+  zoneCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
+    marginTop: spacing.md,
+    ...shadows.card,
+  },
+  zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  zoneTitle: { ...type.heading, fontSize: 15 },
+  zoneCount: { ...type.mono, fontSize: 12, color: colors.textDim },
+  zoneHexRow: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40 },
+  zoneEmpty: { ...type.caption, fontSize: 12.5, color: colors.textFaint },
+  candidateRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  candidateBadge: {
+    backgroundColor: `${palette.pulseGreen}1A`,
+    paddingVertical: 3,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  candidateBadgeText: { fontSize: 11, fontWeight: "700", color: "#0A8F60" },
+  candidateName: { ...type.heading, fontSize: 14, flex: 1 },
+  candidateHint: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
+  zoneBeta: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
   footer: { marginTop: "auto", paddingVertical: spacing.md, gap: spacing.sm },
   missingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   missingText: { ...type.body },
