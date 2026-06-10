@@ -32,10 +32,37 @@ Opening `index.html` directly from disk also works.
   page-long runner rail; IntersectionObservers fire the one-shot moments
   (count-ups, reward particles, hex cascades, leaderboard war).
 
-## Notes
+## Design & animation notes
 
+- Design language: **Daylight Cartography** — bright light-mode, frosted glass,
+  H3 hex identity, Base Blue / Pulse Green / Deed Violet accents. No dark mode,
+  no crypto-casino visuals.
+- One continuous "journey" route (catmull-rom path built at runtime from
+  section positions) threads the whole page; it draws with scroll and a glowing
+  runner orb travels it, lighting a milestone hex per section. Hidden ≤1100px
+  and under reduced motion.
+- Easing: `cubic-bezier(.22,1,.36,1)` for UI, `cubic-bezier(.19,1,.22,1)` for
+  the map camera, soft-overshoot spring for pops. All scroll scenes run off one
+  rAF loop with smoothed progress.
 - Fonts (Sora, Plus Jakarta Sans, Space Grotesk) load from Google Fonts; the
-  page degrades gracefully without them.
-- Copy follows the product guardrails: Locked MOVE is presented as in-app
-  progress (no earnings implied), and liquid rewards are explicitly gated on
-  GPS verification, density, and sponsor demand.
+  page degrades gracefully without them. No other external requests.
+
+## Product guardrails
+
+- Locked MOVE is presented as **in-app progress, not a payout** (stated inline
+  in the reward section); liquid rewards are framed as future and conditional
+  on GPS verification, city density, and sponsor demand. No earnings promises.
+- The contract snippet is a read-only display mock — no addresses, keys, or
+  live chain calls.
+
+## Verification
+
+Checked with headless Chromium (Puppeteer) at 1440×900 and 390×844:
+
+- Full scroll-through on desktop and mobile: zero console errors / page errors.
+- Journey route builds (12 milestone nodes), draws with scroll, orb tracks.
+- `prefers-reduced-motion`: journey + clouds hidden, sticky scenes unstack to
+  static sections, counters render final values, all content readable.
+- No horizontal layout overflow at any scroll position (`overflow-x: clip` on
+  root); sticky scenes verified intact.
+- Mobile sticky CTA hidden at top, shown mid-page, hidden at the final CTA.
