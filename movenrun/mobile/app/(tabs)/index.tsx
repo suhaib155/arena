@@ -11,6 +11,7 @@ import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
+import { zoneStatus } from "@/lib/territory";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -37,7 +38,12 @@ export default function TodayScreen() {
   const streak = useGameStore((s) => s.streak);
   const history = useGameStore((s) => s.history);
   const zones = useGameStore((s) => s.zones);
-  const latestZone = zones[0] ?? null;
+  /* Defend reminders: surface the most urgent zone (decay is computed on
+     read, so this is deterministic with no background work). */
+  const zonesWithStatus = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
+  const atRisk = zonesWithStatus.filter((e) => e.status.health !== "yours");
+  const priority =
+    [...zonesWithStatus].sort((a, b) => b.status.risk - a.status.risk)[0] ?? null;
   const level = getLevelInfo(totalXp);
 
   // Presentation-only derivations — no store/data changes.
@@ -133,19 +139,38 @@ export default function TodayScreen() {
             trailing={zones.length > 0 ? `${zones.length} zone${zones.length === 1 ? "" : "s"}` : "soon"}
           />
           <View style={styles.sectionGap} />
-          {latestZone ? (
+          {priority ? (
             <View style={styles.territoryWrap}>
+              <View
+                style={[
+                  styles.stabilityBanner,
+                  atRisk.length > 0 ? styles.stabilityBannerRisk : null,
+                ]}
+              >
+                <Ionicons
+                  name={atRisk.length > 0 ? "shield-half" : "shield-checkmark"}
+                  size={15}
+                  color={atRisk.length > 0 ? palette.heatCoral : palette.pulseGreen}
+                />
+                <Text style={styles.stabilityText}>
+                  {atRisk.length > 0
+                    ? `${atRisk.length} zone${atRisk.length > 1 ? "s" : ""} need${atRisk.length > 1 ? "" : "s"} defending`
+                    : "Territory stable"}
+                </Text>
+              </View>
               <ZoneCard
-                zone={latestZone}
+                zone={priority.zone}
                 onPress={() => {
                   tapFeedback();
-                  router.push({ pathname: "/zone/[id]", params: { id: latestZone.id } });
+                  router.push({ pathname: "/zone/[id]", params: { id: priority.zone.id } });
                 }}
               />
               <View style={styles.defendTeaser}>
-                <Ionicons name="shield-outline" size={14} color={colors.textFaint} />
+                <Ionicons name="navigate-outline" size={14} color={colors.textFaint} />
                 <Text style={styles.defendTeaserText}>
-                  Defend arrives next — keep your zones warm.
+                  {atRisk.length > 0
+                    ? "Start Move through a zone to defend it."
+                    : "Moving through your zones keeps defense charged."}
                 </Text>
               </View>
             </View>
@@ -249,6 +274,17 @@ const styles = StyleSheet.create({
   doneText: { flex: 1, ...type.caption, fontSize: 13, lineHeight: 18, color: colors.text },
   sectionGap: { height: spacing.md },
   territoryWrap: { gap: spacing.sm },
+  stabilityBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: `${palette.pulseGreen}12`,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  stabilityBannerRisk: { backgroundColor: `${palette.heatCoral}12` },
+  stabilityText: { ...type.caption, fontSize: 13, color: colors.text, fontWeight: "700" },
   defendTeaser: {
     flexDirection: "row",
     alignItems: "center",
