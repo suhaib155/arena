@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { colors, radius, spacing } from "@/theme";
+import { colors, palette, radius, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { useGameStore } from "@/store/useGameStore";
 import { tapFeedback } from "@/lib/haptics";
@@ -27,22 +27,22 @@ interface Slide {
 
 const SLIDES: Slide[] = [
   {
-    icon: "flame",
-    tint: colors.accent,
+    icon: "walk",
+    tint: palette.pulseGreen,
     title: "Move every day",
     body: "Get a fresh movement quest each day — short, doable bursts of cardio, mobility, strength, and mindfulness.",
   },
   {
     icon: "timer-outline",
-    tint: colors.primary,
+    tint: palette.baseBlue,
     title: "Start, move, finish",
     body: "Tap a quest, follow the steps, and run the built-in timer. Pause whenever you need to.",
   },
   {
     icon: "trophy",
-    tint: colors.warning,
+    tint: palette.moveGold,
     title: "Earn XP & streaks",
-    body: "Finish quests to gain XP, level up, and build a daily streak. Your progress is saved on your device.",
+    body: "Gain XP, level up, and build a daily streak — saved on your device. Territory capture and Locked MOVE arrive with the map beta.",
   },
 ];
 
@@ -126,7 +126,7 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   skipRow: { alignItems: "flex-end", paddingTop: spacing.sm, height: 32 },
-  skip: { color: colors.textDim, fontSize: 15, fontWeight: "600" },
+  skip: { ...type.caption, fontSize: 15, fontWeight: "600" },
   pager: { flex: 1 },
   slide: {
     flex: 1,
@@ -143,9 +143,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.md,
   },
-  title: { color: colors.text, fontSize: 26, fontWeight: "800", textAlign: "center" },
+  title: { ...type.display, fontSize: 26, textAlign: "center" },
   body: {
-    color: colors.textDim,
+    ...type.body,
     fontSize: 16,
     lineHeight: 24,
     textAlign: "center",
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: radius.pill,
-    backgroundColor: colors.border,
+    backgroundColor: palette.dustGray,
   },
   dotActive: { backgroundColor: colors.primary, width: 22 },
   footer: { paddingVertical: spacing.md },

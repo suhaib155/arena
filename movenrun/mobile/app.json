@@ -5,11 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "movenrun",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0B0B12",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F8FAF7",
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#0B0B12"
+      "backgroundColor": "#F8FAF7"
     },
     "ios": {
       "supportsTablet": true,
@@ -18,7 +18,7 @@
     "android": {
       "package": "io.movenrun.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0B0B12"
+        "backgroundColor": "#F8FAF7"
       }
     },
     "web": {

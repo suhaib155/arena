@@ -4,11 +4,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { QuestCard } from "@/components/QuestCard";
 import { SectionHeader } from "@/components/SectionHeader";
-import { XPBar } from "@/components/XPBar";
-import { colors, radius, spacing } from "@/theme";
+import { RoutePath } from "@/components/RoutePath";
+import { TerritoryPreview } from "@/components/TerritoryPreview";
+import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
+import { Button } from "@/components/Button";
+import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
+import { lockedMovePreview } from "@/lib/lockedMove";
+import { getLocalDateKey } from "@/lib/date";
 import { tapFeedback } from "@/lib/haptics";
 
 function greeting(date = new Date()): string {
@@ -18,7 +23,7 @@ function greeting(date = new Date()): string {
   return "Good evening";
 }
 
-export default function HomeScreen() {
+export default function TodayScreen() {
   const router = useRouter();
   const {
     dailyQuest,
@@ -29,7 +34,15 @@ export default function HomeScreen() {
 
   const totalXp = useGameStore((s) => s.totalXp);
   const streak = useGameStore((s) => s.streak);
+  const history = useGameStore((s) => s.history);
   const level = getLevelInfo(totalXp);
+
+  // Presentation-only derivations — no store/data changes.
+  const todayKey = getLocalDateKey();
+  const xpToday = history
+    .filter((rec) => getLocalDateKey(new Date(rec.completedAt)) === todayKey)
+    .reduce((sum, rec) => sum + rec.xp, 0);
+  const lockedMove = lockedMovePreview(totalXp);
 
   const openQuest = (id: string) => {
     tapFeedback();
@@ -50,56 +63,103 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View style={styles.streakChip}>
+            <Ionicons name="flame" size={15} color={palette.moveGold} />
             <Text style={styles.streakNum}>{streak}</Text>
             <Text style={styles.streakLabel}>day streak</Text>
           </View>
         </View>
 
+        {/* Hero: territory warmup + Start Move */}
+        <FadeSlideIn>
+          <View style={styles.hero}>
+            <Text style={styles.heroKicker}>Free map beta · Warmup</Text>
+            <View style={styles.heroLevelRow}>
+              <Text style={styles.heroLevel}>Level {level.level}</Text>
+              <Text style={styles.heroXp}>
+                {level.xpIntoLevel} / {level.xpForLevel} XP
+              </Text>
+            </View>
+            <RoutePath progress={level.progress} />
+            <Button
+              label="Start Move"
+              icon="play"
+              onPress={() => openQuest(dailyQuest.id)}
+              style={styles.heroCta}
+            />
+            <Text style={styles.heroNote}>
+              GPS sessions arrive with the territory beta — today, your warmup
+              quest is the move.
+            </Text>
+          </View>
+        </FadeSlideIn>
+
+        {/* Today chips: XP / streak-safe / Locked MOVE preview */}
+        <FadeSlideIn delay={STAGGER_MS}>
+          <View style={styles.chipsRow}>
+            <View style={styles.chip}>
+              <Text style={[styles.chipValue, { color: "#B07908" }]}>+{xpToday}</Text>
+              <Text style={styles.chipLabel}>XP today</Text>
+            </View>
+            <View style={styles.chip}>
+              <Text style={[styles.chipValue, { color: palette.heatCoral }]}>{streak}</Text>
+              <Text style={styles.chipLabel}>streak</Text>
+            </View>
+            <View style={styles.chip}>
+              <Text style={[styles.chipValue, { color: palette.deedViolet }]}>{lockedMove}</Text>
+              <Text style={styles.chipLabel}>Locked MOVE · preview</Text>
+            </View>
+          </View>
+        </FadeSlideIn>
+
         {dailyCompletedToday ? (
           <View style={styles.doneBanner}>
-            <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
+            <Ionicons name="checkmark-circle" size={18} color={palette.pulseGreen} />
             <Text style={styles.doneText}>
               Daily quest done — streak safe. Try a bonus quest below for more XP.
             </Text>
           </View>
         ) : null}
 
-        <View style={styles.levelBox}>
-          <View style={styles.levelHeader}>
-            <Text style={styles.levelText}>Level {level.level}</Text>
-            <Text style={styles.xpText}>
-              {level.xpIntoLevel} / {level.xpForLevel} XP
-            </Text>
-          </View>
-          <XPBar progress={level.progress} />
-        </View>
+        {/* Territory teaser — visual only, no GPS yet */}
+        <FadeSlideIn delay={STAGGER_MS * 2}>
+          <SectionHeader title="Your territory" trailing="soon" />
+          <View style={styles.sectionGap} />
+          <TerritoryPreview />
+        </FadeSlideIn>
 
-        <SectionHeader title="Today's Quest" />
-        <QuestCard
-          quest={dailyQuest}
-          featured
-          completed={dailyCompletedToday}
-          onPress={() => openQuest(dailyQuest.id)}
-        />
+        <FadeSlideIn delay={STAGGER_MS * 3}>
+          <SectionHeader title="Today's Quest" />
+          <View style={styles.sectionGap} />
+          <QuestCard
+            quest={dailyQuest}
+            featured
+            completed={dailyCompletedToday}
+            onPress={() => openQuest(dailyQuest.id)}
+          />
+        </FadeSlideIn>
 
-        <SectionHeader title="More Quests" trailing={`${recommendedQuests.length}`} />
+        <SectionHeader title="Warmup quests" trailing={`${recommendedQuests.length}`} />
         <View style={styles.list}>
-          {recommendedQuests.map((q) => (
-            <QuestCard
-              key={q.id}
-              quest={q}
-              completed={completedTodayIds.includes(q.id)}
-              onPress={() => openQuest(q.id)}
-            />
+          {recommendedQuests.map((q, i) => (
+            <FadeSlideIn key={q.id} delay={STAGGER_MS * (4 + i)}>
+              <QuestCard
+                quest={q}
+                completed={completedTodayIds.includes(q.id)}
+                onPress={() => openQuest(q.id)}
+              />
+            </FadeSlideIn>
           ))}
         </View>
+
+        <Text style={styles.footerLoop}>Move → Capture → Defend → Own</Text>
       </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.lg },
+  // Extra bottom padding clears the floating tab bar.
+  content: { paddingTop: spacing.sm, paddingBottom: 110, gap: spacing.lg },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -107,44 +167,66 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   headerText: { flex: 1 },
-  greeting: { color: colors.textDim, fontSize: 15 },
-  brand: { color: colors.text, fontSize: 26, fontWeight: "800" },
+  greeting: { ...type.caption, fontSize: 14 },
+  brand: { ...type.display, fontSize: 26 },
   streakChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    ...shadows.card,
+  },
+  streakNum: { ...type.heading, fontSize: 16 },
+  streakLabel: { ...type.caption, fontSize: 11 },
+  hero: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+    ...shadows.float,
+  },
+  heroKicker: { ...type.kicker, color: colors.primary },
+  heroLevelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+  },
+  heroLevel: { ...type.title, fontSize: 20 },
+  heroXp: { ...type.mono, fontSize: 12.5 },
+  heroCta: { marginTop: spacing.xs },
+  heroNote: { ...type.caption, fontSize: 12, textAlign: "center", color: colors.textFaint },
+  chipsRow: { flexDirection: "row", gap: spacing.md },
+  chip: {
+    flex: 1,
     alignItems: "center",
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xs,
+    gap: 2,
+    ...shadows.card,
   },
-  streakNum: { color: colors.warning, fontSize: 22, fontWeight: "800" },
-  streakLabel: { color: colors.textDim, fontSize: 11 },
+  chipValue: { fontSize: 20, fontWeight: "800", letterSpacing: -0.4 },
+  chipLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
   doneBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: `${colors.accent}14`,
-    borderWidth: 1,
-    borderColor: `${colors.accent}40`,
-    borderRadius: radius.md,
+    backgroundColor: `${palette.pulseGreen}14`,
+    borderRadius: radius.lg,
     padding: spacing.md,
   },
-  doneText: { flex: 1, color: colors.text, fontSize: 13, lineHeight: 18 },
-  levelBox: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  levelHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  levelText: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  xpText: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
+  doneText: { flex: 1, ...type.caption, fontSize: 13, lineHeight: 18, color: colors.text },
+  sectionGap: { height: spacing.md },
   list: { gap: spacing.md },
+  footerLoop: {
+    ...type.mono,
+    fontSize: 12,
+    color: colors.textFaint,
+    textAlign: "center",
+    paddingVertical: spacing.md,
+  },
 });

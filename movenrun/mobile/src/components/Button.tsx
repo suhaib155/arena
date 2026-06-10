@@ -1,13 +1,8 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  ViewStyle,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Text, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, spacing } from "@/theme";
+import { colors, glow, radius, shadows, spacing } from "@/theme";
 import type { IoniconName } from "@/types";
+import { ScalePress } from "./ScalePress";
 
 type Variant = "primary" | "secondary" | "ghost";
 
@@ -31,19 +26,16 @@ export function Button({
   style,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
-  const textColor = variant === "primary" ? "#0B0B12" : colors.text;
+  const textColor =
+    variant === "primary" ? colors.surface : variant === "ghost" ? colors.textDim : colors.text;
+
+  const variantStyle = variantStyles[variant];
 
   return (
-    <Pressable
+    <ScalePress
       onPress={onPress}
       disabled={isDisabled}
-      style={({ pressed }) => [
-        styles.base,
-        variantStyles[variant],
-        pressed && !isDisabled ? styles.pressed : null,
-        isDisabled ? styles.disabled : null,
-        style,
-      ]}
+      style={[styles.base, variantStyle, isDisabled ? styles.disabled : {}, style ?? {}]}
     >
       {loading ? (
         <ActivityIndicator color={textColor} />
@@ -53,7 +45,7 @@ export function Button({
           <Text style={[styles.label, { color: textColor }]}>{label}</Text>
         </>
       )}
-    </Pressable>
+    </ScalePress>
   );
 }
 
@@ -65,27 +57,19 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.xl,
-    borderRadius: radius.pill,
+    borderRadius: radius.lg,
   },
   label: {
     fontSize: 16,
     fontWeight: "700",
   },
-  pressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.99 }],
-  },
   disabled: {
-    opacity: 0.4,
+    opacity: 0.45,
   },
 });
 
 const variantStyles: Record<Variant, ViewStyle> = {
-  primary: { backgroundColor: colors.accent },
-  secondary: { backgroundColor: colors.surfaceAlt },
-  ghost: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  primary: { backgroundColor: colors.primary, ...glow(colors.primary) },
+  secondary: { backgroundColor: colors.surface, ...shadows.card },
+  ghost: { backgroundColor: "transparent" },
 };

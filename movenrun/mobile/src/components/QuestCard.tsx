@@ -1,8 +1,18 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { categoryColor, colors, difficultyColor, radius, spacing } from "@/theme";
+import {
+  categoryColor,
+  colors,
+  difficultyColor,
+  palette,
+  radius,
+  shadows,
+  spacing,
+  type,
+} from "@/theme";
 import type { Quest } from "@/types";
 import { Badge } from "./Badge";
+import { ScalePress } from "./ScalePress";
 
 interface QuestCardProps {
   quest: Quest;
@@ -23,21 +33,20 @@ function formatDuration(seconds: number): string {
 export function QuestCard({ quest, onPress, featured, completed }: QuestCardProps) {
   const tint = categoryColor[quest.category] ?? colors.primary;
   return (
-    <Pressable
+    <ScalePress
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        featured && styles.featured,
-        completed && styles.completed,
-        pressed && styles.pressed,
-      ]}
+      to={0.98}
+      style={[styles.card, featured ? styles.featured : {}, completed ? styles.completed : {}]}
     >
       <View style={styles.header}>
-        <View style={[styles.iconWrap, { backgroundColor: `${tint}22` }]}>
-          <Ionicons name={quest.icon} size={featured ? 28 : 22} color={tint} />
+        <View style={[styles.iconWrap, { backgroundColor: `${tint}1A` }]}>
+          <Ionicons name={quest.icon} size={featured ? 26 : 22} color={tint} />
         </View>
         <View style={styles.headerText}>
-          <Text style={[styles.title, featured && styles.titleFeatured]} numberOfLines={1}>
+          <Text
+            style={[styles.title, featured ? styles.titleFeatured : null]}
+            numberOfLines={1}
+          >
             {quest.title}
           </Text>
           <Text style={styles.summary} numberOfLines={2}>
@@ -46,48 +55,48 @@ export function QuestCard({ quest, onPress, featured, completed }: QuestCardProp
         </View>
         {completed ? (
           <View style={styles.doneBadge}>
-            <Ionicons name="checkmark-circle" size={16} color={colors.accent} />
-            <Text style={styles.doneBadgeText}>Done today</Text>
+            <Ionicons name="checkmark-circle" size={15} color={palette.pulseGreen} />
+            <Text style={styles.doneBadgeText}>Done</Text>
           </View>
         ) : null}
       </View>
 
       <View style={styles.metaRow}>
         <Badge label={quest.category} color={tint} />
-        <Badge label={quest.difficulty} color={difficultyColor[quest.difficulty] ?? colors.textDim} />
+        <Badge
+          label={quest.difficulty}
+          color={difficultyColor[quest.difficulty] ?? colors.textDim}
+        />
         <View style={styles.spacer} />
         <View style={styles.metaItem}>
-          <Ionicons name="time-outline" size={14} color={colors.textDim} />
+          <Ionicons name="time-outline" size={14} color={colors.textFaint} />
           <Text style={styles.metaText}>{formatDuration(quest.durationSeconds)}</Text>
         </View>
         <View style={styles.metaItem}>
-          <Ionicons name="flash-outline" size={14} color={colors.warning} />
-          <Text style={[styles.metaText, { color: colors.warning }]}>+{quest.xpReward} XP</Text>
+          <Ionicons name="flash" size={14} color={palette.moveGold} />
+          <Text style={[styles.metaText, styles.metaXp]}>+{quest.xpReward} XP</Text>
         </View>
       </View>
-    </Pressable>
+    </ScalePress>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.xl,
     padding: spacing.lg,
     gap: spacing.md,
+    ...shadows.card,
   },
   featured: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceAlt,
+    padding: spacing.xl,
+    ...shadows.float,
   },
   completed: {
-    borderColor: `${colors.accent}66`,
-  },
-  pressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.995 }],
+    backgroundColor: colors.surfaceAlt,
+    shadowOpacity: 0.04,
+    elevation: 1,
   },
   header: {
     flexDirection: "row",
@@ -99,12 +108,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     alignSelf: "flex-start",
-    backgroundColor: `${colors.accent}1A`,
+    backgroundColor: `${palette.pulseGreen}1A`,
     borderRadius: radius.pill,
-    paddingVertical: 2,
+    paddingVertical: 3,
     paddingHorizontal: spacing.sm,
   },
-  doneBadgeText: { color: colors.accent, fontSize: 11, fontWeight: "700" },
+  doneBadgeText: { color: palette.pulseGreen, fontSize: 11, fontWeight: "700" },
   iconWrap: {
     width: 48,
     height: 48,
@@ -113,20 +122,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerText: { flex: 1, gap: 2 },
-  title: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  titleFeatured: {
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  summary: {
-    color: colors.textDim,
-    fontSize: 13,
-    lineHeight: 18,
-  },
+  title: { ...type.heading, fontSize: 16 },
+  titleFeatured: { fontSize: 20, letterSpacing: -0.4 },
+  summary: { ...type.caption, fontSize: 13, lineHeight: 18 },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -134,14 +132,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   spacer: { flex: 1 },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  metaText: {
-    color: colors.textDim,
-    fontSize: 13,
-    fontWeight: "600",
-  },
+  metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  metaText: { ...type.mono, fontSize: 12.5 },
+  metaXp: { color: "#B07908", fontWeight: "700" },
 });

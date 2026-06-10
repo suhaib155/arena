@@ -4,12 +4,15 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { XPBar } from "@/components/XPBar";
+import { CountUpText } from "@/components/CountUpText";
+import { RoutePath } from "@/components/RoutePath";
 import { ShareCard } from "@/components/ShareCard";
-import { colors, radius, spacing } from "@/theme";
+import { Hexagon } from "@/components/Hexagon";
+import { colors, glow, palette, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { useGameStore, type CompletionOutcome } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
+import { lockedMovePreview } from "@/lib/lockedMove";
 import { successFeedback } from "@/lib/haptics";
 
 export default function ResultScreen() {
@@ -45,6 +48,9 @@ export default function ResultScreen() {
   }
 
   const level = getLevelInfo(outcome.totalXpAfter);
+  // Display preview only: in-app progress, not a payout (see lib/lockedMove).
+  const lockedMoveGained =
+    lockedMovePreview(outcome.totalXpAfter) - lockedMovePreview(outcome.totalXpBefore);
 
   const onShare = async () => {
     try {
@@ -65,26 +71,44 @@ export default function ResultScreen() {
         contentContainerStyle={styles.content}
         style={{ opacity: pop }}
       >
-        <Animated.View
-          style={[
-            styles.badge,
-            { transform: [{ scale: pop }] },
-          ]}
-        >
-          <Ionicons name="checkmark" size={48} color={colors.bg} />
+        <Animated.View style={[styles.badge, { transform: [{ scale: pop }] }]}>
+          <Ionicons name="checkmark" size={44} color={colors.surface} />
         </Animated.View>
 
-        <Text style={styles.title}>Quest Complete!</Text>
+        <Text style={styles.title}>Quest complete!</Text>
         <Text style={styles.questName}>{quest.title}</Text>
 
-        <View style={styles.xpBubble}>
-          <Ionicons name="flash" size={22} color={colors.warning} />
-          <Text style={styles.xpGained}>+{outcome.xpGained} XP</Text>
+        {/* Reward card: XP + Locked MOVE preview */}
+        <View style={styles.rewardCard}>
+          <View style={styles.rewardRow}>
+            <View style={[styles.rewardIcon, { backgroundColor: `${palette.moveGold}1F` }]}>
+              <Ionicons name="flash" size={18} color={palette.moveGold} />
+            </View>
+            <Text style={styles.rewardLabel}>XP earned</Text>
+            <CountUpText
+              value={outcome.xpGained}
+              prefix="+"
+              style={[styles.rewardValue, { color: "#B07908" }]}
+            />
+          </View>
+          <View style={styles.rewardDivider} />
+          <View style={styles.rewardRow}>
+            <View style={[styles.rewardIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <Hexagon size={15} color={palette.deedViolet} />
+            </View>
+            <View style={styles.rewardLabelWrap}>
+              <Text style={styles.rewardLabelPlain}>Locked MOVE</Text>
+              <Text style={styles.rewardSub}>preview · in-app progress</Text>
+            </View>
+            <Text style={[styles.rewardValue, { color: palette.deedViolet }]}>
+              +{lockedMoveGained}
+            </Text>
+          </View>
         </View>
 
         {outcome.leveledUp ? (
           <View style={styles.levelUp}>
-            <Ionicons name="arrow-up-circle" size={18} color={colors.accent} />
+            <Ionicons name="arrow-up-circle" size={18} color={palette.pulseGreen} />
             <Text style={styles.levelUpText}>
               Level up! You reached level {outcome.levelAfter}
             </Text>
@@ -98,12 +122,12 @@ export default function ResultScreen() {
               {level.xpIntoLevel} / {level.xpForLevel} XP
             </Text>
           </View>
-          <XPBar progress={level.progress} />
+          <RoutePath progress={level.progress} />
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.stat}>
-            <Ionicons name="flame" size={20} color={colors.warning} />
+            <Ionicons name="flame" size={20} color={palette.heatCoral} />
             <Text style={styles.statValue}>{outcome.streak}</Text>
             <Text style={styles.statLabel}>
               day streak{outcome.streakIncreased ? " 🔥" : ""}
@@ -111,7 +135,7 @@ export default function ResultScreen() {
           </View>
           <View style={styles.divider} />
           <View style={styles.stat}>
-            <Ionicons name="trophy" size={20} color={colors.accent} />
+            <Ionicons name="trophy" size={20} color={palette.moveGold} />
             <Text style={styles.statValue}>{outcome.totalXpAfter}</Text>
             <Text style={styles.statLabel}>total XP</Text>
           </View>
@@ -148,75 +172,83 @@ const styles = StyleSheet.create({
   center: { flex: 1 },
   content: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
   badge: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.accent,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: palette.pulseGreen,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.sm,
+    ...glow(palette.pulseGreen),
   },
-  title: { color: colors.text, fontSize: 28, fontWeight: "800" },
-  questName: { color: colors.textDim, fontSize: 16 },
-  xpBubble: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceAlt,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.pill,
+  title: { ...type.display, fontSize: 28 },
+  questName: { ...type.body, fontSize: 16 },
+  rewardCard: {
+    alignSelf: "stretch",
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
     marginTop: spacing.sm,
+    ...shadows.float,
   },
-  xpGained: { color: colors.warning, fontSize: 24, fontWeight: "800" },
+  rewardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  rewardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rewardLabelWrap: { flex: 1, gap: 1 },
+  rewardLabel: { ...type.heading, fontSize: 15, flex: 1 },
+  rewardLabelPlain: { ...type.heading, fontSize: 15 },
+  rewardSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  rewardValue: { fontSize: 22, fontWeight: "800", letterSpacing: -0.4 },
+  rewardDivider: { height: 1, backgroundColor: colors.surfaceAlt },
   levelUp: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: `${colors.accent}1A`,
+    backgroundColor: `${palette.pulseGreen}14`,
     borderRadius: radius.pill,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  levelUpText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
+  levelUpText: { color: "#0A8F60", fontSize: 14, fontWeight: "700" },
   card: {
     alignSelf: "stretch",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.sm,
     marginTop: spacing.sm,
+    ...shadows.card,
   },
   levelRow: { flexDirection: "row", justifyContent: "space-between" },
-  levelLabel: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  levelXp: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
+  levelLabel: { ...type.heading, fontSize: 16 },
+  levelXp: { ...type.mono, fontSize: 12.5 },
   statsRow: {
     alignSelf: "stretch",
     flexDirection: "row",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.lg,
+    ...shadows.card,
   },
   stat: { flex: 1, alignItems: "center", gap: spacing.xs },
-  statValue: { color: colors.text, fontSize: 22, fontWeight: "800" },
-  statLabel: { color: colors.textDim, fontSize: 12 },
-  divider: { width: 1, backgroundColor: colors.border },
+  statValue: { ...type.title, fontSize: 22 },
+  statLabel: { ...type.caption, fontSize: 12 },
+  divider: { width: 1, backgroundColor: colors.surfaceAlt },
   note: {
-    color: colors.textFaint,
+    ...type.caption,
     fontSize: 13,
+    color: colors.textFaint,
     textAlign: "center",
     paddingHorizontal: spacing.lg,
   },
   shareHint: {
-    color: colors.textDim,
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    ...type.kicker,
     alignSelf: "flex-start",
     marginTop: spacing.sm,
   },

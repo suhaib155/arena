@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { categoryColor, colors, radius, spacing } from "@/theme";
+import { categoryColor, colors, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   quitBtn: { padding: spacing.xs },
-  questName: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  questName: { ...type.heading, fontSize: 16 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.xl },
   ring: {
     width: 240,
@@ -146,9 +146,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.surface,
     gap: spacing.sm,
+    ...shadows.float,
   },
-  timer: { color: colors.text, fontSize: 56, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  status: { color: colors.textDim, fontSize: 15 },
+  timer: { ...type.display, fontSize: 56, fontVariant: ["tabular-nums"] },
+  status: { ...type.body },
   progressTrack: {
     alignSelf: "stretch",
     height: 10,
@@ -157,8 +158,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   progressFill: { height: "100%", borderRadius: radius.pill },
-  reward: { color: colors.textDim, fontSize: 14, fontWeight: "600" },
+  reward: { ...type.caption, fontSize: 14, fontWeight: "600" },
   controls: { flexDirection: "row", gap: spacing.md, paddingVertical: spacing.md },
   controlBtn: { flex: 1 },
-  missing: { color: colors.textDim, fontSize: 16 },
+  missing: { ...type.body, fontSize: 16 },
 });
