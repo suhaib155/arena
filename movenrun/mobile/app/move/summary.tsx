@@ -33,6 +33,7 @@ export default function MoveSummaryScreen() {
   const session = useMemo(() => getLastSession(), []);
   const completeQuest = useGameStore((s) => s.completeQuest);
   const captureZone = useGameStore((s) => s.captureZone);
+  const defendZones = useGameStore((s) => s.defendZones);
   const ownedZones = useGameStore((s) => s.zones);
   const totalXp = useGameStore((s) => s.totalXp);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
@@ -60,6 +61,9 @@ export default function MoveSummaryScreen() {
   const zonesTouched = deriveZonesFromRoute(session.points);
   const candidate =
     zonesTouched.find((t) => !ownedZones.some((z) => z.id === t.id)) ?? null;
+  const ownedTouched = zonesTouched.filter((t) =>
+    ownedZones.some((z) => z.id === t.id),
+  );
   const captureEligible =
     saveable && !alreadySavedToday && candidate !== null;
 
@@ -81,13 +85,27 @@ export default function MoveSummaryScreen() {
     };
     completeQuest(sessionQuest);
     successFeedback();
-    /* One common zone per saved session (and saves are once per day). */
+    /* Movement defend: the route touched zones you already own. */
+    const defendedCount = defendZones(ownedTouched.map((t) => t.id));
+    /* One common zone per saved session (and saves are once per day).
+       New capture takes priority for the result moment; defended zones are
+       reported alongside it. */
     if (candidate) {
       const outcome = captureZone(newCapturedZone(candidate, false));
       if (outcome.captured) {
-        router.replace({ pathname: "/move/captured", params: { id: outcome.zone.id } });
+        router.replace({
+          pathname: "/move/captured",
+          params: { id: outcome.zone.id, kind: "captured", defended: String(defendedCount) },
+        });
         return;
       }
+    }
+    if (defendedCount > 0) {
+      router.replace({
+        pathname: "/move/captured",
+        params: { id: ownedTouched[0].id, kind: "defended", defended: String(defendedCount) },
+      });
+      return;
     }
     setSaved(true);
   };
@@ -207,6 +225,13 @@ export default function MoveSummaryScreen() {
             </View>
           ) : zonesTouched.length > 0 ? (
             <Text style={styles.zoneEmpty}>All touched zones are already yours.</Text>
+          ) : null}
+
+          {ownedTouched.length > 0 && session.mode === "gps" ? (
+            <Text style={styles.defendHint}>
+              {ownedTouched.length} of yours touched — defense refreshes when you
+              save.
+            </Text>
           ) : null}
 
           <Text style={styles.zoneBeta}>Local territory preview · on-device simulation</Text>
@@ -332,6 +357,7 @@ const styles = StyleSheet.create({
   candidateName: { ...type.heading, fontSize: 14, flex: 1 },
   candidateHint: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   zoneBeta: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
+  defendHint: { ...type.caption, fontSize: 12, color: "#0A8F60", fontWeight: "600" },
   footer: { marginTop: "auto", paddingVertical: spacing.md, gap: spacing.sm },
   missingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   missingText: { ...type.body },

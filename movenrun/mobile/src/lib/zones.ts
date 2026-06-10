@@ -9,6 +9,7 @@
  */
 import type { TrackPoint } from "./geo";
 import type { Zone, ZoneState } from "@/types";
+import { CAPTURE_CONTROL, CAPTURE_DEFENSE } from "./territory";
 
 /** Approximate hex cell size in meters (between H3 res 8 and 9 — beta only). */
 const CELL_M = 300;
@@ -93,10 +94,13 @@ export function newCapturedZone(touch: ZoneTouch, isDemo: boolean): Zone {
     id: touch.id,
     name: touch.name,
     state: "yours",
-    controlPercent: 60,
-    defensePercent: 0,
+    controlPercent: CAPTURE_CONTROL,
+    defensePercent: CAPTURE_DEFENSE,
     lastTouchedAt: now,
     capturedAt: now,
+    lastDefendedAt: now,
+    lastFortifiedAt: null,
+    fortifyCount: 0,
     isDeedPreview: false,
     isDemo,
   };

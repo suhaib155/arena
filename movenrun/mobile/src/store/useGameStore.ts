@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Quest, Zone } from "@/types";
+import { applyDefend, applyFortify, fortifiedToday } from "@/lib/territory";
 import { getLevelInfo } from "@/lib/leveling";
 import { getLocalDateKey, daysBetween } from "@/lib/date";
 
@@ -51,6 +52,8 @@ interface GameState {
   history: CompletionRecord[];
   /** Captured common zones (Free Map Beta — local simulation only). */
   zones: Zone[];
+  /** Total defend/fortify actions, for the Profile territory card. */
+  timesDefended: number;
   /** Whether the user has seen the onboarding flow. */
   hasOnboarded: boolean;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
@@ -60,6 +63,13 @@ interface GameState {
   /** Add a captured zone (or refresh it when already owned). Demo zones are
    *  rejected here as a final guard — they must never persist. */
   captureZone: (zone: Zone) => CaptureOutcome;
+  /** Movement defend: a saved session's route touched these owned zones.
+   *  Refreshes defense/control and the decay clock. Returns refreshed count. */
+  defendZones: (zoneIds: string[]) => number;
+  /** Fortify a zone (Locked MOVE *preview* — nothing is spent). Once per
+   *  zone per local day. Returns the updated zone, or null when on cooldown
+   *  or unknown. */
+  fortifyZone: (zoneId: string) => Zone | null;
   completeOnboarding: () => void;
   reset: () => void;
 }
@@ -74,6 +84,7 @@ export const useGameStore = create<GameState>()(
       questsCompleted: 0,
       history: [],
       zones: [],
+      timesDefended: 0,
       hasOnboarded: false,
       _hydrated: false,
 
@@ -166,6 +177,33 @@ export const useGameStore = create<GameState>()(
         return { captured: true, alreadyOwned: false, zone };
       },
 
+      defendZones: (zoneIds) => {
+        const state = get();
+        const now = Date.now();
+        let defended = 0;
+        const zones = state.zones.map((z) => {
+          if (!zoneIds.includes(z.id)) return z;
+          defended += 1;
+          return applyDefend(z, now);
+        });
+        if (defended > 0) {
+          set({ zones, timesDefended: state.timesDefended + defended });
+        }
+        return defended;
+      },
+
+      fortifyZone: (zoneId) => {
+        const state = get();
+        const zone = state.zones.find((z) => z.id === zoneId);
+        if (!zone || fortifiedToday(zone)) return null;
+        const updated = applyFortify(zone);
+        set({
+          zones: state.zones.map((z) => (z.id === zoneId ? updated : z)),
+          timesDefended: state.timesDefended + 1,
+        });
+        return updated;
+      },
+
       completeOnboarding: () => set({ hasOnboarded: true }),
 
       // Resets progress only — keeps the user past onboarding.
@@ -178,14 +216,17 @@ export const useGameStore = create<GameState>()(
           questsCompleted: 0,
           history: [],
           zones: [],
+          timesDefended: 0,
         }),
     }),
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 3,
+      version: 4,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
-      // state (v2) has no `zones`. Backfill both so upgrades never crash.
+      // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
+      // fields and shipped with defense 0. Backfill everything so upgrades
+      // never crash and v3 zones arrive healthy instead of instantly decayed.
       migrate: (persisted, _version) => {
         const state = (persisted ?? {}) as Partial<GameState>;
         if (!Array.isArray(state.completedQuestIds)) {
@@ -193,6 +234,19 @@ export const useGameStore = create<GameState>()(
         }
         if (!Array.isArray(state.zones)) {
           state.zones = [];
+        }
+        state.zones = state.zones.map((z) => ({
+          ...z,
+          lastDefendedAt: z.lastDefendedAt ?? z.capturedAt ?? new Date().toISOString(),
+          lastFortifiedAt: z.lastFortifiedAt ?? null,
+          fortifyCount: typeof z.fortifyCount === "number" ? z.fortifyCount : 0,
+          defensePercent:
+            typeof z.defensePercent === "number" && z.defensePercent > 0
+              ? z.defensePercent
+              : 40,
+        }));
+        if (typeof state.timesDefended !== "number") {
+          state.timesDefended = 0;
         }
         return state as GameState;
       },

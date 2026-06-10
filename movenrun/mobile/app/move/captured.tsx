@@ -20,8 +20,14 @@ const VERTEX_ANGLES = [30, 90, 150, 210, 270, 330];
  */
 export default function ZoneCapturedScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, kind, defended } = useLocalSearchParams<{
+    id: string;
+    kind?: string;
+    defended?: string;
+  }>();
   const zone = useGameStore((s) => s.zones.find((z) => z.id === id));
+  const isDefend = kind === "defended";
+  const defendedCount = Number(defended ?? "0") || 0;
 
   const fill = useRef(new Animated.Value(0)).current;
   const stamp = useRef(new Animated.Value(0)).current;
@@ -90,7 +96,9 @@ export default function ZoneCapturedScreen() {
   return (
     <Screen>
       <View style={styles.center}>
-        <Text style={styles.kicker}>Common Zone</Text>
+        <Text style={[styles.kicker, isDefend ? styles.kickerDefend : null]}>
+          {isDefend ? "Defense refreshed" : "Common Zone"}
+        </Text>
 
         <View style={styles.stage}>
           {/* faint map roads */}
@@ -167,6 +175,7 @@ export default function ZoneCapturedScreen() {
           <Animated.View
             style={[
               styles.stamp,
+              isDefend ? styles.stampDefend : null,
               {
                 opacity: stamp,
                 transform: [
@@ -176,12 +185,23 @@ export default function ZoneCapturedScreen() {
               },
             ]}
           >
-            <Text style={styles.stampText}>Zone Captured</Text>
+            <Text style={[styles.stampText, isDefend ? styles.stampTextDefend : null]}>
+              {isDefend ? "Zone Defended" : "Zone Captured"}
+            </Text>
           </Animated.View>
         </View>
 
         <Text style={styles.title}>{zone.name}</Text>
-        <Text style={styles.sub}>Control {zone.controlPercent}% · Defense unlocks next</Text>
+        <Text style={styles.sub}>
+          {isDefend
+            ? `Defense refreshed · Control +${10}`
+            : `Control ${zone.controlPercent}% · Defense ${zone.defensePercent}%`}
+        </Text>
+        {!isDefend && defendedCount > 0 ? (
+          <Text style={styles.alsoDefended}>
+            Also defended {defendedCount} of your zone{defendedCount > 1 ? "s" : ""} on the way.
+          </Text>
+        ) : null}
 
         <View style={styles.noteCard}>
           <Text style={styles.noteText}>
@@ -278,6 +298,10 @@ const styles = StyleSheet.create({
     color: "#0A8F60",
     fontSize: 12,
   },
+  stampDefend: { borderColor: palette.baseBlue },
+  stampTextDefend: { color: palette.baseBlue },
+  kickerDefend: { color: palette.baseBlue },
+  alsoDefended: { ...type.caption, fontSize: 12.5, color: "#0A8F60", fontWeight: "600" },
   title: { ...type.display, fontSize: 30 },
   sub: { ...type.body, fontSize: 14.5 },
   noteCard: {

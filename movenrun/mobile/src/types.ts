@@ -63,6 +63,12 @@ export interface Zone {
   lastTouchedAt: string;
   /** ISO timestamp of the capture. */
   capturedAt: string;
+  /** ISO timestamp of the last movement defend (backfilled to capturedAt). */
+  lastDefendedAt: string;
+  /** ISO timestamp of the last fortify, or null if never fortified. */
+  lastFortifiedAt: string | null;
+  /** How many times this zone has been fortified. */
+  fortifyCount: number;
   /** Future Deed-tier accent only — never an ownership claim. */
   isDeedPreview: boolean;
   /** True when produced by a demo route (never persisted as progress). */

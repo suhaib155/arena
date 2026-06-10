@@ -13,6 +13,7 @@ import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
+import { zoneStatus } from "@/lib/territory";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -32,7 +33,15 @@ export default function ProfileScreen() {
   const questsCompleted = useGameStore((s) => s.questsCompleted);
   const history = useGameStore((s) => s.history);
   const zones = useGameStore((s) => s.zones);
+  const timesDefended = useGameStore((s) => s.timesDefended);
   const reset = useGameStore((s) => s.reset);
+  const statuses = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
+  const atRiskCount = statuses.filter((e) => e.status.health !== "yours").length;
+  const strongest =
+    [...statuses].sort(
+      (a, b) =>
+        b.status.defense + b.status.control - (a.status.defense + a.status.control),
+    )[0] ?? null;
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
 
@@ -123,8 +132,14 @@ export default function ProfileScreen() {
               <Text style={styles.portfolioNote}>
                 {zones.length === 0
                   ? "0 zones owned — capture a zone with a saved session."
-                  : `${zones.length} common zone${zones.length === 1 ? "" : "s"} · latest: ${zones[0].name}`}
+                  : `${zones.length} common zone${zones.length === 1 ? "" : "s"} · defended ×${timesDefended}`}
               </Text>
+              {strongest ? (
+                <Text style={styles.portfolioNote}>
+                  Strongest: {strongest.zone.name}
+                  {atRiskCount > 0 ? ` · ${atRiskCount} at risk` : " · all stable"}
+                </Text>
+              ) : null}
             </View>
           </View>
         </FadeSlideIn>
