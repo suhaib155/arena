@@ -99,7 +99,10 @@ starts accumulating.
 Goal: prove the **Defend → Own** half of the loop against **testnet** contracts.
 
 - **Connect existing deployed / testnet contracts** where available (the
-  Base Sepolia deployment — see `docs/CONTRACTS_AUDIT.md`).
+  Base Sepolia deployment — see `docs/CONTRACTS_AUDIT.md`). ✅ A **read-only**
+  backend client now exists (`backend/src/blockchain/`): RPC-via-env, no signer/
+  wallet/writes, no new dependency. Next app step:
+  `feat(mobile): add read-only Base Sepolia contract status preview`.
 - **Show owned deeds** — read `ZoneNFT` ownership for the connected user.
 - **Simulate land defence** — surface the `ZoneChallenge` battle flow.
 - **Simulate the Locked / Liquid MOVE reward split** — UI and math only, on
