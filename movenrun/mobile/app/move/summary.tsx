@@ -19,6 +19,7 @@ import {
 import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
+import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
 import type { Quest } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 
@@ -28,9 +29,25 @@ import { successFeedback, tapFeedback } from "@/lib/haptics";
  */
 const SESSION_QUEST_ID = "move-session";
 
+/** Map a trust tone to its Daylight Cartography bar/text colors. */
+function toneColor(tone: TrustTone): { bar: string; text: string } {
+  switch (tone) {
+    case "strong":
+      return { bar: palette.pulseGreen, text: "#0A8F60" };
+    case "good":
+      return { bar: palette.baseBlue, text: palette.baseBlue };
+    case "caution":
+      return { bar: palette.moveGold, text: "#B07908" };
+    default:
+      return { bar: palette.dustGray, text: colors.textDim };
+  }
+}
+
 export default function MoveSummaryScreen() {
   const router = useRouter();
   const session = useMemo(() => getLastSession(), []);
+  const trust = useMemo(() => (session ? scoreRoute(session) : null), [session]);
+  const setRouteTrust = useGameStore((s) => s.setRouteTrust);
   const completeQuest = useGameStore((s) => s.completeQuest);
   const captureZone = useGameStore((s) => s.captureZone);
   const defendZones = useGameStore((s) => s.defendZones);
@@ -84,6 +101,9 @@ export default function MoveSummaryScreen() {
       instructions: [],
     };
     completeQuest(sessionQuest);
+    /* Persist the route-trust *preview* summary only (score + label) — never
+       raw GPS points, and it does not affect rewards or capture. */
+    if (trust) setRouteTrust(trust.score, trust.label);
     successFeedback();
     /* Movement defend: the route touched zones you already own. */
     const defendedCount = defendZones(ownedTouched.map((t) => t.id));
@@ -238,6 +258,72 @@ export default function MoveSummaryScreen() {
         </View>
       </FadeSlideIn>
 
+      {/* Route Trust — local verification preview (does not affect rewards) */}
+      {trust ? (
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <View style={styles.trustCard}>
+            <View style={styles.trustHead}>
+              <Text style={styles.trustTitle}>Route Trust Preview</Text>
+              <View style={styles.previewBadge}>
+                <Text style={styles.previewBadgeText}>Preview only</Text>
+              </View>
+            </View>
+
+            <View style={styles.trustScoreRow}>
+              <View style={styles.trustScoreWrap}>
+                <Text style={[styles.trustScore, { color: toneColor(trust.tone).text }]}>
+                  {trust.score}
+                </Text>
+                <Text style={styles.trustScoreMax}>/100</Text>
+              </View>
+              <View style={styles.trustLabelWrap}>
+                <Text style={[styles.trustLabel, { color: toneColor(trust.tone).text }]}>
+                  {trust.label}
+                </Text>
+                <Text style={styles.trustExplain}>{trust.explanation}</Text>
+              </View>
+            </View>
+
+            <View style={styles.trustBarTrack}>
+              <View
+                style={[
+                  styles.trustBarFill,
+                  { width: `${trust.score}%`, backgroundColor: toneColor(trust.tone).bar },
+                ]}
+              />
+            </View>
+
+            {trust.positiveSignals.length > 0 ? (
+              <View style={styles.chipRow}>
+                {trust.positiveSignals.map((s) => (
+                  <View key={s} style={[styles.chip, styles.chipGood]}>
+                    <Ionicons name="checkmark-circle" size={12} color="#0A8F60" />
+                    <Text style={[styles.chipText, { color: "#0A8F60" }]}>{s}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {trust.riskFlags.length > 0 ? (
+              <View style={styles.chipRow}>
+                {trust.riskFlags.map((f) => (
+                  <View key={f} style={[styles.chip, styles.chipRisk]}>
+                    <Ionicons name="alert-circle" size={12} color={palette.heatCoral} />
+                    <Text style={[styles.chipText, { color: "#C2492E" }]}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            <Text style={styles.trustNote}>
+              Preview only · does not affect rewards or ownership. No location is
+              sent anywhere — this helps MovenRun learn what a clean route looks
+              like.
+            </Text>
+          </View>
+        </FadeSlideIn>
+      ) : null}
+
       {session.mode === "demo" ? (
         <Text style={styles.note}>
           Demo route — not real GPS. Demo zones are preview only and are never
@@ -358,6 +444,50 @@ const styles = StyleSheet.create({
   candidateHint: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   zoneBeta: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
   defendHint: { ...type.caption, fontSize: 12, color: "#0A8F60", fontWeight: "600" },
+  trustCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
+    marginTop: spacing.md,
+    ...shadows.card,
+  },
+  trustHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  trustTitle: { ...type.heading, fontSize: 15 },
+  previewBadge: {
+    backgroundColor: `${palette.baseBlue}14`,
+    borderRadius: radius.pill,
+    paddingVertical: 3,
+    paddingHorizontal: spacing.sm,
+  },
+  previewBadgeText: { fontSize: 10.5, fontWeight: "800", color: palette.baseBlue },
+  trustScoreRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  trustScoreWrap: { flexDirection: "row", alignItems: "baseline" },
+  trustScore: { ...type.title, fontSize: 34, fontVariant: ["tabular-nums"] },
+  trustScoreMax: { ...type.caption, fontSize: 13, color: colors.textFaint },
+  trustLabelWrap: { flex: 1, gap: 2 },
+  trustLabel: { ...type.heading, fontSize: 15 },
+  trustExplain: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.textDim },
+  trustBarTrack: {
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
+    overflow: "hidden",
+  },
+  trustBarFill: { height: 8, borderRadius: radius.pill },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  chipGood: { backgroundColor: `${palette.pulseGreen}1A` },
+  chipRisk: { backgroundColor: `${palette.heatCoral}1A` },
+  chipText: { fontSize: 11, fontWeight: "700" },
+  trustNote: { ...type.caption, fontSize: 11, lineHeight: 15, color: colors.textFaint },
   footer: { marginTop: "auto", paddingVertical: spacing.md, gap: spacing.sm },
   missingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   missingText: { ...type.body },

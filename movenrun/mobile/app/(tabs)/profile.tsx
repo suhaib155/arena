@@ -39,6 +39,8 @@ export default function ProfileScreen() {
   const timesDefended = useGameStore((s) => s.timesDefended);
   const selectedClubId = useGameStore((s) => s.selectedClubId);
   const selectedClub = getClubById(selectedClubId);
+  const lastTrustScore = useGameStore((s) => s.lastTrustScore);
+  const lastTrustLabel = useGameStore((s) => s.lastTrustLabel);
   const reset = useGameStore((s) => s.reset);
   const statuses = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
   const atRiskCount = statuses.filter((e) => e.status.health !== "yours").length;
@@ -216,6 +218,24 @@ export default function ProfileScreen() {
           </ScalePress>
         </FadeSlideIn>
 
+        {/* Last route trust — local verification preview (summary only) */}
+        {lastTrustScore != null ? (
+          <FadeSlideIn delay={STAGGER_MS * 6}>
+            <View style={styles.trustRow}>
+              <View style={styles.trustIcon}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.trustText}>
+                <Text style={styles.trustName}>Last route trust</Text>
+                <Text style={styles.trustNote}>
+                  {lastTrustLabel ?? "—"} · preview only, does not affect rewards
+                </Text>
+              </View>
+              <Text style={styles.trustScore}>{lastTrustScore}</Text>
+            </View>
+          </FadeSlideIn>
+        ) : null}
+
         <SectionHeader
           title="Recent activity"
           trailing={history.length ? `${history.length}` : undefined}
@@ -354,6 +374,27 @@ const styles = StyleSheet.create({
   statusText: { flex: 1, gap: 2 },
   statusName: { ...type.heading, fontSize: 15 },
   statusNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
+  trustRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  trustIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trustText: { flex: 1, gap: 2 },
+  trustName: { ...type.heading, fontSize: 15 },
+  trustNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
+  trustScore: { ...type.title, fontSize: 20, color: colors.primary },
   portfolioText: { flex: 1, gap: 2 },
   portfolioTitle: { ...type.heading, fontSize: 15 },
   portfolioNote: { ...type.caption, fontSize: 12 },

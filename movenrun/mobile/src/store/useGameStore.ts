@@ -57,6 +57,12 @@ interface GameState {
   /** Chosen club (Free Map Beta — local preview; clubs sync later).
    *  Treated as identity like `hasOnboarded`, so "Reset progress" keeps it. */
   selectedClubId: string | null;
+  /** Last route-trust *preview* summary (Free Map Beta). Summary only — raw
+   *  GPS points are never persisted. Cleared on reset. Does not affect
+   *  rewards, XP, capture, or ownership. */
+  lastTrustScore: number | null;
+  lastTrustLabel: string | null;
+  lastTrustAt: string | null;
   /** Whether the user has seen the onboarding flow. */
   hasOnboarded: boolean;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
@@ -75,6 +81,8 @@ interface GameState {
   fortifyZone: (zoneId: string) => Zone | null;
   /** Pick (or switch) the local club. Switching stays allowed in beta. */
   selectClub: (clubId: string) => void;
+  /** Save the latest route-trust preview summary (score + label only). */
+  setRouteTrust: (score: number, label: string) => void;
   completeOnboarding: () => void;
   reset: () => void;
 }
@@ -91,6 +99,9 @@ export const useGameStore = create<GameState>()(
       zones: [],
       timesDefended: 0,
       selectedClubId: null,
+      lastTrustScore: null,
+      lastTrustLabel: null,
+      lastTrustAt: null,
       hasOnboarded: false,
       _hydrated: false,
 
@@ -212,6 +223,13 @@ export const useGameStore = create<GameState>()(
 
       selectClub: (clubId) => set({ selectedClubId: clubId }),
 
+      setRouteTrust: (score, label) =>
+        set({
+          lastTrustScore: score,
+          lastTrustLabel: label,
+          lastTrustAt: new Date().toISOString(),
+        }),
+
       completeOnboarding: () => set({ hasOnboarded: true }),
 
       // Resets progress AND the local club selection. Club choice is still
@@ -228,16 +246,21 @@ export const useGameStore = create<GameState>()(
           zones: [],
           timesDefended: 0,
           selectedClubId: null,
+          lastTrustScore: null,
+          lastTrustLabel: null,
+          lastTrustAt: null,
         }),
     }),
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 5,
+      version: 6,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
       // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
-      // fields and shipped with defense 0. Backfill everything so upgrades
-      // never crash and v3 zones arrive healthy instead of instantly decayed.
+      // fields and shipped with defense 0; pre-clubs state (v4) lacks
+      // `selectedClubId`; pre-trust state (v5) lacks the route-trust summary.
+      // Backfill everything so upgrades never crash and v3 zones arrive healthy
+      // instead of instantly decayed.
       migrate: (persisted, _version) => {
         const state = (persisted ?? {}) as Partial<GameState>;
         if (!Array.isArray(state.completedQuestIds)) {
@@ -261,6 +284,11 @@ export const useGameStore = create<GameState>()(
         }
         if (typeof state.selectedClubId === "undefined") {
           state.selectedClubId = null;
+        }
+        if (typeof state.lastTrustScore === "undefined") {
+          state.lastTrustScore = null;
+          state.lastTrustLabel = null;
+          state.lastTrustAt = null;
         }
         return state as GameState;
       },
