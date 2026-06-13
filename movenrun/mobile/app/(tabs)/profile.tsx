@@ -10,10 +10,13 @@ import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { ScalePress } from "@/components/ScalePress";
 import { useGameStore } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { zoneStatus } from "@/lib/territory";
+import { getClubById, CLUBS } from "@/data/clubs";
+import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -34,6 +37,8 @@ export default function ProfileScreen() {
   const history = useGameStore((s) => s.history);
   const zones = useGameStore((s) => s.zones);
   const timesDefended = useGameStore((s) => s.timesDefended);
+  const selectedClubId = useGameStore((s) => s.selectedClubId);
+  const selectedClub = getClubById(selectedClubId);
   const reset = useGameStore((s) => s.reset);
   const statuses = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
   const atRiskCount = statuses.filter((e) => e.status.health !== "yours").length;
@@ -44,6 +49,15 @@ export default function ProfileScreen() {
     )[0] ?? null;
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
+  const myRanked = selectedClub
+    ? rankClubs(CLUBS, selectedClub.id, {
+        zonesOwned: zones.length,
+        timesDefended,
+        totalXp,
+        streak,
+        sessionsThisWeek: sessionsThisWeek(history),
+      }).find((r) => r.isUserClub) ?? null
+    : null;
 
   const onReset = () => {
     tapFeedback();
@@ -142,6 +156,41 @@ export default function ProfileScreen() {
               ) : null}
             </View>
           </View>
+        </FadeSlideIn>
+
+        {/* Club — local preview */}
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <ScalePress
+            to={0.98}
+            style={styles.clubCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/clubs");
+            }}
+          >
+            <Hexagon
+              size={34}
+              color={selectedClub ? "#C9EEDE" : "#E8EDF0"}
+              coreColor={selectedClub ? palette.pulseGreen : palette.dustGray}
+            />
+            <View style={styles.clubText}>
+              {selectedClub ? (
+                <>
+                  <Text style={styles.clubName}>{selectedClub.name}</Text>
+                  <Text style={styles.clubNote}>
+                    City rank #{myRanked?.rank ?? "—"} · contribution +
+                    {myRanked?.userContribution ?? 0} · {zones.length} owned · ×{timesDefended} defended
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.clubName}>Join a club</Text>
+                  <Text style={styles.clubNote}>Local preview · city wars arrive later</Text>
+                </>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
         </FadeSlideIn>
 
         <SectionHeader
@@ -250,6 +299,18 @@ const styles = StyleSheet.create({
   },
   portfolioHexes: { flexDirection: "row", alignItems: "center", gap: 4 },
   portfolioMore: { ...type.caption, fontSize: 12, fontWeight: "700", color: "#0A8F60" },
+  clubCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  clubText: { flex: 1, gap: 2 },
+  clubName: { ...type.heading, fontSize: 15 },
+  clubNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   portfolioText: { flex: 1, gap: 2 },
   portfolioTitle: { ...type.heading, fontSize: 15 },
   portfolioNote: { ...type.caption, fontSize: 12 },

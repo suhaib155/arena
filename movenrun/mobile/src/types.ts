@@ -74,3 +74,27 @@ export interface Zone {
   /** True when produced by a demo route (never persisted as progress). */
   isDemo: boolean;
 }
+
+/* ── Clubs (Free Map Beta — local preview only, no sync/economy) ── */
+
+/**
+ * A local mock club. Rival numbers are static seeds (`data/clubs.ts`); the
+ * user's club blends in real local stats (`lib/clubs.ts`). Clubs sync later.
+ */
+export interface Club {
+  id: string;
+  name: string;
+  shortName: string;
+  /** Daylight Cartography accent for emblems/territory. */
+  color: string;
+  motto: string;
+  memberCount: number;
+  weeklyDistanceKm: number;
+  zonesOwned: number;
+  zonesDefended: number;
+  /** Seeded baseline territory score (rivals are static; see data/clubs.ts). */
+  territoryScore: number;
+  /** Seeded baseline rank, used for the trend indicator. */
+  cityRank: number;
+  isUserClub: boolean;
+}
