@@ -1,38 +1,37 @@
 import { run } from "hardhat";
-
-const addresses = {
-  MoveToken:       process.env.ADDR_MOVE_TOKEN       ?? "",
-  ZoneNFT:         process.env.ADDR_ZONE_NFT         ?? "",
-  GearNFT:         process.env.ADDR_GEAR_NFT         ?? "",
-  ZoneChallenge:   process.env.ADDR_ZONE_CHALLENGE   ?? "",
-  MoveVault:       process.env.ADDR_MOVE_VAULT       ?? "",
-  MovenDAO:        process.env.ADDR_MOVEN_DAO        ?? "",
-  SeasonController:process.env.ADDR_SEASON_CTRL      ?? "",
-};
-
-const oracle   = process.env.ORACLE_ADDRESS   ?? "";
-const admin    = process.env.ADMIN_ADDRESS    ?? "";
-const treasury = process.env.TREASURY_ADDRESS ?? "";
-
-const constructorArgs: Record<string, unknown[]> = {
-  MoveToken:        [oracle, admin],
-  ZoneNFT:          [addresses.MoveToken, oracle, admin],
-  GearNFT:          [addresses.MoveToken, admin],
-  ZoneChallenge:    [addresses.MoveToken, addresses.ZoneNFT, oracle, admin],
-  MoveVault:        [addresses.MoveToken, admin],
-  MovenDAO:         [addresses.MoveToken, addresses.MoveVault, admin],
-  SeasonController: [addresses.MoveToken, addresses.ZoneNFT, oracle, treasury, admin],
-};
+import fs from "fs";
+import path from "path";
 
 async function main() {
-  for (const [name, address] of Object.entries(addresses)) {
-    if (!address) { console.log(`Skipping ${name} — address not set`); continue; }
+  const deploymentFile = path.join(__dirname, "../../deployments/baseSepolia.json");
+
+  if (!fs.existsSync(deploymentFile)) {
+    console.error("deployments/baseSepolia.json not found. Run deploy:sepolia first.");
+    process.exit(1);
+  }
+
+  const deployment = JSON.parse(fs.readFileSync(deploymentFile, "utf8"));
+  const { addresses, constructorArgs } = deployment;
+
+  console.log(`Verifying ${Object.keys(addresses).length} contracts on Basescan...`);
+  console.log(`Network: ${deployment.network} (chainId ${deployment.chainId})`);
+  console.log(`Deployed at: ${deployment.timestamp}\n`);
+
+  for (const [name, address] of Object.entries(addresses) as [string, string][]) {
+    const args = constructorArgs[name] ?? [];
     console.log(`Verifying ${name} at ${address}...`);
     try {
-      await run("verify:verify", { address, constructorArguments: constructorArgs[name] });
-      console.log(`  ${name} verified.`);
+      await run("verify:verify", {
+        address,
+        constructorArguments: args,
+      });
+      console.log(`  ✓ ${name} verified\n`);
     } catch (e: any) {
-      console.log(`  ${name} error: ${e.message}`);
+      if (e.message?.includes("Already Verified")) {
+        console.log(`  ✓ ${name} already verified\n`);
+      } else {
+        console.log(`  ✗ ${name} failed: ${e.message}\n`);
+      }
     }
   }
 }

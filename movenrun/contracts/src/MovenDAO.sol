@@ -5,76 +5,81 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./MoveToken.sol";
 import "./MoveVault.sol";
+import "./ZoneNFT.sol";
 
 // MovenDAO: 3-tier governance
-// Tier 1 (Core): zone owners with >6 month loyalty multiplier — 3x voting weight
-// Tier 2 (Active): wallets with ≥1000 $MOVE staked — 1.5x voting weight
-// Tier 3 (Community): any $MOVE holder — 1x voting weight
+// Tier 1 (Core):      zone owners with >6 month loyalty — 3x voting weight (future)
+// Tier 2 (Active):    wallets with ≥1000 $MOVE staked  — 1.5x voting weight
+// Tier 3 (Community): any $MOVE holder                 — 1x voting weight
 contract MovenDAO is AccessControl, ReentrancyGuard {
     bytes32 public constant DAO_ADMIN_ROLE = keccak256("DAO_ADMIN_ROLE");
 
-    uint256 public constant VOTING_PERIOD = 7 days;
+    uint256 public constant VOTING_PERIOD   = 7 days;
     uint256 public constant EXECUTION_DELAY = 2 days;
-    uint256 public constant QUORUM_BPS = 1_000; // 10% of total staked
+    uint256 public constant QUORUM_BPS      = 1_000;
 
     MoveToken public moveToken;
+    ZoneNFT   public zoneNFT;
     MoveVault public moveVault;
 
     enum ProposalState { Active, Succeeded, Defeated, Executed, Cancelled }
-    enum ProposalType { ParameterChange, TreasurySpend, ContractUpgrade, EmissionAdjust }
+    enum ProposalType  { ParameterChange, TreasurySpend, ContractUpgrade, EmissionAdjust }
 
     struct Proposal {
-        uint256 id;
-        address proposer;
+        uint256      id;
+        address      proposer;
         ProposalType pType;
-        string description;
-        bytes callData;
-        address target;
-        uint256 startTime;
-        uint256 endTime;
-        uint256 forVotes;
-        uint256 againstVotes;
-        bool executed;
-        bool cancelled;
+        string       description;
+        bytes        callData;
+        address      target;
+        uint256      startTime;
+        uint256      endTime;
+        uint256      forVotes;
+        uint256      againstVotes;
+        bool         executed;
+        bool         cancelled;
     }
 
     uint256 public nextProposalId = 1;
-    mapping(uint256 => Proposal) public proposals;
-    mapping(uint256 => mapping(address => bool)) public hasVoted;
+    mapping(uint256 => Proposal)                    public proposals;
+    mapping(uint256 => mapping(address => bool))    public hasVoted;
 
     event ProposalCreated(uint256 indexed id, address indexed proposer, ProposalType pType, string description);
     event Voted(uint256 indexed proposalId, address indexed voter, bool support, uint256 weight);
     event ProposalExecuted(uint256 indexed id);
     event ProposalCancelled(uint256 indexed id);
 
-    constructor(address _moveToken, address _moveVault, address admin) {
+    constructor(address _moveToken, address _zoneNFT, address _moveVault) {
+        require(_moveToken != address(0) && _zoneNFT != address(0) && _moveVault != address(0), // FIX-003
+            "MovenDAO: zero address");
         moveToken = MoveToken(_moveToken);
+        zoneNFT   = ZoneNFT(_zoneNFT);
         moveVault = MoveVault(_moveVault);
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(DAO_ADMIN_ROLE, admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DAO_ADMIN_ROLE, msg.sender);
     }
 
     function propose(
-        ProposalType pType,
+        ProposalType  pType,
         string calldata description,
-        address target,
+        address       target,
         bytes calldata callData
     ) external returns (uint256 proposalId) {
         require(moveToken.balanceOf(msg.sender) >= 100 ether, "MovenDAO: need 100 $MOVE to propose");
         proposalId = nextProposalId++;
         proposals[proposalId] = Proposal({
-            id: proposalId,
-            proposer: msg.sender,
-            pType: pType,
-            description: description,
-            callData: callData,
-            target: target,
-            startTime: block.timestamp,
-            endTime: block.timestamp + VOTING_PERIOD,
-            forVotes: 0,
+            id:           proposalId,
+            proposer:     msg.sender,
+            pType:        pType,
+            description:  description,
+            callData:     callData,
+            target:       target,
+            startTime:    block.timestamp,
+            endTime:      block.timestamp + VOTING_PERIOD,
+            forVotes:     0,
             againstVotes: 0,
-            executed: false,
-            cancelled: false
+            executed:     false,
+            cancelled:    false
         });
         emit ProposalCreated(proposalId, msg.sender, pType, description);
     }
@@ -88,11 +93,7 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
         uint256 weight = _votingWeight(msg.sender);
         require(weight > 0, "MovenDAO: no voting weight");
 
-        if (support) {
-            p.forVotes += weight;
-        } else {
-            p.againstVotes += weight;
-        }
+        if (support) { p.forVotes += weight; } else { p.againstVotes += weight; }
 
         emit Voted(proposalId, msg.sender, support, weight);
     }
@@ -124,7 +125,7 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
     function getProposalState(uint256 proposalId) external view returns (ProposalState) {
         Proposal storage p = proposals[proposalId];
         if (p.cancelled) return ProposalState.Cancelled;
-        if (p.executed) return ProposalState.Executed;
+        if (p.executed)  return ProposalState.Executed;
         if (block.timestamp < p.endTime) return ProposalState.Active;
         if (p.forVotes > p.againstVotes) return ProposalState.Succeeded;
         return ProposalState.Defeated;
@@ -132,18 +133,13 @@ contract MovenDAO is AccessControl, ReentrancyGuard {
 
     function _votingWeight(address voter) internal view returns (uint256) {
         (uint256 staked, , ) = _stakeInfo(voter);
-        uint256 balance = moveToken.balanceOf(voter);
+        uint256 balance    = moveToken.balanceOf(voter);
         uint256 totalPower = staked + balance;
-
-        // Tier 2: ≥1000 $MOVE staked → 1.5x
-        if (staked >= 1_000 ether) {
-            return (totalPower * 15) / 10;
-        }
+        if (staked >= 1_000 ether) return (totalPower * 15) / 10;
         return totalPower;
     }
 
     function _stakeInfo(address user) internal view returns (uint256 amount, uint256 stakedAt, uint256 lastClaim) {
-        MoveVault.StakeInfo memory info = moveVault.stakes(user);
-        return (info.amount, info.stakedAt, info.lastRewardClaim);
+        return moveVault.stakes(user);
     }
 }

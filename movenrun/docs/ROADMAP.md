@@ -131,9 +131,11 @@ one city has real tile density, and there is real sponsor/land demand.
 
 These back the territory economy and **must not be deleted**:
 
-- `contracts/` — Hardhat + Solidity: `MoveToken`, `ZoneNFT`, `GearNFT`,
-  `ZoneChallenge`, `SeasonController`, `MoveVault`, `MovenDAO` (and `GPSOracle` on
-  the deploy branch). **Already deployed to Base Sepolia** — see
+- `contracts/` — Hardhat + Solidity: `MoveToken`, `GPSOracle`, `ZoneNFT`,
+  `GearNFT`, `ZoneChallenge`, `SeasonController`, `MoveVault`, `MovenDAO`.
+  **Already deployed to Base Sepolia**; the deployed source, the deployment
+  record (`contracts/deployments/baseSepolia.json`), and the populated
+  `shared/src/constants/contracts.ts` address registry are all on `main` — see
   `docs/CONTRACTS_AUDIT.md`.
 - `backend/` — Express API + BullMQ workers + Drizzle ORM: GPS, zones, battles,
   hex/oracle/token services.
