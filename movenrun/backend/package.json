@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import tsx --test src/blockchain/*.test.ts",
     "worker:gps": "tsx src/workers/gps.worker.ts",
     "worker:keeper": "tsx src/workers/keeper.worker.ts",
