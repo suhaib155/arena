@@ -54,6 +54,9 @@ interface GameState {
   zones: Zone[];
   /** Total defend/fortify actions, for the Profile territory card. */
   timesDefended: number;
+  /** Chosen club (Free Map Beta — local preview; clubs sync later).
+   *  Treated as identity like `hasOnboarded`, so "Reset progress" keeps it. */
+  selectedClubId: string | null;
   /** Whether the user has seen the onboarding flow. */
   hasOnboarded: boolean;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
@@ -70,6 +73,8 @@ interface GameState {
    *  zone per local day. Returns the updated zone, or null when on cooldown
    *  or unknown. */
   fortifyZone: (zoneId: string) => Zone | null;
+  /** Pick (or switch) the local club. Switching stays allowed in beta. */
+  selectClub: (clubId: string) => void;
   completeOnboarding: () => void;
   reset: () => void;
 }
@@ -85,6 +90,7 @@ export const useGameStore = create<GameState>()(
       history: [],
       zones: [],
       timesDefended: 0,
+      selectedClubId: null,
       hasOnboarded: false,
       _hydrated: false,
 
@@ -204,9 +210,13 @@ export const useGameStore = create<GameState>()(
         return updated;
       },
 
+      selectClub: (clubId) => set({ selectedClubId: clubId }),
+
       completeOnboarding: () => set({ hasOnboarded: true }),
 
-      // Resets progress only — keeps the user past onboarding.
+      // Resets progress AND the local club selection. Club choice is still
+      // local beta state (clubs sync later), so a progress reset returns the
+      // user to the "choose your club" state. Onboarding is preserved.
       reset: () =>
         set({
           totalXp: 0,
@@ -217,12 +227,13 @@ export const useGameStore = create<GameState>()(
           history: [],
           zones: [],
           timesDefended: 0,
+          selectedClubId: null,
         }),
     }),
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 4,
+      version: 5,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
       // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
       // fields and shipped with defense 0. Backfill everything so upgrades
@@ -247,6 +258,9 @@ export const useGameStore = create<GameState>()(
         }));
         if (typeof state.timesDefended !== "number") {
           state.timesDefended = 0;
+        }
+        if (typeof state.selectedClubId === "undefined") {
+          state.selectedClubId = null;
         }
         return state as GameState;
       },

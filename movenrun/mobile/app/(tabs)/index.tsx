@@ -10,8 +10,13 @@ import { ZoneCard } from "@/components/ZoneCard";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { ScalePress } from "@/components/ScalePress";
+import { Hexagon } from "@/components/Hexagon";
 import { useGameStore } from "@/store/useGameStore";
 import { zoneStatus } from "@/lib/territory";
+import { getClubById } from "@/data/clubs";
+import { CLUBS } from "@/data/clubs";
+import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -38,6 +43,9 @@ export default function TodayScreen() {
   const streak = useGameStore((s) => s.streak);
   const history = useGameStore((s) => s.history);
   const zones = useGameStore((s) => s.zones);
+  const timesDefended = useGameStore((s) => s.timesDefended);
+  const selectedClubId = useGameStore((s) => s.selectedClubId);
+  const selectedClub = getClubById(selectedClubId);
   /* Defend reminders: surface the most urgent zone (decay is computed on
      read, so this is deterministic with no background work). */
   const zonesWithStatus = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
@@ -52,6 +60,15 @@ export default function TodayScreen() {
     .filter((rec) => getLocalDateKey(new Date(rec.completedAt)) === todayKey)
     .reduce((sum, rec) => sum + rec.xp, 0);
   const lockedMove = lockedMovePreview(totalXp);
+  const clubRank = selectedClub
+    ? rankClubs(CLUBS, selectedClub.id, {
+        zonesOwned: zones.length,
+        timesDefended,
+        totalXp,
+        streak,
+        sessionsThisWeek: sessionsThisWeek(history),
+      }).find((r) => r.isUserClub)?.rank ?? null
+    : null;
 
   const openQuest = (id: string) => {
     tapFeedback();
@@ -121,6 +138,42 @@ export default function TodayScreen() {
               <Text style={styles.chipLabel}>Locked MOVE · preview</Text>
             </View>
           </View>
+        </FadeSlideIn>
+
+        {/* Club chip — local clubs preview (one line, links to Clubs tab) */}
+        <FadeSlideIn delay={STAGGER_MS}>
+          <ScalePress
+            to={0.98}
+            style={styles.clubRow}
+            onPress={() => {
+              tapFeedback();
+              router.push("/clubs");
+            }}
+          >
+            {selectedClub ? (
+              <>
+                <Hexagon size={26} color="#C9EEDE" coreColor={palette.pulseGreen} />
+                <View style={styles.clubRowBody}>
+                  <Text style={styles.clubRowName}>{selectedClub.name}</Text>
+                  <Text style={styles.clubRowSub}>
+                    City rank #{clubRank ?? "—"} · your movement powers the club
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </>
+            ) : (
+              <>
+                <View style={styles.clubRowIcon}>
+                  <Ionicons name="people" size={16} color={colors.primary} />
+                </View>
+                <View style={styles.clubRowBody}>
+                  <Text style={styles.clubRowName}>Choose your club</Text>
+                  <Text style={styles.clubRowSub}>Local preview · city wars arrive later</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </>
+            )}
+          </ScalePress>
         </FadeSlideIn>
 
         {dailyCompletedToday ? (
@@ -272,6 +325,26 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   doneText: { flex: 1, ...type.caption, fontSize: 13, lineHeight: 18, color: colors.text },
+  clubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  clubRowIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clubRowBody: { flex: 1, gap: 1 },
+  clubRowName: { ...type.heading, fontSize: 14.5 },
+  clubRowSub: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   sectionGap: { height: spacing.md },
   territoryWrap: { gap: spacing.sm },
   stabilityBanner: {
