@@ -5,6 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { ethers } from "ethers";
 import { createBaseSepoliaReadClient } from "./readClient.js";
 import { CONTRACT_READ_ABIS } from "./abis.js";
 import { EXPECTED_CONTRACTS } from "./deployments.js";
@@ -45,10 +46,9 @@ test("read-only contracts use the provider as runner and expose only view fns", 
     assert.equal(c.runner, client.provider);
     // Every function fragment in the ABI is read-only.
     for (const frag of c.interface.fragments) {
-      if (frag.type === "function") {
-        const fn = frag as { stateMutability: string };
+      if (ethers.Fragment.isFunction(frag)) {
         assert.ok(
-          fn.stateMutability === "view" || fn.stateMutability === "pure",
+          frag.stateMutability === "view" || frag.stateMutability === "pure",
           `${name} ABI must contain only view/pure functions`,
         );
       }
