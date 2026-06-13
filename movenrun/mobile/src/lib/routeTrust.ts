@@ -24,6 +24,29 @@ export type TrustLabel =
 
 export type TrustTone = "strong" | "good" | "caution" | "neutral";
 
+/** What happened to the saved route (for the review-history outcome chip). */
+export type RouteOutcome = "saved" | "captured" | "defended" | "summary-only";
+
+/**
+ * A persisted route-review record — **summary only**. It deliberately holds no
+ * coordinates, polyline, path, or place names: nothing here can reconstruct
+ * where the user went. Used for the local Route Review history.
+ */
+export interface RouteTrustRecord {
+  id: string;
+  createdAt: string;
+  trustScore: number;
+  trustLabel: string;
+  explanation: string;
+  positiveSignals: string[];
+  riskFlags: string[];
+  distanceMeters: number;
+  durationSeconds: number;
+  routeOutcome: RouteOutcome;
+  zoneCountTouched: number;
+  defendedCount: number;
+}
+
 export interface RouteTrust {
   /** 0–100, deterministic. */
   score: number;
