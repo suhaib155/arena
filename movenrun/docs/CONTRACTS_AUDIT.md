@@ -164,10 +164,28 @@ address on Basescan (`https://sepolia.basescan.org/address/<addr>`).
 2. **Reconcile the backend** (`config.ts`, workers, routes) and the `shared`
    package restructure from `claude/movenrun-base-sepolia-deploy-BZhUH` in a
    separate, behavior-reviewed PR, wiring the now-populated registry.
-3. **Export app-facing ABIs / a typed read client** for the deployed contracts.
+3. ✅ **Export app-facing ABIs / a typed read client** for the deployed
+   contracts — **done** in `backend/src/blockchain/` (read-only `ethers`
+   client, deployment loader, view-only ABIs, typed errors; no signer/wallet/
+   writes; reuses the existing `ethers` dep — no new dependency). See
+   `backend/src/blockchain/README.md`.
 4. **Read-only testnet integration only** (Phase 2): start by *reading*
    `ZoneNFT` ownership and `ZoneChallenge` state from Base Sepolia. No minting,
-   no writes, no mainnet, no wallet UI yet.
+   no writes, no mainnet, no wallet UI yet. **Next:** `feat(mobile): add
+   read-only Base Sepolia contract status preview` — surface deployment/read
+   status in the app as a preview only.
+
+### Read-only client (added)
+
+`backend/src/blockchain/` is a **read-only** layer over the deployed Base
+Sepolia contracts:
+
+- RPC URL comes from the `BASE_SEPOLIA_RPC_URL` env var (public fallback if
+  unset); **no `.env`, RPC key, or secret is committed.**
+- No private key, no signer, no wallet, **no write/transaction methods**, no
+  mint/claim/Liquid MOVE.
+- The deployment loader validates `contracts/deployments/baseSepolia.json` and
+  cross-checks it against the shared registry; addresses are never invented.
 
 > ⚠️ **No liquid reward economy may be exposed yet.** These are **Base Sepolia
 > testnet** contracts only. No mainnet addresses exist, and per `docs/ROADMAP.md`

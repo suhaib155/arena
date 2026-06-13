@@ -1,0 +1,53 @@
+name: backend-checks
+
+# Type-checks and tests the backend's read-only blockchain module on PRs that
+# touch backend / shared / the contracts deployment record, and on pushes to
+# main. No secrets required. Does not touch the EAS APK workflow or mobile.
+on:
+  pull_request:
+    paths:
+      - "movenrun/backend/**"
+      - "movenrun/shared/**"
+      - "movenrun/contracts/deployments/**"
+      - ".github/workflows/backend-checks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "movenrun/backend/**"
+      - "movenrun/shared/**"
+      - "movenrun/contracts/deployments/**"
+
+jobs:
+  backend:
+    name: Backend typecheck & test
+    runs-on: ubuntu-latest
+    # The Yarn 4 workspaces project lives in the movenrun/ subdirectory.
+    defaults:
+      run:
+        working-directory: movenrun
+    env:
+      # No yarn.lock is committed yet, and Yarn 4 turns on immutable installs
+      # automatically under CI — which would fail without a lockfile. Allow the
+      # lockfile to be created here (mirrors mobile-checks.yml).
+      YARN_ENABLE_IMMUTABLE_INSTALLS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The repo pins Yarn 4 via package.json "packageManager"; Corepack
+      # provisions the right Yarn version.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Type-check @movenrun/backend
+        run: yarn workspace @movenrun/backend typecheck
+
+      - name: Test @movenrun/backend
+        run: yarn workspace @movenrun/backend test

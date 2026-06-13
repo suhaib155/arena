@@ -1,0 +1,24 @@
+{
+  // Scoped type-check for the read-only blockchain module added in this PR.
+  // The rest of backend/src is intentionally not included yet: several existing
+  // files import the bare "@movenrun/shared" specifier, which resolves only to
+  // the package's (unbuilt) dist entry — a pre-existing gap to be addressed in
+  // its own PR. This config closes the verification gap for the new code.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    // Resolve the shared registry to its TS source (mirrors how tsx runs it).
+    "paths": {
+      "@movenrun/shared/src/*": ["../shared/src/*"]
+    }
+  },
+  "include": ["src/blockchain/**/*"]
+}
