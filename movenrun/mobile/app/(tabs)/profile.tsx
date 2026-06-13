@@ -193,6 +193,29 @@ export default function ProfileScreen() {
           </ScalePress>
         </FadeSlideIn>
 
+        {/* Base Sepolia status — read-only contract preview */}
+        <FadeSlideIn delay={STAGGER_MS * 5}>
+          <ScalePress
+            to={0.98}
+            style={styles.statusCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/network/status");
+            }}
+          >
+            <View style={styles.statusIcon}>
+              <Ionicons name="cube-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={styles.statusName}>Base Sepolia Status</Text>
+              <Text style={styles.statusNote}>
+                Contracts deployed · read-only preview · no wallet needed
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
+
         <SectionHeader
           title="Recent activity"
           trailing={history.length ? `${history.length}` : undefined}
@@ -311,6 +334,26 @@ const styles = StyleSheet.create({
   clubText: { flex: 1, gap: 2 },
   clubName: { ...type.heading, fontSize: 15 },
   clubNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
+  statusCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  statusIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusText: { flex: 1, gap: 2 },
+  statusName: { ...type.heading, fontSize: 15 },
+  statusNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   portfolioText: { flex: 1, gap: 2 },
   portfolioTitle: { ...type.heading, fontSize: 15 },
   portfolioNote: { ...type.caption, fontSize: 12 },
