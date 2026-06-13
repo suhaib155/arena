@@ -167,7 +167,7 @@ function ContractRow({ contract }: { contract: ContractStatus }) {
               <Text style={styles.deployedText}>deployed</Text>
             </View>
           </View>
-          <Text style={styles.rowAddr} numberOfLines={1}>
+          <Text style={styles.rowAddr} numberOfLines={open ? undefined : 1}>
             {open ? contract.address : shortAddress(contract.address)}
           </Text>
         </View>
