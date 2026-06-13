@@ -65,6 +65,7 @@ function RootNavigator() {
           options={{ gestureEnabled: false, animation: "fade" }}
         />
         <Stack.Screen name="zone/[id]" />
+        <Stack.Screen name="network/status" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="result"
