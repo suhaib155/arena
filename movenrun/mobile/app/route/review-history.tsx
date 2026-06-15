@@ -170,7 +170,25 @@ export default function RouteReviewHistoryScreen() {
             <View style={styles.list}>
               {history.map((rec, i) => (
                 <FadeSlideIn key={rec.id} delay={STAGGER_MS * (3 + Math.min(i, 6))}>
-                  <ReviewRow rec={rec} />
+                  <ReviewRow
+                    rec={rec}
+                    onPress={() => {
+                      tapFeedback();
+                      router.push({
+                        pathname: "/route/proof",
+                        params: {
+                          score: String(rec.trustScore),
+                          label: rec.trustLabel,
+                          distanceMeters: String(rec.distanceMeters),
+                          durationSeconds: String(rec.durationSeconds),
+                          outcome: rec.routeOutcome,
+                          zones: String(rec.zoneCountTouched),
+                          defended: String(rec.defendedCount),
+                          at: rec.createdAt,
+                        },
+                      });
+                    }}
+                  />
                 </FadeSlideIn>
               ))}
             </View>
@@ -185,10 +203,10 @@ export default function RouteReviewHistoryScreen() {
   );
 }
 
-function ReviewRow({ rec }: { rec: RouteTrustRecord }) {
+function ReviewRow({ rec, onPress }: { rec: RouteTrustRecord; onPress: () => void }) {
   const tone = trustTone(rec.trustLabel as Parameters<typeof trustTone>[0]);
   return (
-    <View style={styles.row}>
+    <ScalePress to={0.99} style={styles.row} onPress={onPress}>
       <View style={[styles.scoreBubble, { backgroundColor: `${toneColor(tone)}1A` }]}>
         <Text style={[styles.scoreBubbleText, { color: toneText(tone) }]}>
           {rec.trustScore}
@@ -215,7 +233,8 @@ function ReviewRow({ rec }: { rec: RouteTrustRecord }) {
           </View>
         ) : null}
       </View>
-    </View>
+      <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+    </ScalePress>
   );
 }
 
