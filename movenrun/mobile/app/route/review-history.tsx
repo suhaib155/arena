@@ -2,7 +2,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
+import { tapFeedback } from "@/lib/haptics";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { formatDistance, formatDuration } from "@/lib/geo";
@@ -98,6 +100,27 @@ export default function RouteReviewHistoryScreen() {
               </View>
             </View>
           </View>
+        </FadeSlideIn>
+
+        {/* Passport CTA */}
+        <FadeSlideIn delay={STAGGER_MS / 2}>
+          <ScalePress
+            to={0.98}
+            style={styles.passportCta}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/route/passport");
+            }}
+          >
+            <View style={styles.passportIcon}>
+              <Ionicons name="shield-half-outline" size={18} color={palette.deedViolet} />
+            </View>
+            <View style={styles.passportBody}>
+              <Text style={styles.passportName}>Route Signal Passport</Text>
+              <Text style={styles.passportNote}>See your readiness preview & trend</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
         </FadeSlideIn>
 
         {count === 0 ? (
@@ -223,6 +246,26 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 12, fontWeight: "700" },
 
+  passportCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  passportIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  passportBody: { flex: 1, gap: 2 },
+  passportName: { ...type.heading, fontSize: 14.5 },
+  passportNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   emptyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
