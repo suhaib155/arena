@@ -41,6 +41,7 @@ export default function ProfileScreen() {
   const selectedClub = getClubById(selectedClubId);
   const lastTrustScore = useGameStore((s) => s.lastTrustScore);
   const lastTrustLabel = useGameStore((s) => s.lastTrustLabel);
+  const routeTrustHistory = useGameStore((s) => s.routeTrustHistory);
   const reset = useGameStore((s) => s.reset);
   const statuses = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
   const atRiskCount = statuses.filter((e) => e.status.health !== "yours").length;
@@ -235,6 +236,36 @@ export default function ProfileScreen() {
             </View>
           </FadeSlideIn>
         ) : null}
+
+        {/* Route review history — local, read-only (summaries only) */}
+        <FadeSlideIn delay={STAGGER_MS * 7}>
+          <ScalePress
+            to={0.98}
+            style={styles.statusCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/route/review-history");
+            }}
+          >
+            <View style={styles.statusIcon}>
+              <Ionicons name="list-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={styles.statusName}>Route Review History</Text>
+              <Text style={styles.statusNote}>
+                {routeTrustHistory.length > 0
+                  ? `Avg ${Math.round(
+                      routeTrustHistory.reduce((s, r) => s + r.trustScore, 0) /
+                        routeTrustHistory.length,
+                    )} · ${routeTrustHistory.length} route${
+                      routeTrustHistory.length === 1 ? "" : "s"
+                    } · GPS quality trend`
+                  : "No saved routes yet · review only, no raw GPS"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
 
         <SectionHeader
           title="Recent activity"

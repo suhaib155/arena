@@ -48,6 +48,7 @@ export default function MoveSummaryScreen() {
   const session = useMemo(() => getLastSession(), []);
   const trust = useMemo(() => (session ? scoreRoute(session) : null), [session]);
   const setRouteTrust = useGameStore((s) => s.setRouteTrust);
+  const addRouteTrustRecord = useGameStore((s) => s.addRouteTrustRecord);
   const completeQuest = useGameStore((s) => s.completeQuest);
   const captureZone = useGameStore((s) => s.captureZone);
   const defendZones = useGameStore((s) => s.defendZones);
@@ -110,15 +111,36 @@ export default function MoveSummaryScreen() {
     /* One common zone per saved session (and saves are once per day).
        New capture takes priority for the result moment; defended zones are
        reported alongside it. */
+    let captured = false;
+    let capturedId: string | null = null;
     if (candidate) {
       const outcome = captureZone(newCapturedZone(candidate, false));
-      if (outcome.captured) {
-        router.replace({
-          pathname: "/move/captured",
-          params: { id: outcome.zone.id, kind: "captured", defended: String(defendedCount) },
-        });
-        return;
-      }
+      captured = outcome.captured;
+      if (outcome.captured) capturedId = outcome.zone.id;
+    }
+    /* Append a local route-review record — summary only (score/label/flags +
+       scalar distance/duration/outcome). No raw GPS, coordinates, or path.
+       Demo and too-short routes never reach save(), so they never append. */
+    if (trust) {
+      addRouteTrustRecord({
+        trustScore: trust.score,
+        trustLabel: trust.label,
+        explanation: trust.explanation,
+        positiveSignals: trust.positiveSignals,
+        riskFlags: trust.riskFlags,
+        distanceMeters: Math.round(session.distanceM),
+        durationSeconds: Math.round(session.durationMs / 1000),
+        routeOutcome: captured ? "captured" : defendedCount > 0 ? "defended" : "saved",
+        zoneCountTouched: zonesTouched.length,
+        defendedCount,
+      });
+    }
+    if (captured && capturedId) {
+      router.replace({
+        pathname: "/move/captured",
+        params: { id: capturedId, kind: "captured", defended: String(defendedCount) },
+      });
+      return;
     }
     if (defendedCount > 0) {
       router.replace({

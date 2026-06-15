@@ -2,11 +2,15 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Quest, Zone } from "@/types";
+import type { RouteTrustRecord } from "@/lib/routeTrust";
 import { applyDefend, applyFortify, fortifiedToday } from "@/lib/territory";
 import { getLevelInfo } from "@/lib/leveling";
 import { getLocalDateKey, daysBetween } from "@/lib/date";
 
 const EMPTY_IDS: readonly string[] = [];
+
+/** Cap on locally-kept route-review summaries (newest first). */
+const MAX_TRUST_HISTORY = 20;
 
 export interface CompletionRecord {
   questId: string;
@@ -63,6 +67,9 @@ interface GameState {
   lastTrustScore: number | null;
   lastTrustLabel: string | null;
   lastTrustAt: string | null;
+  /** Local route-review history — summary records only (no raw GPS, no
+   *  coordinates, no path). Newest first, capped. Cleared on reset. */
+  routeTrustHistory: RouteTrustRecord[];
   /** Whether the user has seen the onboarding flow. */
   hasOnboarded: boolean;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
@@ -83,6 +90,11 @@ interface GameState {
   selectClub: (clubId: string) => void;
   /** Save the latest route-trust preview summary (score + label only). */
   setRouteTrust: (score: number, label: string) => void;
+  /** Append a route-review history record (summary only). Generates id +
+   *  createdAt and caps the history length. */
+  addRouteTrustRecord: (
+    record: Omit<RouteTrustRecord, "id" | "createdAt">,
+  ) => void;
   completeOnboarding: () => void;
   reset: () => void;
 }
@@ -102,6 +114,7 @@ export const useGameStore = create<GameState>()(
       lastTrustScore: null,
       lastTrustLabel: null,
       lastTrustAt: null,
+      routeTrustHistory: [],
       hasOnboarded: false,
       _hydrated: false,
 
@@ -230,6 +243,23 @@ export const useGameStore = create<GameState>()(
           lastTrustAt: new Date().toISOString(),
         }),
 
+      addRouteTrustRecord: (record) =>
+        set((state) => {
+          const now = new Date().toISOString();
+          const full: RouteTrustRecord = {
+            ...record,
+            id: `rt-${Date.now()}`,
+            createdAt: now,
+          };
+          // Newest first, capped at the most recent MAX_TRUST_HISTORY.
+          return {
+            routeTrustHistory: [full, ...state.routeTrustHistory].slice(
+              0,
+              MAX_TRUST_HISTORY,
+            ),
+          };
+        }),
+
       completeOnboarding: () => set({ hasOnboarded: true }),
 
       // Resets progress AND the local club selection. Club choice is still
@@ -249,18 +279,19 @@ export const useGameStore = create<GameState>()(
           lastTrustScore: null,
           lastTrustLabel: null,
           lastTrustAt: null,
+          routeTrustHistory: [],
         }),
     }),
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 6,
+      version: 7,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
       // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
       // fields and shipped with defense 0; pre-clubs state (v4) lacks
-      // `selectedClubId`; pre-trust state (v5) lacks the route-trust summary.
-      // Backfill everything so upgrades never crash and v3 zones arrive healthy
-      // instead of instantly decayed.
+      // `selectedClubId`; pre-trust state (v5) lacks the route-trust summary;
+      // pre-history state (v6) lacks `routeTrustHistory`. Backfill everything so
+      // upgrades never crash and v3 zones arrive healthy instead of decayed.
       migrate: (persisted, _version) => {
         const state = (persisted ?? {}) as Partial<GameState>;
         if (!Array.isArray(state.completedQuestIds)) {
@@ -289,6 +320,9 @@ export const useGameStore = create<GameState>()(
           state.lastTrustScore = null;
           state.lastTrustLabel = null;
           state.lastTrustAt = null;
+        }
+        if (!Array.isArray(state.routeTrustHistory)) {
+          state.routeTrustHistory = [];
         }
         return state as GameState;
       },

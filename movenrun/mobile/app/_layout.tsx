@@ -66,6 +66,7 @@ function RootNavigator() {
         />
         <Stack.Screen name="zone/[id]" />
         <Stack.Screen name="network/status" />
+        <Stack.Screen name="route/review-history" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="result"
