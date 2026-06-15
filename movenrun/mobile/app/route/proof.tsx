@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { type DimensionValue, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -48,7 +48,7 @@ function fmtDuration(seconds: number): string {
 function TerritoryHero({ seed, zones }: { seed: number; zones: number }) {
   const nodes = useMemo(() => {
     const count = Math.max(5, Math.min(8, zones || 6));
-    const out: { left: string; top: string; size: number; teal: boolean }[] = [];
+    const out: { left: DimensionValue; top: DimensionValue; size: number; teal: boolean }[] = [];
     for (let i = 0; i < count; i++) {
       // Deterministic ring layout with a seeded wobble — no location data.
       const wob = ((seed >> i) % 7) - 3; // -3..3
