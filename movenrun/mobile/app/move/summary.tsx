@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -346,6 +346,34 @@ export default function MoveSummaryScreen() {
         </FadeSlideIn>
       ) : null}
 
+      {trust && session.mode === "gps" ? (
+        <FadeSlideIn delay={STAGGER_MS * 5}>
+          <Pressable
+            style={styles.proofRow}
+            onPress={() => {
+              tapFeedback();
+              router.push({
+                pathname: "/route/proof",
+                params: {
+                  score: String(trust.score),
+                  label: trust.label,
+                  distanceMeters: String(Math.round(session.distanceM)),
+                  durationSeconds: String(Math.round(session.durationMs / 1000)),
+                  outcome: "saved",
+                  zones: String(zonesTouched.length),
+                  defended: "0",
+                  at: new Date(session.finishedAt).toISOString(),
+                },
+              });
+            }}
+          >
+            <Ionicons name="share-social-outline" size={18} color={colors.primary} />
+            <Text style={styles.proofText}>Route Proof Preview</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </Pressable>
+        </FadeSlideIn>
+      ) : null}
+
       {session.mode === "demo" ? (
         <Text style={styles.note}>
           Demo route — not real GPS. Demo zones are preview only and are never
@@ -510,6 +538,17 @@ const styles = StyleSheet.create({
   chipRisk: { backgroundColor: `${palette.heatCoral}1A` },
   chipText: { fontSize: 11, fontWeight: "700" },
   trustNote: { ...type.caption, fontSize: 11, lineHeight: 15, color: colors.textFaint },
+  proofRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    ...shadows.card,
+  },
+  proofText: { flex: 1, ...type.heading, fontSize: 14.5 },
   footer: { marginTop: "auto", paddingVertical: spacing.md, gap: spacing.sm },
   missingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   missingText: { ...type.body },
