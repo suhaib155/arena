@@ -61,9 +61,20 @@ function fmtKm(meters: number): string {
 }
 
 function fmtDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  const total = Math.floor(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = String(m).padStart(h > 0 ? 2 : 1, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+/** Human run-title line, e.g. "Free Run · Captured". */
+export function runTitle(outcome: RouteOutcome): string {
+  if (outcome === "captured") return "Territory Captured";
+  if (outcome === "defended") return "Zone Defended";
+  return "Free Run";
 }
 
 /**
@@ -80,15 +91,19 @@ export function buildProof(input: RouteProofInput): RouteProof {
   ].join("|");
   const proofId = `MR-LOCAL-${shortHash(key)}`;
 
-  const shareText = [
+  const zones = input.zonesTouched ?? 0;
+  const lines = [
     "MovenRun Route Proof Preview",
-    `Trust: ${input.trustLabel} · ${Math.round(input.trustScore)}`,
+    `Free Run · ${outcomeLabel(input.routeOutcome)}`,
     `Distance: ${fmtKm(input.distanceMeters)}`,
     `Duration: ${fmtDuration(input.durationSeconds)}`,
-    `Outcome: ${outcomeLabel(input.routeOutcome)}`,
-    `Proof: ${proofId}`,
-    "No raw GPS. Local preview only · not on-chain.",
-  ].join("\n");
+    `Trust: ${input.trustLabel} · ${Math.round(input.trustScore)}`,
+  ];
+  if (input.zonesTouched != null) {
+    lines.push(`Territory: ${zones} zone${zones === 1 ? "" : "s"} touched`);
+  }
+  lines.push(`Proof: ${proofId}`, "", "No raw GPS. No route path.", "Local preview only · not on-chain.");
+  const shareText = lines.join("\n");
 
   return { ...input, proofId, shareText };
 }
