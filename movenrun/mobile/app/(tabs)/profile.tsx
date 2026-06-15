@@ -17,6 +17,7 @@ import { lockedMovePreview } from "@/lib/lockedMove";
 import { zoneStatus } from "@/lib/territory";
 import { getClubById, CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
+import { computePassport } from "@/lib/routePassport";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -42,6 +43,10 @@ export default function ProfileScreen() {
   const lastTrustScore = useGameStore((s) => s.lastTrustScore);
   const lastTrustLabel = useGameStore((s) => s.lastTrustLabel);
   const routeTrustHistory = useGameStore((s) => s.routeTrustHistory);
+  const passport = computePassport(routeTrustHistory, {
+    zonesOwned: zones.length,
+    timesDefended,
+  });
   const reset = useGameStore((s) => s.reset);
   const statuses = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
   const atRiskCount = statuses.filter((e) => e.status.health !== "yours").length;
@@ -261,6 +266,34 @@ export default function ProfileScreen() {
                       routeTrustHistory.length === 1 ? "" : "s"
                     } · GPS quality trend`
                   : "No saved routes yet · review only, no raw GPS"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
+
+        {/* Route Signal Passport — local readiness preview (derived, no new state) */}
+        <FadeSlideIn delay={STAGGER_MS * 8}>
+          <ScalePress
+            to={0.98}
+            style={styles.statusCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/route/passport");
+            }}
+          >
+            <View style={styles.statusIcon}>
+              <Ionicons name="shield-half-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={styles.statusName}>Route Signal Passport</Text>
+              <Text style={styles.statusNote}>
+                {passport.readinessLabel}
+                {passport.reviewedRouteCount > 0
+                  ? ` · avg ${passport.averageTrustScore} · ${passport.reviewedRouteCount} route${
+                      passport.reviewedRouteCount === 1 ? "" : "s"
+                    }`
+                  : " · preview only"}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
