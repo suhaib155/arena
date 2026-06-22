@@ -105,7 +105,7 @@ export default function TerritoryMapScreen() {
                       <ScalePress
                         key={cell.zone.id}
                         to={0.92}
-                        style={[styles.cell, sel ? styles.cellSelected : null]}
+                        style={sel ? [styles.cell, styles.cellSelected] : styles.cell}
                         onPress={() => {
                           tapFeedback();
                           setSelectedId(sel ? null : cell.zone.id);
