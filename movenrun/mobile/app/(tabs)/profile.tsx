@@ -18,6 +18,7 @@ import { zoneStatus } from "@/lib/territory";
 import { getClubById, CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { computePassport } from "@/lib/routePassport";
+import { buildCollections } from "@/lib/zoneCollections";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -43,6 +44,8 @@ export default function ProfileScreen() {
   const lastTrustScore = useGameStore((s) => s.lastTrustScore);
   const lastTrustLabel = useGameStore((s) => s.lastTrustLabel);
   const routeTrustHistory = useGameStore((s) => s.routeTrustHistory);
+  const viewedRoutePassport = useGameStore((s) => s.viewedRoutePassport);
+  const viewedRouteProof = useGameStore((s) => s.viewedRouteProof);
   const passport = computePassport(routeTrustHistory, {
     zonesOwned: zones.length,
     timesDefended,
@@ -50,6 +53,18 @@ export default function ProfileScreen() {
   const reset = useGameStore((s) => s.reset);
   const statuses = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
   const atRiskCount = statuses.filter((e) => e.status.health !== "yours").length;
+  const collections = buildCollections({
+    savedRoutes: routeTrustHistory.length,
+    cleanRoutes: routeTrustHistory.filter((r) => r.riskFlags.length === 0).length,
+    hasStrongTrust: routeTrustHistory.some((r) => r.trustLabel === "Strong"),
+    zonesCaptured: zones.length,
+    atRiskOrWorse: atRiskCount,
+    timesDefended,
+    fortifyCount: zones.reduce((s, z) => s + (z.fortifyCount ?? 0), 0),
+    hasClub: selectedClubId != null,
+    viewedPassport: viewedRoutePassport,
+    viewedProof: viewedRouteProof,
+  });
   const strongest =
     [...statuses].sort(
       (a, b) =>
@@ -190,6 +205,29 @@ export default function ProfileScreen() {
             </ScalePress>
           </FadeSlideIn>
         ) : null}
+
+        {/* Zone Collections — local badges (read-only) */}
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <ScalePress
+            to={0.98}
+            style={styles.statusCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/collections");
+            }}
+          >
+            <View style={styles.statusIcon}>
+              <Ionicons name="ribbon-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={styles.statusName}>Zone Collections</Text>
+              <Text style={styles.statusNote}>
+                {collections.unlocked}/{collections.total} local badges · preview only
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
 
         {/* Club — local preview */}
         <FadeSlideIn delay={STAGGER_MS * 4}>

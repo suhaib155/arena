@@ -206,6 +206,26 @@ export default function TerritoryMapScreen() {
           </>
         ) : null}
 
+        <FadeSlideIn delay={STAGGER_MS * 5}>
+          <ScalePress
+            to={0.98}
+            style={styles.collectionsCta}
+            onPress={() => {
+              tapFeedback();
+              router.push("/collections");
+            }}
+          >
+            <View style={styles.collectionsIcon}>
+              <Ionicons name="ribbon-outline" size={18} color={palette.deedViolet} />
+            </View>
+            <View style={styles.collectionsBody}>
+              <Text style={styles.collectionsName}>Zone Collections</Text>
+              <Text style={styles.collectionsNote}>Local badges for your territory journey</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
+
         <Text style={styles.footerNote}>
           This is a local territory board, not a real map. Raw GPS and paths are
           not stored.
@@ -331,6 +351,26 @@ const styles = StyleSheet.create({
   legendDot: { width: 9, height: 9, borderRadius: 5 },
   legendText: { ...type.caption, fontSize: 11, color: colors.textDim },
 
+  collectionsCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  collectionsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  collectionsBody: { flex: 1, gap: 1 },
+  collectionsName: { ...type.heading, fontSize: 14.5 },
+  collectionsNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   footerNote: {
     ...type.mono,
     fontSize: 11,
