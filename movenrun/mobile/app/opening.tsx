@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, type DimensionValue, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -37,7 +37,7 @@ const PANELS: Panel[] = [
 ];
 
 /** Decorative hex cluster (no geography) for the cinematic board. */
-const HEXES: { left: string; top: string; size: number; teal: boolean }[] = [
+const HEXES: { left: DimensionValue; top: DimensionValue; size: number; teal: boolean }[] = [
   { left: "50%", top: "46%", size: 46, teal: true },
   { left: "30%", top: "34%", size: 32, teal: false },
   { left: "70%", top: "36%", size: 32, teal: true },
