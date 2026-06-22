@@ -17,6 +17,7 @@ import { zoneStatus } from "@/lib/territory";
 import { getClubById } from "@/data/clubs";
 import { CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
+import { buildQuestline } from "@/lib/onboardingQuestline";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -45,6 +46,20 @@ export default function TodayScreen() {
   const zones = useGameStore((s) => s.zones);
   const timesDefended = useGameStore((s) => s.timesDefended);
   const selectedClubId = useGameStore((s) => s.selectedClubId);
+  const routeTrustHistory = useGameStore((s) => s.routeTrustHistory);
+  const lastTrustScore = useGameStore((s) => s.lastTrustScore);
+  const viewedRoutePassport = useGameStore((s) => s.viewedRoutePassport);
+  const viewedRouteProof = useGameStore((s) => s.viewedRouteProof);
+  const questline = buildQuestline({
+    hasHistory: history.length > 0,
+    savedRoutes: routeTrustHistory.length,
+    zonesOwned: zones.length,
+    timesDefended,
+    hasClub: selectedClubId != null,
+    hasTrust: lastTrustScore != null,
+    viewedPassport: viewedRoutePassport,
+    viewedProof: viewedRouteProof,
+  });
   const selectedClub = getClubById(selectedClubId);
   /* Defend reminders: surface the most urgent zone (decay is computed on
      read, so this is deterministic with no background work). */
@@ -173,6 +188,51 @@ export default function TodayScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
               </>
             )}
+          </ScalePress>
+        </FadeSlideIn>
+
+        {/* Questline — compact local onboarding progress */}
+        <FadeSlideIn delay={STAGGER_MS}>
+          <ScalePress
+            to={0.98}
+            style={styles.questRow}
+            onPress={() => {
+              tapFeedback();
+              router.push("/questline");
+            }}
+          >
+            <View style={styles.questIcon}>
+              <Ionicons
+                name={questline.allComplete ? "trophy-outline" : "compass-outline"}
+                size={18}
+                color={colors.primary}
+              />
+            </View>
+            <View style={styles.questBody}>
+              <View style={styles.questTitleRow}>
+                <Text style={styles.questName}>MovenRun Questline</Text>
+                <Text style={styles.questCount}>
+                  {questline.completedCount}/{questline.total}
+                </Text>
+              </View>
+              <View style={styles.questTrack}>
+                <View
+                  style={[
+                    styles.questFill,
+                    {
+                      width: `${Math.round((questline.completedCount / questline.total) * 100)}%`,
+                      backgroundColor: questline.allComplete ? palette.pulseGreen : palette.moveGold,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.questSub} numberOfLines={1}>
+                {questline.allComplete
+                  ? "Local beta loop complete · run again to strengthen your territory"
+                  : `Next · ${questline.currentStep?.title ?? ""}`}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
           </ScalePress>
         </FadeSlideIn>
 
@@ -345,6 +405,30 @@ const styles = StyleSheet.create({
   clubRowBody: { flex: 1, gap: 1 },
   clubRowName: { ...type.heading, fontSize: 14.5 },
   clubRowSub: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
+  questRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  questIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  questBody: { flex: 1, gap: 4 },
+  questTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  questName: { ...type.heading, fontSize: 14 },
+  questCount: { ...type.mono, fontSize: 12, color: colors.textDim },
+  questTrack: { height: 6, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden" },
+  questFill: { height: 6, borderRadius: radius.pill },
+  questSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   sectionGap: { height: spacing.md },
   territoryWrap: { gap: spacing.sm },
   stabilityBanner: {

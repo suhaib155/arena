@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { type DimensionValue, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -115,6 +115,10 @@ export default function RouteProofScreen() {
   const history = useGameStore((s) => s.routeTrustHistory);
   const zonesOwned = useGameStore((s) => s.zones.length);
   const timesDefended = useGameStore((s) => s.timesDefended);
+  const markViewedProof = useGameStore((s) => s.markViewedProof);
+  useEffect(() => {
+    markViewedProof();
+  }, [markViewedProof]);
   const passport = computePassport(history, { zonesOwned, timesDefended });
 
   const rawOutcome = str(params.outcome) as RouteOutcome;
