@@ -166,6 +166,31 @@ export default function ProfileScreen() {
           </View>
         </FadeSlideIn>
 
+        {/* Territory Map — local board (read-only) */}
+        {zones.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 4}>
+            <ScalePress
+              to={0.98}
+              style={styles.statusCard}
+              onPress={() => {
+                tapFeedback();
+                router.navigate("/territory/map");
+              }}
+            >
+              <View style={styles.statusIcon}>
+                <Ionicons name="grid-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.statusText}>
+                <Text style={styles.statusName}>Territory Map</Text>
+                <Text style={styles.statusNote}>
+                  {zones.length} zone{zones.length === 1 ? "" : "s"} · local board · no raw GPS
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         {/* Club — local preview */}
         <FadeSlideIn delay={STAGGER_MS * 4}>
           <ScalePress
