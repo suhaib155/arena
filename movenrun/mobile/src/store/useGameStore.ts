@@ -74,6 +74,9 @@ interface GameState {
    *  can't be derived from other state. Cleared on reset. */
   viewedRoutePassport: boolean;
   viewedRouteProof: boolean;
+  /** Whether the cinematic first-run opening intro has been seen. Cleared on
+   *  reset (so QA/replay can see it again). Local only. */
+  hasSeenOpeningIntro: boolean;
   /** Whether the user has seen the onboarding flow. */
   hasOnboarded: boolean;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
@@ -102,6 +105,8 @@ interface GameState {
   /** Mark an onboarding screen as viewed (local questline progress only). */
   markViewedPassport: () => void;
   markViewedProof: () => void;
+  /** Mark the cinematic opening intro as seen. */
+  markOpeningSeen: () => void;
   completeOnboarding: () => void;
   reset: () => void;
 }
@@ -124,6 +129,7 @@ export const useGameStore = create<GameState>()(
       routeTrustHistory: [],
       viewedRoutePassport: false,
       viewedRouteProof: false,
+      hasSeenOpeningIntro: false,
       hasOnboarded: false,
       _hydrated: false,
 
@@ -271,6 +277,7 @@ export const useGameStore = create<GameState>()(
 
       markViewedPassport: () => set({ viewedRoutePassport: true }),
       markViewedProof: () => set({ viewedRouteProof: true }),
+      markOpeningSeen: () => set({ hasSeenOpeningIntro: true }),
 
       completeOnboarding: () => set({ hasOnboarded: true }),
 
@@ -294,19 +301,21 @@ export const useGameStore = create<GameState>()(
           routeTrustHistory: [],
           viewedRoutePassport: false,
           viewedRouteProof: false,
+          hasSeenOpeningIntro: false,
         }),
     }),
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 8,
+      version: 9,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
       // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
       // fields and shipped with defense 0; pre-clubs state (v4) lacks
       // `selectedClubId`; pre-trust state (v5) lacks the route-trust summary;
       // pre-history state (v6) lacks `routeTrustHistory`; pre-questline state
-      // (v7) lacks the onboarding view flags. Backfill everything so upgrades
-      // never crash and v3 zones arrive healthy instead of decayed.
+      // (v7) lacks the onboarding view flags; pre-intro state (v8) lacks
+      // `hasSeenOpeningIntro`. Backfill everything so upgrades never crash and
+      // v3 zones arrive healthy instead of decayed.
       migrate: (persisted, _version) => {
         const state = (persisted ?? {}) as Partial<GameState>;
         if (!Array.isArray(state.completedQuestIds)) {
@@ -344,6 +353,12 @@ export const useGameStore = create<GameState>()(
         }
         if (typeof state.viewedRouteProof !== "boolean") {
           state.viewedRouteProof = false;
+        }
+        // Existing users already know the app, so skip the opening intro for
+        // them; only genuinely fresh installs (no persisted state, so migrate
+        // never runs) keep the `false` default and see it.
+        if (typeof state.hasSeenOpeningIntro !== "boolean") {
+          state.hasSeenOpeningIntro = true;
         }
         return state as GameState;
       },

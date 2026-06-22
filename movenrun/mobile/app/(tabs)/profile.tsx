@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -392,6 +392,17 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        <Pressable
+          hitSlop={8}
+          onPress={() => {
+            tapFeedback();
+            router.push("/opening");
+          }}
+          style={styles.replayLink}
+        >
+          <Text style={styles.replayText}>Replay opening intro</Text>
+        </Pressable>
+
         {history.length > 0 ? (
           <Button
             label="Reset progress"
@@ -548,4 +559,6 @@ const styles = StyleSheet.create({
   rowTime: { ...type.caption, fontSize: 12, color: colors.textFaint },
   rowXp: { ...type.mono, fontSize: 13, color: "#B07908", fontWeight: "700" },
   resetBtn: { marginTop: spacing.xs, alignSelf: "center" },
+  replayLink: { marginTop: spacing.lg, alignSelf: "center", paddingVertical: spacing.xs },
+  replayText: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.primary },
 });
