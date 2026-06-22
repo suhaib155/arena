@@ -70,6 +70,10 @@ interface GameState {
   /** Local route-review history — summary records only (no raw GPS, no
    *  coordinates, no path). Newest first, capped. Cleared on reset. */
   routeTrustHistory: RouteTrustRecord[];
+  /** Onboarding-questline view flags (local only). Screen-view steps that
+   *  can't be derived from other state. Cleared on reset. */
+  viewedRoutePassport: boolean;
+  viewedRouteProof: boolean;
   /** Whether the user has seen the onboarding flow. */
   hasOnboarded: boolean;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
@@ -95,6 +99,9 @@ interface GameState {
   addRouteTrustRecord: (
     record: Omit<RouteTrustRecord, "id" | "createdAt">,
   ) => void;
+  /** Mark an onboarding screen as viewed (local questline progress only). */
+  markViewedPassport: () => void;
+  markViewedProof: () => void;
   completeOnboarding: () => void;
   reset: () => void;
 }
@@ -115,6 +122,8 @@ export const useGameStore = create<GameState>()(
       lastTrustLabel: null,
       lastTrustAt: null,
       routeTrustHistory: [],
+      viewedRoutePassport: false,
+      viewedRouteProof: false,
       hasOnboarded: false,
       _hydrated: false,
 
@@ -260,6 +269,9 @@ export const useGameStore = create<GameState>()(
           };
         }),
 
+      markViewedPassport: () => set({ viewedRoutePassport: true }),
+      markViewedProof: () => set({ viewedRouteProof: true }),
+
       completeOnboarding: () => set({ hasOnboarded: true }),
 
       // Resets progress AND the local club selection. Club choice is still
@@ -280,18 +292,21 @@ export const useGameStore = create<GameState>()(
           lastTrustLabel: null,
           lastTrustAt: null,
           routeTrustHistory: [],
+          viewedRoutePassport: false,
+          viewedRouteProof: false,
         }),
     }),
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 7,
+      version: 8,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
       // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
       // fields and shipped with defense 0; pre-clubs state (v4) lacks
       // `selectedClubId`; pre-trust state (v5) lacks the route-trust summary;
-      // pre-history state (v6) lacks `routeTrustHistory`. Backfill everything so
-      // upgrades never crash and v3 zones arrive healthy instead of decayed.
+      // pre-history state (v6) lacks `routeTrustHistory`; pre-questline state
+      // (v7) lacks the onboarding view flags. Backfill everything so upgrades
+      // never crash and v3 zones arrive healthy instead of decayed.
       migrate: (persisted, _version) => {
         const state = (persisted ?? {}) as Partial<GameState>;
         if (!Array.isArray(state.completedQuestIds)) {
@@ -323,6 +338,12 @@ export const useGameStore = create<GameState>()(
         }
         if (!Array.isArray(state.routeTrustHistory)) {
           state.routeTrustHistory = [];
+        }
+        if (typeof state.viewedRoutePassport !== "boolean") {
+          state.viewedRoutePassport = false;
+        }
+        if (typeof state.viewedRouteProof !== "boolean") {
+          state.viewedRouteProof = false;
         }
         return state as GameState;
       },

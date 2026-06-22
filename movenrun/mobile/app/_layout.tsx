@@ -69,6 +69,7 @@ function RootNavigator() {
         <Stack.Screen name="route/review-history" />
         <Stack.Screen name="route/passport" />
         <Stack.Screen name="route/proof" />
+        <Stack.Screen name="questline" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="result"

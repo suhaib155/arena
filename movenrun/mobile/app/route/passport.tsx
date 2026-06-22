@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -38,6 +39,10 @@ export default function RoutePassportScreen() {
   const history = useGameStore((s) => s.routeTrustHistory);
   const zonesOwned = useGameStore((s) => s.zones.length);
   const timesDefended = useGameStore((s) => s.timesDefended);
+  const markViewedPassport = useGameStore((s) => s.markViewedPassport);
+  useEffect(() => {
+    markViewedPassport();
+  }, [markViewedPassport]);
   const p = computePassport(history, { zonesOwned, timesDefended });
   const tone = toneColor(readinessTone(p.readinessLabel));
 
