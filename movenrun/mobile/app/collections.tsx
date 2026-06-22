@@ -153,7 +153,7 @@ function BadgeCard({ badge, accent }: { badge: Badge; accent: string }) {
         <Text style={styles.badgeDesc}>{badge.description}</Text>
         {!unlocked ? (
           <View style={styles.badgeBarTrack}>
-            <View style={[styles.badgeBarFill, { width: `${pct}%`, backgroundColor: inProgress ? accent : colors.dustGray }]} />
+            <View style={[styles.badgeBarFill, { width: `${pct}%`, backgroundColor: inProgress ? accent : palette.dustGray }]} />
           </View>
         ) : null}
       </View>
