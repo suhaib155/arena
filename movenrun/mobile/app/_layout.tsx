@@ -27,14 +27,17 @@ function useStartupRedirect(): boolean {
   const router = useRouter();
   const navState = useRootNavigationState();
   const hydrated = useGameStore((s) => s._hydrated);
+  const hasSeenOpeningIntro = useGameStore((s) => s.hasSeenOpeningIntro);
   const hasOnboarded = useGameStore((s) => s.hasOnboarded);
 
   const ready = Boolean(navState?.key) && hydrated;
 
   useEffect(() => {
     if (!ready) return;
-    if (!hasOnboarded) router.replace("/onboarding");
-  }, [ready, hasOnboarded, router]);
+    // Cinematic opening intro first, then quest onboarding, then the app.
+    if (!hasSeenOpeningIntro) router.replace("/opening");
+    else if (!hasOnboarded) router.replace("/onboarding");
+  }, [ready, hasSeenOpeningIntro, hasOnboarded, router]);
 
   return !ready;
 }
@@ -52,6 +55,7 @@ function RootNavigator() {
         }}
       >
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="opening" options={{ animation: "fade" }} />
         <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
         <Stack.Screen name="quest/[id]" />
         <Stack.Screen name="move/index" />
