@@ -251,6 +251,20 @@ export default function TodayScreen() {
             title="Your territory"
             trailing={zones.length > 0 ? `${zones.length} zone${zones.length === 1 ? "" : "s"}` : "soon"}
           />
+          {zones.length > 0 ? (
+            <ScalePress
+              to={0.98}
+              style={styles.mapChip}
+              onPress={() => {
+                tapFeedback();
+                router.push("/territory/map");
+              }}
+            >
+              <Ionicons name="grid-outline" size={15} color={colors.primary} />
+              <Text style={styles.mapChipText}>View Territory Map</Text>
+              <Ionicons name="chevron-forward" size={15} color={colors.textFaint} />
+            </ScalePress>
+          ) : null}
           <View style={styles.sectionGap} />
           {priority ? (
             <View style={styles.territoryWrap}>
@@ -429,6 +443,19 @@ const styles = StyleSheet.create({
   questTrack: { height: 6, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden" },
   questFill: { height: 6, borderRadius: radius.pill },
   questSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  mapChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    alignSelf: "flex-start",
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    paddingVertical: 7,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    ...shadows.card,
+  },
+  mapChipText: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.text },
   sectionGap: { height: spacing.md },
   territoryWrap: { gap: spacing.sm },
   stabilityBanner: {
