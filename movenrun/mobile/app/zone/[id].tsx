@@ -16,6 +16,7 @@ import {
   riskLabel,
   zoneStatus,
 } from "@/lib/territory";
+import { buildZoneCommand } from "@/lib/zoneCommand";
 import type { IoniconName } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 
@@ -62,7 +63,20 @@ export default function ZoneDetailScreen() {
   const status = zoneStatus(zone);
   const visual = healthVisual(status.health);
   const onCooldown = fortifiedToday(zone);
-  const dormant = status.health === "dormant";
+  const cmd = buildZoneCommand(zone);
+
+  const primaryDisabled =
+    cmd.action.kind === "reclaim" || (cmd.action.kind === "fortify" && onCooldown);
+  const primaryLabel =
+    cmd.action.kind === "fortify" && onCooldown ? "Fortified today" : cmd.action.cta;
+  const onPrimary = () => {
+    if (cmd.action.kind === "fortify") {
+      fortify();
+    } else if (cmd.action.kind === "move" || cmd.action.kind === "healthy") {
+      tapFeedback();
+      router.push("/move");
+    }
+  };
 
   const fortify = () => {
     tapFeedback();
@@ -139,6 +153,43 @@ export default function ZoneDetailScreen() {
           <Text style={styles.zoneId}>{zone.id}</Text>
         </View>
 
+        {/* Command — recommended next action + strategy */}
+        <View style={styles.commandCard}>
+          <Text style={styles.commandKicker}>Local zone command</Text>
+          <View style={styles.commandRow}>
+            <View style={styles.commandBody}>
+              <Text style={styles.commandAction}>{cmd.action.label}</Text>
+              <Text style={styles.commandStrategy}>{cmd.strategy}</Text>
+            </View>
+            <View style={styles.trendChip}>
+              <Ionicons
+                name={
+                  cmd.controlTrend === "rising"
+                    ? "trending-up"
+                    : cmd.controlTrend === "slipping"
+                      ? "trending-down"
+                      : "remove"
+                }
+                size={12}
+                color={
+                  cmd.controlTrend === "rising"
+                    ? "#0A8F60"
+                    : cmd.controlTrend === "slipping"
+                      ? "#C2492E"
+                      : colors.textDim
+                }
+              />
+              <Text style={styles.trendText}>{cmd.controlTrend}</Text>
+            </View>
+          </View>
+          <Button
+            label={primaryLabel}
+            icon={cmd.action.kind === "fortify" ? "shield" : cmd.action.kind === "reclaim" ? "time-outline" : "navigate"}
+            disabled={primaryDisabled}
+            onPress={onPrimary}
+          />
+        </View>
+
         {/* Meters + risk */}
         <View style={styles.meterCard}>
           <MeterRow
@@ -171,6 +222,16 @@ export default function ZoneDetailScreen() {
           </Text>
         </View>
 
+        {/* Stats grid */}
+        <View style={styles.statsGrid}>
+          {cmd.stats.map((s) => (
+            <View key={s.label} style={styles.statCard}>
+              <Text style={styles.statValue}>{s.value}</Text>
+              <Text style={styles.statLabel}>{s.label}</Text>
+            </View>
+          ))}
+        </View>
+
         {/* Timeline */}
         <View style={styles.timeline}>
           <TimeRow icon="flag" tint={palette.pulseGreen} label="Captured" when={formatWhen(zone.capturedAt)} />
@@ -193,6 +254,35 @@ export default function ZoneDetailScreen() {
           </View>
         ) : null}
 
+        {/* Related */}
+        <View style={styles.relatedRow}>
+          <Pressable
+            style={styles.relatedCard}
+            onPress={() => {
+              tapFeedback();
+              router.push("/territory/map");
+            }}
+          >
+            <Ionicons name="grid-outline" size={18} color={palette.baseBlue} />
+            <Text style={styles.relatedText}>Territory Map</Text>
+          </Pressable>
+          <Pressable
+            style={styles.relatedCard}
+            onPress={() => {
+              tapFeedback();
+              router.push("/collections");
+            }}
+          >
+            <Ionicons name="ribbon-outline" size={18} color={palette.deedViolet} />
+            <Text style={styles.relatedText}>Collections</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.safetyNote}>
+          This is a local preview zone. It does not represent live ownership or
+          on-chain status.
+        </Text>
+
         <Text style={styles.betaNote}>
           Local territory preview · on-device simulation. Fortify preview uses
           in-app Locked MOVE progress only — nothing is spent.
@@ -200,30 +290,12 @@ export default function ZoneDetailScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {dormant ? (
-          <Button label="Reclaim soon" icon="time-outline" variant="secondary" disabled onPress={() => {}} />
-        ) : (
-          <Button
-            label={onCooldown ? "Fortified today" : "Fortify zone"}
-            icon="shield"
-            disabled={onCooldown}
-            onPress={fortify}
-          />
-        )}
-        <Button
-          label="Start Move to defend"
-          icon="navigate"
-          variant="secondary"
-          onPress={() => {
-            tapFeedback();
-            router.push("/move");
-          }}
-        />
+        {/* Primary action lives in the command card above; footer is navigation. */}
         {hasSession ? (
           <Button
             label="View route summary"
             icon="analytics-outline"
-            variant="ghost"
+            variant="secondary"
             onPress={() => router.push("/move/summary")}
           />
         ) : null}
@@ -261,6 +333,62 @@ function TimeRow({ icon, tint, label, when }: { icon: IoniconName; tint: string;
 
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.lg, gap: spacing.lg },
+  commandCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadows.float,
+  },
+  commandKicker: { ...type.kicker, color: colors.primary },
+  commandRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
+  commandBody: { flex: 1, gap: 3 },
+  commandAction: { ...type.heading, fontSize: 17 },
+  commandStrategy: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.textDim },
+  trendChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  trendText: { ...type.caption, fontSize: 11, fontWeight: "700", color: colors.textDim },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  statCard: {
+    width: "31.5%",
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    gap: 2,
+    ...shadows.card,
+  },
+  statValue: { ...type.title, fontSize: 16, fontVariant: ["tabular-nums"] },
+  statLabel: { ...type.caption, fontSize: 10.5, textAlign: "center", color: colors.textFaint },
+  relatedRow: { flexDirection: "row", gap: spacing.sm },
+  relatedCard: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    ...shadows.card,
+  },
+  relatedText: { ...type.heading, fontSize: 13.5 },
+  safetyNote: {
+    ...type.mono,
+    fontSize: 10.5,
+    color: colors.textFaint,
+    textAlign: "center",
+    lineHeight: 16,
+  },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
