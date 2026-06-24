@@ -88,6 +88,10 @@ export default function WeeklyRecapScreen() {
                 <Ionicons name="eye-outline" size={13} color={colors.textDim} />
                 <Text style={[styles.badgeText, { color: colors.textDim }]}>Local preview</Text>
               </View>
+              <View style={[styles.badge, { backgroundColor: `${palette.pulseGreen}14` }]}>
+                <Ionicons name="lock-closed-outline" size={13} color="#0A8F60" />
+                <Text style={[styles.badgeText, { color: "#0A8F60" }]}>No raw GPS</Text>
+              </View>
             </View>
           </View>
         </FadeSlideIn>
