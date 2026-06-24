@@ -75,6 +75,7 @@ function RootNavigator() {
         <Stack.Screen name="route/proof" />
         <Stack.Screen name="questline" />
         <Stack.Screen name="territory/map" />
+        <Stack.Screen name="territory/alerts" />
         <Stack.Screen name="collections" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen

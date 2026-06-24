@@ -206,7 +206,29 @@ export default function TerritoryMapScreen() {
           </>
         ) : null}
 
-        <FadeSlideIn delay={STAGGER_MS * 5}>
+        {overview.total > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 5}>
+            <ScalePress
+              to={0.98}
+              style={styles.collectionsCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/territory/alerts");
+              }}
+            >
+              <View style={[styles.collectionsIcon, { backgroundColor: `${palette.heatCoral}14` }]}>
+                <Ionicons name="notifications-outline" size={18} color={palette.heatCoral} />
+              </View>
+              <View style={styles.collectionsBody}>
+                <Text style={styles.collectionsName}>Territory Alerts</Text>
+                <Text style={styles.collectionsNote}>Local reminders for what needs attention</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        <FadeSlideIn delay={STAGGER_MS * 6}>
           <ScalePress
             to={0.98}
             style={styles.collectionsCta}
