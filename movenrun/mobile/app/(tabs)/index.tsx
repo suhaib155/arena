@@ -19,6 +19,7 @@ import { CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { buildQuestline } from "@/lib/onboardingQuestline";
 import { buildTerritoryAlerts } from "@/lib/territoryAlerts";
+import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -70,6 +71,13 @@ export default function TodayScreen() {
     ),
   });
   const showAlertChip = alertsSummary.urgent + alertsSummary.caution > 0;
+  const weeklyRecap = buildWeeklyRecap({
+    history,
+    routeTrustHistory,
+    zones,
+    streak,
+    clubName: selectedClub?.name ?? null,
+  });
   /* Defend reminders: surface the most urgent zone (decay is computed on
      read, so this is deterministic with no background work). */
   const zonesWithStatus = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
@@ -265,6 +273,32 @@ export default function TodayScreen() {
                   {alertsSummary.urgent > 0 ? `${alertsSummary.urgent} urgent · ` : ""}
                   {alertsSummary.caution > 0 ? `${alertsSummary.caution} caution · ` : ""}
                   {alertsSummary.topAction?.title ?? "Tap to review"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* Weekly recap — local reflection, only once there's something to show */}
+        {weeklyRecap.hasActivity ? (
+          <FadeSlideIn delay={STAGGER_MS}>
+            <ScalePress
+              to={0.98}
+              style={styles.recapChip}
+              onPress={() => {
+                tapFeedback();
+                router.push("/weekly-recap");
+              }}
+            >
+              <View style={styles.recapChipIcon}>
+                <Ionicons name="bar-chart-outline" size={16} color={colors.primary} />
+              </View>
+              <View style={styles.recapChipBody}>
+                <Text style={styles.recapChipName}>Weekly Recap</Text>
+                <Text style={styles.recapChipSub} numberOfLines={1}>
+                  {weeklyRecap.routes} route{weeklyRecap.routes === 1 ? "" : "s"} ·{" "}
+                  {weeklyRecap.zonesCaptured} captured · {weeklyRecap.momentumLabel}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
@@ -499,6 +533,26 @@ const styles = StyleSheet.create({
   alertChipBody: { flex: 1, gap: 1 },
   alertChipName: { ...type.heading, fontSize: 14 },
   alertChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  recapChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  recapChipIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recapChipBody: { flex: 1, gap: 1 },
+  recapChipName: { ...type.heading, fontSize: 14 },
+  recapChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   mapChip: {
     flexDirection: "row",
     alignItems: "center",
