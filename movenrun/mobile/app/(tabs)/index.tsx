@@ -18,6 +18,7 @@ import { getClubById } from "@/data/clubs";
 import { CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { buildQuestline } from "@/lib/onboardingQuestline";
+import { buildTerritoryAlerts } from "@/lib/territoryAlerts";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -61,6 +62,14 @@ export default function TodayScreen() {
     viewedProof: viewedRouteProof,
   });
   const selectedClub = getClubById(selectedClubId);
+  const alertsSummary = buildTerritoryAlerts({
+    zones,
+    streak,
+    hasRecentActivity: history.some(
+      (rec) => getLocalDateKey(new Date(rec.completedAt)) === getLocalDateKey(),
+    ),
+  });
+  const showAlertChip = alertsSummary.urgent + alertsSummary.caution > 0;
   /* Defend reminders: surface the most urgent zone (decay is computed on
      read, so this is deterministic with no background work). */
   const zonesWithStatus = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
@@ -235,6 +244,33 @@ export default function TodayScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
           </ScalePress>
         </FadeSlideIn>
+
+        {/* Territory alerts — only when something needs attention */}
+        {showAlertChip ? (
+          <FadeSlideIn delay={STAGGER_MS}>
+            <ScalePress
+              to={0.98}
+              style={styles.alertChip}
+              onPress={() => {
+                tapFeedback();
+                router.push("/territory/alerts");
+              }}
+            >
+              <View style={styles.alertChipIcon}>
+                <Ionicons name="notifications-outline" size={16} color={palette.heatCoral} />
+              </View>
+              <View style={styles.alertChipBody}>
+                <Text style={styles.alertChipName}>Territory Alerts</Text>
+                <Text style={styles.alertChipSub} numberOfLines={1}>
+                  {alertsSummary.urgent > 0 ? `${alertsSummary.urgent} urgent · ` : ""}
+                  {alertsSummary.caution > 0 ? `${alertsSummary.caution} caution · ` : ""}
+                  {alertsSummary.topAction?.title ?? "Tap to review"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
 
         {dailyCompletedToday ? (
           <View style={styles.doneBanner}>
@@ -443,6 +479,26 @@ const styles = StyleSheet.create({
   questTrack: { height: 6, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden" },
   questFill: { height: 6, borderRadius: radius.pill },
   questSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  alertChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  alertChipIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: `${palette.heatCoral}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  alertChipBody: { flex: 1, gap: 1 },
+  alertChipName: { ...type.heading, fontSize: 14 },
+  alertChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   mapChip: {
     flexDirection: "row",
     alignItems: "center",
