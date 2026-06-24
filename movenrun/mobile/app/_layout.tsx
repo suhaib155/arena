@@ -77,6 +77,7 @@ function RootNavigator() {
         <Stack.Screen name="territory/map" />
         <Stack.Screen name="territory/alerts" />
         <Stack.Screen name="collections" />
+        <Stack.Screen name="weekly-recap" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="result"

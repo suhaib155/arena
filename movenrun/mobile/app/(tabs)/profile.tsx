@@ -19,6 +19,7 @@ import { getClubById, CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { computePassport } from "@/lib/routePassport";
 import { buildCollections } from "@/lib/zoneCollections";
+import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -70,6 +71,13 @@ export default function ProfileScreen() {
       (a, b) =>
         b.status.defense + b.status.control - (a.status.defense + a.status.control),
     )[0] ?? null;
+  const recap = buildWeeklyRecap({
+    history,
+    routeTrustHistory,
+    zones,
+    streak,
+    clubName: selectedClub?.name ?? null,
+  });
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
   const myRanked = selectedClub
@@ -223,6 +231,33 @@ export default function ProfileScreen() {
               <Text style={styles.statusName}>Zone Collections</Text>
               <Text style={styles.statusNote}>
                 {collections.unlocked}/{collections.total} local badges · preview only
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
+
+        {/* Weekly Recap — local reflection (read-only) */}
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <ScalePress
+            to={0.98}
+            style={styles.statusCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/weekly-recap");
+            }}
+          >
+            <View style={styles.statusIcon}>
+              <Ionicons name="bar-chart-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={styles.statusName}>Weekly Recap</Text>
+              <Text style={styles.statusNote}>
+                {recap.hasActivity
+                  ? `${recap.weekLabel} · ${recap.routes} route${
+                      recap.routes === 1 ? "" : "s"
+                    } · ${recap.momentumLabel}`
+                  : "Last 7 days · move to fill it in · local preview"}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
