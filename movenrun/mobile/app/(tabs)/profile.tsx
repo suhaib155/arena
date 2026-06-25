@@ -22,6 +22,7 @@ import { buildCollections } from "@/lib/zoneCollections";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { buildCityDistricts } from "@/lib/cityDistricts";
+import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -96,6 +97,7 @@ export default function ProfileScreen() {
     collectionsUnlocked: collections.unlocked,
   });
   const city = buildCityDistricts(zones);
+  const rivals = buildRivalGhosts(zones);
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
   const myRanked = selectedClub
@@ -256,6 +258,33 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
           </ScalePress>
         </FadeSlideIn>
+
+        {/* Rival Ghosts — fictional local pressure (read-only) */}
+        {zones.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 4}>
+            <ScalePress
+              to={0.98}
+              style={styles.statusCard}
+              onPress={() => {
+                tapFeedback();
+                router.navigate("/rivals");
+              }}
+            >
+              <View style={styles.statusIcon}>
+                <Ionicons name="color-wand-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.statusText}>
+                <Text style={styles.statusName}>Rival Ghosts</Text>
+                <Text style={styles.statusNote}>
+                  {rivals.hasPressure
+                    ? `${rivals.highPressure} high-pressure · fictional rivals · no real users`
+                    : "Fictional rivals · local preview · no real users"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
 
         {/* Zone Collections — local badges (read-only) */}
         <FadeSlideIn delay={STAGGER_MS * 4}>

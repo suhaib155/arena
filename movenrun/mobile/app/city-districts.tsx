@@ -14,6 +14,7 @@ import {
   type CityDistrict,
   type DistrictAction,
 } from "@/lib/cityDistricts";
+import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import type { IoniconName } from "@/types";
 import { tapFeedback } from "@/lib/haptics";
 
@@ -28,6 +29,7 @@ export default function CityDistrictsScreen() {
   const zones = useGameStore((s) => s.zones);
   const now = Date.now();
   const overview = useMemo(() => buildCityDistricts(zones, now), [zones, now]);
+  const rivals = useMemo(() => buildRivalGhosts(zones, now), [zones, now]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = overview.districts.find((d) => d.id === selectedId) ?? null;
 
@@ -187,6 +189,32 @@ export default function CityDistrictsScreen() {
                 />
               )}
             </View>
+          </FadeSlideIn>
+        ) : null}
+
+        {overview.hasZones ? (
+          <FadeSlideIn delay={STAGGER_MS * 3}>
+            <ScalePress
+              to={0.98}
+              style={styles.rivalCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/rivals");
+              }}
+            >
+              <View style={styles.rivalCtaIcon}>
+                <Ionicons name="color-wand-outline" size={18} color={palette.deedViolet} />
+              </View>
+              <View style={styles.rivalCtaBody}>
+                <Text style={styles.rivalCtaName}>Rival Pressure</Text>
+                <Text style={styles.rivalCtaNote}>
+                  {rivals.hasPressure
+                    ? `${rivals.highPressure > 0 ? `${rivals.highPressure} high-pressure · ` : ""}fictional rivals circling`
+                    : "Fictional rivals · local preview"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
           </FadeSlideIn>
         ) : null}
 
@@ -375,6 +403,27 @@ const styles = StyleSheet.create({
   selectedStatus: { ...type.caption, fontSize: 12, fontWeight: "800" },
   selectedMeta: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.textDim },
   selectedCta: { alignSelf: "flex-start" },
+
+  rivalCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  rivalCtaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rivalCtaBody: { flex: 1, gap: 1 },
+  rivalCtaName: { ...type.heading, fontSize: 14.5 },
+  rivalCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
 
   footerNote: {
     ...type.mono,
