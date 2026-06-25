@@ -21,6 +21,7 @@ import { computePassport } from "@/lib/routePassport";
 import { buildCollections } from "@/lib/zoneCollections";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
+import { buildCityDistricts } from "@/lib/cityDistricts";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -94,6 +95,7 @@ export default function ProfileScreen() {
     weeklyActive: recap.hasActivity,
     collectionsUnlocked: collections.unlocked,
   });
+  const city = buildCityDistricts(zones);
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
   const myRanked = selectedClub
@@ -229,6 +231,31 @@ export default function ProfileScreen() {
             </ScalePress>
           </FadeSlideIn>
         ) : null}
+
+        {/* City Districts — local city preview (read-only) */}
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <ScalePress
+            to={0.98}
+            style={styles.statusCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/city-districts");
+            }}
+          >
+            <View style={styles.statusIcon}>
+              <Ionicons name="business-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={styles.statusName}>City Districts</Text>
+              <Text style={styles.statusNote}>
+                {city.hasZones
+                  ? `${city.controlledDistricts}/${city.activeDistricts} controlled · local city preview`
+                  : "Local city preview · capture zones to reveal"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
 
         {/* Zone Collections — local badges (read-only) */}
         <FadeSlideIn delay={STAGGER_MS * 4}>
