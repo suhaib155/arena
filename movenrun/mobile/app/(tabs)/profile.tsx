@@ -24,6 +24,7 @@ import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { buildCityDistricts } from "@/lib/cityDistricts";
 import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import { buildCityWarBoard } from "@/lib/cityWarBoard";
+import { buildSponsorZones } from "@/lib/sponsorZones";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -107,6 +108,13 @@ export default function ProfileScreen() {
     recap,
     clubName: selectedClub?.name ?? null,
     streak,
+  });
+  const sponsors = buildSponsorZones({
+    hasZones: zones.length > 0,
+    city,
+    momentum: recap.momentum,
+    objectivesProgress: seasonObjectives.progressPct,
+    weeklyActive: recap.hasActivity,
   });
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
@@ -315,6 +323,32 @@ export default function ProfileScreen() {
                 <Text style={styles.statusNote}>
                   {cityWar.playerSideLabel} {cityWar.playerScore} · Ghost Crews{" "}
                   {cityWar.rivalPressureScore} · {cityWar.balanceLabel}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* Sponsor Zones — fictional future activations (read-only) */}
+        {zones.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 4}>
+            <ScalePress
+              to={0.98}
+              style={styles.statusCard}
+              onPress={() => {
+                tapFeedback();
+                router.navigate("/sponsor-zones");
+              }}
+            >
+              <View style={styles.statusIcon}>
+                <Ionicons name="storefront-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.statusText}>
+                <Text style={styles.statusName}>Sponsor Zones</Text>
+                <Text style={styles.statusNote}>
+                  {sponsors.previewSlots} preview slot{sponsors.previewSlots === 1 ? "" : "s"} ·{" "}
+                  fictional · no ads
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
