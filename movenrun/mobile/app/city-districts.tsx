@@ -218,6 +218,28 @@ export default function CityDistrictsScreen() {
           </FadeSlideIn>
         ) : null}
 
+        {overview.hasZones ? (
+          <FadeSlideIn delay={STAGGER_MS * 3}>
+            <ScalePress
+              to={0.98}
+              style={styles.rivalCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/city-war");
+              }}
+            >
+              <View style={[styles.rivalCtaIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+                <Ionicons name="flag-outline" size={18} color={palette.deedViolet} />
+              </View>
+              <View style={styles.rivalCtaBody}>
+                <Text style={styles.rivalCtaName}>City War Board</Text>
+                <Text style={styles.rivalCtaNote}>Fictional local season battle · preview</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         <Text style={styles.footerNote}>
           Districts are local previews generated from safe zone ids. They are not
           real neighborhoods, maps, rewards, or on-chain ownership.

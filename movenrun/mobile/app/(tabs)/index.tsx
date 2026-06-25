@@ -24,6 +24,7 @@ import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { buildCityDistricts } from "@/lib/cityDistricts";
 import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import { buildCollections } from "@/lib/zoneCollections";
+import { buildCityWarBoard } from "@/lib/cityWarBoard";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -110,6 +111,15 @@ export default function TodayScreen() {
       viewedPassport: viewedRoutePassport,
       viewedProof: viewedRouteProof,
     }).unlocked,
+  });
+  const cityWar = buildCityWarBoard({
+    zones,
+    city: cityDistricts,
+    rivals,
+    objectives: seasonObjectives,
+    recap: weeklyRecap,
+    clubName: selectedClub?.name ?? null,
+    streak,
   });
   /* Defend reminders: surface the most urgent zone (decay is computed on
      read, so this is deterministic with no background work). */
@@ -414,6 +424,32 @@ export default function TodayScreen() {
                 <Text style={styles.rivalChipSub} numberOfLines={1}>
                   {rivals.highPressure > 0 ? `${rivals.highPressure} high-pressure · ` : ""}
                   {rivals.topResponse?.name ?? "fictional rivals"} circling
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* City war board — when the city is big enough for a season battle */}
+        {cityDistricts.activeDistricts >= 2 ? (
+          <FadeSlideIn delay={STAGGER_MS}>
+            <ScalePress
+              to={0.98}
+              style={styles.warChip}
+              onPress={() => {
+                tapFeedback();
+                router.push("/city-war");
+              }}
+            >
+              <View style={styles.warChipIcon}>
+                <Ionicons name="flag-outline" size={16} color={palette.deedViolet} />
+              </View>
+              <View style={styles.warChipBody}>
+                <Text style={styles.warChipName}>City War Board</Text>
+                <Text style={styles.warChipSub} numberOfLines={1}>
+                  {cityWar.playerSideLabel} {cityWar.playerScore} · Ghost Crews{" "}
+                  {cityWar.rivalPressureScore} · {cityWar.balanceLabel}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
@@ -730,6 +766,26 @@ const styles = StyleSheet.create({
   rivalChipBody: { flex: 1, gap: 1 },
   rivalChipName: { ...type.heading, fontSize: 14 },
   rivalChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  warChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  warChipIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  warChipBody: { flex: 1, gap: 1 },
+  warChipName: { ...type.heading, fontSize: 14 },
+  warChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   mapChip: {
     flexDirection: "row",
     alignItems: "center",
