@@ -21,6 +21,7 @@ import { buildQuestline } from "@/lib/onboardingQuestline";
 import { buildTerritoryAlerts } from "@/lib/territoryAlerts";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
+import { buildCityDistricts } from "@/lib/cityDistricts";
 import { buildCollections } from "@/lib/zoneCollections";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
@@ -80,6 +81,7 @@ export default function TodayScreen() {
     streak,
     clubName: selectedClub?.name ?? null,
   });
+  const cityDistricts = buildCityDistricts(zones);
   const seasonAtRisk = zones.filter((z) => zoneStatus(z).health !== "yours").length;
   const seasonObjectives = buildSeasonObjectives({
     routesThisWeek: weeklyRecap.routes,
@@ -365,6 +367,32 @@ export default function TodayScreen() {
           </FadeSlideIn>
         ) : null}
 
+        {/* City districts — local city preview, once there's territory */}
+        {zones.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS}>
+            <ScalePress
+              to={0.98}
+              style={styles.cityChip}
+              onPress={() => {
+                tapFeedback();
+                router.push("/city-districts");
+              }}
+            >
+              <View style={styles.cityChipIcon}>
+                <Ionicons name="business-outline" size={16} color={colors.primary} />
+              </View>
+              <View style={styles.cityChipBody}>
+                <Text style={styles.cityChipName}>City Districts</Text>
+                <Text style={styles.cityChipSub} numberOfLines={1}>
+                  {cityDistricts.controlledDistricts}/{cityDistricts.activeDistricts} controlled ·{" "}
+                  {cityDistricts.nextAction.label}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         {dailyCompletedToday ? (
           <View style={styles.doneBanner}>
             <Ionicons name="checkmark-circle" size={18} color={palette.pulseGreen} />
@@ -634,6 +662,26 @@ const styles = StyleSheet.create({
   objectivesChipName: { ...type.heading, fontSize: 14 },
   objectivesChipCount: { ...type.mono, fontSize: 12, color: colors.textDim },
   objectivesChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  cityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  cityChipIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cityChipBody: { flex: 1, gap: 1 },
+  cityChipName: { ...type.heading, fontSize: 14 },
+  cityChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   mapChip: {
     flexDirection: "row",
     alignItems: "center",

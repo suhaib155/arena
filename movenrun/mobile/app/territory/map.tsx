@@ -12,6 +12,7 @@ import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { HEALTH_LABEL } from "@/lib/territory";
 import { buildTerritoryOverview, MAP_COLUMNS, type MapCell } from "@/lib/territoryMap";
+import { buildCityDistricts } from "@/lib/cityDistricts";
 import { tapFeedback } from "@/lib/haptics";
 
 function lastDefendedText(iso: string, now: number): string {
@@ -38,6 +39,7 @@ export default function TerritoryMapScreen() {
   const zones = useGameStore((s) => s.zones);
   const now = Date.now();
   const overview = useMemo(() => buildTerritoryOverview(zones, now), [zones, now]);
+  const city = useMemo(() => buildCityDistricts(zones, now), [zones, now]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const selected = overview.cells.find((c) => c.zone.id === selectedId) ?? null;
@@ -229,6 +231,30 @@ export default function TerritoryMapScreen() {
         ) : null}
 
         <FadeSlideIn delay={STAGGER_MS * 6}>
+          <ScalePress
+            to={0.98}
+            style={styles.collectionsCta}
+            onPress={() => {
+              tapFeedback();
+              router.push("/city-districts");
+            }}
+          >
+            <View style={[styles.collectionsIcon, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <Ionicons name="business-outline" size={18} color={palette.baseBlue} />
+            </View>
+            <View style={styles.collectionsBody}>
+              <Text style={styles.collectionsName}>City Districts</Text>
+              <Text style={styles.collectionsNote}>
+                {city.hasZones
+                  ? `${city.controlledDistricts}/${city.activeDistricts} controlled · local city preview`
+                  : "Group your zones into a local city preview"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
+
+        <FadeSlideIn delay={STAGGER_MS * 7}>
           <ScalePress
             to={0.98}
             style={styles.collectionsCta}
