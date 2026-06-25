@@ -23,6 +23,7 @@ import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { buildCityDistricts } from "@/lib/cityDistricts";
 import { buildRivalGhosts } from "@/lib/rivalGhosts";
+import { buildCityWarBoard } from "@/lib/cityWarBoard";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -98,6 +99,15 @@ export default function ProfileScreen() {
   });
   const city = buildCityDistricts(zones);
   const rivals = buildRivalGhosts(zones);
+  const cityWar = buildCityWarBoard({
+    zones,
+    city,
+    rivals,
+    objectives: seasonObjectives,
+    recap,
+    clubName: selectedClub?.name ?? null,
+    streak,
+  });
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
   const myRanked = selectedClub
@@ -279,6 +289,32 @@ export default function ProfileScreen() {
                   {rivals.hasPressure
                     ? `${rivals.highPressure} high-pressure · fictional rivals · no real users`
                     : "Fictional rivals · local preview · no real users"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* City War Board — fictional local season battle (read-only) */}
+        {zones.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 4}>
+            <ScalePress
+              to={0.98}
+              style={styles.statusCard}
+              onPress={() => {
+                tapFeedback();
+                router.navigate("/city-war");
+              }}
+            >
+              <View style={styles.statusIcon}>
+                <Ionicons name="flag-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.statusText}>
+                <Text style={styles.statusName}>City War Board</Text>
+                <Text style={styles.statusNote}>
+                  {cityWar.playerSideLabel} {cityWar.playerScore} · Ghost Crews{" "}
+                  {cityWar.rivalPressureScore} · {cityWar.balanceLabel}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />

@@ -214,6 +214,28 @@ export default function SeasonObjectivesScreen() {
           </FadeSlideIn>
         ))}
 
+        {overview.hasActivity ? (
+          <FadeSlideIn delay={STAGGER_MS * 9}>
+            <ScalePress
+              to={0.98}
+              style={styles.warCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/city-war");
+              }}
+            >
+              <View style={styles.warCtaIcon}>
+                <Ionicons name="flag-outline" size={18} color={palette.deedViolet} />
+              </View>
+              <View style={styles.warCtaBody}>
+                <Text style={styles.warCtaName}>City War Board</Text>
+                <Text style={styles.warCtaNote}>See your fictional season battle</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         <Text style={styles.footerNote}>
           Objectives are local previews. They do not affect rewards, ownership, or
           on-chain status.
@@ -397,6 +419,27 @@ const styles = StyleSheet.create({
   cardDesc: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.textDim },
   ctaBtn: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
   ctaText: { ...type.caption, fontSize: 12.5, fontWeight: "700" },
+
+  warCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  warCtaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  warCtaBody: { flex: 1, gap: 1 },
+  warCtaName: { ...type.heading, fontSize: 14.5 },
+  warCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
 
   footerNote: {
     ...type.mono,
