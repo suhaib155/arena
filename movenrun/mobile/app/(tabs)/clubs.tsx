@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Hexagon } from "@/components/Hexagon";
@@ -96,6 +97,7 @@ function ChooseClub() {
 /* ───────────────────────── selected-club home ──────────────────────── */
 
 function ClubHome({ club }: { club: Club }) {
+  const router = useRouter();
   const selectClub = useGameStore((s) => s.selectClub);
   const zones = useGameStore((s) => s.zones);
   const timesDefended = useGameStore((s) => s.timesDefended);
@@ -166,8 +168,29 @@ function ClubHome({ club }: { club: Club }) {
         </View>
       </FadeSlideIn>
 
-      {/* Leaderboard */}
+      {/* Club Territory dashboard — local command layer */}
       <FadeSlideIn delay={STAGGER_MS * 2}>
+        <ScalePress
+          to={0.98}
+          style={styles.territoryCta}
+          onPress={() => {
+            tapFeedback();
+            router.push("/club-territory");
+          }}
+        >
+          <View style={styles.territoryCtaIcon}>
+            <Ionicons name="map-outline" size={18} color={palette.deedViolet} />
+          </View>
+          <View style={styles.territoryCtaBody}>
+            <Text style={styles.territoryCtaName}>Club Territory</Text>
+            <Text style={styles.territoryCtaNote}>Your local club command layer · preview</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+        </ScalePress>
+      </FadeSlideIn>
+
+      {/* Leaderboard */}
+      <FadeSlideIn delay={STAGGER_MS * 3}>
         <Text style={styles.sectionTitle}>City leaderboard</Text>
       </FadeSlideIn>
       <View style={styles.board}>
@@ -316,6 +339,26 @@ function LeaderboardRow({ entry }: { entry: RankedClub }) {
 
 const styles = StyleSheet.create({
   content: { paddingTop: spacing.sm, paddingBottom: 110, gap: spacing.lg },
+  territoryCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  territoryCtaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  territoryCtaBody: { flex: 1, gap: 1 },
+  territoryCtaName: { ...type.heading, fontSize: 14.5 },
+  territoryCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   header: { paddingTop: spacing.md, gap: 2 },
   greeting: { ...type.kicker, color: colors.primary },
   title: { ...type.display, fontSize: 26 },

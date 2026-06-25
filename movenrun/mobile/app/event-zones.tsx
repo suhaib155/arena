@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
+import { ScalePress } from "@/components/ScalePress";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
@@ -211,6 +212,28 @@ export default function EventZonesScreen() {
           </View>
         </FadeSlideIn>
 
+        {overview.hasZones ? (
+          <FadeSlideIn delay={STAGGER_MS * 3}>
+            <ScalePress
+              to={0.98}
+              style={styles.clubCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/club-territory");
+              }}
+            >
+              <View style={styles.clubCtaIcon}>
+                <Ionicons name="map-outline" size={18} color={palette.deedViolet} />
+              </View>
+              <View style={styles.clubCtaBody}>
+                <Text style={styles.clubCtaName}>Club Rally</Text>
+                <Text style={styles.clubCtaNote}>Open your local club command layer</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         <Text style={styles.footerNote}>
           Event Zones are fictional local previews. They are not live events,
           rewards, ads, paid placements, or real sponsorships.
@@ -367,6 +390,27 @@ const styles = StyleSheet.create({
   eventRec: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.textDim },
   ctaBtn: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
   ctaText: { ...type.caption, fontSize: 12.5, fontWeight: "700" },
+
+  clubCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  clubCtaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clubCtaBody: { flex: 1, gap: 1 },
+  clubCtaName: { ...type.heading, fontSize: 14.5 },
+  clubCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
 
   footerNote: {
     ...type.mono,
