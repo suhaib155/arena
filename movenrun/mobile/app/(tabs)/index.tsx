@@ -20,6 +20,8 @@ import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { buildQuestline } from "@/lib/onboardingQuestline";
 import { buildTerritoryAlerts } from "@/lib/territoryAlerts";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
+import { buildSeasonObjectives } from "@/lib/seasonObjectives";
+import { buildCollections } from "@/lib/zoneCollections";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -77,6 +79,33 @@ export default function TodayScreen() {
     zones,
     streak,
     clubName: selectedClub?.name ?? null,
+  });
+  const seasonAtRisk = zones.filter((z) => zoneStatus(z).health !== "yours").length;
+  const seasonObjectives = buildSeasonObjectives({
+    routesThisWeek: weeklyRecap.routes,
+    savedRoutes: routeTrustHistory.length,
+    hasStrongTrust: routeTrustHistory.some((r) => r.trustLabel === "Strong"),
+    zonesOwned: zones.length,
+    atRiskOrWorse: seasonAtRisk,
+    timesDefended,
+    fortifyCount: zones.reduce((s, z) => s + (z.fortifyCount ?? 0), 0),
+    hasClub: selectedClubId != null,
+    streak,
+    viewedPassport: viewedRoutePassport,
+    viewedProof: viewedRouteProof,
+    weeklyActive: weeklyRecap.hasActivity,
+    collectionsUnlocked: buildCollections({
+      savedRoutes: routeTrustHistory.length,
+      cleanRoutes: routeTrustHistory.filter((r) => r.riskFlags.length === 0).length,
+      hasStrongTrust: routeTrustHistory.some((r) => r.trustLabel === "Strong"),
+      zonesCaptured: zones.length,
+      atRiskOrWorse: seasonAtRisk,
+      timesDefended,
+      fortifyCount: zones.reduce((s, z) => s + (z.fortifyCount ?? 0), 0),
+      hasClub: selectedClubId != null,
+      viewedPassport: viewedRoutePassport,
+      viewedProof: viewedRouteProof,
+    }).unlocked,
   });
   /* Defend reminders: surface the most urgent zone (decay is computed on
      read, so this is deterministic with no background work). */
@@ -279,6 +308,36 @@ export default function TodayScreen() {
             </ScalePress>
           </FadeSlideIn>
         ) : null}
+
+        {/* Season objectives — compact weekly goals */}
+        <FadeSlideIn delay={STAGGER_MS}>
+          <ScalePress
+            to={0.98}
+            style={styles.objectivesChip}
+            onPress={() => {
+              tapFeedback();
+              router.push("/season-objectives");
+            }}
+          >
+            <View style={styles.objectivesChipIcon}>
+              <Ionicons name="ribbon-outline" size={16} color={colors.primary} />
+            </View>
+            <View style={styles.objectivesChipBody}>
+              <View style={styles.objectivesChipTitleRow}>
+                <Text style={styles.objectivesChipName}>Season Objectives</Text>
+                <Text style={styles.objectivesChipCount}>
+                  {seasonObjectives.completed}/{seasonObjectives.total}
+                </Text>
+              </View>
+              <Text style={styles.objectivesChipSub} numberOfLines={1}>
+                {seasonObjectives.nextObjective
+                  ? `Next · ${seasonObjectives.nextObjective.title}`
+                  : "All objectives complete this season"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
 
         {/* Weekly recap — local reflection, only once there's something to show */}
         {weeklyRecap.hasActivity ? (
@@ -553,6 +612,28 @@ const styles = StyleSheet.create({
   recapChipBody: { flex: 1, gap: 1 },
   recapChipName: { ...type.heading, fontSize: 14 },
   recapChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  objectivesChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  objectivesChipIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  objectivesChipBody: { flex: 1, gap: 1 },
+  objectivesChipTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  objectivesChipName: { ...type.heading, fontSize: 14 },
+  objectivesChipCount: { ...type.mono, fontSize: 12, color: colors.textDim },
+  objectivesChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   mapChip: {
     flexDirection: "row",
     alignItems: "center",

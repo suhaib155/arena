@@ -6,6 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
+import { ScalePress } from "@/components/ScalePress";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
@@ -244,8 +245,29 @@ export default function WeeklyRecapScreen() {
           </FadeSlideIn>
         )}
 
+        {/* Season objectives — link into the weekly goals */}
+        <FadeSlideIn delay={STAGGER_MS * 6}>
+          <ScalePress
+            to={0.98}
+            style={styles.objectivesCta}
+            onPress={() => {
+              tapFeedback();
+              router.push("/season-objectives");
+            }}
+          >
+            <View style={styles.objectivesCtaIcon}>
+              <Ionicons name="ribbon-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.objectivesCtaBody}>
+              <Text style={styles.objectivesCtaName}>Season Objectives</Text>
+              <Text style={styles.objectivesCtaNote}>Local goals for your territory week</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
+
         {recap.hasActivity ? (
-          <FadeSlideIn delay={STAGGER_MS * 6}>
+          <FadeSlideIn delay={STAGGER_MS * 7}>
             <View style={styles.shareWrap}>
               <Button label="Share recap" icon="share-outline" onPress={onShare} />
             </View>
@@ -413,6 +435,27 @@ const styles = StyleSheet.create({
   emptyTitle: { ...type.heading, fontSize: 16, textAlign: "center", marginTop: spacing.xs },
   emptyText: { ...type.caption, fontSize: 13, lineHeight: 18, color: colors.textDim, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },
+
+  objectivesCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  objectivesCtaIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  objectivesCtaBody: { flex: 1, gap: 2 },
+  objectivesCtaName: { ...type.heading, fontSize: 15 },
+  objectivesCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
 
   shareWrap: { gap: spacing.sm },
 

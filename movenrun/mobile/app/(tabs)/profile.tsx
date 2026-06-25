@@ -20,6 +20,7 @@ import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { computePassport } from "@/lib/routePassport";
 import { buildCollections } from "@/lib/zoneCollections";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
+import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -77,6 +78,21 @@ export default function ProfileScreen() {
     zones,
     streak,
     clubName: selectedClub?.name ?? null,
+  });
+  const seasonObjectives = buildSeasonObjectives({
+    routesThisWeek: recap.routes,
+    savedRoutes: routeTrustHistory.length,
+    hasStrongTrust: routeTrustHistory.some((r) => r.trustLabel === "Strong"),
+    zonesOwned: zones.length,
+    atRiskOrWorse: atRiskCount,
+    timesDefended,
+    fortifyCount: zones.reduce((s, z) => s + (z.fortifyCount ?? 0), 0),
+    hasClub: selectedClubId != null,
+    streak,
+    viewedPassport: viewedRoutePassport,
+    viewedProof: viewedRouteProof,
+    weeklyActive: recap.hasActivity,
+    collectionsUnlocked: collections.unlocked,
   });
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
@@ -231,6 +247,32 @@ export default function ProfileScreen() {
               <Text style={styles.statusName}>Zone Collections</Text>
               <Text style={styles.statusNote}>
                 {collections.unlocked}/{collections.total} local badges · preview only
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
+
+        {/* Season Objectives — local weekly goals (read-only) */}
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <ScalePress
+            to={0.98}
+            style={styles.statusCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/season-objectives");
+            }}
+          >
+            <View style={styles.statusIcon}>
+              <Ionicons name="ribbon-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={styles.statusName}>Season Objectives</Text>
+              <Text style={styles.statusNote}>
+                {seasonObjectives.completed}/{seasonObjectives.total} complete ·{" "}
+                {seasonObjectives.nextObjective
+                  ? `next · ${seasonObjectives.nextObjective.title}`
+                  : "all done · local preview"}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
