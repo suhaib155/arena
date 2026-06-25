@@ -262,6 +262,28 @@ export default function CityDistrictsScreen() {
           </FadeSlideIn>
         ) : null}
 
+        {overview.hasZones ? (
+          <FadeSlideIn delay={STAGGER_MS * 3}>
+            <ScalePress
+              to={0.98}
+              style={styles.rivalCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/event-zones");
+              }}
+            >
+              <View style={[styles.rivalCtaIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+                <Ionicons name="sparkles-outline" size={18} color={palette.deedViolet} />
+              </View>
+              <View style={styles.rivalCtaBody}>
+                <Text style={styles.rivalCtaName}>Event Preview</Text>
+                <Text style={styles.rivalCtaNote}>Fictional future city activity · no live events</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         <Text style={styles.footerNote}>
           Districts are local previews generated from safe zone ids. They are not
           real neighborhoods, maps, rewards, or on-chain ownership.

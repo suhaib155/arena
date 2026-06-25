@@ -83,6 +83,7 @@ function RootNavigator() {
         <Stack.Screen name="rivals" />
         <Stack.Screen name="city-war" />
         <Stack.Screen name="sponsor-zones" />
+        <Stack.Screen name="event-zones" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="result"
