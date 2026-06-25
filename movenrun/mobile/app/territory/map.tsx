@@ -13,6 +13,7 @@ import { useGameStore } from "@/store/useGameStore";
 import { HEALTH_LABEL } from "@/lib/territory";
 import { buildTerritoryOverview, MAP_COLUMNS, type MapCell } from "@/lib/territoryMap";
 import { buildCityDistricts } from "@/lib/cityDistricts";
+import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import { tapFeedback } from "@/lib/haptics";
 
 function lastDefendedText(iso: string, now: number): string {
@@ -40,6 +41,7 @@ export default function TerritoryMapScreen() {
   const now = Date.now();
   const overview = useMemo(() => buildTerritoryOverview(zones, now), [zones, now]);
   const city = useMemo(() => buildCityDistricts(zones, now), [zones, now]);
+  const rivals = useMemo(() => buildRivalGhosts(zones, now), [zones, now]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const selected = overview.cells.find((c) => c.zone.id === selectedId) ?? null;
@@ -254,7 +256,33 @@ export default function TerritoryMapScreen() {
           </ScalePress>
         </FadeSlideIn>
 
-        <FadeSlideIn delay={STAGGER_MS * 7}>
+        {overview.total > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 7}>
+            <ScalePress
+              to={0.98}
+              style={styles.collectionsCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/rivals");
+              }}
+            >
+              <View style={[styles.collectionsIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+                <Ionicons name="color-wand-outline" size={18} color={palette.deedViolet} />
+              </View>
+              <View style={styles.collectionsBody}>
+                <Text style={styles.collectionsName}>Rival Ghosts</Text>
+                <Text style={styles.collectionsNote}>
+                  {rivals.hasPressure
+                    ? `${rivals.highPressure > 0 ? `${rivals.highPressure} high-pressure · ` : ""}fictional rivals circling`
+                    : "Fictional pressure preview · no real users"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        <FadeSlideIn delay={STAGGER_MS * 8}>
           <ScalePress
             to={0.98}
             style={styles.collectionsCta}

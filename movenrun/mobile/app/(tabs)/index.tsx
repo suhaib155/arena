@@ -22,6 +22,7 @@ import { buildTerritoryAlerts } from "@/lib/territoryAlerts";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { buildCityDistricts } from "@/lib/cityDistricts";
+import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import { buildCollections } from "@/lib/zoneCollections";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
@@ -82,6 +83,7 @@ export default function TodayScreen() {
     clubName: selectedClub?.name ?? null,
   });
   const cityDistricts = buildCityDistricts(zones);
+  const rivals = buildRivalGhosts(zones);
   const seasonAtRisk = zones.filter((z) => zoneStatus(z).health !== "yours").length;
   const seasonObjectives = buildSeasonObjectives({
     routesThisWeek: weeklyRecap.routes,
@@ -393,6 +395,32 @@ export default function TodayScreen() {
           </FadeSlideIn>
         ) : null}
 
+        {/* Rival ghosts — only when there's real (medium/high) pressure */}
+        {rivals.hasPressure ? (
+          <FadeSlideIn delay={STAGGER_MS}>
+            <ScalePress
+              to={0.98}
+              style={styles.rivalChip}
+              onPress={() => {
+                tapFeedback();
+                router.push("/rivals");
+              }}
+            >
+              <View style={styles.rivalChipIcon}>
+                <Ionicons name="color-wand-outline" size={16} color={palette.deedViolet} />
+              </View>
+              <View style={styles.rivalChipBody}>
+                <Text style={styles.rivalChipName}>Rival Ghosts</Text>
+                <Text style={styles.rivalChipSub} numberOfLines={1}>
+                  {rivals.highPressure > 0 ? `${rivals.highPressure} high-pressure · ` : ""}
+                  {rivals.topResponse?.name ?? "fictional rivals"} circling
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         {dailyCompletedToday ? (
           <View style={styles.doneBanner}>
             <Ionicons name="checkmark-circle" size={18} color={palette.pulseGreen} />
@@ -682,6 +710,26 @@ const styles = StyleSheet.create({
   cityChipBody: { flex: 1, gap: 1 },
   cityChipName: { ...type.heading, fontSize: 14 },
   cityChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  rivalChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  rivalChipIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rivalChipBody: { flex: 1, gap: 1 },
+  rivalChipName: { ...type.heading, fontSize: 14 },
+  rivalChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   mapChip: {
     flexDirection: "row",
     alignItems: "center",

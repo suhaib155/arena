@@ -80,6 +80,7 @@ function RootNavigator() {
         <Stack.Screen name="weekly-recap" />
         <Stack.Screen name="season-objectives" />
         <Stack.Screen name="city-districts" />
+        <Stack.Screen name="rivals" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
         <Stack.Screen
           name="result"
