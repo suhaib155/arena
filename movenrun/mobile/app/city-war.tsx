@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
+import { ScalePress } from "@/components/ScalePress";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
@@ -266,6 +267,26 @@ export default function CityWarScreen() {
                 <Stat value={`${board.streak}`} label="day streak" tint={palette.heatCoral} />
               </View>
             </FadeSlideIn>
+
+            <FadeSlideIn delay={STAGGER_MS * 5}>
+              <ScalePress
+                to={0.98}
+                style={styles.sponsorCta}
+                onPress={() => {
+                  tapFeedback();
+                  router.push("/sponsor-zones");
+                }}
+              >
+                <View style={styles.sponsorCtaIcon}>
+                  <Ionicons name="storefront-outline" size={18} color={palette.deedViolet} />
+                </View>
+                <View style={styles.sponsorCtaBody}>
+                  <Text style={styles.sponsorCtaName}>Sponsor Zones</Text>
+                  <Text style={styles.sponsorCtaNote}>Preview the future local revenue layer</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </ScalePress>
+            </FadeSlideIn>
           </>
         )}
 
@@ -442,6 +463,27 @@ const styles = StyleSheet.create({
   statValue: { ...type.title, fontSize: 19, fontVariant: ["tabular-nums"] },
   statLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
   momentumDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.surfaceAlt },
+
+  sponsorCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  sponsorCtaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sponsorCtaBody: { flex: 1, gap: 1 },
+  sponsorCtaName: { ...type.heading, fontSize: 14.5 },
+  sponsorCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
 
   footerNote: {
     ...type.mono,
