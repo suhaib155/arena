@@ -25,6 +25,7 @@ import { buildCityDistricts } from "@/lib/cityDistricts";
 import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import { buildCityWarBoard } from "@/lib/cityWarBoard";
 import { buildSponsorZones } from "@/lib/sponsorZones";
+import { buildEventZones } from "@/lib/eventZones";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -115,6 +116,15 @@ export default function ProfileScreen() {
     momentum: recap.momentum,
     objectivesProgress: seasonObjectives.progressPct,
     weeklyActive: recap.hasActivity,
+  });
+  const events = buildEventZones({
+    hasZones: zones.length > 0,
+    city,
+    rivals,
+    sponsors,
+    momentum: recap.momentum,
+    objectivesProgress: seasonObjectives.progressPct,
+    streak,
   });
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
@@ -349,6 +359,32 @@ export default function ProfileScreen() {
                 <Text style={styles.statusNote}>
                   {sponsors.previewSlots} preview slot{sponsors.previewSlots === 1 ? "" : "s"} ·{" "}
                   fictional · no ads
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* Event Zones — fictional future city activity (read-only) */}
+        {zones.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 4}>
+            <ScalePress
+              to={0.98}
+              style={styles.statusCard}
+              onPress={() => {
+                tapFeedback();
+                router.navigate("/event-zones");
+              }}
+            >
+              <View style={styles.statusIcon}>
+                <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.statusText}>
+                <Text style={styles.statusName}>Event Zones</Text>
+                <Text style={styles.statusNote}>
+                  {events.previewEvents} preview event{events.previewEvents === 1 ? "" : "s"} ·{" "}
+                  fictional · no live events
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />

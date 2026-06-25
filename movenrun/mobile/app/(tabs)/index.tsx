@@ -26,6 +26,7 @@ import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import { buildCollections } from "@/lib/zoneCollections";
 import { buildCityWarBoard } from "@/lib/cityWarBoard";
 import { buildSponsorZones } from "@/lib/sponsorZones";
+import { buildEventZones } from "@/lib/eventZones";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -128,6 +129,15 @@ export default function TodayScreen() {
     momentum: weeklyRecap.momentum,
     objectivesProgress: seasonObjectives.progressPct,
     weeklyActive: weeklyRecap.hasActivity,
+  });
+  const events = buildEventZones({
+    hasZones: zones.length > 0,
+    city: cityDistricts,
+    rivals,
+    sponsors,
+    momentum: weeklyRecap.momentum,
+    objectivesProgress: seasonObjectives.progressPct,
+    streak,
   });
   /* Defend reminders: surface the most urgent zone (decay is computed on
      read, so this is deterministic with no background work). */
@@ -490,6 +500,31 @@ export default function TodayScreen() {
           </FadeSlideIn>
         ) : null}
 
+        {/* Event zones — only once an event is active-preview (kept rare) */}
+        {events.activePreviewCount > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS}>
+            <ScalePress
+              to={0.98}
+              style={styles.eventChip}
+              onPress={() => {
+                tapFeedback();
+                router.push("/event-zones");
+              }}
+            >
+              <View style={styles.eventChipIcon}>
+                <Ionicons name="sparkles-outline" size={16} color={palette.deedViolet} />
+              </View>
+              <View style={styles.eventChipBody}>
+                <Text style={styles.eventChipName}>Event Zones</Text>
+                <Text style={styles.eventChipSub} numberOfLines={1}>
+                  {events.activePreviewCount} active preview · fictional · no live events
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         {dailyCompletedToday ? (
           <View style={styles.doneBanner}>
             <Ionicons name="checkmark-circle" size={18} color={palette.pulseGreen} />
@@ -839,6 +874,26 @@ const styles = StyleSheet.create({
   sponsorChipBody: { flex: 1, gap: 1 },
   sponsorChipName: { ...type.heading, fontSize: 14 },
   sponsorChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  eventChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  eventChipIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eventChipBody: { flex: 1, gap: 1 },
+  eventChipName: { ...type.heading, fontSize: 14 },
+  eventChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   mapChip: {
     flexDirection: "row",
     alignItems: "center",
