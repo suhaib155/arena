@@ -214,8 +214,8 @@ function DistrictCard({
       to={0.96}
       style={[
         styles.card,
-        locked ? styles.cardLocked : null,
-        selected ? styles.cardSelected : null,
+        ...(locked ? [styles.cardLocked] : []),
+        ...(selected ? [styles.cardSelected] : []),
       ]}
       onPress={onPress}
     >
