@@ -189,6 +189,27 @@ function ClubHome({ club }: { club: Club }) {
         </ScalePress>
       </FadeSlideIn>
 
+      {/* Crew Missions — local weekly goals */}
+      <FadeSlideIn delay={STAGGER_MS * 2}>
+        <ScalePress
+          to={0.98}
+          style={styles.territoryCta}
+          onPress={() => {
+            tapFeedback();
+            router.push("/crew-missions");
+          }}
+        >
+          <View style={styles.territoryCtaIcon}>
+            <Ionicons name="rocket-outline" size={18} color={palette.deedViolet} />
+          </View>
+          <View style={styles.territoryCtaBody}>
+            <Text style={styles.territoryCtaName}>Crew Missions</Text>
+            <Text style={styles.territoryCtaNote}>Local weekly goals for your crew · preview</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+        </ScalePress>
+      </FadeSlideIn>
+
       {/* Leaderboard */}
       <FadeSlideIn delay={STAGGER_MS * 3}>
         <Text style={styles.sectionTitle}>City leaderboard</Text>

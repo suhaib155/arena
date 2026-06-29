@@ -27,6 +27,7 @@ import { buildCityWarBoard } from "@/lib/cityWarBoard";
 import { buildSponsorZones } from "@/lib/sponsorZones";
 import { buildEventZones } from "@/lib/eventZones";
 import { buildClubTerritory } from "@/lib/clubTerritory";
+import { buildCrewMissions } from "@/lib/crewMissions";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -144,6 +145,22 @@ export default function ProfileScreen() {
     objectivesProgress: seasonObjectives.progressPct,
     streak,
     avgTrust: recap.averageTrustScore ?? 0,
+  });
+  const crewMissions = buildCrewMissions({
+    clubName: selectedClub?.name ?? null,
+    hasZones: zones.length > 0,
+    zonesOwned: zones.length,
+    atRiskOrWorse: atRiskCount,
+    city,
+    rivals,
+    war: cityWar,
+    club: clubTerritory,
+    sponsors,
+    events,
+    objectives: seasonObjectives,
+    savedRoutes: routeTrustHistory.length,
+    hasStrongTrust: routeTrustHistory.some((r) => r.trustLabel === "Strong"),
+    weekLabel: recap.rangeLabel,
   });
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
@@ -378,6 +395,31 @@ export default function ProfileScreen() {
                 <Text style={styles.statusNote}>
                   {sponsors.previewSlots} preview slot{sponsors.previewSlots === 1 ? "" : "s"} ·{" "}
                   fictional · no ads
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* Crew Missions — local weekly goals (read-only) */}
+        {zones.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 4}>
+            <ScalePress
+              to={0.98}
+              style={styles.statusCard}
+              onPress={() => {
+                tapFeedback();
+                router.navigate("/crew-missions");
+              }}
+            >
+              <View style={styles.statusIcon}>
+                <Ionicons name="rocket-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.statusText}>
+                <Text style={styles.statusName}>Crew Missions</Text>
+                <Text style={styles.statusNote}>
+                  {crewMissions.ready} ready · {crewMissions.inProgress} in progress · local preview
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />

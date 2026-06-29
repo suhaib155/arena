@@ -327,6 +327,26 @@ export default function CityWarScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
               </ScalePress>
             </FadeSlideIn>
+
+            <FadeSlideIn delay={STAGGER_MS * 8}>
+              <ScalePress
+                to={0.98}
+                style={styles.sponsorCta}
+                onPress={() => {
+                  tapFeedback();
+                  router.push("/crew-missions");
+                }}
+              >
+                <View style={styles.sponsorCtaIcon}>
+                  <Ionicons name="rocket-outline" size={18} color={palette.deedViolet} />
+                </View>
+                <View style={styles.sponsorCtaBody}>
+                  <Text style={styles.sponsorCtaName}>Crew Missions</Text>
+                  <Text style={styles.sponsorCtaNote}>Local weekly goals for your crew</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </ScalePress>
+            </FadeSlideIn>
           </>
         )}
 
