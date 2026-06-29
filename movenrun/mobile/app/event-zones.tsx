@@ -234,6 +234,28 @@ export default function EventZonesScreen() {
           </FadeSlideIn>
         ) : null}
 
+        {overview.hasZones ? (
+          <FadeSlideIn delay={STAGGER_MS * 4}>
+            <ScalePress
+              to={0.98}
+              style={styles.clubCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/crew-missions");
+              }}
+            >
+              <View style={styles.clubCtaIcon}>
+                <Ionicons name="rocket-outline" size={18} color={palette.deedViolet} />
+              </View>
+              <View style={styles.clubCtaBody}>
+                <Text style={styles.clubCtaName}>Crew Missions</Text>
+                <Text style={styles.clubCtaNote}>Local weekly goals for your crew</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         <Text style={styles.footerNote}>
           Event Zones are fictional local previews. They are not live events,
           rewards, ads, paid placements, or real sponsorships.

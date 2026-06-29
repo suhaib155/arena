@@ -236,6 +236,28 @@ export default function SeasonObjectivesScreen() {
           </FadeSlideIn>
         ) : null}
 
+        {overview.hasActivity ? (
+          <FadeSlideIn delay={STAGGER_MS * 10}>
+            <ScalePress
+              to={0.98}
+              style={styles.warCta}
+              onPress={() => {
+                tapFeedback();
+                router.push("/crew-missions");
+              }}
+            >
+              <View style={styles.warCtaIcon}>
+                <Ionicons name="rocket-outline" size={18} color={palette.deedViolet} />
+              </View>
+              <View style={styles.warCtaBody}>
+                <Text style={styles.warCtaName}>Crew Missions</Text>
+                <Text style={styles.warCtaNote}>Local weekly goals for your crew</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
         <Text style={styles.footerNote}>
           Objectives are local previews. They do not affect rewards, ownership, or
           on-chain status.

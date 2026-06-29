@@ -319,6 +319,26 @@ export default function ClubTerritoryScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
               </ScalePress>
             </FadeSlideIn>
+
+            <FadeSlideIn delay={STAGGER_MS * 6}>
+              <ScalePress
+                to={0.98}
+                style={styles.activationCard}
+                onPress={() => {
+                  tapFeedback();
+                  router.push("/crew-missions");
+                }}
+              >
+                <View style={styles.activationIcon}>
+                  <Ionicons name="rocket-outline" size={18} color={palette.deedViolet} />
+                </View>
+                <View style={styles.activationBody}>
+                  <Text style={styles.activationName}>Crew Missions</Text>
+                  <Text style={styles.activationNote}>Local weekly goals for your crew</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </ScalePress>
+            </FadeSlideIn>
           </>
         )}
 
