@@ -307,6 +307,26 @@ export default function CityWarScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
               </ScalePress>
             </FadeSlideIn>
+
+            <FadeSlideIn delay={STAGGER_MS * 7}>
+              <ScalePress
+                to={0.98}
+                style={styles.sponsorCta}
+                onPress={() => {
+                  tapFeedback();
+                  router.push("/club-territory");
+                }}
+              >
+                <View style={styles.sponsorCtaIcon}>
+                  <Ionicons name="map-outline" size={18} color={palette.deedViolet} />
+                </View>
+                <View style={styles.sponsorCtaBody}>
+                  <Text style={styles.sponsorCtaName}>Club Territory</Text>
+                  <Text style={styles.sponsorCtaNote}>Your local club command layer</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </ScalePress>
+            </FadeSlideIn>
           </>
         )}
 
