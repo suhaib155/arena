@@ -307,6 +307,26 @@ export default function CrewMissionsScreen() {
                 ))}
               </View>
             </FadeSlideIn>
+
+            <FadeSlideIn delay={STAGGER_MS * 5}>
+              <ScalePress
+                to={0.98}
+                style={styles.masterCta}
+                onPress={() => {
+                  tapFeedback();
+                  router.push("/district-mastery");
+                }}
+              >
+                <View style={styles.masterCtaIcon}>
+                  <Ionicons name="ribbon-outline" size={18} color={palette.deedViolet} />
+                </View>
+                <View style={styles.masterCtaBody}>
+                  <Text style={styles.masterCtaName}>Master Districts</Text>
+                  <Text style={styles.masterCtaNote}>Long-term local district progress</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </ScalePress>
+            </FadeSlideIn>
           </>
         )}
 
@@ -483,6 +503,27 @@ const styles = StyleSheet.create({
   linksTitle: { ...type.kicker, color: colors.textFaint, marginBottom: spacing.xs },
   linkRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
   linkText: { ...type.caption, fontSize: 13, color: colors.text, flex: 1, fontWeight: "600" },
+
+  masterCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  masterCtaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  masterCtaBody: { flex: 1, gap: 1 },
+  masterCtaName: { ...type.heading, fontSize: 14.5 },
+  masterCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
 
   footerNote: {
     ...type.mono,
