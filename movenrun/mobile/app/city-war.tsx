@@ -347,6 +347,26 @@ export default function CityWarScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
               </ScalePress>
             </FadeSlideIn>
+
+            <FadeSlideIn delay={STAGGER_MS * 9}>
+              <ScalePress
+                to={0.98}
+                style={styles.sponsorCta}
+                onPress={() => {
+                  tapFeedback();
+                  router.push("/district-mastery");
+                }}
+              >
+                <View style={styles.sponsorCtaIcon}>
+                  <Ionicons name="ribbon-outline" size={18} color={palette.deedViolet} />
+                </View>
+                <View style={styles.sponsorCtaBody}>
+                  <Text style={styles.sponsorCtaName}>District Mastery</Text>
+                  <Text style={styles.sponsorCtaNote}>Long-term local district progress</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </ScalePress>
+            </FadeSlideIn>
           </>
         )}
 
