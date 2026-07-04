@@ -17,6 +17,16 @@ python3 -m http.server 8080   # or any static server
 
 Opening `index.html` directly from disk also works.
 
+## Deploying to Vercel
+
+Static export, `vercel.json` in this folder sets the build to a no-op. Project settings:
+
+- **Root Directory:** `movenrun/website`
+- **Framework Preset:** Other
+- **Install Command:** (empty)
+- **Build Command:** (empty)
+- **Output Directory:** `.`
+
 ## Structure
 
 - `index.html` — all eleven scroll scenes (hero, globe-to-city descent, core
