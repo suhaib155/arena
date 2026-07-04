@@ -1,0 +1,8 @@
+{
+  "installCommand": "corepack enable && YARN_NODE_LINKER=node-modules corepack yarn@4.9.1 install --no-immutable",
+  "buildCommand": "corepack yarn@4.9.1 workspace @movenrun/mobile expo export -p web",
+  "outputDirectory": "mobile/dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
