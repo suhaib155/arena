@@ -28,6 +28,7 @@ import { buildSponsorZones } from "@/lib/sponsorZones";
 import { buildEventZones } from "@/lib/eventZones";
 import { buildClubTerritory } from "@/lib/clubTerritory";
 import { buildCrewMissions } from "@/lib/crewMissions";
+import { buildDistrictMastery } from "@/lib/districtMastery";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -161,6 +162,18 @@ export default function ProfileScreen() {
     savedRoutes: routeTrustHistory.length,
     hasStrongTrust: routeTrustHistory.some((r) => r.trustLabel === "Strong"),
     weekLabel: recap.rangeLabel,
+  });
+  const districtMastery = buildDistrictMastery({
+    hasZones: zones.length > 0,
+    city,
+    war: cityWar,
+    clubPresence: clubTerritory.territoryScore,
+    momentum: recap.momentum,
+    streak,
+    objectivesProgress: seasonObjectives.progressPct,
+    missionsComplete: crewMissions.completePreview,
+    missionsTotal: crewMissions.total,
+    avgTrust: recap.averageTrustScore ?? 0,
   });
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
@@ -395,6 +408,31 @@ export default function ProfileScreen() {
                 <Text style={styles.statusNote}>
                   {sponsors.previewSlots} preview slot{sponsors.previewSlots === 1 ? "" : "s"} ·{" "}
                   fictional · no ads
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </ScalePress>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* District Mastery — long-term local progress (read-only) */}
+        {zones.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 4}>
+            <ScalePress
+              to={0.98}
+              style={styles.statusCard}
+              onPress={() => {
+                tapFeedback();
+                router.navigate("/district-mastery");
+              }}
+            >
+              <View style={styles.statusIcon}>
+                <Ionicons name="ribbon-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.statusText}>
+                <Text style={styles.statusName}>District Mastery</Text>
+                <Text style={styles.statusNote}>
+                  {districtMastery.mastered} signature · {districtMastery.fortified} fortified · no ownership
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
