@@ -192,3 +192,34 @@ Sepolia contracts:
 > no liquid rewards / real token emissions / earning claims ship before Phase 1
 > density and reliable GPS verification. This PR reconciles artifacts; it does
 > **not** enable any economy in the app.
+
+### Oracle signature tuple alignment (fixed)
+
+`backend/src/services/oracle.service.ts` previously signed tuples that did **not**
+match what the current contract source and Base Sepolia deployment verify (the
+contracts already carry the correct `FIX-001` tuples). The backend signers now
+mirror each contract exactly — the contract source is the source of truth:
+
+| Signer | Contract check (source of truth) | Encoding |
+|---|---|---|
+| `signRouteProof` | `GPSOracle.submitRoute` → `keccak256(abi.encodePacked(chainId, to, routeHash, distanceMeters, hexId))` | packed |
+| `signZoneMint` | `ZoneNFT.mintZone` → `keccak256(abi.encodePacked(chainId, hexId, msg.sender, mintCost))` | packed |
+| `signChallengeDeclaration` | `ZoneChallenge.declareChallenge` → `keccak256(abi.encodePacked(chainId, hexId, zoneNFT.zoneOwner(hexId), defenderBaseScore))` | packed |
+| `signScore` | `ZoneChallenge.submitScore` → `keccak256(abi.encodePacked(chainId, hexId, msg.sender, score))` | packed |
+| `signGreatBurn` | `SeasonController.greatBurn` → `keccak256(abi.encode(chainId, seasonNumber, topHexIds, yields))` | **non-packed** `abi.encode` |
+
+- **`chainId` is now bound into every signature** (Base Sepolia `84532`, from the
+  zod-validated `CHAIN_ID` config; overridable in tests) — replay protection and
+  `usedRoutes` on-chain are unchanged.
+- `hexId` is now a **required** parameter on route proofs; `gps.worker.ts` signs
+  the primary (first) captured hex (`0` = not in any zone). Multi-zone settlement
+  is a follow-up.
+- The challenge-declaration path is **guarded**: the signer refuses a zero/invalid
+  defender or zero base score, and `POST /battles/declare` returns `501` until the
+  real on-chain zone owner + validated defender score are wired.
+- **No contract was redeployed and the Base Sepolia deployment artifacts
+  (`contracts/deployments/baseSepolia.json`) are unchanged.** Route persistence,
+  wallet auth, rate limiting, and anti-cheat remain separate follow-up gates.
+- Tuple alignment is proven by `backend/src/services/oracle.service.test.ts`
+  (reconstructs each contract digest and recovers the oracle signer; negative
+  tests cover the old tuple and a wrong chainId/hexId).

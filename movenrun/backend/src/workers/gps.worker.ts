@@ -3,7 +3,7 @@ import IORedis from "ioredis";
 import { getConfig } from "../config.js";
 import { GpsService } from "../services/gps.service.js";
 import { HexService } from "../services/hex.service.js";
-import { OracleService } from "../services/oracle.service.js";
+import { OracleService, toHexIdUint64 } from "../services/oracle.service.js";
 import { GPSRoute, RouteStatus } from "@movenrun/shared";
 
 const config = getConfig();
@@ -59,8 +59,20 @@ const worker = new Worker<GpsJob>(
     // 4. Build route hash
     const routeHash = gpsService.buildRouteHash(route);
 
-    // 5. Get oracle signature
-    const oracleSig = await oracleService.signRouteProof(walletAddress, routeHash, distanceMeters);
+    // 5. Get oracle signature (FIX: sign the exact GPSOracle.submitRoute tuple —
+    //    chainId + to + routeHash + distanceMeters + hexId).
+    //    A route may touch several hexes; we sign the PRIMARY (first) captured hex
+    //    as the settlement zone, or 0 when the route is in no zone. Contract
+    //    hexId is a uint64 (0 = not in any zone).
+    //    TODO(multi-zone): multi-hex route settlement (one signature per touched
+    //    zone) is a follow-up — see PR "persist route lifecycle and server-side dedup".
+    const primaryHexId = hexIds.length > 0 ? toHexIdUint64(hexIds[0]) : 0n;
+    const oracleSig = await oracleService.signRouteProof(
+      walletAddress,
+      routeHash,
+      distanceMeters,
+      primaryHexId
+    );
 
     // TODO: persist to DB, emit event for mobile to poll
 
