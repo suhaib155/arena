@@ -1,13 +1,20 @@
 import { Router } from "express";
 import { z } from "zod";
-import { OracleService } from "../services/oracle.service.js";
-import { HexService } from "../services/hex.service.js";
 
 const router = Router();
-const oracleService = new OracleService();
-const hexService = new HexService();
 
-// POST /battles/declare — get oracle sig for challenge declaration
+// POST /battles/declare — get oracle sig for challenge declaration.
+//
+// GUARDED — not production-ready. ZoneChallenge.declareChallenge verifies the
+// oracle signature over (chainId, hexId, zoneNFT.zoneOwner(hexId),
+// defenderBaseScore). The oracle must therefore sign the REAL on-chain zone
+// owner and a validated 30-day defender score. Today the backend only has stub
+// values (`getHexActivity().topMover` is a zero address — not the zone owner —
+// and `getDefenderScore()` returns 0), so signing here would emit an
+// invalid/insecure declaration. The signer (`OracleService.signChallengeDeclaration`)
+// now refuses zero/invalid inputs; wiring the real on-chain zone owner + a
+// validated defender score is a follow-up (see PR description). Until then we
+// return 501 rather than produce a bad signature.
 router.post("/declare", async (req, res) => {
   const schema = z.object({
     hexId: z.string(),
@@ -17,23 +24,12 @@ router.post("/declare", async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
-  const { hexId, challengerAddress } = parsed.data;
-
-  try {
-    const activity = await hexService.getHexActivity(hexId);
-    // Fetch defender's 30-day score for the oracle sig
-    const defenderBaseScore = await hexService.getDefenderScore(hexId);
-    const sig = await oracleService.signChallengeDeclaration(hexId, activity.topMover, defenderBaseScore);
-
-    return res.json({
-      hexId,
-      defender: activity.topMover,
-      defenderBaseScore: defenderBaseScore.toString(),
-      oracleSig: sig,
-    });
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to build challenge declaration" });
-  }
+  return res.status(501).json({
+    error: "challenge_declaration_not_wired",
+    message:
+      "Challenge declaration requires the on-chain zone owner and a validated defender base score, which are not yet available server-side. See follow-up PRs.",
+    hexId: parsed.data.hexId,
+  });
 });
 
 // GET /battles/:hexId — active battle info

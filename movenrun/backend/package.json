@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test src/blockchain/*.test.ts",
+    "test": "node --import tsx --test src/blockchain/*.test.ts src/services/*.test.ts",
     "worker:gps": "tsx src/workers/gps.worker.ts",
     "worker:keeper": "tsx src/workers/keeper.worker.ts",
     "db:migrate": "drizzle-kit migrate",
