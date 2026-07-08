@@ -1,20 +1,36 @@
 import { pgTable, text, integer, bigint, boolean, timestamp, real, index, unique } from "drizzle-orm/pg-core";
+import type { PersistedRouteStatus } from "../repositories/route.repository.js";
 
+// Route lifecycle persistence (see backend/src/repositories/route.repository.ts).
+// `status` mirrors @movenrun/shared's RouteStatus string values (SUBMITTED →
+// PROCESSING → REJECTED | VERIFIED) without importing the enum directly, so this
+// module and its callers stay resolvable independent of the shared package build
+// step — see docs/CONTRACTS_AUDIT.md "Backend typecheck scope" note.
 export const routes = pgTable("routes", {
   id: text("id").primaryKey(),
   walletAddress: text("wallet_address").notNull(),
-  status: text("status").notNull().default("PENDING"),
+  status: text("status").$type<PersistedRouteStatus>().notNull().default("SUBMITTED"),
   distanceMeters: integer("distance_meters"),
   routeHash: text("route_hash"),
+  // Primary captured H3 hex for this route (string form; "0" = not in any zone).
+  // Null until the worker computes it.
+  hexId: text("hex_id"),
+  // Anomaly-check confidence (0..1) from GpsService.validateRoute, when available.
+  confidence: real("confidence"),
   oracleSig: text("oracle_sig"),
   startTime: bigint("start_time", { mode: "number" }).notNull(),
   endTime: bigint("end_time", { mode: "number" }).notNull(),
   earnedAmount: text("earned_amount"),
   rejectionReasons: text("rejection_reasons").array(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => ({
   walletIdx: index("routes_wallet_idx").on(t.walletAddress),
   statusIdx: index("routes_status_idx").on(t.status),
+  // Postgres UNIQUE constraints treat NULLs as distinct, so rows with no
+  // routeHash yet (freshly submitted, not yet processed) never collide — this
+  // is the DB-level backstop for the application-level dedup check.
+  routeHashUnique: unique("routes_route_hash_unique").on(t.routeHash),
 }));
 
 export const hexActivities = pgTable("hex_activities", {

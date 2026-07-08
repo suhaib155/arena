@@ -223,3 +223,68 @@ mirror each contract exactly — the contract source is the source of truth:
 - Tuple alignment is proven by `backend/src/services/oracle.service.test.ts`
   (reconstructs each contract digest and recovers the oracle signer; negative
   tests cover the old tuple and a wrong chainId/hexId).
+
+### Route lifecycle persistence + server-side dedup (added)
+
+The GPS route pipeline previously lived entirely inside BullMQ job memory — a
+submitted route's status, hash, distance, and oracle signature were lost the
+moment the job finished, and `GET /gps/verify/:id` was a hardcoded `PENDING`
+stub. This PR persists the route lifecycle to the existing `routes` table
+(`backend/src/db/schema.ts`, first defined but never wired up) and adds
+server-side dedup **before** signing:
+
+- **Lifecycle statuses** (mirroring `@movenrun/shared`'s `RouteStatus` string
+  values without importing the enum — see "Backend typecheck scope" below):
+  `SUBMITTED` → `PROCESSING` → `REJECTED` | `VERIFIED`. A route is `VERIFIED`
+  only once it has a `routeHash`, `distanceMeters`, `hexId`, and `oracleSig`
+  together — there is no separate "signed" status because a route that passes
+  validation and dedup is always signed in the same step.
+- **`POST /gps/submit`** persists a `SUBMITTED` record (wallet, start/end time)
+  *before* enqueueing the BullMQ job, so the route id is resolvable immediately.
+- The worker marks `PROCESSING`, runs the existing anomaly check, computes
+  distance/hexes/routeHash, then runs **two dedup checks before ever calling the
+  oracle signer**:
+  1. **Exact `routeHash` dedup** — any other route (any wallet, any status)
+     already carrying the same `routeHash` blocks signing. The `routes` table
+     also gets a DB-level `UNIQUE` constraint on `route_hash` as a backstop
+     (Postgres treats multiple `NULL`s as non-colliding, so unprocessed routes
+     never conflict).
+  2. **Per-wallet time-overlap dedup** — a new submission whose
+     `[startTime,endTime]` window overlaps an already-`VERIFIED` route from the
+     *same wallet* is rejected, using only the `startTime`/`endTime` scalars
+     already in the schema (no raw GPS added to enable this).
+  - Any validation failure, duplicate, or unexpected worker error persists
+    `REJECTED` + a human-readable reason — a route is never left stuck in
+    `PROCESSING`, and the oracle signer is never invoked on a failed or
+    duplicate route (see `backend/src/services/route.service.test.ts`).
+- **`GET /gps/verify/:id`** now reads the persisted record and returns
+  `status`, `routeHash`, `distanceMeters`, `hexId`, `rejectionReasons`, and
+  timestamps; `oracleSig` is surfaced only once `status === "VERIFIED"`; unknown
+  ids return `404`. **No raw GPS points, coordinates, or path are ever
+  persisted or returned** — only safe scalar lifecycle metadata, consistent with
+  the rest of this backend (route proofs, route review history, etc.).
+- On-chain `usedRoutes` / replay protection are unchanged; this dedup is a
+  server-side belt-and-suspenders layer, not a replacement for it.
+
+**Backend typecheck scope.** The new persistence modules
+(`repositories/route.repository.ts`, `services/route.service.ts`,
+`db/client.ts`) deliberately import nothing from `@movenrun/shared` or from any
+file that does, so they are *not* affected by the pre-existing shared-package
+build gap noted above — but `backend/tsconfig.json`'s `include` is still scoped
+to `src/blockchain/**` only, so these files are not yet covered by
+`tsc --noEmit`. Correctness here is proven at runtime by
+`route.service.test.ts` and `route.repository.test.ts` (in-memory repository,
+no live DB). Broadening typecheck coverage is tracked as its own follow-up
+(`chore(backend): expand typecheck coverage beyond blockchain clients`) so it
+isn't mixed into a persistence-focused PR.
+
+**Remaining follow-up gates** (unchanged from the oracle-alignment PR, plus one
+new item):
+- Wallet auth / SIWE on write endpoints.
+- Rate limiting, `helmet`, and a CORS allowlist.
+- Expanded anti-cheat beyond the existing anomaly check + this PR's minimal
+  dedup.
+- Real challenge-declaration eligibility (on-chain zone owner lookup) and a
+  validated defender score — `POST /battles/declare` still returns `501`.
+- Broader backend `tsc` coverage beyond `src/blockchain/**`, once the
+  shared-package build step is addressed.
