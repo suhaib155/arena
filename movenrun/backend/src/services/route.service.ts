@@ -12,7 +12,11 @@
  * `OracleService` in as adapter closures.
  */
 import { toHexIdUint64 } from "./oracle.service.js";
-import type { PersistedRouteStatus, RouteRepository } from "../repositories/route.repository.js";
+import {
+  RouteHashConflictError,
+  type PersistedRouteStatus,
+  type RouteRepository,
+} from "../repositories/route.repository.js";
 
 export interface RouteJobPoint {
   lat: number;
@@ -99,9 +103,11 @@ export async function processRouteJob(
   const dupHash = await deps.repository.findByRouteHash(routeHash, routeId);
   if (dupHash) {
     const rejectionReasons = [`Duplicate route hash — already submitted as route ${dupHash.id}`];
+    // Deliberately do NOT persist `routeHash` on this rejected record: it is,
+    // by definition, already held by `dupHash`, and routeHash is
+    // DB-uniqueness-constrained — writing it here would always conflict.
     await deps.repository.update(routeId, {
       status: "REJECTED",
-      routeHash,
       distanceMeters,
       confidence: anomaly.confidence,
       rejectionReasons,
@@ -142,15 +148,36 @@ export async function processRouteJob(
     toHexIdUint64(primaryHexId)
   );
 
-  await deps.repository.update(routeId, {
-    status: "VERIFIED",
-    routeHash,
-    distanceMeters,
-    hexId: primaryHexId,
-    oracleSig,
-    confidence: anomaly.confidence,
-    rejectionReasons: null,
-  });
+  try {
+    await deps.repository.update(routeId, {
+      status: "VERIFIED",
+      routeHash,
+      distanceMeters,
+      hexId: primaryHexId,
+      oracleSig,
+      confidence: anomaly.confidence,
+      rejectionReasons: null,
+    });
+  } catch (err) {
+    // Race-condition backstop: a concurrent submission of the same route can
+    // win between the synchronous dedup check above and this write. The
+    // already-computed signature is discarded and never persisted or
+    // returned as VERIFIED — the route fails closed as a deterministic
+    // duplicate rather than surfacing as a generic worker error.
+    if (err instanceof RouteHashConflictError) {
+      const rejectionReasons = [
+        "Duplicate route hash detected during finalization (concurrent submission)",
+      ];
+      await deps.repository.update(routeId, {
+        status: "REJECTED",
+        distanceMeters,
+        confidence: anomaly.confidence,
+        rejectionReasons,
+      });
+      return { status: "REJECTED", rejectionReasons, routeHash, distanceMeters };
+    }
+    throw err;
+  }
 
   return { status: "VERIFIED", routeHash, distanceMeters, hexId: primaryHexId, oracleSig };
 }

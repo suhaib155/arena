@@ -17,7 +17,14 @@ import {
   type RouteJobInput,
 } from "./route.service.js";
 import { OracleService } from "./oracle.service.js";
-import { InMemoryRouteRepository } from "../repositories/route.repository.js";
+import {
+  InMemoryRouteRepository,
+  RouteHashConflictError,
+  type CreateRouteInput,
+  type RouteRecord,
+  type RouteRepository,
+  type UpdateRoutePatch,
+} from "../repositories/route.repository.js";
 
 const TEST_PK = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 const oracle = new OracleService({ privateKey: TEST_PK, chainId: 84532n });
@@ -255,6 +262,89 @@ test("worker never signs a duplicate even if validation would otherwise pass", a
     })
   );
   assert.equal(signCallCount, 0);
+});
+
+/**
+ * Simulates the race condition documented in route.service.ts step 5: two
+ * concurrent submissions of the same route can both pass the synchronous
+ * findByRouteHash check before either writes. This wraps a real
+ * InMemoryRouteRepository and makes exactly one `update()` call throw
+ * RouteHashConflictError — as the DB would for the losing writer — so the
+ * test doesn't need a live Postgres to exercise the backstop.
+ */
+class ConflictOnceRepository implements RouteRepository {
+  private thrown = false;
+  constructor(private readonly inner: RouteRepository, private readonly shouldConflict: (patch: UpdateRoutePatch) => boolean) {}
+  create(input: CreateRouteInput) {
+    return this.inner.create(input);
+  }
+  findById(id: string) {
+    return this.inner.findById(id);
+  }
+  findByRouteHash(routeHash: string, excludeId: string) {
+    return this.inner.findByRouteHash(routeHash, excludeId);
+  }
+  findOverlappingVerified(walletAddress: string, startTime: number, endTime: number, excludeId: string) {
+    return this.inner.findOverlappingVerified(walletAddress, startTime, endTime, excludeId);
+  }
+  update(id: string, patch: UpdateRoutePatch): Promise<RouteRecord | null> {
+    if (!this.thrown && this.shouldConflict(patch)) {
+      this.thrown = true;
+      return Promise.reject(new RouteHashConflictError());
+    }
+    return this.inner.update(id, patch);
+  }
+}
+
+test("a routeHash conflict raised during finalization is a deterministic REJECTED, not a generic failure", async () => {
+  const repo = new ConflictOnceRepository(
+    new InMemoryRouteRepository(),
+    (patch) => patch.status === "VERIFIED"
+  );
+
+  const input: RouteJobInput = {
+    routeId: "route-race-1",
+    walletAddress: WALLET,
+    points: POINTS,
+    startTime: 7000,
+    endTime: 7500,
+  };
+  await repo.create({
+    id: input.routeId,
+    walletAddress: input.walletAddress,
+    startTime: input.startTime,
+    endTime: input.endTime,
+  });
+
+  let signCallCount = 0;
+  const outcome = await processRouteJob(
+    input,
+    baseDeps({
+      repository: repo,
+      signRouteProof: async (...args) => {
+        signCallCount++;
+        return oracle.signRouteProof(...args);
+      },
+    })
+  );
+
+  assert.equal(outcome.status, "REJECTED");
+  if (outcome.status !== "REJECTED") return;
+  assert.match(outcome.rejectionReasons[0], /Duplicate route hash detected during finalization/);
+  // The race is only detectable after signing has already happened — this
+  // documents that known, narrow window rather than hiding it. The critical
+  // property is what happens NEXT: the signature is discarded, never
+  // persisted or exposed as VERIFIED.
+  assert.equal(signCallCount, 1);
+
+  const persisted = await repo.findById("route-race-1");
+  assert.equal(persisted?.status, "REJECTED");
+  assert.equal(persisted?.oracleSig, null);
+  assert.equal(persisted?.routeHash, null, "the colliding hash must not be persisted on the loser");
+
+  const view = await getRouteView("route-race-1", repo);
+  assert.equal(view?.status, "REJECTED");
+  assert.equal(view?.oracleSig, null);
 });
 
 test("submitRoute persists a SUBMITTED route and enqueues the job", async () => {

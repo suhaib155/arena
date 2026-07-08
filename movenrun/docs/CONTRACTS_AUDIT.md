@@ -266,20 +266,95 @@ server-side dedup **before** signing:
 - On-chain `usedRoutes` / replay protection are unchanged; this dedup is a
   server-side belt-and-suspenders layer, not a replacement for it.
 
+**Initial migration (added).** `backend/drizzle/0000_loose_chat.sql` (+
+`backend/drizzle/meta/`) is the first migration ever generated for this
+schema — no migration existed for *any* table before this PR, not just the new
+`routes` columns. It was generated with `drizzle-kit generate` against the
+committed `backend/drizzle.config.ts` and the exact `backend/src/db/schema.ts`
+in this PR, so it creates all five tables (`battles`, `hex_activities`,
+`routes`, `user_route_hexes`, `zones`) as they currently stand. It includes the
+`routes_route_hash_unique` `UNIQUE` constraint (which Postgres also backs with
+an index), plus btree indexes on `routes.wallet_address`, `routes.status`, and
+a composite `(wallet_address, start_time, end_time)` index supporting the
+overlap-dedup query. Deploy with:
+```
+yarn workspace @movenrun/backend db:migrate
+```
+against a reachable `DATABASE_URL`. *(Tooling note for whoever generates the
+*next* migration: `drizzle-kit@0.22.x` throws `TypeError: Do not know how to
+serialize a BigInt` when diffing a schema with a `bigint` column that has a
+`bigint`-typed `.default()` — pre-existing on `hex_activities`, unrelated to
+this PR. Work around it by temporarily swapping `.default(0n)` for
+`.default(sql\`0\`)` in a scratch copy of schema.ts before running
+`db:generate`, or upgrade `drizzle-kit` first.)*
+
+**Race-condition backstop for the routeHash dedup (tightened).** The
+synchronous `findByRouteHash` check leaves a gap: two concurrent submissions
+of the same route can both pass it before either writes. `routes_route_hash_unique`
+is what actually stops the second write. `DrizzleRouteRepository.update()` now
+catches that Postgres `23505` unique-violation (matched on the specific
+constraint name) and rethrows it as a typed `RouteHashConflictError`
+(`InMemoryRouteRepository` mirrors the same check for tests, with no DB
+involved); `route.service.ts` catches it around the finalize write and
+converts it into a deterministic `REJECTED` with reason "Duplicate route hash
+detected during finalization (concurrent submission)" instead of a generic
+worker error. The oracle signature already computed in that race window is
+discarded and never persisted or exposed as `VERIFIED`. Fixed alongside this:
+the earlier synchronous-duplicate reject path was persisting the *colliding*
+`routeHash` value onto the rejected record's own row — which would have
+violated the same `UNIQUE` constraint on every single duplicate detection, not
+just the race case — so it now leaves that field unset on rejection. Covered
+by `route.repository.drizzle.test.ts` (constraint-violation mapping, via a
+stub `Db`) and `route.service.test.ts` (`ConflictOnceRepository`, an in-memory
+wrapper that fails one `update()` call to simulate the race end-to-end).
+Deliberately not addressed: the same live-database validation, and the
+narrower overlap-dedup write path (step 4) does not get the identical
+try/catch, since it would require two independent races to stack — not worth
+the added complexity for this PR.
+
+**PROCESSING stuck-state on DB failure (documented, partially mitigated).**
+`gps.worker.ts`'s outer catch now wraps its own "mark REJECTED" write in a
+try/catch: if that write also fails, it logs a scalar-only error message
+(never the raw error object, which could carry connection strings or other
+sensitive detail) and re-throws the original error so BullMQ still sees the
+job as failed. Signing itself remains fail-closed in every case — it is
+structurally unreachable without a prior successful persisted dedup check, DB
+outage or not. The one case this does **not** fully close: if the database is
+totally unreachable for the entire duration of a job (both the dedup-check
+persistence *and* the failure-marking write fail), the route can be left
+stuck in `PROCESSING` until the outage clears. Operational cleanup/retry for
+that scenario (e.g. a sweep that re-enqueues or expires stale `PROCESSING`
+rows) is a follow-up, not part of this PR.
+
+**Drizzle repository test coverage.** `route.repository.drizzle.test.ts` unit
+tests `DrizzleRouteRepository`'s one piece of hand-written logic — mapping a
+Postgres unique-violation to `RouteHashConflictError` while leaving unrelated
+errors untouched — using a minimal stub `Db` (no real connection). The
+generated SQL itself (the `and`/`eq`/`gt`/`lt`/`ne` query builders) is
+drizzle-orm's responsibility and is *not* exercised against a live Postgres
+anywhere in this repo's CI, which has no Postgres service and none was added
+here (no Docker/Postgres CI infrastructure exists to build on, and adding it
+is out of scope for a persistence-focused PR). **Live-DB validation of
+`DrizzleRouteRepository` (the actual generated SQL, the migration applying
+cleanly, and the constraint/index names matching what the catch logic checks
+for) must happen before staging/prod deployment** — this is the same
+constraint noted for the migration above.
+
 **Backend typecheck scope.** The new persistence modules
-(`repositories/route.repository.ts`, `services/route.service.ts`,
-`db/client.ts`) deliberately import nothing from `@movenrun/shared` or from any
-file that does, so they are *not* affected by the pre-existing shared-package
-build gap noted above — but `backend/tsconfig.json`'s `include` is still scoped
-to `src/blockchain/**` only, so these files are not yet covered by
-`tsc --noEmit`. Correctness here is proven at runtime by
-`route.service.test.ts` and `route.repository.test.ts` (in-memory repository,
+(`repositories/route.repository.ts`, `repositories/route.repository.drizzle.ts`,
+`services/route.service.ts`, `db/client.ts`) deliberately import nothing from
+`@movenrun/shared` or from any file that does, so they are *not* affected by
+the pre-existing shared-package build gap noted above — but
+`backend/tsconfig.json`'s `include` is still scoped to `src/blockchain/**`
+only, so these files are not yet covered by `tsc --noEmit`. Correctness here
+is proven at runtime by `route.service.test.ts`, `route.repository.test.ts`,
+and `route.repository.drizzle.test.ts` (in-memory repository / stubbed `Db`,
 no live DB). Broadening typecheck coverage is tracked as its own follow-up
 (`chore(backend): expand typecheck coverage beyond blockchain clients`) so it
 isn't mixed into a persistence-focused PR.
 
-**Remaining follow-up gates** (unchanged from the oracle-alignment PR, plus one
-new item):
+**Remaining follow-up gates** (unchanged from the oracle-alignment PR, plus
+this PR's items):
 - Wallet auth / SIWE on write endpoints.
 - Rate limiting, `helmet`, and a CORS allowlist.
 - Expanded anti-cheat beyond the existing anomaly check + this PR's minimal
@@ -288,3 +363,8 @@ new item):
   validated defender score — `POST /battles/declare` still returns `501`.
 - Broader backend `tsc` coverage beyond `src/blockchain/**`, once the
   shared-package build step is addressed.
+- Live-DB validation of `DrizzleRouteRepository` and the generated migration
+  against a real Postgres before staging/prod deployment (not exercised in
+  CI — see above).
+- Operational cleanup/retry for routes left stuck in `PROCESSING` after a
+  total-DB-outage during failure handling (see above).

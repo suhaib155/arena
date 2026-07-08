@@ -27,9 +27,12 @@ export const routes = pgTable("routes", {
 }, (t) => ({
   walletIdx: index("routes_wallet_idx").on(t.walletAddress),
   statusIdx: index("routes_status_idx").on(t.status),
+  // Supports findOverlappingVerified's per-wallet time-window scan.
+  walletTimeIdx: index("routes_wallet_time_idx").on(t.walletAddress, t.startTime, t.endTime),
   // Postgres UNIQUE constraints treat NULLs as distinct, so rows with no
   // routeHash yet (freshly submitted, not yet processed) never collide — this
-  // is the DB-level backstop for the application-level dedup check.
+  // is the DB-level backstop for the application-level dedup check. UNIQUE
+  // also creates the routeHash index itself, so no separate index is needed.
   routeHashUnique: unique("routes_route_hash_unique").on(t.routeHash),
 }));
 

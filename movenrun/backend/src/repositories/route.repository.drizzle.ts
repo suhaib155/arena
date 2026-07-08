@@ -1,12 +1,20 @@
 import { and, eq, gt, lt, ne } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { routes } from "../db/schema.js";
-import type {
-  CreateRouteInput,
-  RouteRecord,
-  RouteRepository,
-  UpdateRoutePatch,
+import {
+  RouteHashConflictError,
+  type CreateRouteInput,
+  type RouteRecord,
+  type RouteRepository,
+  type UpdateRoutePatch,
 } from "./route.repository.js";
+
+/** node-postgres surfaces constraint violations with a SQLSTATE `.code` and a
+ *  `.constraint` name — a narrow structural check, no pg-specific type import needed. */
+function isRouteHashUniqueViolation(err: unknown): boolean {
+  const pgErr = err as { code?: string; constraint?: string };
+  return pgErr?.code === "23505" && pgErr?.constraint === "routes_route_hash_unique";
+}
 
 function toRecord(row: typeof routes.$inferSelect): RouteRecord {
   return {
@@ -50,12 +58,25 @@ export class DrizzleRouteRepository implements RouteRepository {
   }
 
   async update(id: string, patch: UpdateRoutePatch): Promise<RouteRecord | null> {
-    const [row] = await this.db
-      .update(routes)
-      .set({ ...patch, updatedAt: new Date() })
-      .where(eq(routes.id, id))
-      .returning();
-    return row ? toRecord(row) : null;
+    try {
+      const [row] = await this.db
+        .update(routes)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(eq(routes.id, id))
+        .returning();
+      return row ? toRecord(row) : null;
+    } catch (err) {
+      // Race-condition backstop: two concurrent submissions of the same route
+      // can both pass the synchronous findByRouteHash check before either
+      // writes. The DB's routes_route_hash_unique constraint is what actually
+      // stops the second write; surface it as a typed error so
+      // route.service.ts can convert it into a deterministic duplicate
+      // rejection instead of a generic failure.
+      if (isRouteHashUniqueViolation(err)) {
+        throw new RouteHashConflictError();
+      }
+      throw err;
+    }
   }
 
   async findByRouteHash(routeHash: string, excludeId: string): Promise<RouteRecord | null> {

@@ -86,10 +86,24 @@ const worker = new Worker<GpsJob>(
       // sensitive material — log only the message.
       const message = err instanceof Error ? err.message : "Unknown worker error";
       console.error(`[GPS Worker] Route ${routeId} failed:`, message);
-      await routeRepository.update(routeId, {
-        status: "REJECTED",
-        rejectionReasons: [`Worker error: ${message}`],
-      });
+      try {
+        await routeRepository.update(routeId, {
+          status: "REJECTED",
+          rejectionReasons: [`Worker error: ${message}`],
+        });
+      } catch (updateErr) {
+        // Best-effort only: signing already failed closed above (it is
+        // unreachable without a prior successful persisted dedup check), so
+        // this catch only affects how the failure gets recorded. If
+        // persistence itself is unavailable (e.g. a total DB outage), this
+        // route may remain stuck in PROCESSING until the outage clears and
+        // it's retried or cleaned up operationally — see docs/CONTRACTS_AUDIT.md.
+        const updateMessage = updateErr instanceof Error ? updateErr.message : "Unknown error";
+        console.error(
+          `[GPS Worker] Route ${routeId} could not be marked REJECTED (persistence unavailable):`,
+          updateMessage
+        );
+      }
       throw err;
     }
   },

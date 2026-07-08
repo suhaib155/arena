@@ -55,6 +55,23 @@ export interface UpdateRoutePatch {
   rejectionReasons?: string[] | null;
 }
 
+/**
+ * Thrown by `update()` when a patch's `routeHash` collides with another row's
+ * `routeHash` — the `routes_route_hash_unique` DB constraint (or its
+ * in-memory-test equivalent below). This is the race-condition backstop: two
+ * concurrent submissions of the same route can both pass the synchronous
+ * `findByRouteHash` check before either writes, so the losing writer's
+ * `update()` call is the last line of defense. Callers (route.service.ts)
+ * catch this and convert it into a deterministic duplicate rejection instead
+ * of a generic failure.
+ */
+export class RouteHashConflictError extends Error {
+  constructor() {
+    super("routeHash uniqueness conflict");
+    this.name = "RouteHashConflictError";
+  }
+}
+
 export interface RouteRepository {
   create(input: CreateRouteInput): Promise<RouteRecord>;
   findById(id: string): Promise<RouteRecord | null>;
@@ -106,6 +123,15 @@ export class InMemoryRouteRepository implements RouteRepository {
   async update(id: string, patch: UpdateRoutePatch): Promise<RouteRecord | null> {
     const row = this.rows.get(id);
     if (!row) return null;
+    // Mirrors the DB's routes_route_hash_unique constraint so tests can
+    // exercise the race-condition path without a live Postgres.
+    if (patch.routeHash) {
+      for (const other of this.rows.values()) {
+        if (other.id !== id && other.routeHash === patch.routeHash) {
+          throw new RouteHashConflictError();
+        }
+      }
+    }
     const updated: RouteRecord = { ...row, ...patch, updatedAt: new Date() };
     this.rows.set(id, updated);
     return { ...updated };
