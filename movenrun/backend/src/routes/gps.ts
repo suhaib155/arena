@@ -4,9 +4,12 @@ import { gpsQueue } from "../workers/gps.worker.js";
 import { getDb } from "../db/client.js";
 import { DrizzleRouteRepository } from "../repositories/route.repository.drizzle.js";
 import { submitRoute, getRouteView } from "../services/route.service.js";
+import { requireWalletAuth } from "../middleware/auth.js";
+import { createWriteRateLimiter } from "../middleware/rateLimit.js";
 
 const router = Router();
 const routeRepository = new DrizzleRouteRepository(getDb());
+const writeLimiter = createWriteRateLimiter();
 
 const GPSPointSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -25,10 +28,19 @@ const SubmitRouteSchema = z.object({
 
 // POST /gps/submit — persist the route submission, then queue it for verification.
 // See services/route.service.ts (submitRoute) for the persistence + enqueue logic.
-router.post("/submit", async (req, res) => {
+// Wallet-signature auth (see middleware/auth.ts) runs BEFORE this handler body,
+// so an auth failure never reaches parsing, persistence, or enqueueing.
+router.post("/submit", requireWalletAuth(), writeLimiter, async (req, res) => {
   const parsed = SubmitRouteSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid route data", details: parsed.error.issues });
+  }
+
+  // The verified signer (req.movenrunAuth, set by requireWalletAuth) must be
+  // the wallet the route is submitted for — a caller cannot submit a route,
+  // and therefore cannot get it signed/persisted, for someone else's wallet.
+  if (parsed.data.walletAddress.toLowerCase() !== req.movenrunAuth!.address) {
+    return res.status(403).json({ error: "Signer does not match walletAddress" });
   }
 
   const result = await submitRoute(parsed.data, {

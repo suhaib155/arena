@@ -21,6 +21,19 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional(),
 
   H3_RESOLUTION: z.coerce.number().default(8),
+
+  // Wallet-signature auth (see middleware/auth.ts) — how long a signed request
+  // stays valid after its issuedAt timestamp.
+  AUTH_MAX_AGE_SECONDS: z.coerce.number().default(300),
+
+  // CORS allowlist (see middleware/security.ts) — comma-separated origins.
+  // Unset in production is a fail-closed startup error, not a wildcard.
+  CORS_ORIGINS: z.string().optional(),
+
+  // Rate limiting (see middleware/rateLimit.ts).
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
+  RATE_LIMIT_MAX: z.coerce.number().default(300),
+  RATE_LIMIT_WRITE_MAX: z.coerce.number().default(20),
 });
 
 export type Config = z.infer<typeof envSchema>;

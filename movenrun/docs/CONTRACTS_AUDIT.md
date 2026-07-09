@@ -353,12 +353,11 @@ no live DB). Broadening typecheck coverage is tracked as its own follow-up
 (`chore(backend): expand typecheck coverage beyond blockchain clients`) so it
 isn't mixed into a persistence-focused PR.
 
-**Remaining follow-up gates** (unchanged from the oracle-alignment PR, plus
-this PR's items):
-- Wallet auth / SIWE on write endpoints.
-- Rate limiting, `helmet`, and a CORS allowlist.
-- Expanded anti-cheat beyond the existing anomaly check + this PR's minimal
-  dedup.
+**Remaining follow-up gates** (as of the route-persistence PR):
+- ~~Wallet auth / SIWE on write endpoints.~~ Added below (wallet-signature
+  auth, not a full SIWE/session product).
+- ~~Rate limiting, `helmet`, and a CORS allowlist.~~ Added below.
+- Expanded anti-cheat beyond the existing anomaly check + dedup.
 - Real challenge-declaration eligibility (on-chain zone owner lookup) and a
   validated defender score — `POST /battles/declare` still returns `501`.
 - Broader backend `tsc` coverage beyond `src/blockchain/**`, once the
@@ -368,3 +367,128 @@ this PR's items):
   CI — see above).
 - Operational cleanup/retry for routes left stuck in `PROCESSING` after a
   total-DB-outage during failure handling (see above).
+
+### Wallet-signature auth, rate limiting, helmet, and CORS allowlist (added)
+
+Every write endpoint that could act on a specific wallet — get a route
+verified and signed, get a zone-mint signature, or declare a challenge — was
+previously reachable by anyone who could reach the backend, for any wallet
+address they chose to put in the request body. This PR adds wallet-signature
+authentication plus baseline HTTP hardening. **No mobile wallet UX, session
+product, or SIWE library is added** — this is backend middleware only.
+
+**Protected endpoints:** `POST /gps/submit`, `POST /zones/mint`,
+`POST /battles/declare` (still returns `501`, but now only after auth passes —
+protecting it now means no auth regression is possible once real
+eligibility/scoring lands). Read endpoints (`GET /gps/verify/:id`,
+`GET /zones/:hexId`, `GET /users/:address`) remain public — they already
+returned only safe scalar/public data before this PR.
+
+**Auth mechanism (`backend/src/middleware/auth.ts`).** A caller signs a short
+canonical message with their wallet and sends it via four headers:
+
+| Header | Meaning |
+|---|---|
+| `x-movenrun-address` | claimed wallet address (`0x` + 40 hex) |
+| `x-movenrun-signature` | `personal_sign` / `wallet.signMessage(...)` over the message below |
+| `x-movenrun-nonce` | per-request random string (replay protection) |
+| `x-movenrun-issued-at` | ms-since-epoch when the message was signed |
+
+Signed message (newline-joined):
+```
+MovenRun Backend Auth
+Address: <address>
+Method: <HTTP method>
+Path: <request path, no query string>
+BodyHash: <0x-prefixed keccak256 of the raw request body bytes>
+Nonce: <nonce>
+IssuedAt: <issuedAt>
+ChainId: <chain id>
+```
+`requireWalletAuth()` recovers the signer via `ethers.verifyMessage`, checks
+it matches the claimed address, rejects a request whose `issuedAt` is outside
+`AUTH_MAX_AGE_SECONDS` (default 300s) or more than 5s in the future (clock
+skew tolerance), and rejects a replayed nonce. On success it attaches
+`req.movenrunAuth.address` (lowercased) — it does **not** check that the
+verified signer matches any specific body field; that binding is
+route-specific and enforced in each handler (`walletAddress` for
+`/gps/submit` and `/zones/mint`, `challengerAddress` for `/battles/declare`)
+**before** any persistence, enqueueing, or signing happens. Binding the body
+hash into the signed message means a valid signature over one payload can't
+be replayed against a different (or tampered) body or path.
+
+**Nonce replay protection is in-memory and NOT production-grade** — it's a
+single-process `Map`, so it doesn't survive a restart and doesn't work across
+more than one backend instance. A DB-backed `usedAuthNonces` table is the
+correct fix once this runs behind more than one instance; noted as a
+follow-up rather than built here to keep this PR's scope to auth/rate-limit
+infrastructure.
+
+**Rate limiting (`backend/src/middleware/rateLimit.ts`, via
+`express-rate-limit`).** A light app-wide limiter (`RATE_LIMIT_MAX` per
+`RATE_LIMIT_WINDOW_MS`, default 300/60s, keyed by IP) applies to every route.
+A stricter per-route limiter (`RATE_LIMIT_WRITE_MAX`, default 20/60s) applies
+to each write endpoint, mounted *after* `requireWalletAuth()` so it can key on
+IP **and** the verified wallet address when available — an unauthenticated
+flood is already stopped by the app-wide IP limiter before it reaches the
+write limiter. IPv6 addresses are normalized/subnetted via
+`express-rate-limit`'s `ipKeyGenerator` helper so a client can't dodge the
+limit by cycling addresses in the same /56. Exceeding the limit returns a
+safe `429 { "error": "..." }` — no internals.
+
+**Helmet (`backend/src/middleware/security.ts`).** Applied with its default
+option set — no customization was needed. Helmet's defaults (including its
+CSP) only affect browser-rendered HTML/JS and don't interfere with a JSON API.
+
+**CORS allowlist (`backend/src/middleware/security.ts`, via `cors`).**
+`CORS_ORIGINS` is a comma-separated allowlist. In development/test, an unset
+`CORS_ORIGINS` falls back to a small set of common local dev origins
+(`localhost:19006`/`8081`/`3000`). **In production, `CORS_ORIGINS` must be set
+explicitly — an unset value, or a value containing a literal `*`, throws at
+process startup (fail closed)**, rather than silently allowing every origin.
+Requests with no `Origin` header (curl, server-to-server, a mobile app's
+`fetch` outside a WebView) are passed through unconditionally — CORS is a
+browser-enforced mechanism and doesn't apply to them; wallet-signature auth is
+what actually authenticates those callers.
+
+**Config additions:** `AUTH_MAX_AGE_SECONDS` (default 300), `CORS_ORIGINS`
+(required in production), `RATE_LIMIT_WINDOW_MS` (default 60000),
+`RATE_LIMIT_MAX` (default 300), `RATE_LIMIT_WRITE_MAX` (default 20).
+
+**Why auth/rate-limit aren't tested against the real route files.**
+`routes/gps.ts`, `routes/zones.ts`, and `routes/battles.ts` all transitively
+import modules that construct live IORedis connections and call
+`getConfig()` at module load time (`getConfig()` calls `process.exit(1)` on
+invalid/missing env) — the same constraint noted in the route-persistence
+PR that kept `route.service.ts` decoupled from `@movenrun/shared`. So
+`requireWalletAuth`, the rate limiters, and CORS/helmet are unit- and
+integration-tested directly (mock req/res for pure logic; a small standalone
+Express app + a real ephemeral-port HTTP listener + Node's built-in `fetch`
+for HTTP-level behavior — no new test dependency needed), and the
+auth-then-persist ordering guarantee is proven via a handler that mirrors
+`routes/gps.ts`'s `POST /submit` exactly (see
+`middleware/authBindingOrdering.test.ts`) rather than importing the real file.
+The real route files' wiring (`requireWalletAuth()`, the write limiter, and
+the signer-matches-body-field check) was reviewed manually line-by-line
+against this proven behavior.
+
+**Backend typecheck scope unchanged.** `backend/tsconfig.json`'s `include` is
+still `src/blockchain/**` only — the new middleware files aren't covered by
+`tsc --noEmit`, same as the persistence modules added in the previous PR.
+Correctness is proven at runtime by the test suite above. Tracked as the same
+follow-up: `chore(backend): expand typecheck coverage beyond blockchain
+clients`.
+
+**Updated remaining follow-up gates:**
+- Expanded anti-cheat beyond the existing anomaly check + dedup.
+- Device attestation.
+- Real challenge-declaration eligibility (on-chain zone owner lookup) and a
+  validated defender score — `POST /battles/declare` still returns `501`.
+- DB-backed nonce replay protection (`usedAuthNonces`) once this runs behind
+  more than one backend instance — the current in-memory cache is
+  single-process only.
+- Broader backend `tsc` coverage beyond `src/blockchain/**`.
+- Live-DB validation of `DrizzleRouteRepository` and the generated migration
+  against a real Postgres before staging/prod deployment.
+- Mobile wallet connection and client-side signing UX, only once the product
+  flow needs it (no mobile changes in this PR).

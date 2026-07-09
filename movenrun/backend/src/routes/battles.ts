@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
+import { requireWalletAuth } from "../middleware/auth.js";
+import { createWriteRateLimiter } from "../middleware/rateLimit.js";
 
 const router = Router();
+const writeLimiter = createWriteRateLimiter();
 
 // POST /battles/declare — get oracle sig for challenge declaration.
 //
@@ -15,7 +18,10 @@ const router = Router();
 // now refuses zero/invalid inputs; wiring the real on-chain zone owner + a
 // validated defender score is a follow-up (see PR description). Until then we
 // return 501 rather than produce a bad signature.
-router.post("/declare", async (req, res) => {
+// Wallet-signature auth (see middleware/auth.ts) is required even though this
+// endpoint currently returns 501 — protecting it now means no auth
+// regression is possible when real eligibility/scoring lands.
+router.post("/declare", requireWalletAuth(), writeLimiter, async (req, res) => {
   const schema = z.object({
     hexId: z.string(),
     challengerAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
@@ -23,6 +29,10 @@ router.post("/declare", async (req, res) => {
 
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+
+  if (parsed.data.challengerAddress.toLowerCase() !== req.movenrunAuth!.address) {
+    return res.status(403).json({ error: "Signer does not match challengerAddress" });
+  }
 
   return res.status(501).json({
     error: "challenge_declaration_not_wired",
