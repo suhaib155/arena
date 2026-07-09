@@ -62,6 +62,10 @@ test("write rate limiter is stricter than the global limiter and keys on the ver
 
     assert.equal(r1.status, 200);
     assert.equal(r2.status, 429);
+
+    const body = (await r2.json()) as Record<string, unknown>;
+    assert.equal(typeof body.error, "string");
+    assert.deepEqual(Object.keys(body), ["error"], "write limiter's 429 body must be safe JSON with no internals");
   });
 });
 
@@ -85,4 +89,26 @@ test("write rate limiter tracks distinct wallets separately even from the same I
     const r2 = await fetch(`${base}/write`, { method: "POST" });
     assert.equal(r2.status, 200, "a different wallet from the same IP should not be blocked by wallet A's limit");
   });
+});
+
+test("write rate limiter's keyGenerator does not trigger express-rate-limit's IPv6 validation warning", () => {
+  // express-rate-limit synchronously validates options when the limiter is
+  // constructed and logs via console.error (ERR_ERL_KEY_GEN_IPV6) if a custom
+  // keyGenerator looks like it uses req.ip without normalizing IPv6 addresses
+  // via their ipKeyGenerator helper — see
+  // https://express-rate-limit.github.io/ERR_ERL_KEY_GEN_IPV6/. This is a
+  // regression guard: if a future change swaps ipKeyGenerator(req.ip) back
+  // for a bare req.ip, this test fails instead of only a manually-checked
+  // console warning appearing in production logs.
+  const originalError = console.error;
+  const captured: unknown[][] = [];
+  console.error = (...args: unknown[]) => {
+    captured.push(args);
+  };
+  try {
+    createWriteRateLimiter({ RATE_LIMIT_WINDOW_MS: 60_000, RATE_LIMIT_MAX: 300, RATE_LIMIT_WRITE_MAX: 20 });
+  } finally {
+    console.error = originalError;
+  }
+  assert.deepEqual(captured, [], "constructing the write rate limiter must not log any validation warning");
 });

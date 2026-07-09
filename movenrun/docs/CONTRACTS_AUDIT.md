@@ -417,6 +417,40 @@ route-specific and enforced in each handler (`walletAddress` for
 hash into the signed message means a valid signature over one payload can't
 be replayed against a different (or tampered) body or path.
 
+**Body hash — read this before writing a client.** `BodyHash` is
+`keccak256` of the **raw bytes** of the request body the client is about to
+send — **not** a canonical or re-serialized JSON representation. This means:
+- Clients **must** sign a hash of the *exact* bytes they then transmit as the
+  HTTP body. Any re-serialization between "compute the hash" and "send the
+  request" — including simply reordering JSON keys — produces different
+  bytes, a different hash, and therefore a signature that fails to verify.
+- **This is intentional and fail-closed**, not a bug: it avoids any ambiguity
+  about what "canonical JSON" means (key order, number formatting, whitespace)
+  by never re-encoding anything on the server side. The cost is that clients
+  must be careful to hash-then-send the same bytes verbatim, not "the same
+  logical object."
+- The `x-movenrun-*` header **values** (signature, nonce, address, issuedAt)
+  are never themselves part of the hashed body — only the request payload is
+  hashed. The HTTP method and path are bound separately as their own fields
+  in the signed message (see above), not folded into the body hash.
+
+**Path, query string, and trailing slash.** The signed message's `Path`
+never includes the query string — protected write endpoints must therefore
+never rely on query parameters for security-relevant action data, since only
+the body and path are cryptographically bound; put anything security-relevant
+in the JSON body instead. A single trailing slash is normalized away before
+both signing (client-side, via the `buildAuthHeaders` test helper) and
+verifying (server-side, via `normalizePath` in `middleware/auth.ts`), so
+`/gps/submit` and `/gps/submit/` — which Express's default non-strict routing
+already treats as the same route — sign and verify identically.
+
+**Nonce format.** `x-movenrun-nonce` must be a non-empty string of at most 128
+characters from `[A-Za-z0-9_-]`; anything else (empty, oversized, or
+containing other characters) is rejected with `401 {"error": "Invalid nonce"}`
+before the (more expensive) signature-recovery step runs. Nonces are opaque —
+the server never reads meaning from them beyond the format check and the
+seen/unseen replay check below.
+
 **Nonce replay protection is in-memory and NOT production-grade** — it's a
 single-process `Map`, so it doesn't survive a restart and doesn't work across
 more than one backend instance. A DB-backed `usedAuthNonces` table is the
@@ -465,12 +499,16 @@ PR that kept `route.service.ts` decoupled from `@movenrun/shared`. So
 integration-tested directly (mock req/res for pure logic; a small standalone
 Express app + a real ephemeral-port HTTP listener + Node's built-in `fetch`
 for HTTP-level behavior — no new test dependency needed), and the
-auth-then-persist ordering guarantee is proven via a handler that mirrors
-`routes/gps.ts`'s `POST /submit` exactly (see
-`middleware/authBindingOrdering.test.ts`) rather than importing the real file.
-The real route files' wiring (`requireWalletAuth()`, the write limiter, and
-the signer-matches-body-field check) was reviewed manually line-by-line
-against this proven behavior.
+auth-then-persist ordering guarantee is proven for each of the three
+protected endpoints via a handler that mirrors the real route file exactly:
+`middleware/authBindingOrdering.test.ts` mirrors `routes/gps.ts`'s
+`POST /submit`, `middleware/zonesMintAuthBinding.test.ts` mirrors
+`routes/zones.ts`'s `POST /mint` (including the eligibility/top-mover checks,
+with the oracle signer replaced by a spy), and
+`middleware/battlesDeclareAuthBinding.test.ts` mirrors `routes/battles.ts`'s
+`POST /declare` (proving the 501 path is still reached with valid auth and
+that auth/mismatch failures never reach it). The real route files' wiring was
+additionally reviewed manually line-by-line against this proven behavior.
 
 **Backend typecheck scope unchanged.** `backend/tsconfig.json`'s `include` is
 still `src/blockchain/**` only — the new middleware files aren't covered by

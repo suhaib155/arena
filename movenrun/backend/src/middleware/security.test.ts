@@ -99,6 +99,49 @@ test("CORS: a request with no Origin header (non-browser client) is not blocked"
   });
 });
 
+function preflight(port: number, origin: string): Promise<{ status: number; headers: http.IncomingHttpHeaders }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: "127.0.0.1",
+        port,
+        path: "/x",
+        method: "OPTIONS",
+        headers: { Origin: origin, "Access-Control-Request-Method": "GET" },
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers }));
+      }
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+test("CORS preflight: an allowed origin gets Access-Control-Allow-Origin + Allow-Methods on the OPTIONS response", async () => {
+  const app = express();
+  app.use(createCorsMiddleware({ NODE_ENV: "development", CORS_ORIGINS: "https://allowed.example" }));
+  app.get("/x", (_req, res) => res.json({ ok: true }));
+
+  await withTestServer(app, async (port) => {
+    const res = await preflight(port, "https://allowed.example");
+    assert.equal(res.headers["access-control-allow-origin"], "https://allowed.example");
+    assert.ok(res.headers["access-control-allow-methods"], "preflight should advertise allowed methods");
+  });
+});
+
+test("CORS preflight: a disallowed origin gets no Access-Control-Allow-Origin header", async () => {
+  const app = express();
+  app.use(createCorsMiddleware({ NODE_ENV: "development", CORS_ORIGINS: "https://allowed.example" }));
+  app.get("/x", (_req, res) => res.json({ ok: true }));
+
+  await withTestServer(app, async (port) => {
+    const res = await preflight(port, "https://evil.example");
+    assert.equal(res.headers["access-control-allow-origin"], undefined, "disallowed origin must not get an allow header, preflight or not");
+  });
+});
+
 test("helmet: default security headers are present on a basic response", async () => {
   const app = express();
   app.use(createSecurityHeadersMiddleware());

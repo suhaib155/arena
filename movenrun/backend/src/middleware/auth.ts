@@ -29,6 +29,25 @@
  *   Nonce: <nonce>
  *   IssuedAt: <issuedAt, ms since epoch, as a string>
  *   ChainId: <chain id>
+ *
+ * Body hash: this is keccak256 of the RAW BYTES the client is about to send
+ * as the request body — NOT a canonical/re-serialized JSON representation.
+ * Clients MUST sign a hash of the exact bytes they then transmit; reordering
+ * JSON keys (or any other re-serialization) after computing the hash changes
+ * the bytes, changes the hash, and therefore fails signature verification.
+ * This is intentional and fail-closed, not a bug — see hashBody(). The
+ * signature/nonce/address/issuedAt header VALUES are never themselves part
+ * of the hashed body (only the request payload is hashed); the method and
+ * path are bound separately as their own message fields, so a valid
+ * signature for one endpoint can't be replayed against another.
+ *
+ * Path/query handling: the signed message's Path never includes the query
+ * string (see normalizePath/hashBody call sites) — protected write endpoints
+ * must therefore never rely on query parameters for security-relevant action
+ * data, since only the body and path are bound into the signature. A single
+ * trailing slash is normalized away (see `normalizePath`) so "/gps/submit"
+ * and "/gps/submit/" — which Express's default non-strict routing treats as
+ * the same route — sign and verify identically.
  */
 import { ethers } from "ethers";
 import type { NextFunction, Request, Response } from "express";
@@ -86,6 +105,19 @@ interface SignedMessageInput {
   chainId: bigint;
 }
 
+/**
+ * Strips a single trailing slash (except the root path) so a client that
+ * signs "/gps/submit" still verifies against a request that arrives at
+ * "/gps/submit/" — Express's default non-strict routing treats both the
+ * same, so the signed message should too. Query strings are stripped by
+ * callers before this runs; they are never part of the signed message (see
+ * module docs) — protected write endpoints must not rely on query params for
+ * security-relevant action data, since only the body is hashed/bound.
+ */
+function normalizePath(path: string): string {
+  return path.length > 1 ? path.replace(/\/+$/, "") || "/" : path;
+}
+
 function buildSignedMessage(input: SignedMessageInput): string {
   return [
     "MovenRun Backend Auth",
@@ -119,14 +151,20 @@ export interface RequireWalletAuthOptions {
 }
 
 const WALLET_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+/** Nonces are opaque client-generated tokens — no semantic meaning is read
+ *  from them, so a conservative charset/length cap is enough: it bounds
+ *  `seenNonces` key size and rejects garbage before it reaches the (more
+ *  expensive) signature-recovery step. */
+const NONCE_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const CLOCK_SKEW_MS = 5_000;
 
 /**
  * Express middleware factory: verifies a wallet-signed request. Rejects with
- * 401 on any of: missing headers, malformed address, unparsable issuedAt,
- * expired/future-skewed issuedAt, a replayed nonce, or a signature that
- * doesn't recover to the claimed address. On success, attaches
- * `req.movenrunAuth = { address }` (lowercased) and calls `next()`.
+ * 401 on any of: missing headers, malformed address, malformed/oversized
+ * nonce, unparsable issuedAt, expired/future-skewed issuedAt, a replayed
+ * nonce, or a signature that doesn't recover to the claimed address. On
+ * success, attaches `req.movenrunAuth = { address }` (lowercased) and calls
+ * `next()`.
  */
 export function requireWalletAuth(options: RequireWalletAuthOptions = {}) {
   return function walletAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
@@ -141,6 +179,10 @@ export function requireWalletAuth(options: RequireWalletAuthOptions = {}) {
     }
     if (!WALLET_ADDRESS_RE.test(address)) {
       res.status(401).json({ error: "Invalid wallet address" });
+      return;
+    }
+    if (!NONCE_RE.test(nonce)) {
+      res.status(401).json({ error: "Invalid nonce" });
       return;
     }
 
@@ -172,7 +214,7 @@ export function requireWalletAuth(options: RequireWalletAuthOptions = {}) {
     const message = buildSignedMessage({
       address,
       method: req.method,
-      path: (req.originalUrl || req.path).split("?")[0],
+      path: normalizePath((req.originalUrl || req.path).split("?")[0]),
       bodyHash,
       nonce,
       issuedAt,
@@ -228,7 +270,7 @@ export async function buildAuthHeaders(input: BuildAuthHeadersInput): Promise<Re
   const message = buildSignedMessage({
     address,
     method: input.method,
-    path: input.path,
+    path: normalizePath(input.path.split("?")[0]),
     bodyHash,
     nonce,
     issuedAt,

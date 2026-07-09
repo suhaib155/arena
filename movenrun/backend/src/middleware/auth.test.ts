@@ -222,3 +222,57 @@ test("a signature over a different body does not verify (binds the signed messag
   assert.equal(nextCalled, false);
   assert.equal(res.statusCode, 401);
 });
+
+test("a trailing slash on the request path still verifies against a signature for the slash-less path", async () => {
+  _resetNonceCacheForTests();
+  const body = { walletAddress: WALLET.address };
+  // Client signs "/gps/submit"; the request actually arrives at "/gps/submit/"
+  // — Express's default non-strict routing treats these as the same route.
+  const headers = await buildAuthHeaders({ wallet: WALLET, method: "POST", path: "/gps/submit", body, chainId: CHAIN_ID });
+  const { req, res } = mockReqRes(headers, body, { path: "/gps/submit/" });
+
+  const nextCalled = await runMiddleware(req, res);
+
+  assert.equal(nextCalled, true, "trailing-slash normalization should make these verify identically");
+});
+
+test("rejects a nonce longer than the allowed length", async () => {
+  _resetNonceCacheForTests();
+  const body = { walletAddress: WALLET.address };
+  const nonce = "a".repeat(129);
+  const headers = await buildAuthHeaders({ wallet: WALLET, method: "POST", path: "/gps/submit", body, chainId: CHAIN_ID, nonce });
+  const { req, res } = mockReqRes(headers, body);
+
+  const nextCalled = await runMiddleware(req, res);
+
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 401);
+  assert.match((res.body as { error: string }).error, /Invalid nonce/);
+});
+
+test("rejects a nonce with disallowed characters", async () => {
+  _resetNonceCacheForTests();
+  const body = { walletAddress: WALLET.address };
+  const nonce = "not a valid nonce!";
+  const headers = await buildAuthHeaders({ wallet: WALLET, method: "POST", path: "/gps/submit", body, chainId: CHAIN_ID, nonce });
+  const { req, res } = mockReqRes(headers, body);
+
+  const nextCalled = await runMiddleware(req, res);
+
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 401);
+  assert.match((res.body as { error: string }).error, /Invalid nonce/);
+});
+
+test("accepts a nonce at the maximum allowed length using the allowed charset", async () => {
+  _resetNonceCacheForTests();
+  const body = { walletAddress: WALLET.address };
+  const nonce = "Az09_-".repeat(21) + "AB"; // 128 chars, letters/digits/_/- only
+  assert.equal(nonce.length, 128);
+  const headers = await buildAuthHeaders({ wallet: WALLET, method: "POST", path: "/gps/submit", body, chainId: CHAIN_ID, nonce });
+  const { req, res } = mockReqRes(headers, body);
+
+  const nextCalled = await runMiddleware(req, res);
+
+  assert.equal(nextCalled, true);
+});
