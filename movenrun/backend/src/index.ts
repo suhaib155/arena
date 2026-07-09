@@ -4,11 +4,28 @@ import gpsRouter from "./routes/gps.js";
 import zonesRouter from "./routes/zones.js";
 import battlesRouter from "./routes/battles.js";
 import usersRouter from "./routes/users.js";
+import { createCorsMiddleware, createSecurityHeadersMiddleware } from "./middleware/security.js";
+import { createGlobalRateLimiter } from "./middleware/rateLimit.js";
 
 const app = express();
 const config = getConfig();
 
-app.use(express.json({ limit: "2mb" }));
+// Security headers, CORS allowlist, and a light app-wide rate limit apply
+// before anything else — see middleware/security.ts, middleware/rateLimit.ts.
+app.use(createSecurityHeadersMiddleware());
+app.use(createCorsMiddleware());
+app.use(createGlobalRateLimiter());
+
+app.use(
+  express.json({
+    limit: "2mb",
+    // Captures the exact request body bytes so middleware/auth.ts's body
+    // hash binds to what was actually sent, not a re-serialization of it.
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  })
+);
 
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: Date.now() }));
 
