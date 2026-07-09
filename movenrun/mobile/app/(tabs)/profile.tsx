@@ -29,6 +29,7 @@ import { buildEventZones } from "@/lib/eventZones";
 import { buildClubTerritory } from "@/lib/clubTerritory";
 import { buildCrewMissions } from "@/lib/crewMissions";
 import { buildDistrictMastery } from "@/lib/districtMastery";
+import { buildDeedShowroom } from "@/lib/deedPreview";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -174,6 +175,12 @@ export default function ProfileScreen() {
     missionsComplete: crewMissions.completePreview,
     missionsTotal: crewMissions.total,
     avgTrust: recap.averageTrustScore ?? 0,
+  });
+  const deedShowroom = buildDeedShowroom({
+    hasZones: zones.length > 0,
+    zones,
+    districtMastery,
+    passport,
   });
   const level = getLevelInfo(totalXp);
   const lockedMove = lockedMovePreview(totalXp);
@@ -439,6 +446,29 @@ export default function ProfileScreen() {
             </ScalePress>
           </FadeSlideIn>
         ) : null}
+
+        {/* Deed Preview Showroom — local, educational preview of future Zone Deeds */}
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <ScalePress
+            to={0.98}
+            style={styles.statusCard}
+            onPress={() => {
+              tapFeedback();
+              router.navigate("/deed-showroom");
+            }}
+          >
+            <View style={styles.statusIcon}>
+              <Ionicons name="shapes-outline" size={18} color={palette.deedViolet} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={styles.statusName}>Deed Preview Showroom</Text>
+              <Text style={styles.statusNote}>
+                {deedShowroom.readyCount} ready preview{deedShowroom.readyCount === 1 ? "" : "s"} · no wallet · no minting
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
 
         {/* Crew Missions — local weekly goals (read-only) */}
         {zones.length > 0 ? (
