@@ -278,6 +278,19 @@ export default function ZoneDetailScreen() {
           </Pressable>
         </View>
 
+        <Pressable
+          style={styles.deedPreviewCard}
+          onPress={() => {
+            tapFeedback();
+            router.push("/deed-showroom");
+          }}
+        >
+          <Ionicons name="shapes-outline" size={16} color={palette.deedViolet} />
+          <Text style={styles.deedPreviewText}>Future deed preview</Text>
+          <Text style={styles.deedPreviewNote}>Local · no wallet</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
+        </Pressable>
+
         <Text style={styles.safetyNote}>
           This is a local preview zone. It does not represent live ownership or
           on-chain status.
@@ -382,6 +395,18 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   relatedText: { ...type.heading, fontSize: 13.5 },
+  deedPreviewCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    ...shadows.card,
+  },
+  deedPreviewText: { ...type.heading, fontSize: 13, flex: 1 },
+  deedPreviewNote: { ...type.caption, fontSize: 11, color: colors.textFaint },
   safetyNote: {
     ...type.mono,
     fontSize: 10.5,

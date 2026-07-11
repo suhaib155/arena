@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
@@ -286,6 +287,27 @@ export default function DistrictMasteryScreen() {
           </>
         )}
 
+        {/* Deed Preview Showroom — local, educational preview of future Zone Deeds */}
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <ScalePress
+            to={0.98}
+            style={styles.deedCta}
+            onPress={() => {
+              tapFeedback();
+              router.push("/deed-showroom");
+            }}
+          >
+            <View style={styles.deedCtaIcon}>
+              <Ionicons name="shapes-outline" size={18} color={palette.deedViolet} />
+            </View>
+            <View style={styles.deedCtaBody}>
+              <Text style={styles.deedCtaName}>Preview future deeds</Text>
+              <Text style={styles.deedCtaNote}>Local Deed Preview Showroom · no wallet, no minting</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </ScalePress>
+        </FadeSlideIn>
+
         <Text style={styles.footerNote}>
           District Mastery is a local preview. It does not represent ownership,
           rewards, rankings, or on-chain activity.
@@ -484,4 +506,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingTop: spacing.xs,
   },
+
+  deedCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  deedCtaIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deedCtaBody: { flex: 1, gap: 2 },
+  deedCtaName: { ...type.heading, fontSize: 15 },
+  deedCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
 });
