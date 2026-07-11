@@ -9,6 +9,14 @@ This document records what smart-contract work exists, what has been deployed,
 and the safe next step for integrating it into the territory economy. Always
 re-read this before touching `contracts/`.
 
+> **V1 discrepancy characterization (2026-07-11):** the deployed-V1 lifecycle,
+> economic, and governance discrepancies are catalogued — each proven by a
+> passing characterization test — in
+> [`docs/CONTRACT_V1_DISCREPANCIES.md`](./CONTRACT_V1_DISCREPANCIES.md)
+> (tests under `contracts/test/v1-characterization/`). That work is
+> **characterization + documentation only**: no Solidity source, deployment
+> addresses, or deployment records were changed.
+
 ---
 
 ## ✅ Reconciliation summary (this PR)
