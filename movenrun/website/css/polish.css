@@ -24,11 +24,22 @@ section[id] { scroll-margin-top: calc(var(--nav-h) - 24px); }
   padding-left: calc(clamp(18px, 4vw, 48px) + env(safe-area-inset-left, 0px));
   padding-right: calc(clamp(18px, 4vw, 48px) + env(safe-area-inset-right, 0px));
 }
+/* Sticky CTA: docked treatment — full-width soft fade behind a centered
+   pill so scrolling content reads through the scrim instead of colliding
+   with a floating bar. Container ignores pointer events; button doesn't. */
 .mobile-cta {
-  left: calc(16px + env(safe-area-inset-left, 0px));
-  right: calc(16px + env(safe-area-inset-right, 0px));
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  left: 0; right: 0; bottom: 0;
+  padding: 34px calc(16px + env(safe-area-inset-right, 0px))
+           calc(14px + env(safe-area-inset-bottom, 0px))
+           calc(16px + env(safe-area-inset-left, 0px));
+  background: linear-gradient(180deg,
+    rgba(248, 250, 247, 0) 0%,
+    rgba(248, 250, 247, 0.9) 52%,
+    rgba(248, 250, 247, 0.98) 100%);
+  pointer-events: none;
+  transform: translateY(105%);
 }
+.mobile-cta .btn { display: flex; max-width: 480px; margin: 0 auto; pointer-events: auto; }
 
 /* ── Accessibility: skip link + visible keyboard focus ───────── */
 .skip-link {
@@ -56,6 +67,16 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
 
 /* ── Navigation: actions cluster + <details> mobile menu ─────── */
 .nav-actions { display: flex; align-items: center; gap: 10px; }
+
+/* The nav is fixed and transparent; give the brand its own glass pill so
+   the logo/wordmark stays legible over content while scrolling (matches
+   the pill language of the menu button and nav links). */
+.nav-brand {
+  padding: 9px 16px 9px 12px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
 
 .nav-mobile { position: relative; display: none; }
 .nav-mobile summary {
