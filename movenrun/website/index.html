@@ -2,18 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MovenRun — Move. Capture. Own your city.</title>
-<meta name="description" content="MovenRun turns real-world movement into territory. Run, walk, or cycle to capture hex zones, defend your land, and build your city on Base." />
-<meta property="og:title" content="MovenRun — Move. Capture. Own your city." />
-<meta property="og:description" content="A GPS-based move-to-earn territory game on Base. Move → Capture → Defend → Own." />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>MovenRun — Move more. Explore more. Feel better.</title>
+<meta name="description" content="MovenRun turns walking, running, and cycling into a motivating territory experience that supports healthier routines, city discovery, and community play." />
+<meta name="theme-color" content="#F8FAF7" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="MovenRun — Your city becomes your movement playground." />
+<meta property="og:description" content="Build healthier habits, explore your city, capture territory, and progress with friends. Web3 is an optional future layer—not a requirement to play." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/polish.css" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
 </head>
 <body>
+
+<a class="skip-link" href="#main">Skip to content</a>
 
 <!-- ───────────────────────── White splash ───────────────────────── -->
 <div class="splash" id="splash" aria-hidden="true">
@@ -48,17 +53,34 @@
     <span class="brand-word">MovenRun</span>
   </a>
   <nav class="nav-pill" aria-label="Primary">
-    <a href="#loop">Loop</a>
-    <a href="#app">App</a>
-    <a href="#rewards">Rewards</a>
-    <a href="#economy">Economy</a>
-    <a href="#base">Base</a>
+    <a href="#loop">How it works</a>
+    <a href="#app">Experience</a>
+    <a href="#rewards">Wellbeing</a>
+    <a href="#clubs">Community</a>
+    <a href="#base">Web3</a>
     <a href="#roadmap">Roadmap</a>
   </nav>
-  <a class="btn btn-primary btn-nav" href="#join">Join the Beta <span class="btn-arrow">→</span></a>
+  <div class="nav-actions">
+    <a class="btn btn-primary btn-nav" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">Follow the launch <span class="btn-arrow">→</span></a>
+    <details class="nav-mobile" id="navMobile">
+      <summary aria-label="Open navigation menu">
+        <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="burger-word">Menu</span>
+      </summary>
+      <nav class="nav-mobile-panel glass" aria-label="Mobile">
+        <a href="#loop">How it works</a>
+        <a href="#app">Experience</a>
+        <a href="#rewards">Wellbeing</a>
+        <a href="#clubs">Community</a>
+        <a href="#base">Web3</a>
+        <a href="#roadmap">Roadmap</a>
+        <a class="btn btn-primary nav-mobile-cta" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">Follow the launch <span class="btn-arrow">→</span></a>
+      </nav>
+    </details>
+  </div>
 </header>
 
-<main id="top">
+<main id="main" tabindex="-1">
 
 <!-- ═════════════════════ SECTION 1 · CINEMATIC HERO ═════════════════════ -->
 <section class="hero" id="hero">
@@ -81,21 +103,21 @@
   <div class="hero-inner">
     <div class="hero-copy">
       <div class="hero-eyebrow rise r1">
-        <span class="chip chip-live"><span class="dot dot-green"></span>Beta on Base · GPS territory game</span>
+        <span class="chip chip-live"><span class="dot dot-green"></span>Health-first movement game · Web3-ready</span>
       </div>
       <h1 class="hero-h1">
-        <span class="rise r2">Move.&nbsp;Capture.</span>
-        <span class="rise r3 hero-h1-grad">Own your city.</span>
+        <span class="rise r2">Move more.</span>
+        <span class="rise r3 hero-h1-grad">Make your city your playground.</span>
       </h1>
-      <p class="hero-sub rise r4">Run, walk, or cycle to capture hex zones, defend your territory, and own your city on Base.</p>
+      <p class="hero-sub rise r4">MovenRun turns walking, running, and cycling into a motivating territory experience—helping you build healthier routines, discover your city, and progress with friends.</p>
       <div class="hero-ctas rise r5">
-        <a class="btn btn-primary btn-lg" href="#join">Join the Beta <span class="btn-arrow">→</span></a>
-        <a class="btn btn-ghost btn-lg" href="#descent"><span class="play-ring"><span></span></span>Watch the Map Wake Up</a>
+        <a class="btn btn-primary btn-lg" href="#loop">See how it works <span class="btn-arrow">→</span></a>
+        <a class="btn btn-ghost btn-lg" href="#app">Explore the experience</a>
       </div>
       <div class="hero-chips rise r6">
-        <div class="stat-chip"><strong class="num" data-count="4096" data-suffix="">0</strong><span>hex zones seeded</span></div>
-        <div class="stat-chip"><strong class="num" data-count="12" data-suffix="">0</strong><span>launch cities</span></div>
-        <div class="stat-chip"><strong class="num font-mono">res 9</strong><span>H3 grid</span></div>
+        <div class="stat-chip principle"><strong>Walk · Run · Cycle</strong><span>move your way</span></div>
+        <div class="stat-chip principle"><strong>Goals &amp; streaks</strong><span>build consistency</span></div>
+        <div class="stat-chip principle"><strong>Optional Web3</strong><span>never required to play</span></div>
       </div>
     </div>
 
@@ -104,15 +126,15 @@
       <canvas id="heroGlobe" class="hero-globe"></canvas>
       <div class="globe-card globe-card-zone glass float-a">
         <span class="hexicon hexicon-green"></span>
-        <div><strong>Zone captured</strong><span class="font-mono">hex 89-2a1f · Riverside</span></div>
+        <div><strong>New area explored</strong><span>Riverside morning route</span></div>
       </div>
       <div class="globe-card globe-card-xp glass float-b">
         <span class="ring-mini"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15"/><circle class="ring-val" cx="18" cy="18" r="15"/></svg></span>
-        <div><strong>+420 XP</strong><span>morning run</span></div>
+        <div><strong>Daily goal complete</strong><span>healthy momentum</span></div>
       </div>
       <div class="globe-card globe-card-gps glass float-c">
         <span class="dot dot-green pulse"></span>
-        <div><strong>GPS locked</strong><span class="font-mono">40.7128 N · 74.0060 W</span></div>
+        <div><strong>Movement active</strong><span>privacy-minded tracking</span></div>
       </div>
     </div>
   </div>
@@ -163,19 +185,19 @@
 
     <div class="descent-copy">
       <div class="descent-phase" data-phase="0">
-        <p class="kicker">From orbit</p>
-        <h2>One planet.<br/>Millions of zones.</h2>
-        <p class="lede">Every street on Earth sits inside an H3 hex. Pick yours.</p>
+        <p class="kicker">A world made movable</p>
+        <h2>Every neighborhood can<br/>inspire a new route.</h2>
+        <p class="lede">MovenRun reframes everyday movement as exploration, progress, and play.</p>
       </div>
       <div class="descent-phase" data-phase="1">
-        <p class="kicker">Descending</p>
-        <h2>Your city becomes<br/>the game board.</h2>
-        <p class="lede">MovenRun turns streets, parks, and neighborhoods into playable territory.</p>
+        <p class="kicker">Your city, reimagined</p>
+        <h2>Parks, streets, and paths<br/>become part of the experience.</h2>
+        <p class="lede">Choose a walk, run, or ride and watch the map respond as you move.</p>
       </div>
       <div class="descent-phase" data-phase="2">
-        <p class="kicker">Street level</p>
-        <h2>The grid wakes up<br/>where you move.</h2>
-        <p class="lede">Hexes materialize around your GPS position — drawn by your own movement.</p>
+        <p class="kicker">Built around your routine</p>
+        <h2>Small sessions create<br/>visible momentum.</h2>
+        <p class="lede">Return regularly, strengthen your territory, and build habits that last.</p>
       </div>
     </div>
 
@@ -186,12 +208,12 @@
   </div>
 </section>
 
-<!-- ═════════════════════ SECTION 3 · MOVE → CAPTURE → DEFEND → OWN ═════════════════════ -->
+<!-- ═════════════════════ SECTION 3 · MOVE → CAPTURE → RETURN → GROW ═════════════════════ -->
 <section class="loop section" id="loop">
   <div class="section-head reveal">
-    <p class="kicker">The core loop</p>
-    <h2 class="h2">Move <span class="loop-arrow">→</span> Capture <span class="loop-arrow">→</span> Defend <span class="loop-arrow">→</span> Own</h2>
-    <p class="lede">Four moments, one habit. Every session pushes your border a little further.</p>
+    <p class="kicker">A healthier core loop</p>
+    <h2 class="h2">Move <span class="loop-arrow">→</span> Capture <span class="loop-arrow">→</span> Return <span class="loop-arrow">→</span> Grow</h2>
+    <p class="lede">The game rewards consistency, discovery, and shared progress—not extreme performance.</p>
   </div>
 
   <div class="loop-grid">
@@ -213,13 +235,13 @@
       </div>
       <div class="loop-body">
         <span class="loop-num font-mono">01</span>
-        <h3>Move</h3>
-        <p>Your GPS trace becomes a glowing route through the live map.</p>
-        <span class="loop-cta">Start a session <i class="btn-arrow">→</i></span>
+        <h3>Move your way</h3>
+        <p>Walk, run, or cycle at a pace that fits your day and your wellbeing goals.</p>
+        <span class="loop-cta">Every pace counts <i class="btn-arrow">→</i></span>
       </div>
     </article>
 
-    <!-- CAPTURE -->
+    <!-- SEE PROGRESS -->
     <article class="loop-card glass reveal tilt" data-loop="capture">
       <div class="loop-scene scene-capture" aria-hidden="true">
         <svg viewBox="0 0 300 190">
@@ -239,13 +261,13 @@
       </div>
       <div class="loop-body">
         <span class="loop-num font-mono">02</span>
-        <h3>Capture</h3>
-        <p>Close a loop and the hex flips to your color — claimed by your feet.</p>
-        <span class="loop-cta">Claim a hex <i class="btn-arrow">→</i></span>
+        <h3>See progress</h3>
+        <p>Your route brings nearby zones to life, making every outing feel purposeful.</p>
+        <span class="loop-cta">Watch zones light up <i class="btn-arrow">→</i></span>
       </div>
     </article>
 
-    <!-- DEFEND -->
+    <!-- RETURN -->
     <article class="loop-card glass reveal tilt" data-loop="defend">
       <div class="loop-scene scene-defend" aria-hidden="true">
         <svg viewBox="0 0 300 190">
@@ -254,17 +276,17 @@
           <polygon class="def-hex" points="150,52 184,72 184,112 150,132 116,112 116,72"/>
           <polygon class="def-shield" points="150,44 191,68 191,116 150,140 109,116 109,68"/>
         </svg>
-        <div class="scene-chip glass-soft def-meter-chip"><span>Defense</span><span class="meter-track"><i class="def-meter"></i></span></div>
+        <div class="scene-chip glass-soft def-meter-chip"><span>Streak</span><span class="meter-track"><i class="def-meter"></i></span></div>
       </div>
       <div class="loop-body">
         <span class="loop-num font-mono">03</span>
-        <h3>Defend</h3>
-        <p>Re-run your zones to refresh shields before rivals wear them down.</p>
-        <span class="loop-cta">Hold the line <i class="btn-arrow">→</i></span>
+        <h3>Return and strengthen</h3>
+        <p>Revisit favorite routes, maintain streaks, and build a sustainable movement habit.</p>
+        <span class="loop-cta">Keep the habit alive <i class="btn-arrow">→</i></span>
       </div>
     </article>
 
-    <!-- OWN -->
+    <!-- GROW -->
     <article class="loop-card glass reveal tilt" data-loop="own">
       <div class="loop-scene scene-own" aria-hidden="true">
         <svg viewBox="0 0 300 190">
@@ -277,13 +299,13 @@
           </g>
           <rect class="own-shimmer" x="105" y="28" width="90" height="112" rx="12"/>
         </svg>
-        <div class="scene-chip glass-soft own-chip"><span class="dot dot-violet"></span>Zone Deed · Base</div>
+        <div class="scene-chip glass-soft own-chip"><span class="dot dot-violet"></span>Optional ownership</div>
       </div>
       <div class="loop-body">
         <span class="loop-num font-mono">04</span>
-        <h3>Own</h3>
-        <p>Mint Zone Deeds on Base — a durable claim to the deeper layer.</p>
-        <span class="loop-cta">Read the deed <i class="btn-arrow">→</i></span>
+        <h3>Grow into deeper play</h3>
+        <p>Join clubs, build city status, and explore an optional Web3 ownership layer as the product matures.</p>
+        <span class="loop-cta">Only when you choose <i class="btn-arrow">→</i></span>
       </div>
     </article>
   </div>
@@ -298,16 +320,16 @@
       </svg>
     </div>
     <div class="app-copy">
-      <p class="kicker">The app</p>
-      <h2 class="h2">One green button.<br/>A whole city in play.</h2>
-      <p class="lede">Open the map, press <strong>Start Move</strong>, and watch your route claim ground in real time.</p>
+      <p class="kicker">Designed for real life</p>
+      <h2 class="h2">A clear experience<br/>from start to finish.</h2>
+      <p class="lede">Open the map, begin a session, and let MovenRun turn everyday movement into a satisfying record of progress.</p>
       <ul class="app-steps" id="appSteps">
-        <li data-step="0"><span class="step-dot"></span>Home map · your hexes at a glance</li>
-        <li data-step="1"><span class="step-dot"></span>Start a Move session</li>
-        <li data-step="2"><span class="step-dot"></span>Route draws live over the grid</li>
-        <li data-step="3"><span class="step-dot"></span>Route summary &amp; zones touched</li>
-        <li data-step="4"><span class="step-dot"></span>Capture reward moment</li>
-        <li data-step="5"><span class="step-dot"></span>Profile · XP, streaks, territory</li>
+        <li data-step="0"><span class="step-dot"></span>See nearby routes and territory</li>
+        <li data-step="1"><span class="step-dot"></span>Choose walk, run, or cycle</li>
+        <li data-step="2"><span class="step-dot"></span>Follow live movement progress</li>
+        <li data-step="3"><span class="step-dot"></span>Review distance and active time</li>
+        <li data-step="4"><span class="step-dot"></span>Celebrate goals and new zones</li>
+        <li data-step="5"><span class="step-dot"></span>Track streaks, clubs, and growth</li>
       </ul>
     </div>
 
@@ -324,14 +346,14 @@
                 <svg viewBox="0 0 240 300" preserveAspectRatio="xMidYMid slice" class="ps-mapsvg"></svg>
                 <div class="ps-pin"></div>
               </div>
-              <div class="ps-card glass-soft"><div class="ps-row"><span>Your territory</span><strong>14 hexes</strong></div><div class="ps-row dim"><span>Riverside District</span><span class="font-mono">res 9</span></div></div>
-              <button class="ps-start">Start Move</button>
+              <div class="ps-card glass-soft"><div class="ps-row"><span>Your territory</span><strong>14 zones</strong></div><div class="ps-row dim"><span>Riverside District</span><span>3 routes nearby</span></div></div>
+              <button class="ps-start">Start moving</button>
             </div>
 
             <div class="pscreen ps-start">
               <div class="ps-bigring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle class="ringv" cx="60" cy="60" r="52"/></svg><div class="ps-count">GO</div></div>
-              <p class="ps-label">Session starting…</p>
-              <div class="ps-card glass-soft"><div class="ps-row"><span>Mode</span><strong>Run</strong></div><div class="ps-row dim"><span>GPS</span><span class="ok">● Locked</span></div></div>
+              <p class="ps-label">Movement starting…</p>
+              <div class="ps-card glass-soft"><div class="ps-row"><span>Mode</span><strong>Run</strong></div><div class="ps-row dim"><span>Tracking</span><span class="ok">● Ready</span></div></div>
             </div>
 
             <div class="pscreen ps-live">
@@ -348,29 +370,29 @@
             </div>
 
             <div class="pscreen ps-summary">
-              <p class="ps-label">Route summary</p>
+              <p class="ps-label">Movement summary</p>
               <svg viewBox="0 0 200 110" class="ps-minimap"><path class="ps-sumroute" d="M 15 90 C 60 80 55 45 100 40 S 170 25 188 12" fill="none"/></svg>
               <div class="ps-card glass-soft">
                 <div class="ps-row"><span>Distance</span><strong class="font-mono">2.4 km</strong></div>
-                <div class="ps-row"><span>Zones touched</span><strong class="font-mono">6</strong></div>
-                <div class="ps-row"><span>Time</span><strong class="font-mono">18:22</strong></div>
+                <div class="ps-row"><span>Active time</span><strong class="font-mono">18:22</strong></div>
+                <div class="ps-row"><span>Areas explored</span><strong class="font-mono">6</strong></div>
               </div>
             </div>
 
             <div class="pscreen ps-reward">
               <div class="ps-burst"><span></span><span></span><span></span><span></span><span></span><span></span></div>
               <div class="ps-rewardhexwrap"><svg viewBox="0 0 80 90"><polygon points="40,5 75,25 75,65 40,85 5,65 5,25"/></svg></div>
-              <p class="ps-rewardtitle">Zone captured!</p>
-              <div class="ps-rewardnums"><span class="xp">+420 XP</span><span class="mv">+35 Locked MOVE</span></div>
+              <p class="ps-rewardtitle">New zone explored!</p>
+              <div class="ps-rewardnums"><span class="xp">+420 XP</span><span class="mv">Daily goal ✓</span></div>
             </div>
 
             <div class="pscreen ps-profile">
               <div class="ps-avatar">R</div>
               <p class="ps-label">Runa · Level 12</p>
               <div class="ps-card glass-soft">
-                <div class="ps-row"><span>Territory</span><strong>14 hexes</strong></div>
+                <div class="ps-row"><span>Territory</span><strong>14 zones</strong></div>
                 <div class="ps-row"><span>Streak</span><strong>9 days</strong></div>
-                <div class="ps-row"><span>Locked MOVE</span><strong class="font-mono">1,240</strong></div>
+                <div class="ps-row"><span>Movement points</span><strong class="font-mono">1,240</strong></div>
               </div>
               <div class="ps-ringrow">
                 <span class="ring-mini big"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15"/><circle class="ring-val" cx="18" cy="18" r="15"/></svg></span>
@@ -391,8 +413,9 @@
 <section class="session" id="session">
   <div class="session-sticky">
     <div class="session-head">
-      <p class="kicker">Live session</p>
-      <h2 class="h2">Move through the city.<br/>Watch territory respond.</h2>
+      <p class="kicker">Movement in the moment</p>
+      <h2 class="h2">See your effort<br/>become progress.</h2>
+      <p class="lede session-lede">Simple live feedback keeps the focus on moving safely—not staring at the screen.</p>
     </div>
 
     <div class="session-map glass-edge" aria-hidden="true">
@@ -430,12 +453,13 @@
   </div>
 </section>
 
-<!-- ═════════════════════ SECTION 6 · REWARD / ROUTE SUMMARY ═════════════════════ -->
+<!-- ═════════════════════ SECTION 6 · WELLBEING / ROUTE SUMMARY ═════════════════════ -->
 <section class="reward section" id="rewards">
   <div class="reward-bg" aria-hidden="true"></div>
   <div class="section-head reveal">
-    <p class="kicker">After the run</p>
-    <h2 class="h2">Every move leaves a mark.</h2>
+    <p class="kicker">Wellbeing you can see</p>
+    <h2 class="h2">Celebrate movement,<br/>not pressure.</h2>
+    <p class="lede">MovenRun highlights active time, consistency, and exploration so progress feels rewarding at every fitness level.</p>
   </div>
 
   <div class="reward-card glass stacked reveal" id="rewardCard">
@@ -448,113 +472,117 @@
           <g class="reward-hexcluster" id="rewardHexCluster"></g>
           <path id="rewardReplay" class="reward-replay" d="M 30 190 C 90 170 90 120 150 110 S 240 70 275 35" fill="none"/>
         </svg>
-        <div class="stamp stamp-badge" id="rewardStamp">Captured</div>
+        <div class="stamp stamp-badge" id="rewardStamp">New zone</div>
       </div>
-      <p class="reward-caption font-mono">Tue 06:42 · Riverside loop</p>
+      <p class="reward-caption font-mono">Tue 06:42 · Riverside morning route</p>
     </div>
     <div class="reward-right">
       <div class="reward-stats">
-        <div class="rstat"><strong class="num" data-count="2.4" data-decimals="1">0</strong><span>km</span></div>
-        <div class="rstat"><strong class="num" data-count="18">0</strong><span>min</span></div>
-        <div class="rstat"><strong class="num" data-count="6">0</strong><span>zones touched</span></div>
+        <div class="rstat"><strong class="num" data-count="2.4" data-decimals="1">0</strong><span>km distance</span></div>
+        <div class="rstat"><strong class="num" data-count="18">0</strong><span>min active time</span></div>
+        <div class="rstat"><strong class="num" data-count="6">0</strong><span>areas explored</span></div>
       </div>
       <div class="reward-rows">
-        <div class="rrow xp"><span class="rrow-ic">✦</span><span>XP earned</span><strong class="num font-mono" data-count="420" data-prefix="+">+0</strong></div>
-        <div class="rrow mv"><span class="rrow-ic">⬡</span><span>Locked MOVE</span><strong class="num font-mono" data-count="35" data-prefix="+">+0</strong></div>
-        <div class="rrow zn"><span class="rrow-ic">⬢</span><span>Zone captured</span><strong class="font-mono">1</strong></div>
+        <div class="rrow xp"><span class="rrow-ic">✦</span><span>Goal progress</span><strong class="num font-mono" data-count="84" data-suffix="%">0%</strong></div>
+        <div class="rrow mv"><span class="rrow-ic">⬡</span><span>Movement points</span><strong class="num font-mono" data-count="35" data-prefix="+">+0</strong></div>
+        <div class="rrow zn"><span class="rrow-ic">⬢</span><span>New zone</span><strong class="font-mono">1</strong></div>
       </div>
-      <p class="reward-note">Locked MOVE is in-app progress, not a payout — nothing here implies earnings.</p>
+      <p class="reward-note">Progress and MOVE points are in-app gameplay features. MovenRun does not promise financial returns.</p>
     </div>
   </div>
 </section>
 
-<!-- ═════════════════════ SECTION 7 · TERRITORY ECONOMY ═════════════════════ -->
+<!-- ═════════════════════ SECTION 7 · CORE EXPERIENCE & OPTIONAL WEB3 ═════════════════════ -->
 <section class="economy section" id="economy">
   <div class="section-head reveal">
-    <p class="kicker">Territory economy</p>
-    <h2 class="h2">Free users grow the map.<br/>Deed holders own the deeper layer.</h2>
+    <p class="kicker">Play first. Web3 second.</p>
+    <h2 class="h2">Start with movement.<br/>Connect only when it adds value.</h2>
+    <p class="lede">The core experience stays accessible. A wallet is not required to move, explore, join clubs, or build progress.</p>
   </div>
 
   <div class="economy-grid">
     <article class="eco-card glass reveal" data-eco="free">
       <header class="eco-head">
-        <span class="chip chip-green"><span class="dot dot-green"></span>Free Explorer</span>
+        <span class="chip chip-green"><span class="dot dot-green"></span>Core experience</span>
         <span class="eco-tag">No wallet required</span>
       </header>
       <div class="eco-scene" aria-hidden="true">
         <svg viewBox="0 0 320 180" id="ecoFreeHexes"></svg>
         <div class="eco-float glass-soft"><span class="ring-mini"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15"/><circle class="ring-val" cx="18" cy="18" r="15"/></svg></span><div><strong>XP ring</strong><span>level 12</span></div></div>
-        <div class="eco-float two glass-soft"><span class="badge-lock">⬡</span><div><strong>Locked MOVE</strong><span class="font-mono">1,240</span></div></div>
+        <div class="eco-float two glass-soft"><span class="badge-lock">⬡</span><div><strong>Streak</strong><span>9 days strong</span></div></div>
       </div>
       <ul class="eco-list">
-        <li>Capture common green hexes</li>
-        <li>Earn XP + Locked MOVE</li>
-        <li>Climb city leaderboards</li>
+        <li>Walk, run, or cycle freely</li>
+        <li>Build XP, streaks, and city status</li>
+        <li>Join community challenges</li>
       </ul>
     </article>
 
     <div class="eco-bridge reveal" aria-hidden="true">
       <svg viewBox="0 0 80 200"><path id="ecoBridgePath" d="M 10 30 C 70 60 70 140 10 170" fill="none"/><circle class="eco-bridge-orb" r="5"/></svg>
-      <span class="eco-bridge-label">Upgrade later.<br/>Locked MOVE stays locked.</span>
+      <span class="eco-bridge-label">Connect later.<br/>Always your choice.</span>
     </div>
 
     <article class="eco-card glass eco-deed reveal" data-eco="deed">
       <header class="eco-head">
-        <span class="chip chip-violet"><span class="dot dot-violet"></span>Deed Holder</span>
-        <span class="eco-tag base-tag"><svg viewBox="0 0 16 16" class="base-dot"><circle cx="8" cy="8" r="7"/></svg>On Base</span>
+        <span class="chip chip-violet"><span class="dot dot-violet"></span>Optional ownership</span>
+        <span class="eco-tag base-tag"><svg viewBox="0 0 16 16" class="base-dot"><circle cx="8" cy="8" r="7"/></svg>Powered by Base</span>
       </header>
       <div class="eco-scene" aria-hidden="true">
         <svg viewBox="0 0 320 180" id="ecoDeedHexes"></svg>
         <div class="eco-deedcard glass-soft">
           <svg viewBox="0 0 52 56" class="deed-mini"><polygon points="26,4 48,16 48,40 26,52 4,40 4,16"/></svg>
-          <div><strong>Zone Deed #0231</strong><span class="font-mono">base:0x7a…e21f</span></div>
+          <div><strong>Zone Deed</strong><span>Optional digital territory</span></div>
         </div>
-        <div class="eco-float two glass-soft"><span>Defense</span><span class="meter-track wide"><i class="eco-def-meter"></i></span></div>
+        <div class="eco-float two glass-soft"><span>Territory</span><span class="meter-track wide"><i class="eco-def-meter"></i></span></div>
       </div>
       <ul class="eco-list violet">
-        <li>Own premium violet zones</li>
-        <li>Land defense &amp; zone identity</li>
-        <li>First in when the economy deepens</li>
+        <li>Optional digital territory records</li>
+        <li>Transparent ownership and provenance</li>
+        <li>Introduced only with clear user value</li>
       </ul>
     </article>
   </div>
 
-  <p class="eco-note reveal">Liquid rewards come later — after reliable GPS verification, real city density, and genuine sponsor demand.</p>
+  <p class="eco-note reveal">No purchase is required to play. Digital assets or rewards, if introduced, will follow product readiness, legal compliance, and clear community benefit.</p>
 </section>
 
-<!-- ═════════════════════ SECTION 8 · CLUBS & CITY WARS ═════════════════════ -->
+<!-- ═════════════════════ SECTION 8 · CLUBS & COMMUNITY ═════════════════════ -->
 <section class="clubs section" id="clubs">
   <div class="section-head reveal">
-    <p class="kicker">Clubs &amp; city wars</p>
-    <h2 class="h2">Your city is a competition layer.</h2>
-    <p class="lede">Form a club, paint the map, and race rival crews for districts.</p>
+    <p class="kicker">Community motivation</p>
+    <h2 class="h2">Better habits are<br/>easier together.</h2>
+    <p class="lede">Join a club, contribute through movement, and take part in friendly city challenges built around participation and consistency.</p>
   </div>
 
   <div class="clubs-grid">
     <div class="clubs-map glass reveal" aria-hidden="true">
       <svg viewBox="0 0 460 340" id="warMap"></svg>
-      <div class="war-chip glass-soft" id="warChip"><span class="dot dot-coral pulse"></span>City War · Live</div>
+      <div class="war-chip glass-soft" id="warChip"><span class="dot dot-coral pulse"></span>City challenge · Preview</div>
       <div class="war-timer glass-soft font-mono" id="warTimer">23:59:42</div>
     </div>
 
     <div class="clubs-board glass reveal">
-      <header class="board-head"><span>Riverside District · Week 14</span><span class="chip chip-sky">4 clubs</span></header>
+      <header class="board-head"><span>Riverside movement clubs</span><span class="chip chip-sky">Weekly preview</span></header>
       <div class="board-rows" id="boardRows">
         <div class="board-row" data-club="0"><span class="club-color c-blue"></span><div class="club-info"><strong>Base Builders</strong><span class="font-mono">218 hexes</span></div><span class="club-trend up">▲</span></div>
         <div class="board-row" data-club="1"><span class="club-color c-green"></span><div class="club-info"><strong>Riverside Runners</strong><span class="font-mono">204 hexes</span></div><span class="club-trend up">▲</span></div>
         <div class="board-row" data-club="2"><span class="club-color c-gold"></span><div class="club-info"><strong>Campus Crew</strong><span class="font-mono">187 hexes</span></div><span class="club-trend down">▼</span></div>
         <div class="board-row" data-club="3"><span class="club-color c-coral"></span><div class="club-info"><strong>Morning Miles</strong><span class="font-mono">142 hexes</span></div><span class="club-trend up">▲</span></div>
       </div>
-      <footer class="board-foot"><span>Season settles on Base</span><span class="font-mono">week 14 · live</span></footer>
+      <footer class="board-foot"><span>Participation over perfection</span><span>Move together</span></footer>
     </div>
   </div>
+
+  <p class="clubs-note reveal">Illustrative product preview — sample clubs and numbers, not live data.</p>
 </section>
 
-<!-- ═════════════════════ SECTION 9 · BUILT ON BASE ═════════════════════ -->
+<!-- ═════════════════════ SECTION 9 · RESPONSIBLE WEB3 ═════════════════════ -->
 <section class="base section" id="base">
   <div class="section-head reveal">
-    <p class="kicker">On-chain</p>
-    <h2 class="h2">Built for Base.<br/>Designed for real movement.</h2>
+    <p class="kicker">Responsible Web3</p>
+    <h2 class="h2">Digital ownership without making<br/>the product feel like finance.</h2>
+    <p class="lede">Base supports a future ownership layer while the everyday experience remains focused on movement, wellbeing, and community.</p>
   </div>
 
   <div class="base-grid">
@@ -564,26 +592,24 @@
         <div class="deed-glow"></div>
         <svg viewBox="0 0 80 90" class="deed-hex-big"><polygon points="40,5 75,25 75,65 40,85 5,65 5,25"/></svg>
         <strong>Zone Deed</strong>
-        <span class="font-mono">#0231 · Riverside</span>
-        <div class="deed-foot"><svg viewBox="0 0 16 16" class="base-dot"><circle cx="8" cy="8" r="7"/></svg><span class="font-mono">Base Sepolia</span></div>
+        <span class="deed-sub">Optional digital territory</span>
+        <div class="deed-foot"><svg viewBox="0 0 16 16" class="base-dot"><circle cx="8" cy="8" r="7"/></svg><span>Powered by Base</span></div>
       </div>
     </div>
 
     <div class="base-info">
-      <div class="contract-card glass reveal">
-        <header><span class="dot dot-green"></span><span class="font-mono">ZoneDeed.sol · read-only</span></header>
-        <pre class="font-mono"><code><span class="c-key">zone</span>      <span class="c-val">"89-2a1f"</span>
-<span class="c-key">owner</span>     <span class="c-val">0x7a3f…e21f</span>
-<span class="c-key">defense</span>   <span class="c-num">86 / 100</span>
-<span class="c-key">status</span>    <span class="c-ok">● held</span></code></pre>
+      <div class="approach-card glass reveal">
+        <p class="kicker">Our approach</p>
+        <h3>Useful, understandable, and never forced.</h3>
+        <p>Web3 should make selected ownership records more transparent and portable. It should not add friction to a morning walk or turn movement into a financial promise.</p>
       </div>
       <ul class="base-list reveal">
-        <li><span class="check">✓</span>Base Sepolia contracts live</li>
-        <li><span class="check">✓</span>Zone Deed architecture</li>
-        <li><span class="check">✓</span>GPSOracle verification path</li>
-        <li><span class="check">✓</span>Read-only chain integration first</li>
-        <li><span class="check soon">…</span>Testnet deeds later</li>
-        <li><span class="check soon">…</span>No rushed liquid economy</li>
+        <li><span class="check">✓</span>Core play without a wallet</li>
+        <li><span class="check">✓</span>Clear language and user choice</li>
+        <li><span class="check">✓</span>Privacy-minded movement design</li>
+        <li><span class="check">✓</span>Transparent digital records</li>
+        <li><span class="check">✓</span>Gradual, test-led rollout</li>
+        <li><span class="check">✓</span>No speculative reward promises</li>
       </ul>
     </div>
   </div>
@@ -593,7 +619,8 @@
 <section class="roadmap section" id="roadmap">
   <div class="section-head reveal">
     <p class="kicker">Roadmap</p>
-    <h2 class="h2">The route ahead.</h2>
+    <h2 class="h2">Building the experience<br/>in the right order.</h2>
+    <p class="lede">Health, trust, and a strong movement loop come first. Social and ownership layers deepen only after the foundation works well.</p>
   </div>
 
   <div class="roadmap-track" id="roadmapTrack">
@@ -613,29 +640,29 @@
     <article class="phase glass" data-phase="0">
       <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
       <span class="phase-tag font-mono">Phase 1</span>
-      <h3>Free Map Beta</h3>
-      <p>GPS sessions, hex capture, XP + Locked MOVE. No wallet needed.</p>
+      <h3>Health-first movement beta</h3>
+      <p>Reliable sessions, route summaries, goals, streaks, and territory progress with no wallet required.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass right" data-phase="1">
       <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
       <span class="phase-tag font-mono">Phase 2</span>
-      <h3>Deed Testnet</h3>
-      <p>Zone Deeds mint on Base Sepolia. GPS verification hardens in the wild.</p>
+      <h3>Clubs and city challenges</h3>
+      <p>Friendly group goals, local leaderboards, shared territory, and stronger community motivation.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass" data-phase="2">
       <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
       <span class="phase-tag font-mono">Phase 3</span>
-      <h3>Mainnet City Launch</h3>
-      <p>First cities live on Base mainnet — deeds, defense, city wars.</p>
+      <h3>Optional Zone Deed pilot</h3>
+      <p>A carefully tested Base-powered ownership layer for users who choose deeper territory participation.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass right" data-phase="3">
       <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
       <span class="phase-tag font-mono">Phase 4</span>
-      <h3>Expansion</h3>
-      <p>More cities, sponsor zones, deeper economy — once density earns it.</p>
+      <h3>City and partner expansion</h3>
+      <p>More communities, local events, meaningful partnerships, and new ways to make movement rewarding.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
   </div>
@@ -665,38 +692,85 @@
 
   <div class="final-card glass stacked reveal">
     <div class="final-brand">
-      <svg viewBox="0 0 40 44" class="brand-hex big"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg>
+      <svg viewBox="0 0 40 44" class="brand-hex big" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg>
       <span>MovenRun</span>
     </div>
-    <h2 class="final-h2">Your city is waiting<br/>to be captured.</h2>
-    <p class="lede">Join the beta and be among the first to turn movement into territory.</p>
+    <h2 class="final-h2">A healthier routine can<br/>start with one route.</h2>
+    <p class="lede">Follow the MovenRun build and be among the first to turn everyday movement into exploration, community, and visible progress.</p>
     <div class="final-ctas">
-      <a class="btn btn-primary btn-lg" href="#" id="joinBtn">Join the Beta <span class="btn-arrow">→</span></a>
-      <a class="btn btn-ghost btn-lg" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener">Follow the Build</a>
+      <a class="btn btn-primary btn-lg" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">Follow the launch <span class="btn-arrow">→</span></a>
+      <a class="btn btn-ghost btn-lg" href="#hero">Back to the top</a>
     </div>
-    <p class="final-fine font-mono">Free to play · No wallet required · Built on Base</p>
+    <p class="final-fine font-mono">Free core experience · No wallet required · Responsible Web3 roadmap</p>
   </div>
 </section>
 
 </main>
 
-<footer class="footer">
-  <div class="footer-inner">
-    <div class="footer-brand">
-      <svg viewBox="0 0 40 44" class="brand-hex"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg>
-      <span>MovenRun</span>
+<footer class="footer site-footer">
+  <div class="footer-grid">
+    <div class="foot-col foot-brand-col">
+      <div class="footer-brand">
+        <svg viewBox="0 0 40 44" class="brand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg>
+        <span>MovenRun</span>
+      </div>
+      <p class="foot-desc">Making movement more motivating through territory, community, and responsible digital ownership.</p>
+      <span class="foot-badge"><span class="dot dot-green"></span>Health-first by design</span>
     </div>
-    <p class="footer-loop font-mono">Move → Capture → Defend → Own</p>
-    <p class="footer-base"><svg viewBox="0 0 16 16" class="base-dot"><circle cx="8" cy="8" r="7"/></svg>Built on Base</p>
+    <nav class="foot-col" aria-label="Product">
+      <p class="foot-title">Product</p>
+      <a href="#loop">How it works</a>
+      <a href="#app">App experience</a>
+      <a href="#clubs">Clubs and city play</a>
+      <a href="#roadmap">Roadmap</a>
+    </nav>
+    <nav class="foot-col" aria-label="Principles">
+      <p class="foot-title">Principles</p>
+      <a href="#rewards">Wellbeing</a>
+      <a href="#base">Responsible Web3</a>
+      <span class="foot-text">Privacy-minded movement</span>
+      <span class="foot-text">No financial promises</span>
+    </nav>
+    <nav class="foot-col" aria-label="Community">
+      <p class="foot-title">Community</p>
+      <a href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">Follow the launch</a>
+      <a href="#clubs">City challenges</a>
+      <a href="https://base.org" target="_blank" rel="noopener noreferrer">Built on Base</a>
+    </nav>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2026 MovenRun. All rights reserved.</p>
+    <p class="foot-legal">MovenRun is in development. Features and availability may change. Nothing on this site is financial advice or a promise of rewards.</p>
   </div>
 </footer>
 
 <!-- Mobile sticky CTA -->
 <div class="mobile-cta" id="mobileCta">
-  <a class="btn btn-primary" href="#join">Join the Beta <span class="btn-arrow">→</span></a>
+  <a class="btn btn-primary" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">Follow the launch <span class="btn-arrow">→</span></a>
 </div>
 
 <script src="js/globe.js"></script>
 <script src="js/main.js"></script>
+<script>
+/* Progressive enhancement only: the <details> mobile menu works without JS;
+   this closes it after a link is chosen or on Escape / outside click. */
+(function () {
+  var menu = document.getElementById("navMobile");
+  if (!menu) return;
+  menu.addEventListener("click", function (e) {
+    if (e.target.closest("a")) menu.removeAttribute("open");
+  });
+  document.addEventListener("click", function (e) {
+    if (menu.hasAttribute("open") && !menu.contains(e.target)) menu.removeAttribute("open");
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && menu.hasAttribute("open")) {
+      menu.removeAttribute("open");
+      menu.querySelector("summary").focus();
+    }
+  });
+})();
+</script>
 </body>
 </html>
