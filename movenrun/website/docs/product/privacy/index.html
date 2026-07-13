@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Privacy & movement data — MovenRun Docs</title>
+<meta name="description" content="What location data MovenRun uses today, what stays on the device, what the backend is designed to receive later, and what is never collected." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/privacy/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Privacy & movement data — MovenRun Docs" />
+<meta property="og:description" content="What location data MovenRun uses today, what stays on the device, what the backend is designed to receive later, and what is never collected." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/privacy/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup" open><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/" aria-current="page">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Privacy</li></ol></nav>
+    <div class="dmeta"><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Privacy &amp; movement data</h1>
+<p class="lead">A movement game runs on location — which is exactly why MovenRun's default posture is summaries over trails, on-device over uploaded, and labeled over silent.</p>
+
+<h2 id="today">What the current app does with location</h2>
+<ul>
+<li><strong>Foreground GPS only.</strong> Location is read while a session screen is active. No background tracking, geofencing, or location-based notifications.</li>
+<li><strong>On-device state.</strong> Sessions, zones, XP, streaks, clubs — the current build stores progress locally (AsyncStorage). There is no account system and no server sync.</li>
+<li><strong>Summaries, not trails, in derived features.</strong> The route-trust history, signal passport, and shareable proof cards intentionally persist and share <strong>summary statistics only</strong> — no raw GPS points, no coordinates, no route paths, no map screenshots.</li>
+<li><strong>No network submission.</strong> The current app does not upload routes to any backend. The verification pipeline exists as separate infrastructure (below) and is not yet connected.</li>
+</ul>
+
+<h2 id="not-collected">What is not collected</h2>
+<ul>
+<li>No contacts, no ad identifiers, no third-party analytics or tracking SDKs.</li>
+<li>No wallet addresses (the app has no wallet), no payment data (no payments).</li>
+<li>No inference of anyone else's location — rivals and clubs are simulated.</li>
+</ul>
+
+<h2 id="planned">Planned server behavior — clearly separate</h2>
+<p>When route verification connects (a later phase), the design is: the app submits a route to <code>POST /gps/submit</code>; the backend validates it, computes distance and zone coverage, stores the route's <em>lifecycle</em> (status, hash, distance, verification result), and deduplicates repeats. Requests to write endpoints are authenticated by wallet signature in the current backend design — relevant only to the future opt-in ownership layer. Retention windows and deletion controls for any server-side movement data are <span class="badge b-plan">Planned</span> work that must land before the pipeline serves real users; they are design requirements, not current features.</p>
+
+<h2 id="future-work">Future privacy work</h2>
+<ul>
+<li>Route storage minimization (persist verification artifacts, not raw trails, wherever possible).</li>
+<li>Explicit retention and deletion controls, surfaced in-product.</li>
+<li>A published privacy policy reviewed by counsel before any account system launches — the docs will not improvise one.</li>
+</ul>
+<div class="callout note"><p>Boundary to remember: <strong>everything the current app knows stays on your phone.</strong> Server-side behavior described here is infrastructure and plans, labeled as such.</p></div>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/product/wellbeing/"><span>Previous</span><strong>Wellbeing & accessibility</strong></a><a class="pn next" href="/docs/status/current/"><span>Next</span><strong>Current product status</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

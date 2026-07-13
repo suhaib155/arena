@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Development history — MovenRun Docs</title>
+<meta name="description" content="How MovenRun was built: 46 pull requests grouped into milestones, from monorepo scaffold to the health-first website — including open work under review." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/status/development-history/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Development history — MovenRun Docs" />
+<meta property="og:description" content="How MovenRun was built: 46 pull requests grouped into milestones, from monorepo scaffold to the health-first website — including open work under review." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/status/development-history/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup" open><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/" aria-current="page">Development history</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Status & roadmap</li><li aria-current="page">Development history</li></ol></nav>
+    <div class="dmeta"><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Development history</h1>
+<p class="lead">MovenRun has been built in public, in 46 pull requests. Here is that history as milestones — with open work clearly separated from shipped work.</p>
+<p class="wp-meta">Audited from the live GitHub record on 12 July 2026: <strong>46 PRs total — 42 merged, 2 open, 2 closed unmerged.</strong></p>
+
+<h2 id="m1">Milestone 1 — Foundation (May–June 2026)</h2>
+<p>The monorepo scaffold — contracts, backend, shared types, and mobile — landed in <a href="https://github.com/suhaib155/arena/pull/1" target="_blank" rel="noopener noreferrer">PR #1</a>. A first mobile MVP (movement quests, XP, streaks, onboarding) followed in PRs #2–4, with device-testing docs and the EAS Android build pipeline in PRs #6–8. Two early chores were closed unmerged (#5, later #39) — superseded approaches, kept honest in the record.</p>
+
+<h2 id="m2">Milestone 2 — Direction and on-chain reconciliation (June 2026)</h2>
+<p><a href="https://github.com/suhaib155/arena/pull/9" target="_blank" rel="noopener noreferrer">PR #9</a> realigned the roadmap around the territory economy. <a href="https://github.com/suhaib155/arena/pull/10" target="_blank" rel="noopener noreferrer">PR #10</a> reconciled the already-deployed Base Sepolia V1 contracts onto <code>main</code>: deployed source, deployment record, and the shared address registry — no redeploy. The cinematic website (PR #11) and the app's Daylight Cartography design system (PR #12) established the brand.</p>
+
+<h2 id="m3">Milestone 3 — The movement loop (June 2026)</h2>
+<p>The heart of the product landed as a chain of mobile PRs: GPS sessions (<a href="https://github.com/suhaib155/arena/pull/13" target="_blank" rel="noopener noreferrer">#13</a>), mock H3 territory capture (#14), the defend/fortify loop (#15), and clubs with a local leaderboard preview (#16). Everything explicitly on-device and preview-labeled.</p>
+
+<h2 id="m4">Milestone 4 — Verification previews and trust UX (June 2026)</h2>
+<p>Read-only chain infrastructure (#17) and the in-app testnet status screen (#18) made the contract foundation visible without a wallet. Route Trust previews (#19), review history (#20), the signal passport (#21), and the shareable proof card (#22) built the verification story locally, with privacy-safe summaries only.</p>
+
+<h2 id="m5">Milestone 5 — Depth and the city layer (June–July 2026)</h2>
+<p>Onboarding questline (#23), territory map (#24), collections (#25), cinematic opening (#26), zone command center (#27), territory alerts (#28), weekly recap (#29), season objectives (#30) — then the city layer: districts (#31), rival ghosts (#32), city war board (#33), sponsor zones (#34), event zones (#35), club territory (#36), crew missions (#37), and district mastery (#38). All local previews with fictional data, labeled as such in-app.</p>
+
+<h2 id="m6">Milestone 6 — Backend hardening (July 2026)</h2>
+<p>Three backend PRs made the verification pipeline real infrastructure: oracle-signature alignment with the deployed contracts (<a href="https://github.com/suhaib155/arena/pull/40" target="_blank" rel="noopener noreferrer">#40</a>), route-lifecycle persistence with server-side deduplication (#41), and wallet-signature auth, rate limits, security headers, and a CORS allowlist (#42). The deed preview showroom (#43) closed the loop on educational ownership UX.</p>
+
+<h2 id="m7">Milestone 7 — Public face (July 2026)</h2>
+<p><a href="https://github.com/suhaib155/arena/pull/46" target="_blank" rel="noopener noreferrer">PR #46</a> repositioned the website health-first, added responsive navigation and a professional footer, and removed speculative language — the live site today.</p>
+
+<h2 id="incoming">Incoming work — open, under review, not shipped</h2>
+<div class="callout note"><p>The two pull requests below are <strong>open</strong>. Nothing in them is merged, deployed, or part of the current product. They are documented here so the docs never present branch work as shipped.</p></div>
+<ul>
+<li><span class="badge b-review">Under review</span> <a href="https://github.com/suhaib155/arena/pull/44" target="_blank" rel="noopener noreferrer"><strong>PR #44</strong> — audit(contracts): characterize deployed v1 lifecycle discrepancies</a>. Characterization and documentation only: 18 tests proving the deployed V1's known defects (16 catalogued issues), plus a written report. No Solidity changes, no deployment.</li>
+<li><span class="badge b-review">Under review</span> <a href="https://github.com/suhaib155/arena/pull/45" target="_blank" rel="noopener noreferrer"><strong>PR #45</strong> — fix(contracts): add isolated v2 territory economy contracts</a>. A parallel V2 contract suite — source and tests only (146 passing). V1 untouched, <strong>nothing deployed</strong>, no mobile/backend/website integration.</li>
+</ul>
+
+<h2 id="closed">Closed without merging</h2>
+<ul>
+<li><strong>PR #5</strong> — Expo phone-testing chore; superseded by the documentation approach in PR #6.</li>
+<li><strong>PR #39</strong> — Vercel web deployment for the mobile app; abandoned in favor of keeping the website as the only web surface.</li>
+</ul>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/status/roadmap/"><span>Previous</span><strong>Roadmap & release gates</strong></a><a class="pn next" href="/docs/technology/architecture/"><span>Next</span><strong>Architecture overview</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

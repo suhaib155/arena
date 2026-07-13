@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Contracts: architecture & status — MovenRun Docs</title>
+<meta name="description" content="The V1 testnet contract suite, its known limitations at a high level, the V2 redesign under review, and why none of it is production architecture yet." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/contracts/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Contracts: architecture & status — MovenRun Docs" />
+<meta property="og:description" content="The V1 testnet contract suite, its known limitations at a high level, the V2 redesign under review, and why none of it is production architecture yet." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/contracts/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/" aria-current="page">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Contract status</li></ol></nav>
+    <div class="dmeta"><span class="badge b-test">Experimental testnet</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Contracts: architecture &amp; status</h1>
+<p class="lead">One experimental V1 suite on a test network, one honest catalogue of its defects, and one isolated V2 redesign — each at a different, clearly-labeled stage.</p>
+
+<h2 id="architecture">The contract architecture</h2>
+<p>The suite models the future territory economy as eight cooperating contracts:</p>
+<div class="tscroll"><table>
+<caption>Contract roles (V1 names; V2 keeps the same shape)</caption>
+<thead><tr><th>Contract</th><th>Standard</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td>Move token</td><td>ERC-20</td><td>The in-game token concept; minting gated by oracle-verified movement</td></tr>
+<tr><td>GPS oracle</td><td>—</td><td>Verifies backend attestations for movement-derived actions</td></tr>
+<tr><td>Zone deed (ZoneNFT)</td><td>ERC-721</td><td>Territory records; token ID = zone cell ID; dormancy/reclaim</td></tr>
+<tr><td>Gear</td><td>ERC-1155</td><td>Equipment with bounded stat multipliers</td></tr>
+<tr><td>Zone challenge</td><td>—</td><td>Time-boxed territory challenge/defense battles</td></tr>
+<tr><td>Season controller</td><td>—</td><td>90-day seasons, emission valve, season-end events</td></tr>
+<tr><td>Vault</td><td>—</td><td>Staking and treasury accounting</td></tr>
+<tr><td>DAO / Governor</td><td>—</td><td>Governance (V1: custom tiers; V2: standard snapshot governance + timelock)</td></tr>
+</tbody></table></div>
+
+<h2 id="v1">V1 — experimental testnet <span class="badge b-test">Experimental testnet</span></h2>
+<p>The V1 suite is deployed on <strong>Base Sepolia only</strong>, with the deployment record and address registry on <code>main</code>. It is experimental infrastructure: <strong>not mainnet, not production-ready, not audited, and not a public financial product</strong>. Nothing in the consumer app writes to it.</p>
+<p>A formal characterization effort — <a href="https://github.com/suhaib155/arena/pull/44" target="_blank" rel="noopener noreferrer">PR #44</a>, <span class="badge b-review">Under review</span> — proves the deployed V1's behavior with a passing test suite and catalogues <strong>16 known discrepancies</strong> (2 critical, several high) across the challenge lifecycle, season emissions, zone/gear state, and vault/DAO accounting. At a high level: challenges can be disrupted or replayed, a "burn" that doesn't reduce supply, state that leaks across deed reclaims, and governance that isn't snapshot-safe. The docs deliberately stop at this altitude — the full report exists for reviewers, and these pages do not publish exploit walkthroughs. <strong>Do not interact with the V1 testnet contracts expecting sound behavior.</strong></p>
+
+<h2 id="v2">V2 — under review <span class="badge b-review">Under review</span></h2>
+<p><a href="https://github.com/suhaib155/arena/pull/45" target="_blank" rel="noopener noreferrer">PR #45</a> adds an isolated V2 suite: <strong>source and tests only; not merged and not deployed.</strong> V1 remains untouched and remains the only deployed suite. The V2 design's intended improvements, at a high level:</p>
+<ul>
+<li>An explicit challenge lifecycle (one active challenge per zone, idempotent resolution, no overwrites) with challenger wins that settle without defender cooperation.</li>
+<li><strong>EIP-712 typed signatures everywhere</strong> — domain-bound, deadline-bound, nonce-bound; V1-style signatures are rejected.</li>
+<li>Season pauses that actually stop minting on every path; a season-end burn that genuinely reduces supply, exactly once.</li>
+<li>Live-ownership gear multipliers; checkpointed vault accounting that survives under-funding.</li>
+<li>Standard snapshot governance (OpenZeppelin Governor + timelock) replacing the custom live-balance DAO.</li>
+</ul>
+<div class="callout warn"><p>V2 is <strong>not audited</strong> (its 146 passing tests are not an independent audit), <strong>not deployed</strong>, and no migration from V1 has happened. If PR #45's state changes, this page changes with it.</p></div>
+
+<figure class="dfig"><img src="/docs/assets/diagrams/v1-v2-status.svg" alt="V1 versus V2 status: V1 experimental on Base Sepolia with sixteen documented discrepancies; V2 source and tests only, under review, not deployed; production layer marked as not launched, behind audit and legal gates." width="760" height="330" /><figcaption>Three columns, three truths: V1 is a flawed experiment, V2 is a proposal, production does not exist.</figcaption></figure>
+
+<h2 id="rules">Standing rules</h2>
+<ul>
+<li>Deployed contracts are audited before they are changed; defects are characterized, not silently patched.</li>
+<li>No deployment happens inside feature PRs; deployment records are the only proof of deployment the docs accept.</li>
+<li>Independent audit and legal review gate anything beyond testnet — see <a href="/docs/status/roadmap/#gates">Release gates</a>.</li>
+</ul>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/zone-deeds/"><span>Previous</span><strong>Zone Deeds</strong></a><a class="pn next" href="/docs/technology/token-design/"><span>Next</span><strong>Token, economics & governance</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

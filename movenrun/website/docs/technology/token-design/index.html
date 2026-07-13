@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Token, economics & governance — MovenRun Docs</title>
+<meta name="description" content="MovenRun's economic guardrails: in-app progress versus transferable assets, legacy experimental V1 token parameters, governance status, and why nothing here is a financial promise." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/token-design/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Token, economics & governance — MovenRun Docs" />
+<meta property="og:description" content="MovenRun's economic guardrails: in-app progress versus transferable assets, legacy experimental V1 token parameters, governance status, and why nothing here is a financial promise." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/token-design/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/" aria-current="page">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Token & governance</li></ol></nav>
+    <div class="dmeta"><span class="badge b-cond">Conditional</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Token, economics &amp; governance</h1>
+<p class="lead">MovenRun's economic design is a set of guardrails plus one legacy experiment — not an offering. This page uses the title “token and economic design” rather than “how to earn” because there is nothing to earn.</p>
+<p><span class="badge b-cond">Conditional</span> — everything token-related is subject to redesign, independent audit, legal review, and product-readiness gates.</p>
+
+<h2 id="two-kinds">In-app progress vs. transferable assets</h2>
+<div class="tscroll"><table>
+<caption>The distinction every page in these docs maintains</caption>
+<thead><tr><th></th><th>In-app progress</th><th>Transferable assets</th></tr></thead>
+<tbody>
+<tr><td>Examples</td><td>XP, streaks, movement points (“Locked MOVE” label)</td><td>Tokens, NFTs</td></tr>
+<tr><td>Where it lives</td><td>On your device, in the game</td><td>Would live on-chain</td></tr>
+<tr><td>Exists today?</td><td>Yes</td><td><strong>No</strong> (testnet experiments only, no consumer access)</td></tr>
+<tr><td>Redeemable / tradable?</td><td>No — explicitly “not a payout”</td><td>Nothing exists to trade; no marketplace is promised</td></tr>
+</tbody></table></div>
+<p>“Locked MOVE” in the current app is a <strong>display preview derived from XP</strong> — no balance is stored and nothing accrues. The historical V1 design also imagined a capped “Liquid MOVE” for committed players, strictly behind density and verification gates; that concept remains exactly that — a gated historical design, not a feature.</p>
+
+<h2 id="legacy">Legacy experimental V1 parameters <span class="badge b-hist">Historical</span></h2>
+<p>The V1 testnet experiment shipped with a full tokenomics design: a 1-billion supply cap, per-kilometer oracle-gated emission with periodic halvings and daily caps, an auto-valve that reduces emission when burn activity is low, burn sinks on game actions, a 2% zone tax accruing to deed holders with loyalty multipliers, and 90-day seasons ending in a supply burn. Internal documents also sketched target supply allocations, including a public-sale bucket, and a future staking-earned governance token.</p>
+<div class="callout warn"><p><strong>Treat all of it as legacy experimental design.</strong> These parameters exist to make the testnet experiment concrete. They are not commitments, not current offerings, and several interact with V1 defects that the V2 redesign fixes (the season “burn” among them). Any production economy would be redesigned from guardrails up, audited independently, and legally reviewed — and no allocation, sale, price, or yield is promised by anything in this section. MovenRun currently promises <strong>no liquid reward economy at all</strong>.</p></div>
+
+<h2 id="guardrails">The guardrails that outrank the parameters</h2>
+<ul>
+<li>No liquid rewards before reliable verification, real density, and genuine demand (the standing project rule).</li>
+<li>The game must remain complete and enjoyable with zero economy.</li>
+<li>Caps and sinks before emissions; conservative defaults; no retroactive enrichment.</li>
+<li>No sale CTAs, no exchange links, no price discussion — in the product or in these docs.</li>
+</ul>
+
+<h2 id="governance">Governance status</h2>
+<ul>
+<li><strong>Today:</strong> there is no operational governance and no decentralization claim. Product decisions are made by the team.</li>
+<li><span class="badge b-test">Experimental testnet</span> — V1 includes a custom three-tier DAO contract with documented weaknesses (live-balance voting; a vault role that was never wired).</li>
+<li><span class="badge b-review">Under review</span> — the V2 proposal replaces it with standard snapshot governance (OpenZeppelin Governor, quorum fraction, timelock).</li>
+<li><strong>Long-term:</strong> community participation in territory-level decisions is a design goal, adopted only when real and only after the same gates as everything else.</li>
+</ul>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/contracts/"><span>Previous</span><strong>Contracts: architecture & status</strong></a><a class="pn next" href="/docs/trust/risks/"><span>Next</span><strong>Risks & limitations</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

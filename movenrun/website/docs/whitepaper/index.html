@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>MovenRun Whitepaper 2026 — MovenRun Docs</title>
+<meta name="description" content="The consolidated MovenRun 2026 whitepaper: problem, product thesis, territory system, technology, responsible Web3 architecture, economic guardrails, roadmap, and risks." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/whitepaper/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="MovenRun Whitepaper 2026 — MovenRun Docs" />
+<meta property="og:description" content="The consolidated MovenRun 2026 whitepaper: problem, product thesis, territory system, technology, responsible Web3 architecture, economic guardrails, roadmap, and risks." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/whitepaper/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup" open><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/" aria-current="page">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Start here</li><li aria-current="page">Whitepaper 2026</li></ol></nav>
+    <div class="dmeta"><span class="dreviewed">Last reviewed: 12 July 2026</span><button class="dprint" type="button" data-print>Print / Save as PDF</button></div>
+    <article class="darticle">
+
+<h1>MovenRun Whitepaper — 2026</h1>
+<p class="wp-meta">Development-stage product document · Last reviewed 12 July 2026 · <a href="/docs/">MovenRun documentation</a></p>
+
+<div class="callout warn"><p><strong>Read this first.</strong> MovenRun is a development-stage movement and territory product. Its core experience does not require a wallet. Any future digital assets, tokens, or on-chain ownership features are conditional, may change, and must pass product, security, legal, and community-readiness gates. Nothing in these documents is financial advice or a promise of rewards.</p></div>
+
+<h2 id="wp-exec">1. Executive summary</h2>
+<p>MovenRun is a health-first movement game that turns a real city into a territory board. Walking, running, and cycling light up hexagonal zones along your route; returning keeps them strong; neglect lets them fade. Progress is measured in consistency — streaks, districts, collections, clubs — not in speed or payouts. A deliberately optional Web3 layer (digital "Zone Deeds" on Base) is being explored on testnet for players who eventually want transparent, portable territory records. It is never required, and it is not live.</p>
+<p>As of July 2026 the project consists of: a working Android beta in which the complete territory loop runs as an on-device experience; production-grade backend verification infrastructure that is built but not yet connected to the consumer app; an experimental V1 smart-contract suite on the Base Sepolia test network with a formal defect characterization and an isolated V2 redesign both under review; and a live marketing website. There is no mainnet deployment, no token sale, and no reward economy.</p>
+
+<h2 id="wp-problem">2. Problem</h2>
+<p>Activity trackers excel at measurement and fail at motivation. Streak-and-badge mechanics decay quickly because progress is abstract and private. Social fitness feeds motivate a narrow, already-fit slice of users. And the "move-to-earn" wave demonstrated real demand for movement games, but tied motivation to token prices — when prices fell, so did the walking. The unmet need is a movement product whose motivation loop is <em>internal</em> to the game: visible, spatial, social, and durable without financial stakes.</p>
+
+<h2 id="wp-thesis">3. Product thesis</h2>
+<p>Territory is the most legible progress metaphor a movement app can offer. It is spatial (you can see it), persistent (it's still there tomorrow), personal (it's <em>your</em> neighborhood), and gently contested (someone might take it). MovenRun's thesis: if every session visibly strengthens a map you care about, the habit sustains itself. Three design rules follow:</p>
+<ul>
+<li><strong>Consistency beats intensity.</strong> Returning to a route matters more than pace. A slow walker and a fast runner both hold territory.</li>
+<li><strong>The game must be complete without money.</strong> No wallet, purchase, or token is needed for any core mechanic — by design, not as a teaser.</li>
+<li><strong>Honesty about status.</strong> Preview systems are labeled previews; testnet experiments are labeled experiments; future work is labeled future.</li>
+</ul>
+
+<h2 id="wp-ux">4. User experience</h2>
+<p>A session starts from one button. Foreground GPS records the route; live distance, time, and pace stay glanceable so attention stays on the road. Finishing produces a summary — distance, active time, areas explored — then a capture moment claims a zone into a persistent local portfolio. Around this core sit the routine builders: saved routes, weekly recaps, season objectives, a territory map, collections and badges, in-app defense alerts, and an onboarding questline that teaches the loop. Everything above runs in the current beta build, on-device. (See <a href="/docs/product/movement/">Movement sessions</a>.)</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/user-journey.svg" alt="User journey: open map, start movement, follow route, finish session, review progress, then return tomorrow or join a club." width="760" height="300" /><figcaption>The everyday journey. The loop closes on “return”, not on “cash out”.</figcaption></figure>
+
+<h2 id="wp-territory">5. Territory system</h2>
+<p>The world is modeled as a hexagonal grid (Uber's open-source H3 system — see <a href="/docs/technology/territory-computation/">Territory computation</a>). A route is converted into the zones it passes through. Zones have a lifecycle: unexplored → explored → captured → stable, with decay toward "at risk" when neglected and fortification when actively maintained. Districts group zones into named neighborhoods with their own mastery progression. In the current build this entire system is a <strong>single-player, on-device simulation</strong> with deterministic and fictional data — rival "ghosts", club standings, sponsor and event zones are all clearly-labeled previews of a future multiplayer layer. (See <a href="/docs/product/territory/">Territory, capture &amp; defense</a>.)</p>
+
+<h2 id="wp-social">6. Social layer</h2>
+<p>Clubs make habits social: pick a local club, contribute movement, follow a city-war board, run crew missions. Today these are illustrative previews computed from the player's own local activity; no real multiplayer, memberships, chat, or live leaderboards exist yet. The social layer becomes networked only in a later phase, after backend verification connects. (See <a href="/docs/product/clubs/">Clubs, community &amp; the city layer</a>.)</p>
+
+<h2 id="wp-tech">7. Technology</h2>
+<p>MovenRun is a TypeScript monorepo: an Expo/React Native app (Expo SDK 51, Expo Router, Zustand + AsyncStorage), a shared types/constants package, an Express + BullMQ + Drizzle backend, a Hardhat contracts workspace, and a static website. The backend implements the full route lifecycle — submission, queued validation (speed, accuracy, duration checks), Haversine distance, H3 zone mapping, SHA-256 route hashing, oracle signing, persistence, and server-side deduplication — plus wallet-signature authentication, rate limiting, security headers, and a CORS allowlist. It is real infrastructure awaiting its consumer: the app still runs locally and does not submit routes. (See <a href="/docs/technology/architecture/">Architecture</a> and <a href="/docs/technology/backend/">Backend &amp; verification</a>.)</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/architecture.svg" alt="System architecture: mobile app and website today; shared package; backend API with queue, workers and database as built infrastructure; experimental V1 testnet contracts connected by dashed lines; V2 under review." width="760" height="430" /><figcaption>Solid lines exist today; dashed lines are future or experimental connections.</figcaption></figure>
+
+<h2 id="wp-web3">8. Web3 architecture</h2>
+<p>Web3 in MovenRun is a record layer, not a business model. The candidate use is narrow: making committed players' territory records (<strong>Zone Deeds</strong>) transparent and portable on Base. A V1 contract suite — token, zone NFT, gear, challenges, seasons, vault, DAO, GPS oracle — is deployed on the <strong>Base Sepolia test network only</strong>. It is explicitly experimental: a characterization audit documenting sixteen known lifecycle and safety defects, and an isolated V2 redesign (EIP-712 signatures, fixed challenge lifecycle, real burns, snapshot governance), are both open pull requests — <strong>under review, not merged, not deployed</strong>. Nothing on mainnet exists, and the consumer app contains no wallet, no minting, and no chain writes; its only chain-facing feature is a read-only testnet status screen and an educational deed showroom. (See <a href="/docs/technology/contracts/">Contract status</a>.)</p>
+
+<h2 id="wp-econ">9. Economic guardrails</h2>
+<p>The project inherits one standing rule: <strong>no liquid reward economy before (1) reliable GPS verification, (2) real city density, and (3) genuine sponsor/land demand.</strong> In-app progress ("movement points", XP, streaks — historically labeled "Locked MOVE" in the app as a preview counter derived from XP) is not a token, is not stored as a balance, and is explicitly labeled "not a payout". The V1 testnet token parameters (emission halvings, burn sinks, caps, allocation targets) are <strong>legacy experimental design</strong>: retained for context, subject to complete redesign, audit, and legal review, and not commitments. There is no token sale, no price, no APY, and no earning mechanic in the product. (See <a href="/docs/technology/token-design/">Token, economics &amp; governance</a>.)</p>
+
+<h2 id="wp-roadmap">10. Roadmap</h2>
+<p>Four phases, gated by exit criteria rather than dates:</p>
+<ol>
+<li><strong>Health-first movement beta</strong> — reliable sessions, summaries, goals, streaks, territory progress, no wallet. <em>Exit: the loop feels good and retention proves it.</em></li>
+<li><strong>Clubs and city systems</strong> — capture/defense hardening, real clubs, local leaderboards, shared territory. <em>Exit: multiplayer territory is stable and abuse-resistant.</em></li>
+<li><strong>Backend verification &amp; testnet ownership experiments</strong> — the app submits routes to the verification pipeline; Zone Deed experiments continue on testnet behind the V2 redesign. <em>Exit: verification is reliable in the wild; contract design passes review and independent audit.</em></li>
+<li><strong>Carefully gated city launch &amp; partnerships</strong> — city-by-city expansion, real events and partners, and only then any consideration of a production ownership layer. <em>Exit criteria include legal review and operational readiness.</em></li>
+</ol>
+<figure class="dfig"><img src="/docs/assets/diagrams/roadmap.svg" alt="Roadmap diagram of four phases connected left to right, each with exit criteria, and a gate symbol between phase three and four representing audits, legal review and density requirements." width="760" height="330" /><figcaption>Phases advance on evidence, not on calendar dates. Phases may change.</figcaption></figure>
+
+<h2 id="wp-risks">11. Risks</h2>
+<p>Primary risks: GPS spoofing and verification limits; location privacy; battery constraints of foreground tracking; sparse participation in early cities; sybil and abuse behavior in any social economy; smart-contract defects (V1's are documented); regulatory uncertainty around digital assets; dependency on future partners; and the general volatility of a development-stage product. Mitigations are sequencing (the release gates above), conservative public claims, privacy-first data design, characterization-before-redesign contract work, and keeping the core product complete without any economy. (See <a href="/docs/trust/risks/">Risks &amp; limitations</a>.)</p>
+
+<h2 id="wp-governance">12. Governance approach</h2>
+<p>There is no operational governance today, and MovenRun claims no decentralization. The V1 testnet suite includes a three-tier DAO contract (experimental, with documented weaknesses); the V2 proposal replaces it with standard snapshot-based governance and a timelock — under review, not deployed. Long-term, community participation in territory-level decisions is a design goal, adopted only when it is real. (See <a href="/docs/technology/token-design/">Governance status</a>.)</p>
+
+<h2 id="wp-disclaimers">13. Disclaimers</h2>
+<ul>
+<li>MovenRun is in development; features, availability, and design may change or be removed.</li>
+<li>Nothing in this document is financial advice, an investment solicitation, or a promise of rewards.</li>
+<li>Zone Deeds and territory are digital game concepts. They do not represent, convey, or imply ownership of real-world land or any legal title.</li>
+<li>Testnet deployments and testnet assets are experiments with no promised value, durability, or migration.</li>
+<li>Health-related statements describe general product design, not medical advice; MovenRun does not diagnose, treat, cure, or prevent any condition.</li>
+</ul>
+<p>The complete set lives at <a href="/docs/trust/disclaimers/">Legal &amp; product disclaimers</a>.</p>
+
+<h2 id="wp-references">14. References</h2>
+<p>This whitepaper is distilled from the repository's canonical documents (roadmap, architecture, contracts audit, tokenomics), the merged pull-request record (46 PRs at the time of writing), and current source code on <code>main</code>. Specific references, including the open V1-characterization and V2-redesign pull requests, are listed in <a href="/docs/glossary/#references">Glossary &amp; references</a>.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/executive-summary/"><span>Previous</span><strong>Executive summary</strong></a><a class="pn next" href="/docs/product/vision/"><span>Next</span><strong>Product vision</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

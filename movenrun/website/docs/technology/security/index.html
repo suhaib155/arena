@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Security & data — MovenRun Docs</title>
+<meta name="description" content="Wallet-signature authentication, rate limiting, security headers, CORS, data boundaries, and the threat model — including known limitations." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/security/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Security & data — MovenRun Docs" />
+<meta property="og:description" content="Wallet-signature authentication, rate limiting, security headers, CORS, data boundaries, and the threat model — including known limitations." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/security/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/" aria-current="page">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Security & data</li></ol></nav>
+    <div class="dmeta"><span class="badge b-infra">Infrastructure</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Security &amp; data</h1>
+<p class="lead">Security work landed before the features that need it — so the pipeline was hardened while it still had zero users.</p>
+<p><span class="badge b-infra">Infrastructure</span> — the measures below protect the backend; the current app runs on-device and has no server attack surface of its own.</p>
+
+<h2 id="auth">Wallet-signature authentication</h2>
+<p>Backend write endpoints (<code>/gps/submit</code>, <code>/zones/mint</code>, <code>/battles/declare</code>) require proof that the caller controls the wallet address they claim: a signed message checked by middleware, with the authenticated address bound to the request body so nobody can submit routes or declare challenges on someone else's behalf. This matters only for the future opt-in ownership layer — the consumer app has no wallet today.</p>
+
+<h2 id="hardening">Request hardening</h2>
+<ul>
+<li><strong>Rate limiting</strong> on write endpoints, per address and per IP.</li>
+<li><strong>Security headers</strong> via Helmet.</li>
+<li><strong>CORS allowlist</strong> — only known origins may call the API from browsers.</li>
+<li><strong>Secrets</strong> — signing keys and tokens live in environment/CI secrets; nothing is committed. The oracle key is rotatable by design.</li>
+</ul>
+
+<h2 id="contract-perms">Role-based contract permissions</h2>
+<p>The contract suites use role-based access control (minter, oracle, season, challenge, DAO roles). The V1 testnet deployment has documented wiring weaknesses — see <a href="/docs/technology/contracts/">Contract status</a> — and the V2 proposal tightens roles and signature binding throughout.</p>
+
+<h2 id="threat-model">Threat model, summarized</h2>
+<div class="tscroll"><table>
+<caption>Primary threats and current posture</caption>
+<thead><tr><th>Threat</th><th>Posture</th></tr></thead>
+<tbody>
+<tr><td>Fake movement (GPS spoofing, replays)</td><td>Validation checks + hashing + dedup today; stronger attestation gated before value attaches. Not claimed unbeatable.</td></tr>
+<tr><td>Impersonation on write APIs</td><td>Wallet-signature auth with body binding</td></tr>
+<tr><td>Abuse volume (farming, flooding)</td><td>Rate limits; once-per-day progress rules in-app</td></tr>
+<tr><td>Contract exploitation</td><td>V1 is testnet-only with defects documented rather than hidden; V2 redesign under review; independent audit is a release gate</td></tr>
+<tr><td>Data exposure</td><td>Minimal collection (below); no accounts; no third-party trackers</td></tr>
+</tbody></table></div>
+<p><strong>Known limitations</strong> are listed honestly in <a href="/docs/trust/risks/">Risks &amp; limitations</a>. There is currently no dedicated responsible-disclosure channel; issues can be reported via the public <a href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub repository</a>.</p>
+
+<h2 id="data">Data architecture</h2>
+<ul>
+<li><strong>On-device (current app):</strong> sessions, zones, XP, streaks, clubs, previews — AsyncStorage on your phone. Derived screens recompute on demand rather than persisting new stores.</li>
+<li><strong>Backend (infrastructure):</strong> a routes table holding lifecycle status, route hash, distance, and verification result; queue jobs in Redis. Designed to persist verification artifacts rather than raw trails wherever possible.</li>
+<li><strong>On-chain (experimental testnet):</strong> V1 records on Base Sepolia only — nothing tied to real users.</li>
+<li><strong>Boundaries:</strong> the app sends nothing to the backend today; the backend writes nothing to mainnet ever (it has no mainnet); retention/deletion controls are <span class="badge b-plan">Planned</span> and gate the pipeline's first real users.</li>
+</ul>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/backend/"><span>Previous</span><strong>Backend, routes & verification</strong></a><a class="pn next" href="/docs/technology/web3/"><span>Next</span><strong>Web3 overview</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>
