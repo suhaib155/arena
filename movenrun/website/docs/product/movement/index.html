@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Movement sessions & routines — MovenRun Docs</title>
-<meta name="description" content="How a MovenRun movement session works today: foreground GPS, live stats, route summaries, saved progress, weekly recaps, and current limitations." />
+<title>Movement & proof of activity — MovenRun Docs</title>
+<meta name="description" content="How a MovenRun session works: real-world GPS movement becomes a cryptographic proof of activity that settles onchain and drives everything you earn." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/movement/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Movement sessions & routines — MovenRun Docs" />
-<meta property="og:description" content="How a MovenRun movement session works today: foreground GPS, live stats, route summaries, saved progress, weekly recaps, and current limitations." />
+<meta property="og:title" content="Movement & proof of activity — MovenRun Docs" />
+<meta property="og:description" content="How a MovenRun session works: real-world GPS movement becomes a cryptographic proof of activity that settles onchain and drives everything you earn." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/movement/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,70 +26,51 @@
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
     <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
-    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup" open><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/" aria-current="page">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup" open><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/" aria-current="page">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
-    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Movement sessions</li></ol></nav>
-    <div class="dmeta"><span class="badge b-impl">Implemented</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Movement</li></ol></nav>
+    
     <article class="darticle">
 
-<h1>Movement sessions &amp; routines</h1>
-<p class="lead">The session flow is the heart of the current beta: start, move, finish, review — then come back tomorrow.</p>
-<p><span class="badge b-impl">Implemented</span> in the current mobile build, on-device.</p>
+<h1>Movement &amp; proof of activity</h1>
+<p class="lead">The session is the heart of MovenRun — and it's also where trust begins. Real movement becomes a proof the whole economy can rely on.</p>
 
-<h2 id="starting">Starting a session</h2>
-<p>From the Today screen, <strong>Start Move</strong> opens the session flow: a location-permission gate (first time), a mode context (walk, run, or cycle), then a live session screen. The app uses <strong>foreground GPS only</strong> — tracking runs while the session screen is active, and there are no background location services, geofencing, or push notifications.</p>
+<h2 id="session">A session, start to finish</h2>
+<p>Tap to start and you're moving within seconds — no setup, no wallet prompt. The route draws live as you go, with distance, time, and pace kept simple and glanceable so your eyes stay on your surroundings. Pause and resume whenever you need. Finishing produces a clean summary and the capture moment that turns the outing into territory.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/user-journey.svg" alt="A session end to end: open the map, start moving, follow your live route, finish, review your summary and capture, then return or join a club — looping back to the next session." width="760" height="270" /><figcaption>One session, end to end. It loops back on returning — tomorrow's walk starts here.</figcaption></figure>
 
-<h2 id="live">During the session</h2>
+<h2 id="proof">Why movement is proven</h2>
+<p>Because territory is a real asset, the game can't take movement on faith. Every session is validated for physical plausibility — realistic speed, sane accuracy, continuous motion — and reduced to a deterministic proof that the network's oracle attests. That proof is what lets a capture settle onchain. Effort is rewarded; fabrication is rejected. The full pipeline is in <a href="/docs/technology/backend/">Movement verification</a>.</p>
+
+<h2 id="routines">Routines that build presence</h2>
 <ul>
-<li>The route draws live as you move.</li>
-<li>Distance, elapsed time, and pace stay readable at a glance — deliberately simple so attention stays on your surroundings, not the screen.</li>
-<li>Pause and resume are always available.</li>
+<li><strong>Saved routes</strong> — your favorite loops, ready to run again and reinforce what you hold.</li>
+<li><strong>Streaks</strong> — consistency is the strongest force in the game; showing up compounds.</li>
+<li><strong>Seasons &amp; objectives</strong> — recurring goals that give every week a focus and a reward.</li>
+<li><strong>Weekly recap</strong> — a clear read on your movement and how your territory changed.</li>
 </ul>
 
-<h2 id="summary">Finishing and the route summary</h2>
-<p>Finishing produces a summary: distance, duration, pace, the route shape, XP gained, and the territory the route touched, leading into the capture moment. Sessions award progress once per local day per goal-type to keep the loop honest (an anti-farming rule inherited from the earliest builds).</p>
-<figure class="dfig"><img src="/docs/assets/diagrams/user-journey.svg" alt="User journey diagram from opening the map through starting movement, following the route, finishing the session, reviewing progress, and returning or joining a club." width="760" height="300" /><figcaption>A single session, end to end. The last step loops back to the first.</figcaption></figure>
-
-<h2 id="routines">Routines: recaps, objectives, and saved progress</h2>
+<h2 id="safety">Safety by design</h2>
 <ul>
-<li><strong>Weekly recap</strong> — a calm 7-day reflection of movement and territory progress, derived on demand from on-device state.</li>
-<li><strong>Season objectives</strong> — clear weekly gameplay goals that sit between alerts and the recap.</li>
-<li><strong>Route history &amp; review</strong> — recent sessions with privacy-safe summaries (see <a href="/docs/product/privacy/">Privacy</a>).</li>
-<li><strong>Onboarding questline</strong> — a guided first week: first route, first capture, first defend, first club, first passport.</li>
-</ul>
-
-<h2 id="trust-previews">Verification previews</h2>
-<p>Each summary includes a <strong>Route Trust preview</strong> — a deterministic, locally computed 0–100 score that previews the kind of GPS-quality verification a future backend will perform. A <strong>Route Review History</strong> and a <strong>Route Signal Passport</strong> track the trend, and a shareable <strong>Route Proof</strong> card celebrates results using summary stats only. These are <span class="badge b-prev">Local preview</span> systems: no backend is consulted and no reward depends on them.</p>
-
-<h2 id="safety">Safety and attention principles</h2>
-<ul>
-<li>Live UI is glanceable by design; nothing requires interaction mid-movement.</li>
-<li>No mechanic rewards speed over safety — there is no incentive to sprint through an intersection to hold a zone.</li>
-<li>Alerts are in-app only; the product never buzzes you into the street.</li>
-</ul>
-
-<h2 id="limits">Current limitations</h2>
-<ul>
-<li>Foreground tracking only: switching away for long periods can interrupt a session; battery use is that of an active GPS app.</li>
-<li>GPS accuracy varies in dense urban canyons and indoors; the trust preview surfaces this rather than hiding it.</li>
-<li>Sessions live on your device; there is no account system or cross-device sync yet.</li>
+<li>Live UI is glanceable; nothing requires interaction while you move.</li>
+<li>No mechanic rewards speed over safety — you never need to rush a crossing to hold a zone.</li>
+<li>Move where it's safe and legal to move; the game is built around presence, not risk.</li>
 </ul>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/product/core-loop/"><span>Previous</span><strong>The core loop</strong></a><a class="pn next" href="/docs/product/territory/"><span>Next</span><strong>Territory, capture & defense</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/product/core-loop/"><span>Previous</span><strong>The core loop</strong></a><a class="pn next" href="/docs/product/territory/"><span>Next</span><strong>Territory & ownership</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
-      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
@@ -101,7 +82,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

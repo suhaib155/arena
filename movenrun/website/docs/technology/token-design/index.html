@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Token, economics & governance — MovenRun Docs</title>
-<meta name="description" content="MovenRun's economic guardrails: in-app progress versus transferable assets, legacy experimental V1 token parameters, governance status, and why nothing here is a financial promise." />
+<title>Token & economy — MovenRun Docs</title>
+<meta name="description" content="The $MOVE economy: how movement mints value, the utility that gives the token demand, the sinks that balance it, and the caps that keep it sustainable." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/token-design/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Token, economics & governance — MovenRun Docs" />
-<meta property="og:description" content="MovenRun's economic guardrails: in-app progress versus transferable assets, legacy experimental V1 token parameters, governance status, and why nothing here is a financial promise." />
+<meta property="og:title" content="Token & economy — MovenRun Docs" />
+<meta property="og:description" content="The $MOVE economy: how movement mints value, the utility that gives the token demand, the sinks that balance it, and the caps that keep it sustainable." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/token-design/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,63 +26,60 @@
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
     <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
-    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/" aria-current="page">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/" aria-current="page">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
-    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Token & governance</li></ol></nav>
-    <div class="dmeta"><span class="badge b-cond">Conditional</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">$MOVE economy</li></ol></nav>
+    
     <article class="darticle">
 
-<h1>Token, economics &amp; governance</h1>
-<p class="lead">MovenRun's economic design is a set of guardrails plus one legacy experiment — not an offering. This page uses the title “token and economic design” rather than “how to earn” because there is nothing to earn.</p>
-<p><span class="badge b-cond">Conditional</span> — everything token-related is subject to redesign, independent audit, legal review, and product-readiness gates.</p>
+<h1>$MOVE economy</h1>
+<p class="lead">$MOVE is the asset that powers MovenRun. It's minted by movement, demanded by utility, and tightened by sinks — an economy engineered to reinforce itself.</p>
 
-<h2 id="two-kinds">In-app progress vs. transferable assets</h2>
-<div class="tscroll"><table>
-<caption>The distinction every page in these docs maintains</caption>
-<thead><tr><th></th><th>In-app progress</th><th>Transferable assets</th></tr></thead>
-<tbody>
-<tr><td>Examples</td><td>XP, streaks, movement points (“Locked MOVE” label)</td><td>Tokens, NFTs</td></tr>
-<tr><td>Where it lives</td><td>On your device, in the game</td><td>Would live on-chain</td></tr>
-<tr><td>Exists today?</td><td>Yes</td><td><strong>No</strong> (testnet experiments only, no consumer access)</td></tr>
-<tr><td>Redeemable / tradable?</td><td>No — explicitly “not a payout”</td><td>Nothing exists to trade; no marketplace is promised</td></tr>
-</tbody></table></div>
-<p>“Locked MOVE” in the current app is a <strong>display preview derived from XP</strong> — no balance is stored and nothing accrues. The historical V1 design also imagined a capped “Liquid MOVE” for committed players, strictly behind density and verification gates; that concept remains exactly that — a gated historical design, not a feature.</p>
+<div class="callout note"><p>This page describes the $MOVE economic <em>design</em>. It is not financial advice, an offer, or a promise of returns, and it quotes no price or yield figure. Parameters are set and adjusted through <a href="/docs/technology/governance/">governance</a> and may evolve. See <a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a>.</p></div>
 
-<h2 id="legacy">Legacy experimental V1 parameters <span class="badge b-hist">Historical</span></h2>
-<p>The V1 testnet experiment shipped with a full tokenomics design: a 1-billion supply cap, per-kilometer oracle-gated emission with periodic halvings and daily caps, an auto-valve that reduces emission when burn activity is low, burn sinks on game actions, a 2% zone tax accruing to deed holders with loyalty multipliers, and 90-day seasons ending in a supply burn. Internal documents also sketched target supply allocations, including a public-sale bucket, and a future staking-earned governance token.</p>
-<div class="callout warn"><p><strong>Treat all of it as legacy experimental design.</strong> These parameters exist to make the testnet experiment concrete. They are not commitments, not current offerings, and several interact with V1 defects that the V2 redesign fixes (the season “burn” among them). Any production economy would be redesigned from guardrails up, audited independently, and legally reviewed — and no allocation, sale, price, or yield is promised by anything in this section. MovenRun currently promises <strong>no liquid reward economy at all</strong>.</p></div>
+<h2 id="loop">The economic loop</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/token-economy.svg" alt="The $MOVE economy: verified movement mints capped $MOVE; players spend it on captures, upgrades, challenges, and seasons; those actions burn supply and reward active zone owners — reinforcing demand and ownership." width="760" height="360" /><figcaption>Movement mints, utility demands, sinks burn — a loop built to hold together.</figcaption></figure>
 
-<h2 id="guardrails">The guardrails that outrank the parameters</h2>
+<h2 id="mint">How $MOVE enters</h2>
+<p>$MOVE is minted by <strong>verified movement</strong> — real, proven activity, never a faucet. Emission follows a <strong>capped, decaying schedule</strong>: issuance is highest early and steps down over time, so the network can bootstrap without inflating forever. Per-period limits prevent any single account from dominating issuance.</p>
+
+<h2 id="utility">Why $MOVE is wanted</h2>
+<p>Demand comes from utility woven through the game, not from speculation:</p>
 <ul>
-<li>No liquid rewards before reliable verification, real density, and genuine demand (the standing project rule).</li>
-<li>The game must remain complete and enjoyable with zero economy.</li>
-<li>Caps and sinks before emissions; conservative defaults; no retroactive enrichment.</li>
-<li>No sale CTAs, no exchange links, no price discussion — in the product or in these docs.</li>
+<li><strong>Territory.</strong> Claiming premium zones, upgrading, and fortifying use $MOVE.</li>
+<li><strong>Competition.</strong> Entering challenges and seasonal contests requires it.</li>
+<li><strong>Staking.</strong> $MOVE can be staked in the <a href="/docs/technology/contracts/">vault</a> to back the network and participate in its economy.</li>
+<li><strong>Governance.</strong> Holding and staking $MOVE gives a voice in how the network runs.</li>
 </ul>
 
-<h2 id="governance">Governance status</h2>
+<h2 id="sinks">Sinks and balance</h2>
+<p>Several core actions <strong>burn</strong> $MOVE — permanently removing it from supply — so that as activity grows, supply tightens rather than dilutes. Zone taxes route value to active deed owners, and periodic seasonal mechanics reduce supply on schedule. The guiding rule is <strong>utility and sinks before incentives</strong>: the economy is designed to have reasons to exist beyond emissions.</p>
+
+<h2 id="deeds">Ownership on top</h2>
+<p><a href="/docs/technology/zone-deeds/">Zone Deeds</a> are the ownership layer that sits above the token: active holders accrue standing and in-game yield, tying long-term participation to long-term ownership. Movement, token, and territory are designed as one reinforcing system.</p>
+
+<h2 id="principles">Economic principles</h2>
 <ul>
-<li><strong>Today:</strong> there is no operational governance and no decentralization claim. Product decisions are made by the team.</li>
-<li><span class="badge b-test">Experimental testnet</span> — V1 includes a custom three-tier DAO contract with documented weaknesses (live-balance voting; a vault role that was never wired).</li>
-<li><span class="badge b-review">Under review</span> — the V2 proposal replaces it with standard snapshot governance (OpenZeppelin Governor, quorum fraction, timelock).</li>
-<li><strong>Long-term:</strong> community participation in territory-level decisions is a design goal, adopted only when real and only after the same gates as everything else.</li>
+<li>Minted by proven activity, never by unverified claims.</li>
+<li>Capped and decaying issuance, with anti-concentration limits.</li>
+<li>Sinks and caps designed before incentives, for durability over hype.</li>
+<li>Parameters governed onchain by the community, transparently.</li>
 </ul>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/contracts/"><span>Previous</span><strong>Contracts: architecture & status</strong></a><a class="pn next" href="/docs/trust/risks/"><span>Next</span><strong>Risks & limitations</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/zone-deeds/"><span>Previous</span><strong>Zone Deeds</strong></a><a class="pn next" href="/docs/technology/governance/"><span>Next</span><strong>Governance & the DAO</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
-      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
@@ -94,7 +91,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

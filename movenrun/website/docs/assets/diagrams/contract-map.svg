@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" role="img" aria-labelledby="t">
+<title id="t">MovenRun protocol contract relationships</title>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker>
+<marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#246BFE"/></marker>
+<marker id="arrG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#18C987"/></marker>
+</defs>
+<rect width="760" height="380" rx="18" fill="#F8FAF7"/>
+<text x="40" y="46" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">The protocol contracts</text><rect x="40" y="100" width="150" height="60" rx="14" fill="#E2F8EF" stroke="#0A8F60" stroke-width="1.6"/>
+<text x="115" y="124" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Oracle</text>
+<text x="115" y="145" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">verified movement</text><rect x="250" y="70" width="150" height="56" rx="14" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.6"/>
+<text x="325" y="92" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">$MOVE token</text>
+<text x="325" y="113" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">the asset</text><rect x="250" y="148" width="150" height="56" rx="14" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.6"/>
+<text x="325" y="170" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Zone Deeds</text>
+<text x="325" y="191" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">ownership</text><rect x="250" y="240" width="150" height="56" rx="14" fill="#FFFFFF" stroke="#7657FF" stroke-width="1.6"/>
+<text x="325" y="262" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Challenge</text>
+<text x="325" y="283" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">contests deeds</text><rect x="470" y="70" width="150" height="56" rx="14" fill="#FFFFFF" stroke="#7657FF" stroke-width="1.6"/>
+<text x="545" y="92" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Season</text>
+<text x="545" y="113" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">schedules play</text><rect x="470" y="148" width="150" height="56" rx="14" fill="#FFFFFF" stroke="#7657FF" stroke-width="1.6"/>
+<text x="545" y="170" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Vault</text>
+<text x="545" y="191" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">stake + treasury</text><rect x="470" y="240" width="150" height="56" rx="14" fill="#FFF9EE" stroke="#F7B955" stroke-width="1.6"/>
+<text x="545" y="262" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Governance</text>
+<text x="545" y="283" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">via timelock</text><path d="M 190 122 L 246 92" fill="none" stroke="#18C987" stroke-width="2" marker-end="url(#arrG)"/><path d="M 190 138 L 246 168" fill="none" stroke="#18C987" stroke-width="2" marker-end="url(#arrG)"/><path d="M 325 204 L 325 236" fill="none" stroke="#7657FF" stroke-width="2"/><path d="M 400 176 L 466 176" fill="none" stroke="#7657FF" stroke-width="2"/><path d="M 400 90 L 466 90" fill="none" stroke="#7657FF" stroke-width="2"/><path d="M 545 240 L 545 208" fill="none" stroke="#F7B955" stroke-width="2" marker-end="url(#arr)"/><text x="40" y="316" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">Movement flows in through the oracle; ownership, economy, and governance flow out.</text>
+</svg>

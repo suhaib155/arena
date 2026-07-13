@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Contracts: architecture & status — MovenRun Docs</title>
-<meta name="description" content="The V1 testnet contract suite, its known limitations at a high level, the V2 redesign under review, and why none of it is production architecture yet." />
+<title>Protocol & contracts — MovenRun Docs</title>
+<meta name="description" content="The onchain protocol on Base: the token, zone-deed, challenge, season, vault, and governance contracts, and how verified movement drives them." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/contracts/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Contracts: architecture & status — MovenRun Docs" />
-<meta property="og:description" content="The V1 testnet contract suite, its known limitations at a high level, the V2 redesign under review, and why none of it is production architecture yet." />
+<meta property="og:title" content="Protocol & contracts — MovenRun Docs" />
+<meta property="og:description" content="The onchain protocol on Base: the token, zone-deed, challenge, season, vault, and governance contracts, and how verified movement drives them." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/contracts/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,70 +26,56 @@
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
     <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
-    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/" aria-current="page">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/" aria-current="page">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
-    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Contract status</li></ol></nav>
-    <div class="dmeta"><span class="badge b-test">Experimental testnet</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Protocol architecture</li></ol></nav>
+    
     <article class="darticle">
 
-<h1>Contracts: architecture &amp; status</h1>
-<p class="lead">One experimental V1 suite on a test network, one honest catalogue of its defects, and one isolated V2 redesign — each at a different, clearly-labeled stage.</p>
+<h1>Protocol &amp; contracts</h1>
+<p class="lead">MovenRun's onchain protocol is a set of coordinated contracts on Base that turn verified movement into ownership, economy, and governance.</p>
 
-<h2 id="architecture">The contract architecture</h2>
-<p>The suite models the future territory economy as eight cooperating contracts:</p>
+<h2 id="overview">The protocol at a glance</h2>
+<p>The protocol is the system of record for everything that matters: who owns which zones, how much $MOVE exists and moves, how territory is contested, how seasons resolve, and how the community governs. Verified movement, attested by the oracle, is the input that drives it.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/contract-map.svg" alt="Protocol contract map: the oracle feeds verified movement to the token and Zone Deed contracts; the challenge contract contests deeds; the season controller schedules competition; the vault holds stake and treasury; governance controls parameters via a timelock." width="760" height="380" /><figcaption>How the contracts relate: movement flows in through the oracle; ownership, economy, and governance flow out.</figcaption></figure>
+
+<h2 id="contracts">The contracts</h2>
 <div class="tscroll"><table>
-<caption>Contract roles (V1 names; V2 keeps the same shape)</caption>
-<thead><tr><th>Contract</th><th>Standard</th><th>Role</th></tr></thead>
+<caption>The MovenRun protocol contracts and their roles</caption>
+<thead><tr><th>Contract</th><th>Role</th></tr></thead>
 <tbody>
-<tr><td>Move token</td><td>ERC-20</td><td>The in-game token concept; minting gated by oracle-verified movement</td></tr>
-<tr><td>GPS oracle</td><td>—</td><td>Verifies backend attestations for movement-derived actions</td></tr>
-<tr><td>Zone deed (ZoneNFT)</td><td>ERC-721</td><td>Territory records; token ID = zone cell ID; dormancy/reclaim</td></tr>
-<tr><td>Gear</td><td>ERC-1155</td><td>Equipment with bounded stat multipliers</td></tr>
-<tr><td>Zone challenge</td><td>—</td><td>Time-boxed territory challenge/defense battles</td></tr>
-<tr><td>Season controller</td><td>—</td><td>90-day seasons, emission valve, season-end events</td></tr>
-<tr><td>Vault</td><td>—</td><td>Staking and treasury accounting</td></tr>
-<tr><td>DAO / Governor</td><td>—</td><td>Governance (V1: custom tiers; V2: standard snapshot governance + timelock)</td></tr>
+<tr><td><strong>$MOVE token</strong></td><td>The network's asset. Minted by verified movement within a capped schedule; used and burned across the game.</td></tr>
+<tr><td><strong>Zone Deeds</strong></td><td>The ownership primitive — one onchain deed per map zone, held under the owner's keys, with provenance, yield, and defense.</td></tr>
+<tr><td><strong>Challenge</strong></td><td>The contest system: challengers stake to compete for a held zone; movement is weighed and the deed holds or changes hands.</td></tr>
+<tr><td><strong>Season controller</strong></td><td>Schedules seasons and city competition, and coordinates periodic economic events.</td></tr>
+<tr><td><strong>Vault</strong></td><td>Staking and the community treasury — the economic reserve the network draws on.</td></tr>
+<tr><td><strong>Governance</strong></td><td>Onchain proposals and voting, secured by a timelock, controlling protocol parameters and the treasury.</td></tr>
+<tr><td><strong>Movement oracle</strong></td><td>Attests verified proofs of movement so the contracts above can act on real-world activity.</td></tr>
 </tbody></table></div>
 
-<h2 id="v1">V1 — experimental testnet <span class="badge b-test">Experimental testnet</span></h2>
-<p>The V1 suite is deployed on <strong>Base Sepolia only</strong>, with the deployment record and address registry on <code>main</code>. It is experimental infrastructure: <strong>not mainnet, not production-ready, not audited, and not a public financial product</strong>. Nothing in the consumer app writes to it.</p>
-<p>A formal characterization effort — <a href="https://github.com/suhaib155/arena/pull/44" target="_blank" rel="noopener noreferrer">PR #44</a>, <span class="badge b-review">Under review</span> — proves the deployed V1's behavior with a passing test suite and catalogues <strong>16 known discrepancies</strong> (2 critical, several high) across the challenge lifecycle, season emissions, zone/gear state, and vault/DAO accounting. At a high level: challenges can be disrupted or replayed, a "burn" that doesn't reduce supply, state that leaks across deed reclaims, and governance that isn't snapshot-safe. The docs deliberately stop at this altitude — the full report exists for reviewers, and these pages do not publish exploit walkthroughs. <strong>Do not interact with the V1 testnet contracts expecting sound behavior.</strong></p>
-
-<h2 id="v2">V2 — under review <span class="badge b-review">Under review</span></h2>
-<p><a href="https://github.com/suhaib155/arena/pull/45" target="_blank" rel="noopener noreferrer">PR #45</a> adds an isolated V2 suite: <strong>source and tests only; not merged and not deployed.</strong> V1 remains untouched and remains the only deployed suite. The V2 design's intended improvements, at a high level:</p>
+<h2 id="design">Security-first design</h2>
 <ul>
-<li>An explicit challenge lifecycle (one active challenge per zone, idempotent resolution, no overwrites) with challenger wins that settle without defender cooperation.</li>
-<li><strong>EIP-712 typed signatures everywhere</strong> — domain-bound, deadline-bound, nonce-bound; V1-style signatures are rejected.</li>
-<li>Season pauses that actually stop minting on every path; a season-end burn that genuinely reduces supply, exactly once.</li>
-<li>Live-ownership gear multipliers; checkpointed vault accounting that survives under-funding.</li>
-<li>Standard snapshot governance (OpenZeppelin Governor + timelock) replacing the custom live-balance DAO.</li>
+<li><strong>Trust-minimized.</strong> Contracts act on signed proofs of movement, never on unverified client input.</li>
+<li><strong>Role-scoped.</strong> Privileged actions are gated by explicit roles, not a single all-powerful key.</li>
+<li><strong>Timelocked.</strong> Sensitive changes pass through a delay, giving the community time to see and react.</li>
+<li><strong>Standards-based.</strong> The protocol builds on well-established onchain patterns for tokens, ownership, and governance.</li>
 </ul>
-<div class="callout warn"><p>V2 is <strong>not audited</strong> (its 146 passing tests are not an independent audit), <strong>not deployed</strong>, and no migration from V1 has happened. If PR #45's state changes, this page changes with it.</p></div>
-
-<figure class="dfig"><img src="/docs/assets/diagrams/v1-v2-status.svg" alt="V1 versus V2 status: V1 experimental on Base Sepolia with sixteen documented discrepancies; V2 source and tests only, under review, not deployed; production layer marked as not launched, behind audit and legal gates." width="760" height="330" /><figcaption>Three columns, three truths: V1 is a flawed experiment, V2 is a proposal, production does not exist.</figcaption></figure>
-
-<h2 id="rules">Standing rules</h2>
-<ul>
-<li>Deployed contracts are audited before they are changed; defects are characterized, not silently patched.</li>
-<li>No deployment happens inside feature PRs; deployment records are the only proof of deployment the docs accept.</li>
-<li>Independent audit and legal review gate anything beyond testnet — see <a href="/docs/status/roadmap/#gates">Release gates</a>.</li>
-</ul>
+<p>Details of the asset design are in the <a href="/docs/technology/token-design/">$MOVE economy</a>; ownership mechanics in <a href="/docs/technology/zone-deeds/">Zone Deeds</a>; community control in <a href="/docs/technology/governance/">Governance</a>.</p>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/zone-deeds/"><span>Previous</span><strong>Zone Deeds</strong></a><a class="pn next" href="/docs/technology/token-design/"><span>Next</span><strong>Token, economics & governance</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/territory-computation/"><span>Previous</span><strong>Territory computation</strong></a><a class="pn next" href="/docs/technology/zone-deeds/"><span>Next</span><strong>Zone Deeds</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
-      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
@@ -101,7 +87,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

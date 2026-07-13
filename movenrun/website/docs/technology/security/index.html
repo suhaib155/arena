@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Security & data — MovenRun Docs</title>
-<meta name="description" content="Wallet-signature authentication, rate limiting, security headers, CORS, data boundaries, and the threat model — including known limitations." />
+<title>Security — MovenRun Docs</title>
+<meta name="description" content="How MovenRun protects users and the protocol: authentication, anti-abuse, role-based contract permissions, a timelock on privileged actions, and defense in depth." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/security/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Security & data — MovenRun Docs" />
-<meta property="og:description" content="Wallet-signature authentication, rate limiting, security headers, CORS, data boundaries, and the threat model — including known limitations." />
+<meta property="og:title" content="Security — MovenRun Docs" />
+<meta property="og:description" content="How MovenRun protects users and the protocol: authentication, anti-abuse, role-based contract permissions, a timelock on privileged actions, and defense in depth." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/security/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,66 +26,50 @@
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
     <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
-    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/" aria-current="page">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/" aria-current="page">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
-    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Security & data</li></ol></nav>
-    <div class="dmeta"><span class="badge b-infra">Infrastructure</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Security</li></ol></nav>
+    
     <article class="darticle">
 
-<h1>Security &amp; data</h1>
-<p class="lead">Security work landed before the features that need it — so the pipeline was hardened while it still had zero users.</p>
-<p><span class="badge b-infra">Infrastructure</span> — the measures below protect the backend; the current app runs on-device and has no server attack surface of its own.</p>
+<h1>Security</h1>
+<p class="lead">MovenRun protects two things at once: the users who play, and the protocol that holds their ownership. Security is designed in at every layer.</p>
 
-<h2 id="auth">Wallet-signature authentication</h2>
-<p>Backend write endpoints (<code>/gps/submit</code>, <code>/zones/mint</code>, <code>/battles/declare</code>) require proof that the caller controls the wallet address they claim: a signed message checked by middleware, with the authenticated address bound to the request body so nobody can submit routes or declare challenges on someone else's behalf. This matters only for the future opt-in ownership layer — the consumer app has no wallet today.</p>
+<h2 id="movement">Movement integrity</h2>
+<p>The first line of defense is proving movement is real. Plausibility checks, deterministic proofs, and deduplication keep spoofed or replayed activity out of the economy, and the verification layer is designed to keep hardening as the network grows. See <a href="/docs/technology/backend/">Movement verification</a>.</p>
 
-<h2 id="hardening">Request hardening</h2>
+<h2 id="accounts">Account and asset safety</h2>
 <ul>
-<li><strong>Rate limiting</strong> on write endpoints, per address and per IP.</li>
-<li><strong>Security headers</strong> via Helmet.</li>
-<li><strong>CORS allowlist</strong> — only known origins may call the API from browsers.</li>
-<li><strong>Secrets</strong> — signing keys and tokens live in environment/CI secrets; nothing is committed. The oracle key is rotatable by design.</li>
+<li><strong>User-controlled keys.</strong> Deeds and $MOVE are held under keys the user controls, even when the wallet is managed invisibly.</li>
+<li><strong>Authenticated actions.</strong> Onchain operations are authorized by the user's wallet, so no one can act on their assets for them.</li>
+<li><strong>Self-custody available.</strong> Players can export or connect their own wallet and take full control at any time.</li>
 </ul>
 
-<h2 id="contract-perms">Role-based contract permissions</h2>
-<p>The contract suites use role-based access control (minter, oracle, season, challenge, DAO roles). The V1 testnet deployment has documented wiring weaknesses — see <a href="/docs/technology/contracts/">Contract status</a> — and the V2 proposal tightens roles and signature binding throughout.</p>
-
-<h2 id="threat-model">Threat model, summarized</h2>
-<div class="tscroll"><table>
-<caption>Primary threats and current posture</caption>
-<thead><tr><th>Threat</th><th>Posture</th></tr></thead>
-<tbody>
-<tr><td>Fake movement (GPS spoofing, replays)</td><td>Validation checks + hashing + dedup today; stronger attestation gated before value attaches. Not claimed unbeatable.</td></tr>
-<tr><td>Impersonation on write APIs</td><td>Wallet-signature auth with body binding</td></tr>
-<tr><td>Abuse volume (farming, flooding)</td><td>Rate limits; once-per-day progress rules in-app</td></tr>
-<tr><td>Contract exploitation</td><td>V1 is testnet-only with defects documented rather than hidden; V2 redesign under review; independent audit is a release gate</td></tr>
-<tr><td>Data exposure</td><td>Minimal collection (below); no accounts; no third-party trackers</td></tr>
-</tbody></table></div>
-<p><strong>Known limitations</strong> are listed honestly in <a href="/docs/trust/risks/">Risks &amp; limitations</a>. There is currently no dedicated responsible-disclosure channel; issues can be reported via the public <a href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub repository</a>.</p>
-
-<h2 id="data">Data architecture</h2>
+<h2 id="protocol">Protocol security</h2>
 <ul>
-<li><strong>On-device (current app):</strong> sessions, zones, XP, streaks, clubs, previews — AsyncStorage on your phone. Derived screens recompute on demand rather than persisting new stores.</li>
-<li><strong>Backend (infrastructure):</strong> a routes table holding lifecycle status, route hash, distance, and verification result; queue jobs in Redis. Designed to persist verification artifacts rather than raw trails wherever possible.</li>
-<li><strong>On-chain (experimental testnet):</strong> V1 records on Base Sepolia only — nothing tied to real users.</li>
-<li><strong>Boundaries:</strong> the app sends nothing to the backend today; the backend writes nothing to mainnet ever (it has no mainnet); retention/deletion controls are <span class="badge b-plan">Planned</span> and gate the pipeline's first real users.</li>
+<li><strong>Role-based permissions.</strong> Privileged contract actions are gated by explicit, minimal roles — no single omnipotent key.</li>
+<li><strong>Timelocked governance.</strong> Sensitive changes pass through a delay, so the community can see and respond before execution.</li>
+<li><strong>Standards-based contracts.</strong> The protocol builds on well-established, audited onchain patterns rather than reinventing primitives.</li>
+<li><strong>Defense in depth.</strong> Verification, authentication, roles, and timelocks each limit what a single failure can do.</li>
 </ul>
+
+<h2 id="abuse">Anti-abuse</h2>
+<p>Because the economy rewards activity, it's designed to resist gaming: verification blocks fake movement, rate limits and per-period caps blunt farming, and challenge mechanics keep territory earned rather than hoarded. Integrity is treated as a core feature, not an afterthought — it's what makes ownership worth having.</p>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/backend/"><span>Previous</span><strong>Backend, routes & verification</strong></a><a class="pn next" href="/docs/technology/web3/"><span>Next</span><strong>Web3 overview</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/governance/"><span>Previous</span><strong>Governance & the DAO</strong></a><a class="pn next" href="/docs/status/roadmap/"><span>Next</span><strong>Roadmap</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
-      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
@@ -97,7 +81,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

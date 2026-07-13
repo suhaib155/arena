@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-labelledby="t">
+<title id="t">Invisible onchain onboarding from tap to ownership</title>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker>
+<marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#246BFE"/></marker>
+<marker id="arrG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#18C987"/></marker>
+</defs>
+<rect width="760" height="300" rx="18" fill="#F8FAF7"/>
+<text x="40" y="46" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">Onboarding, made invisible</text><rect x="40" y="96" width="158" height="76" rx="14" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.6"/>
+<text x="119" y="128" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Tap start</text>
+<text x="119" y="149" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">no setup</text><path d="M 198 134 L 218 134" fill="none" stroke="#246BFE" stroke-width="2" marker-end="url(#arrB)"/><rect x="218" y="96" width="158" height="76" rx="14" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.6"/>
+<text x="297" y="128" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Wallet created</text>
+<text x="297" y="149" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">in the background</text><path d="M 376 134 L 396 134" fill="none" stroke="#246BFE" stroke-width="2" marker-end="url(#arrB)"/><rect x="396" y="96" width="158" height="76" rx="14" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.6"/>
+<text x="475" y="128" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Move &amp; capture</text>
+<text x="475" y="149" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">gas sponsored</text><path d="M 554 134 L 574 134" fill="none" stroke="#246BFE" stroke-width="2" marker-end="url(#arrB)"/><rect x="574" y="96" width="158" height="76" rx="14" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.6"/>
+<text x="653" y="128" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">You own it</text>
+<text x="653" y="149" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">onchain, your keys</text><rect x="40" y="200" width="109.60000000000001" height="22" rx="11" fill="#E2F8EF"/>
+<text x="94.80000000000001" y="215" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#0A8F60">NO SEED PHRASE</text><rect x="200" y="200" width="103.2" height="22" rx="11" fill="#E7F0FF"/>
+<text x="251.6" y="215" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#1D5BD6">NO GAS TO BUY</text><rect x="352" y="200" width="186.4" height="22" rx="11" fill="#F4F1FF"/>
+<text x="445.2" y="215" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#5A4AD1">NO CRYPTO KNOWLEDGE NEEDED</text><text x="40" y="250" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">Real onchain ownership, with none of the friction.</text>
+</svg>
