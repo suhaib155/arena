@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Movement sessions & routines — MovenRun Docs</title>
+<meta name="description" content="How a MovenRun movement session works today: foreground GPS, live stats, route summaries, saved progress, weekly recaps, and current limitations." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/movement/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Movement sessions & routines — MovenRun Docs" />
+<meta property="og:description" content="How a MovenRun movement session works today: foreground GPS, live stats, route summaries, saved progress, weekly recaps, and current limitations." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/movement/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup" open><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/" aria-current="page">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Movement sessions</li></ol></nav>
+    <div class="dmeta"><span class="badge b-impl">Implemented</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Movement sessions &amp; routines</h1>
+<p class="lead">The session flow is the heart of the current beta: start, move, finish, review — then come back tomorrow.</p>
+<p><span class="badge b-impl">Implemented</span> in the current mobile build, on-device.</p>
+
+<h2 id="starting">Starting a session</h2>
+<p>From the Today screen, <strong>Start Move</strong> opens the session flow: a location-permission gate (first time), a mode context (walk, run, or cycle), then a live session screen. The app uses <strong>foreground GPS only</strong> — tracking runs while the session screen is active, and there are no background location services, geofencing, or push notifications.</p>
+
+<h2 id="live">During the session</h2>
+<ul>
+<li>The route draws live as you move.</li>
+<li>Distance, elapsed time, and pace stay readable at a glance — deliberately simple so attention stays on your surroundings, not the screen.</li>
+<li>Pause and resume are always available.</li>
+</ul>
+
+<h2 id="summary">Finishing and the route summary</h2>
+<p>Finishing produces a summary: distance, duration, pace, the route shape, XP gained, and the territory the route touched, leading into the capture moment. Sessions award progress once per local day per goal-type to keep the loop honest (an anti-farming rule inherited from the earliest builds).</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/user-journey.svg" alt="User journey diagram from opening the map through starting movement, following the route, finishing the session, reviewing progress, and returning or joining a club." width="760" height="300" /><figcaption>A single session, end to end. The last step loops back to the first.</figcaption></figure>
+
+<h2 id="routines">Routines: recaps, objectives, and saved progress</h2>
+<ul>
+<li><strong>Weekly recap</strong> — a calm 7-day reflection of movement and territory progress, derived on demand from on-device state.</li>
+<li><strong>Season objectives</strong> — clear weekly gameplay goals that sit between alerts and the recap.</li>
+<li><strong>Route history &amp; review</strong> — recent sessions with privacy-safe summaries (see <a href="/docs/product/privacy/">Privacy</a>).</li>
+<li><strong>Onboarding questline</strong> — a guided first week: first route, first capture, first defend, first club, first passport.</li>
+</ul>
+
+<h2 id="trust-previews">Verification previews</h2>
+<p>Each summary includes a <strong>Route Trust preview</strong> — a deterministic, locally computed 0–100 score that previews the kind of GPS-quality verification a future backend will perform. A <strong>Route Review History</strong> and a <strong>Route Signal Passport</strong> track the trend, and a shareable <strong>Route Proof</strong> card celebrates results using summary stats only. These are <span class="badge b-prev">Local preview</span> systems: no backend is consulted and no reward depends on them.</p>
+
+<h2 id="safety">Safety and attention principles</h2>
+<ul>
+<li>Live UI is glanceable by design; nothing requires interaction mid-movement.</li>
+<li>No mechanic rewards speed over safety — there is no incentive to sprint through an intersection to hold a zone.</li>
+<li>Alerts are in-app only; the product never buzzes you into the street.</li>
+</ul>
+
+<h2 id="limits">Current limitations</h2>
+<ul>
+<li>Foreground tracking only: switching away for long periods can interrupt a session; battery use is that of an active GPS app.</li>
+<li>GPS accuracy varies in dense urban canyons and indoors; the trust preview surfaces this rather than hiding it.</li>
+<li>Sessions live on your device; there is no account system or cross-device sync yet.</li>
+</ul>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/product/core-loop/"><span>Previous</span><strong>The core loop</strong></a><a class="pn next" href="/docs/product/territory/"><span>Next</span><strong>Territory, capture & defense</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

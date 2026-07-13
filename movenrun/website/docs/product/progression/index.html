@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Progression — MovenRun Docs</title>
+<meta name="description" content="XP, levels, streaks, movement points, collections, season objectives, and district mastery — and how in-app progress differs from transferable assets." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/progression/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Progression — MovenRun Docs" />
+<meta property="og:description" content="XP, levels, streaks, movement points, collections, season objectives, and district mastery — and how in-app progress differs from transferable assets." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/progression/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup" open><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/" aria-current="page">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Progression</li></ol></nav>
+    <div class="dmeta"><span class="badge b-impl">Implemented</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Progression</h1>
+<p class="lead">Progress in MovenRun is in-app, personal, and visible — and deliberately not a currency.</p>
+<p><span class="badge b-impl">Implemented</span> on-device in the current build.</p>
+
+<h2 id="xp">XP, levels, and streaks</h2>
+<ul>
+<li><strong>XP</strong> is earned by finishing sessions and completing objectives; it drives your level.</li>
+<li><strong>Streaks</strong> count consecutive active days. The daily rule is generous — one qualifying session keeps the streak alive — because the product optimizes for consistency, not volume.</li>
+<li>Progress awards apply <strong>once per local day</strong> per goal, an anti-farming rule carried from the first builds.</li>
+</ul>
+
+<h2 id="movement-points">Movement points and “Locked MOVE”</h2>
+<p>Session summaries show <strong>movement points</strong>. In the current app this counter carries the historical label <strong>Locked MOVE</strong>, and it is important to be precise about what it is:</p>
+<div class="callout warn"><p><strong>Locked MOVE is a display preview, not a token.</strong> In the current build it is a value derived from your XP for preview purposes, labeled in-app as “preview · in-app progress, not a payout”. No balance is stored, nothing accrues, nothing is transferable, and nothing is redeemable. It exists to show what in-app progress <em>could</em> look like in a deeper design — not to promise one.</p></div>
+<p>The distinction the product maintains everywhere: <strong>in-app progress</strong> (XP, streaks, movement points) is a game state on your device; <strong>transferable assets</strong> (tokens, NFTs) do not exist in the product today and would only ever arrive through the gated Web3 layer described in <a href="/docs/technology/token-design/">Token, economics &amp; governance</a>.</p>
+
+<h2 id="collections">Collections and badges</h2>
+<p>Territory milestones — first capture, districts held, defense records — unlock collections and badges: read-only, on-device, and cosmetic. They make progress collectible without introducing rarity markets or value language.</p>
+
+<h2 id="daily-weekly">Daily and weekly structure</h2>
+<ul>
+<li><strong>Season objectives</strong> give each week a handful of concrete goals (capture, revisit, fortify, explore).</li>
+<li><strong>Weekly recap</strong> reflects the last 7 days of movement and territory change.</li>
+<li><strong>In-app alerts</strong> point at what needs attention next.</li>
+</ul>
+
+<h2 id="mastery">District mastery</h2>
+<p>Each district levels up from your long-term behavior in it: captures, defense, missions, events, rivals, and club presence. Mastery is the long arc of progression — the thing a year of morning walks builds. <span class="badge b-prev">Local preview</span> today, like the district system itself.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/product/territory/"><span>Previous</span><strong>Territory, capture & defense</strong></a><a class="pn next" href="/docs/product/clubs/"><span>Next</span><strong>Clubs, community & the city layer</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

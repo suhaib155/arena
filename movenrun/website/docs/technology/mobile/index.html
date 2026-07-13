@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Mobile application — MovenRun Docs</title>
+<meta name="description" content="The Expo/React Native app: routing, on-device state, the GPS session architecture, local preview systems, and the APK build pipeline." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/mobile/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Mobile application — MovenRun Docs" />
+<meta property="og:description" content="The Expo/React Native app: routing, on-device state, the GPS session architecture, local preview systems, and the APK build pipeline." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/mobile/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/" aria-current="page">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Mobile app</li></ol></nav>
+    <div class="dmeta"><span class="badge b-impl">Implemented</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Mobile application</h1>
+<p class="lead">A single Expo/React Native app carries the whole current product: the movement loop, the territory previews, and the progression systems — all on-device.</p>
+<p><span class="badge b-impl">Implemented</span> — Expo SDK 51, React Native 0.74, Expo Router v3, TypeScript.</p>
+
+<h2 id="stack">Stack and structure</h2>
+<ul>
+<li><strong>Routing</strong>: Expo Router v3 file-based routes — a tab shell (Today, Clubs, Profile) plus ~30 feature screens (<code>/move/*</code> session flow, <code>/zone/[id]</code>, <code>/territory/*</code>, <code>/route/*</code> trust screens, city-layer screens, <code>/deed-showroom</code>, <code>/network/status</code>).</li>
+<li><strong>State</strong>: Zustand stores persisted to AsyncStorage. Progress (XP, level, streak, zones, clubs, history) lives on-device; derived screens (recap, objectives, districts, missions) compute on demand so they need no migrations.</li>
+<li><strong>Design system</strong>: the Daylight Cartography tokens live in <code>src/theme.ts</code> (palette, type scale, spacing, radii, shadows, motion). Motion uses core <code>Animated</code> only — no animation libraries, no map SDK yet.</li>
+</ul>
+
+<h2 id="gps">GPS session architecture</h2>
+<p>The session flow (<code>move/index → move/session → move/summary → move/captured</code>) records foreground GPS positions into a route model (coordinates, distance, duration, pace). Summaries and all derived features persist <strong>summary statistics, not raw trails</strong> — the review history, passport, and proof card are deliberately privacy-safe.</p>
+
+<h2 id="previews">Local preview systems</h2>
+<p>Territory, defense, clubs, districts, rivals, city war, sponsor/event zones, missions, mastery, collections, and the deed showroom are deterministic on-device models over local state. Each preview screen carries its label in the UI. This architecture is intentional: the seams where mock models plug in are the same seams where verified backend data plugs in later.</p>
+
+<h2 id="build">Build and distribution</h2>
+<ul>
+<li><strong>Development</strong>: standard Expo dev flow (SDK 51; device testing via Expo Go + tunnel).</li>
+<li><strong>APK builds</strong>: an EAS GitHub Actions workflow (preview profile) produces installable Android builds. Authentication uses a repository secret; no credentials live in the codebase.</li>
+<li><strong>SDK policy</strong>: Expo SDK upgrades are isolated, device-tested PRs — never casual bumps.</li>
+</ul>
+
+<h2 id="historical">Historical note: the quest shell</h2>
+<p><span class="badge b-hist">Historical</span> The earliest app was a daily-quest shell used to prove the build/release pipeline and on-device state plumbing. Its session flow and XP store were reused and bent toward the movement loop — the quest screens themselves are legacy scaffolding, not the product.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/architecture/"><span>Previous</span><strong>Architecture overview</strong></a><a class="pn next" href="/docs/technology/territory-computation/"><span>Next</span><strong>Territory computation</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

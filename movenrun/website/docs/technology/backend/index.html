@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Backend, routes & verification — MovenRun Docs</title>
+<meta name="description" content="The route lifecycle: submission, queue processing, validation checks, deduplication, persistence, and the oracle concept — plus honest limits of GPS verification." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/backend/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Backend, routes & verification — MovenRun Docs" />
+<meta property="og:description" content="The route lifecycle: submission, queue processing, validation checks, deduplication, persistence, and the oracle concept — plus honest limits of GPS verification." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/backend/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/" aria-current="page">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Backend & verification</li></ol></nav>
+    <div class="dmeta"><span class="badge b-infra">Infrastructure</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Backend, routes &amp; verification</h1>
+<p class="lead">The pipeline that will one day decide “this walk really happened” exists today — built, tested, and deliberately not yet serving the app.</p>
+<p><span class="badge b-infra">Infrastructure</span> — Express + BullMQ + Drizzle/Postgres + Redis. Not connected to the consumer app.</p>
+
+<h2 id="responsibilities">API responsibilities</h2>
+<ul>
+<li><code>POST /gps/submit</code> — accept a route for verification (wallet-signature authenticated, rate-limited).</li>
+<li><code>GET /gps/verify/:id</code> — report a route's lifecycle status and, when verified, its proof.</li>
+<li><code>/zones/*</code>, <code>/battles/*</code>, <code>/users/*</code> — zone-mint signatures, challenge declarations, and user reads for the future ownership layer (testnet-oriented; unused by the current app).</li>
+</ul>
+
+<h2 id="lifecycle">Route lifecycle</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/route-lifecycle.svg" alt="Route lifecycle: submitted, processing in queue, validation, then rejected or verified, with proof generation and a dashed optional on-chain action afterwards." width="760" height="330" /><figcaption>Submitted → processing → rejected/verified. Verification produces a signed proof; using it on-chain is a separate, optional, future step.</figcaption></figure>
+<ol>
+<li><strong>Submit.</strong> The route enters a BullMQ queue — validation never blocks the HTTP request.</li>
+<li><strong>Validate.</strong> The GPS worker applies sanity checks: plausible speed between consecutive points, GPS-accuracy thresholds, and duration bounds.</li>
+<li><strong>Compute.</strong> Haversine distance; zone coverage via the H3 mapping; a deterministic SHA-256 <strong>route hash</strong> over the route payload.</li>
+<li><strong>Persist.</strong> Status, hash, distance, and result are stored (Drizzle/Postgres) so verification survives process restarts — and <strong>server-side deduplication</strong> rejects a repeated route before any signing.</li>
+<li><strong>Sign.</strong> For verified routes, an oracle service signs a proof binding wallet, route hash, and distance.</li>
+</ol>
+
+<h2 id="oracle">The oracle concept</h2>
+<p>An “oracle” here is simply the backend acting as a witness: it attests, with a server-held signing key, that a route passed verification. On-chain contracts can then require that attestation before acting. In the current V1 design the attestation is a classic signed message; the V2 proposal (under review) upgrades every signature to typed, replay-resistant EIP-712 data. The oracle key is rotatable by design.</p>
+
+<h2 id="abuse">Verification checks and honest limits</h2>
+<ul>
+<li><strong>Speed checks</strong> catch vehicles and teleports; <strong>accuracy checks</strong> catch synthetic or degraded traces; <strong>duration bounds</strong> catch nonsense sessions.</li>
+<li><strong>Route hashing + dedup</strong> prevent replaying the same walk twice — per wallet and per payload.</li>
+<li><strong>Limits:</strong> none of this makes GPS spoofing impossible. A determined attacker with a motivated toolchain can fabricate plausible traces. That is exactly why verification reliability is a <a href="/docs/status/roadmap/#gates">release gate</a> — the anti-spoofing bar rises (device attestation, behavioral signals, cross-checks) before anything of value ever depends on a route. MovenRun does not claim its verification is complete or unbeatable.</li>
+</ul>
+
+<h2 id="status">Integration status</h2>
+<p>The consumer app does not submit routes yet; every user-visible trust feature today is a local preview. Connecting the two is the core of Phase 3 — and privacy work (retention/deletion controls) lands before the pipeline serves real users.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/territory-computation/"><span>Previous</span><strong>Territory computation</strong></a><a class="pn next" href="/docs/technology/security/"><span>Next</span><strong>Security & data</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

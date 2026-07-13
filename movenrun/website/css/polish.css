@@ -128,6 +128,17 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
   .btn-nav { display: none; }
 }
 
+/* Nav pill gained a Docs link; tighten padding so 7 links fit above 1100px */
+@media (max-width: 1320px) and (min-width: 1101px) {
+  .nav-pill a { padding: 10px 12px; font-size: 13px; }
+  .btn-nav { padding: 12px 16px; font-size: 13.5px; }
+}
+
+/* Final CTA: small back-to-top link under the fine print */
+.final-top { margin-top: 14px; }
+.final-top a { font: 600 13px var(--font-body); color: var(--graphite); }
+.final-top a:hover { color: var(--ink); }
+
 /* ── Session section: supporting line ────────────────────────── */
 .session-lede { max-width: 560px; margin-left: auto; margin-right: auto; }
 

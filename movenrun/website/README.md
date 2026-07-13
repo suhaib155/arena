@@ -1,4 +1,25 @@
-# MovenRun — Landing Website
+# MovenRun — Landing Website + Documentation
+
+Two static surfaces, one folder, zero build steps:
+
+1. **Landing page** (`index.html`) — the cinematic health-first marketing site.
+2. **Documentation portal** (`docs/`) — a GitBook-style docs site + the
+   MovenRun Whitepaper 2026: 28 pages across Start here / Product / Status &
+   roadmap / Technology / Trust & support, with client-side search, a
+   responsive sidebar/drawer, right-rail table of contents, status badges,
+   10 original SVG diagrams, and a printable whitepaper
+   (`/docs/whitepaper/`, print styles + a Print/Save-as-PDF control).
+
+The docs are integrated into the landing page: a **Docs** link in desktop and
+mobile navigation, a **Read the docs** CTA in the final section, and
+Docs / Whitepaper / Current status links in the footer. The primary social
+CTA is **Follow on X** (`https://x.com/` — temporary destination until an
+official MovenRun profile exists; no handle is invented). GitHub remains a
+separate community link. `sitemap.xml` and `robots.txt` cover both surfaces.
+
+Docs maintenance (add a page, sidebar, search index, diagrams, status
+vocabulary, source-of-truth hierarchy, writing guardrails, Web3 safety rules,
+link-check procedure) is documented in **`docs/README.md`**.
 
 Cinematic single-page marketing site for MovenRun, built in the **“Daylight
 Cartography”** design language: bright light-mode, frosted glass cards, a

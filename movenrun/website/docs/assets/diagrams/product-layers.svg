@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" role="img" aria-labelledby="t">
+<title id="t">Product layers from implemented core movement up to the optional dashed Web3 layer</title>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker>
+<marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#246BFE"/></marker>
+</defs>
+<rect width="760" height="400" rx="18" fill="#F8FAF7"/>
+<text x="40" y="46" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">Current vs. future layers</text><rect x="60" y="300" width="640" height="70" rx="14" fill="#E2F8EF" stroke="#18C987" stroke-width="1.6"/>
+<text x="380" y="329" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Core movement</text>
+<text x="380" y="350" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">GPS sessions · summaries · progression — Implemented, on-device</text><rect x="60" y="216" width="640" height="70" rx="14" fill="#E7F0FF" stroke="#246BFE" stroke-width="1.6"/>
+<text x="380" y="245" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Local territory systems</text>
+<text x="380" y="266" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">capture · defense · clubs · city layer — Local preview (simulation)</text><rect x="60" y="132" width="640" height="70" rx="14" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.6"/>
+<text x="380" y="161" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Backend verification</text>
+<text x="380" y="182" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">route pipeline · security — Infrastructure, built but not connected</text><rect x="60" y="66" width="640" height="52" rx="14" fill="#FFF9EE" stroke="#F7B955" stroke-width="1.6" stroke-dasharray="7 6"/>
+<text x="380" y="86" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Optional Web3</text>
+<text x="380" y="107" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">Zone Deeds — Experimental testnet + Under review · never required</text>
+</svg>

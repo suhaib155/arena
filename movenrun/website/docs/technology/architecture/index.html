@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Architecture overview — MovenRun Docs</title>
+<meta name="description" content="The MovenRun system map: mobile app, shared package, backend API and workers, database and queue, experimental testnet contracts, and the website — current versus future connections." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/architecture/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Architecture overview — MovenRun Docs" />
+<meta property="og:description" content="The MovenRun system map: mobile app, shared package, backend API and workers, database and queue, experimental testnet contracts, and the website — current versus future connections." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/architecture/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/" aria-current="page">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Architecture</li></ol></nav>
+    <div class="dmeta"><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Architecture overview</h1>
+<p class="lead">MovenRun is a TypeScript monorepo: one app, one shared contract of types, one verification backend, one experimental chain workspace, and one static website — connected only where the product has earned the connection.</p>
+
+<figure class="dfig"><img src="/docs/assets/diagrams/architecture.svg" alt="System architecture diagram. Solid components: mobile app (Expo), website and docs (static), shared TypeScript package, backend API with queue, workers, Postgres and Redis. Dashed connections: mobile to backend (planned), backend oracle to V1 testnet contracts (experimental), V2 contracts under review." width="760" height="430" /><figcaption>Solid = exists and connected today. Dashed = built but not yet connected, or experimental.</figcaption></figure>
+
+<h2 id="components">Components</h2>
+<div class="tscroll"><table>
+<caption>Monorepo workspaces and their roles</caption>
+<thead><tr><th>Workspace</th><th>Stack</th><th>Role</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>mobile/</code></td><td>Expo SDK 51, React Native, Expo Router, Zustand + AsyncStorage</td><td>The consumer app: sessions, territory previews, progression</td><td><span class="badge b-impl">Implemented</span></td></tr>
+<tr><td><code>shared/</code></td><td>TypeScript</td><td>Types and constants: zone/GPS/token types, grid constants, contract address registry</td><td><span class="badge b-impl">Implemented</span></td></tr>
+<tr><td><code>backend/</code></td><td>Express, BullMQ, Drizzle ORM, Postgres, Redis</td><td>Route verification pipeline, security middleware, read-only chain client</td><td><span class="badge b-infra">Infrastructure</span></td></tr>
+<tr><td><code>contracts/</code></td><td>Hardhat, Solidity 0.8</td><td>V1 suite deployed to Base Sepolia; V2 redesign in an open PR</td><td><span class="badge b-test">Experimental testnet</span> / <span class="badge b-review">Under review</span></td></tr>
+<tr><td><code>website/</code></td><td>Static HTML/CSS/JS, zero build step</td><td>Marketing site + this documentation</td><td><span class="badge b-impl">Implemented</span></td></tr>
+</tbody></table></div>
+
+<h2 id="connections">Current vs. future connections</h2>
+<ul>
+<li><strong>Mobile ↔ backend: not connected.</strong> The app is fully on-device today; route submission to the pipeline is a Phase 3 milestone.</li>
+<li><strong>Backend ↔ chain: read-only.</strong> A no-signer client can read the Base Sepolia deployment; the oracle-signing path exists in code and is exercised by tests, not by users.</li>
+<li><strong>Mobile ↔ chain: display-only.</strong> One read-only status screen and an educational deed showroom. No wallet, no writes.</li>
+<li><strong>Website ↔ everything: informational.</strong> The site and docs are static and make no API calls.</li>
+</ul>
+
+<h2 id="principles">Architectural principles</h2>
+<ul>
+<li><strong>The seam pattern.</strong> The app consumes data through service seams so on-device simulations can later be swapped for verified backend data without UI rewrites.</li>
+<li><strong>Characterize before redesign.</strong> The deployed V1 contracts are treated as an immutable experiment: their defects are being documented (PR #44) before the isolated V2 (PR #45) replaces them — never patched in place.</li>
+<li><strong>Static by default.</strong> Web surfaces are dependency-free static files; no frameworks, no build pipeline.</li>
+</ul>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/status/development-history/"><span>Previous</span><strong>Development history</strong></a><a class="pn next" href="/docs/technology/mobile/"><span>Next</span><strong>Mobile application</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Territory, capture & defense — MovenRun Docs</title>
+<meta name="description" content="How zones, capture, defense decay, and fortification work in the current on-device simulation, and what the future multiplayer model adds." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/territory/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Territory, capture & defense — MovenRun Docs" />
+<meta property="og:description" content="How zones, capture, defense decay, and fortification work in the current on-device simulation, and what the future multiplayer model adds." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/territory/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup" open><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/" aria-current="page">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Territory & defense</li></ol></nav>
+    <div class="dmeta"><span class="badge b-prev">Local preview</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <article class="darticle">
+
+<h1>Territory, capture &amp; defense</h1>
+<p class="lead">Zones make progress spatial. Capture makes it yours. Decay and defense make it worth returning.</p>
+<p><span class="badge b-prev">Local preview</span> — the full system below runs as a single-player, on-device simulation in the current build.</p>
+
+<h2 id="what-is-a-zone">What a zone represents</h2>
+<p>A zone is a hexagonal cell of the map — the game's atom of territory. It represents <em>your relationship with a place</em>: visited, held, neglected, defended. It does not represent land, property, or any real-world right, and holding a zone conveys nothing outside the game. (The hexagons come from the H3 geospatial grid — see <a href="/docs/technology/territory-computation/">Territory computation</a> for the plain-language explanation.)</p>
+
+<h2 id="capture">How routes become territory</h2>
+<p>When a session ends, the route is mapped to the zones it passed through. The summary shows the territory touched, and saving the session captures a zone into your persistent local portfolio, visible on the Today screen, your profile, the Territory Map, and a per-zone detail screen (the “zone command center”).</p>
+
+<h2 id="lifecycle">Zone lifecycle</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/territory-lifecycle.svg" alt="Territory lifecycle diagram: unexplored, explored, captured, stable, at risk, fortified — with arrows showing decay from stable to at risk and recovery through revisiting or fortifying. A dashed future state shows challenges from other players." width="760" height="330" /><figcaption>Decay pulls zones toward “at risk”; returning and fortifying pull them back. The dashed “challenged” state is a future multiplayer concept.</figcaption></figure>
+<ul>
+<li><strong>Unexplored → Explored</strong> — a route passes through.</li>
+<li><strong>Captured</strong> — the zone joins your portfolio with a capture moment.</li>
+<li><strong>Stable → At risk</strong> — defense decays with neglect; alerts nudge you before a zone fades.</li>
+<li><strong>Fortified</strong> — moving through your zones refreshes defense, and an explicit <strong>Fortify</strong> action strengthens a zone further.</li>
+</ul>
+
+<h2 id="districts">Districts</h2>
+<p>Zones group into named city districts (currently fictional groupings computed from your local zones). Districts carry their own <strong>mastery levels</strong> — long-term progression fed by capture, defense, activity, missions, and club presence — so neighborhoods you genuinely frequent become visibly yours.</p>
+
+<h2 id="current-vs-future">Current implementation vs. the future model</h2>
+<div class="tscroll"><table>
+<caption>What the territory system is today, and what it becomes</caption>
+<thead><tr><th>Aspect</th><th>Today (local preview)</th><th>Future (planned)</th></tr></thead>
+<tbody>
+<tr><td>Capture</td><td>One zone per saved session, simulated on-device</td><td>Server-verified capture of all qualifying zones on a route</td></tr>
+<tr><td>Contest</td><td>Fictional “rival ghosts” create pressure; no real players</td><td>Real neighbors, clubs, and challenge mechanics</td></tr>
+<tr><td>Defense</td><td>Local decay + Fortify action + in-app alerts</td><td>Challenge/defense model with real opponents, rate-limited and abuse-checked</td></tr>
+<tr><td>Persistence</td><td>On-device portfolio (AsyncStorage)</td><td>Backend persistence behind verified routes</td></tr>
+</tbody></table></div>
+<div class="callout note"><p>No mechanic in the current build spends, stakes, or consumes tokens — defense and fortification are free game actions. Any future challenge economics would be part of the gated Web3 layer and are <a href="/docs/technology/contracts/">documented separately as experimental</a>.</p></div>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/product/movement/"><span>Previous</span><strong>Movement sessions & routines</strong></a><a class="pn next" href="/docs/product/progression/"><span>Next</span><strong>Progression</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
+      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>
