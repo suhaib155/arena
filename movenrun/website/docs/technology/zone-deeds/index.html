@@ -4,12 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Zone Deeds — MovenRun Docs</title>
-<meta name="description" content="The digital territory record concept: the local preview, the experimental V1 testnet contract, the V2 direction under review, and what Zone Deeds are not." />
+<meta name="description" content="Zone Deeds are the onchain ownership primitive: one deed per map zone, transferable, provable, with built-in defense, yield, and provenance." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/zone-deeds/" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Zone Deeds — MovenRun Docs" />
-<meta property="og:description" content="The digital territory record concept: the local preview, the experimental V1 testnet contract, the V2 direction under review, and what Zone Deeds are not." />
+<meta property="og:description" content="Zone Deeds are the onchain ownership primitive: one deed per map zone, transferable, provable, with built-in defense, yield, and provenance." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/zone-deeds/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,50 +26,47 @@
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
     <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
-    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/" aria-current="page">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/" aria-current="page">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Zone Deeds</li></ol></nav>
-    <div class="dmeta"><span class="badge b-test">Experimental testnet</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    
     <article class="darticle">
 
 <h1>Zone Deeds</h1>
-<p class="lead">A Zone Deed is a digital territory record: a durable, transparent link between a committed player and a zone. Today it exists as an educational preview and a testnet experiment — nothing more.</p>
-<p><span class="badge b-prev">Local preview</span> (in-app showroom) · <span class="badge b-test">Experimental testnet</span> (V1 contract) · <span class="badge b-review">Under review</span> (V2 design)</p>
+<p class="lead">Zone Deeds are MovenRun's ownership primitive — the onchain assets that make territory genuinely yours.</p>
 
-<h2 id="concept">The concept</h2>
-<p>Territory in MovenRun is earned by repetition — and for most players, the in-app record is all they will ever want. A Zone Deed is for the minority who want more durability: an on-chain record (an NFT whose ID corresponds to the zone's grid cell) carrying ownership history and provenance that no app database controls. Think “a plaque for your neighborhood”, not “an asset class”.</p>
-<figure class="dfig"><img src="/docs/assets/diagrams/zone-deed.svg" alt="Zone Deed concept: a hexagonal map zone connected to a deed record card showing holder history; a current local preview and experimental testnet band below; a crossed-out arrow to a house icon labeled 'not real-world land'." width="760" height="330" /><figcaption>The deed records a game relationship with a zone. It has no connection to real-world land — the crossed-out link is the point.</figcaption></figure>
+<h2 id="what">One deed, one zone</h2>
+<p>Each captured zone maps to a single Zone Deed: a unique onchain asset identified by that zone's place on the global grid. A deed is held under the owner's keys and behaves like real property inside the game — you can hold it, strengthen it, defend it, and transfer it, and its history is recorded onchain.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/zone-deed.svg" alt="A Zone Deed binds a hex map zone to an onchain record holding the owner, provenance, defensive strength, and accrued yield — controlled by the owner's keys." width="760" height="330" /><figcaption>A deed binds a place on the map to an asset the owner controls.</figcaption></figure>
 
-<h2 id="today">Where it stands today</h2>
+<h2 id="properties">What a deed carries</h2>
 <ul>
-<li><strong>In the app:</strong> the <a href="/docs/product/deed-preview/">Deed Preview Showroom</a> — educational, read-only, “Local preview · No wallet · No minting” on-screen.</li>
-<li><strong>On testnet:</strong> the V1 suite on Base Sepolia includes a zone-deed contract (ERC-721, one token per zone cell, with dormancy/reclaim mechanics). It is an experiment with documented defects — see <a href="/docs/technology/contracts/">Contract status</a> — and no consumer flow touches it.</li>
-<li><strong>Under review:</strong> the V2 redesign fixes the deed contract's known issues (challenge-lock transfers, state cleanup on reclaim, signature binding). Source and tests only; not merged, not deployed.</li>
+<li><strong>Ownership &amp; provenance.</strong> Who holds it now, and the history of how it changed hands.</li>
+<li><strong>Defense.</strong> A strength that rises with active holding and fortification and is tested by challenges.</li>
+<li><strong>Yield &amp; loyalty.</strong> Active holders accrue in-game yield, with loyalty that rewards long-term stewardship.</li>
+<li><strong>Composability.</strong> Deeds group into districts and city power, and interoperate with the rest of the protocol.</li>
 </ul>
 
-<h2 id="never">What a Zone Deed is not</h2>
-<ul>
-<li><strong>Not land.</strong> No legal title, no real-world right, no claim over any physical place.</li>
-<li><strong>Not required.</strong> The game never gates a mechanic behind holding one.</li>
-<li><strong>Not purchasable today.</strong> There is no mint flow, no marketplace, no price — and none is promised.</li>
-<li><strong>Not an investment.</strong> No value, yield, or appreciation is stated or implied, on any network.</li>
-</ul>
+<h2 id="contest">Holding, defending, transferring</h2>
+<p>Deeds are living assets. A held zone can be challenged through the <a href="/docs/technology/contracts/">challenge system</a>: a challenger stakes to compete, movement is weighed, and the deed either holds or transfers based on the outcome — settled onchain, without any middleman deciding. Owners can also transfer deeds directly. Territory that survives a season of contests is territory that means something.</p>
+
+<h2 id="easy">Owned by you, managed for you</h2>
+<p>Deeds are real onchain assets, but claiming and holding them requires nothing crypto from the player — the wallet, the gas, and the transactions are handled invisibly (see <a href="/docs/technology/web3/">Onchain, made invisible</a>). Crypto-native owners can self-custody and interact with their deeds directly; everyone else simply owns.</p>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/web3/"><span>Previous</span><strong>Web3 overview</strong></a><a class="pn next" href="/docs/technology/contracts/"><span>Next</span><strong>Contracts: architecture & status</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/contracts/"><span>Previous</span><strong>Protocol & contracts</strong></a><a class="pn next" href="/docs/technology/token-design/"><span>Next</span><strong>Token & economy</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
-      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
@@ -81,7 +78,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

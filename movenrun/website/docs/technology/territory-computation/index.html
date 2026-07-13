@@ -4,12 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Territory computation — MovenRun Docs</title>
-<meta name="description" content="How MovenRun maps routes to zones: hexagonal grids in plain language, why hexagons, and why grid resolution is an implementation detail, not a promise." />
+<meta name="description" content="How routes become ownable zones: the H3 hexagonal grid explained simply, why hexagons, and how movement maps cleanly onto territory and districts." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/territory-computation/" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Territory computation — MovenRun Docs" />
-<meta property="og:description" content="How MovenRun maps routes to zones: hexagonal grids in plain language, why hexagons, and why grid resolution is an implementation detail, not a promise." />
+<meta property="og:description" content="How routes become ownable zones: the H3 hexagonal grid explained simply, why hexagons, and how movement maps cleanly onto territory and districts." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/territory-computation/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,51 +26,50 @@
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
     <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
-    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/" aria-current="page">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/" aria-current="page">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Territory computation</li></ol></nav>
-    <div class="dmeta"><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    
     <article class="darticle">
 
 <h1>Territory computation</h1>
-<p class="lead">How a wobbly GPS trace becomes crisp territory: hexagons, and one honest rule about them.</p>
+<p class="lead">How a wandering GPS route becomes crisp, ownable territory: one global hex grid, and a clean way to turn movement into map.</p>
 
-<h2 id="h3-plain">H3 in plain language</h2>
-<p>MovenRun models the world using <a href="https://h3geo.org/" target="_blank" rel="noopener noreferrer">H3</a>, an open-source system (originally from Uber) that tiles the entire planet into hexagonal cells. Every point on Earth falls inside exactly one cell at a given resolution, and every cell has a single stable ID. That gives the game a shared, deterministic definition of “a zone” — two players standing on the same street corner are always in the same zone.</p>
+<h2 id="grid">A single grid for the whole world</h2>
+<p>MovenRun models the planet with <strong>H3</strong>, an open hexagonal grid system that tiles the entire Earth into cells. Every location belongs to exactly one cell with a stable identifier, which gives the game a shared, precise definition of "a zone" — the same for every player, everywhere. That shared grid is what makes territory ownership consistent and composable.</p>
 
-<h2 id="why-hex">Why hexagons?</h2>
+<h2 id="why-hex">Why hexagons</h2>
 <ul>
-<li><strong>Equal neighbors.</strong> Every hexagon touches six neighbors at the same distance — squares have awkward diagonal neighbors, which distorts adjacency-based gameplay like defense and spread.</li>
-<li><strong>Better fit to movement.</strong> Routes curve; hexagons approximate circular “reach” around a path better than squares.</li>
-<li><strong>Clean aggregation.</strong> Cells roll up into coarser cells, which is how zones later aggregate into districts and city views.</li>
+<li><strong>Even neighbors.</strong> Every hexagon borders six others at equal distance, so adjacency — central to holding, spreading, and defending territory — behaves cleanly.</li>
+<li><strong>Natural fit to movement.</strong> Routes curve; hexagons approximate the reach around a path far better than squares.</li>
+<li><strong>Clean aggregation.</strong> Cells roll up into larger cells, which is how zones combine into districts and cities.</li>
 </ul>
 
-<h2 id="route-to-zone">Route → zone mapping</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/route-lifecycle.svg" alt="Route lifecycle diagram: a submitted route enters a processing queue, passes validation checks, is mapped to hexagonal zones and hashed, then ends as verified or rejected, with an optional later on-chain proof step drawn as dashed." width="760" height="330" /><figcaption>The same mapping runs on-device today (simulation) and in the backend pipeline (infrastructure). The dashed chain step is future and optional.</figcaption></figure>
+<h2 id="mapping">From route to territory</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/proof-of-movement.svg" alt="A route is validated, mapped onto the hexagonal grid to determine the zones it crossed, reduced to a proof, and settled onchain as captured territory." width="760" height="320" /><figcaption>Each point on a verified route resolves to a hex; the ordered set of hexes is the territory you captured.</figcaption></figure>
 <ol>
-<li>Each recorded point is assigned to its containing cell.</li>
-<li>Consecutive duplicates collapse; the result is the ordered set of zones the route touched.</li>
-<li>The current app simulates capture from this set locally; the backend pipeline computes the same coverage server-side for future verified capture.</li>
+<li>Each point on a verified route is resolved to its containing hex cell.</li>
+<li>Consecutive duplicates collapse into the ordered set of zones the route crossed.</li>
+<li>That set drives onchain capture — the zones become deeds you own.</li>
 </ol>
 
-<h2 id="resolution">Resolution is an implementation detail</h2>
-<div class="callout note"><p>Grid resolution — how big a zone is — is <strong>tuning, not a promise</strong>. The engineering default in the shared constants targets neighborhood-scale cells (hundreds of meters across), which early internal documents fixed at a specific H3 resolution. Gameplay density, city shape, and abuse-testing may change it. Public docs therefore describe zones as “neighborhood-scale” and leave the number to the code.</p></div>
+<h2 id="scale">Zones, districts, cities</h2>
+<p>Because H3 cells nest, MovenRun composes territory at multiple scales: individual zones you capture, districts that group them into neighborhoods with their own mastery, and cities where clubs contest control. One grid underpins the entire game, from a single street to a citywide season.</p>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/mobile/"><span>Previous</span><strong>Mobile application</strong></a><a class="pn next" href="/docs/technology/backend/"><span>Next</span><strong>Backend, routes & verification</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/backend/"><span>Previous</span><strong>Movement verification</strong></a><a class="pn next" href="/docs/technology/contracts/"><span>Next</span><strong>Protocol & contracts</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
-      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
@@ -82,7 +81,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

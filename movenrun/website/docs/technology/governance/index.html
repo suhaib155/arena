@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Governance & the DAO — MovenRun Docs</title>
+<meta name="description" content="How MovenRun becomes community-owned: onchain voting, the treasury, a timelock-secured DAO, and a path from team stewardship to decentralized control." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/governance/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Governance & the DAO — MovenRun Docs" />
+<meta property="og:description" content="How MovenRun becomes community-owned: onchain voting, the treasury, a timelock-secured DAO, and a path from team stewardship to decentralized control." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/governance/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/" aria-current="page">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Governance</li></ol></nav>
+    
+    <article class="darticle">
+
+<h1>Governance &amp; the DAO</h1>
+<p class="lead">MovenRun is built to be owned by the people who move on it. Governance is onchain, timelock-secured, and progressively decentralized.</p>
+
+<h2 id="how">How governance works</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/governance.svg" alt="Governance flow: token holders create proposals and vote onchain; passing proposals enter a timelock delay; after the delay, execution updates protocol parameters and allocates the community treasury." width="760" height="300" /><figcaption>Propose, vote, wait, execute — with a timelock protecting every change.</figcaption></figure>
+<ol>
+<li><strong>Propose.</strong> Stakeholders put forward changes — to parameters, the treasury, or the protocol itself.</li>
+<li><strong>Vote.</strong> Voting power is based on a governance snapshot, so influence can't be gamed by shuffling tokens.</li>
+<li><strong>Timelock.</strong> Passed proposals wait through a delay, giving the community time to review before anything takes effect.</li>
+<li><strong>Execute.</strong> After the delay, the change executes onchain, transparently.</li>
+</ol>
+
+<h2 id="treasury">The community treasury</h2>
+<p>The network's <a href="/docs/technology/contracts/">vault</a> holds a community treasury that governance directs — funding growth, rewards, partnerships, and the ongoing development of the network. Because it's onchain and timelock-secured, allocation is transparent and accountable to the people who hold the network.</p>
+
+<h2 id="path">Progressive decentralization</h2>
+<p>Decentralization done responsibly is a journey, not a switch. MovenRun begins with active stewardship — so the network can move fast and stay safe while it's young — and deliberately hands more control to the community as the system proves itself. The destination is a network whose parameters, treasury, and direction are set by the players who move on it.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/decentralization.svg" alt="Progressive decentralization path: from active team stewardship, to shared community governance with a timelock, to full community control of parameters and treasury." width="760" height="280" /><figcaption>From stewardship to shared control to full community ownership.</figcaption></figure>
+
+<h2 id="principles">Governance principles</h2>
+<ul>
+<li><strong>Onchain and transparent</strong> — proposals, votes, and execution are all visible.</li>
+<li><strong>Snapshot-based voting</strong> — resistant to manipulation.</li>
+<li><strong>Timelocked execution</strong> — no surprise changes; the community always has time to react.</li>
+<li><strong>Progressive</strong> — control moves to the community as the network matures.</li>
+</ul>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/token-design/"><span>Previous</span><strong>Token & economy</strong></a><a class="pn next" href="/docs/technology/security/"><span>Next</span><strong>Security</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

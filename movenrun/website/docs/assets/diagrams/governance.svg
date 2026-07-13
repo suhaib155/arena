@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-labelledby="t">
+<title id="t">Onchain governance flow with a timelock</title>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker>
+<marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#246BFE"/></marker>
+<marker id="arrG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#18C987"/></marker>
+</defs>
+<rect width="760" height="300" rx="18" fill="#F8FAF7"/>
+<text x="40" y="46" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">Onchain governance</text><rect x="40" y="96" width="158" height="74" rx="14" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.6"/>
+<text x="119" y="127" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Propose</text>
+<text x="119" y="148" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">holders</text><path d="M 198 133 L 218 133" fill="none" stroke="#7657FF" stroke-width="2" marker-end="url(#arr)"/><rect x="218" y="96" width="158" height="74" rx="14" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.6"/>
+<text x="297" y="127" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Vote</text>
+<text x="297" y="148" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">snapshot power</text><path d="M 376 133 L 396 133" fill="none" stroke="#7657FF" stroke-width="2" marker-end="url(#arr)"/><rect x="396" y="96" width="158" height="74" rx="14" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.6"/>
+<text x="475" y="127" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Timelock</text>
+<text x="475" y="148" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">review delay</text><path d="M 554 133 L 574 133" fill="none" stroke="#7657FF" stroke-width="2" marker-end="url(#arr)"/><rect x="574" y="96" width="158" height="74" rx="14" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.6"/>
+<text x="653" y="127" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Execute</text>
+<text x="653" y="148" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">params · treasury</text><text x="40" y="214" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">Propose, vote, wait, execute — with a timelock protecting every change.</text><text x="40" y="236" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">The community controls parameters and the treasury, transparently onchain.</text>
+</svg>

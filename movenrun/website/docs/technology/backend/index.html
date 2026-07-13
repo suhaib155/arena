@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Backend, routes & verification — MovenRun Docs</title>
-<meta name="description" content="The route lifecycle: submission, queue processing, validation checks, deduplication, persistence, and the oracle concept — plus honest limits of GPS verification." />
+<title>Movement verification — MovenRun Docs</title>
+<meta name="description" content="How MovenRun proves real movement: signal validation, anti-spoofing checks, deterministic route proofs, deduplication, and an oracle that attests activity onchain." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/backend/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Backend, routes & verification — MovenRun Docs" />
-<meta property="og:description" content="The route lifecycle: submission, queue processing, validation checks, deduplication, persistence, and the oracle concept — plus honest limits of GPS verification." />
+<meta property="og:title" content="Movement verification — MovenRun Docs" />
+<meta property="og:description" content="How MovenRun proves real movement: signal validation, anti-spoofing checks, deterministic route proofs, deduplication, and an oracle that attests activity onchain." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/backend/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,61 +26,52 @@
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
     <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
-    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/" aria-current="page">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup"><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary & references</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup" open><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/" aria-current="page">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
-    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Backend & verification</li></ol></nav>
-    <div class="dmeta"><span class="badge b-infra">Infrastructure</span><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Verification</li></ol></nav>
+    
     <article class="darticle">
 
-<h1>Backend, routes &amp; verification</h1>
-<p class="lead">The pipeline that will one day decide “this walk really happened” exists today — built, tested, and deliberately not yet serving the app.</p>
-<p><span class="badge b-infra">Infrastructure</span> — Express + BullMQ + Drizzle/Postgres + Redis. Not connected to the consumer app.</p>
+<h1>Movement verification</h1>
+<p class="lead">Ownership is only as trustworthy as the movement behind it. MovenRun's verification layer turns a recorded route into a proof the whole economy can rely on.</p>
 
-<h2 id="responsibilities">API responsibilities</h2>
-<ul>
-<li><code>POST /gps/submit</code> — accept a route for verification (wallet-signature authenticated, rate-limited).</li>
-<li><code>GET /gps/verify/:id</code> — report a route's lifecycle status and, when verified, its proof.</li>
-<li><code>/zones/*</code>, <code>/battles/*</code>, <code>/users/*</code> — zone-mint signatures, challenge declarations, and user reads for the future ownership layer (testnet-oriented; unused by the current app).</li>
-</ul>
+<h2 id="why">Why it matters</h2>
+<p>If territory is a real asset, the network can't reward movement it can't trust. Verification is what keeps the map fair, the economy healthy, and ownership meaningful — it's the difference between a game of effort and a game of exploits.</p>
 
-<h2 id="lifecycle">Route lifecycle</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/route-lifecycle.svg" alt="Route lifecycle: submitted, processing in queue, validation, then rejected or verified, with proof generation and a dashed optional on-chain action afterwards." width="760" height="330" /><figcaption>Submitted → processing → rejected/verified. Verification produces a signed proof; using it on-chain is a separate, optional, future step.</figcaption></figure>
+<h2 id="pipeline">The proof-of-movement pipeline</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/proof-of-movement.svg" alt="Proof-of-movement pipeline: a submitted route is validated for plausibility, mapped to zones, reduced to a deterministic proof, and signed by the oracle for onchain settlement; invalid or duplicate routes are rejected." width="760" height="320" /><figcaption>A recorded route becomes a signed proof that onchain contracts can act on.</figcaption></figure>
 <ol>
-<li><strong>Submit.</strong> The route enters a BullMQ queue — validation never blocks the HTTP request.</li>
-<li><strong>Validate.</strong> The GPS worker applies sanity checks: plausible speed between consecutive points, GPS-accuracy thresholds, and duration bounds.</li>
-<li><strong>Compute.</strong> Haversine distance; zone coverage via the H3 mapping; a deterministic SHA-256 <strong>route hash</strong> over the route payload.</li>
-<li><strong>Persist.</strong> Status, hash, distance, and result are stored (Drizzle/Postgres) so verification survives process restarts — and <strong>server-side deduplication</strong> rejects a repeated route before any signing.</li>
-<li><strong>Sign.</strong> For verified routes, an oracle service signs a proof binding wallet, route hash, and distance.</li>
+<li><strong>Validate.</strong> The route is checked for physical plausibility — realistic speed, sane accuracy, continuous motion, sane duration.</li>
+<li><strong>Map.</strong> The path is resolved to the ordered set of zones it crossed (see <a href="/docs/technology/territory-computation/">Territory computation</a>).</li>
+<li><strong>Reduce.</strong> The session is distilled into a compact, deterministic proof — a fingerprint of the movement, not a stored trail.</li>
+<li><strong>Attest.</strong> The oracle signs the proof so onchain contracts can settle capture and rewards without trusting the client.</li>
+<li><strong>Guard.</strong> Duplicate and replayed proofs are rejected, so the same movement can't be claimed twice.</li>
 </ol>
 
-<h2 id="oracle">The oracle concept</h2>
-<p>An “oracle” here is simply the backend acting as a witness: it attests, with a server-held signing key, that a route passed verification. On-chain contracts can then require that attestation before acting. In the current V1 design the attestation is a classic signed message; the V2 proposal (under review) upgrades every signature to typed, replay-resistant EIP-712 data. The oracle key is rotatable by design.</p>
+<h2 id="oracle">The oracle</h2>
+<p>The oracle is the bridge between the physical world and the chain: it attests, with a network-held signing key, that a route passed verification, and its authority is scoped and rotatable. Onchain contracts require that attestation before acting on movement — so real-world activity can drive ownership without the chain ever trusting an app.</p>
 
-<h2 id="abuse">Verification checks and honest limits</h2>
+<h2 id="antispoof">Anti-spoofing and integrity</h2>
 <ul>
-<li><strong>Speed checks</strong> catch vehicles and teleports; <strong>accuracy checks</strong> catch synthetic or degraded traces; <strong>duration bounds</strong> catch nonsense sessions.</li>
-<li><strong>Route hashing + dedup</strong> prevent replaying the same walk twice — per wallet and per payload.</li>
-<li><strong>Limits:</strong> none of this makes GPS spoofing impossible. A determined attacker with a motivated toolchain can fabricate plausible traces. That is exactly why verification reliability is a <a href="/docs/status/roadmap/#gates">release gate</a> — the anti-spoofing bar rises (device attestation, behavioral signals, cross-checks) before anything of value ever depends on a route. MovenRun does not claim its verification is complete or unbeatable.</li>
+<li><strong>Plausibility checks</strong> catch vehicles, teleports, and synthetic traces.</li>
+<li><strong>Deterministic proofs plus deduplication</strong> stop replays and double-claims.</li>
+<li><strong>Layered defense</strong> — verification is designed to keep hardening as the network grows, because integrity is the foundation the whole economy stands on.</li>
 </ul>
 
-<h2 id="status">Integration status</h2>
-<p>The consumer app does not submit routes yet; every user-visible trust feature today is a local preview. Connecting the two is the core of Phase 3 — and privacy work (retention/deletion controls) lands before the pipeline serves real users.</p>
-
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/territory-computation/"><span>Previous</span><strong>Territory computation</strong></a><a class="pn next" href="/docs/technology/security/"><span>Next</span><strong>Security & data</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/mobile/"><span>Previous</span><strong>The app</strong></a><a class="pn next" href="/docs/technology/territory-computation/"><span>Next</span><strong>Territory computation</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
-      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
@@ -92,7 +83,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

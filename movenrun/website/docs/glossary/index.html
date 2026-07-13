@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Glossary & references — MovenRun Docs</title>
-<meta name="description" content="Definitions for MovenRun terms — zones, capture, fortify, Zone Deed, Locked MOVE, testnet, oracle, H3 — plus canonical repository and external references." />
+<title>Glossary — MovenRun Docs</title>
+<meta name="description" content="Definitions for the MovenRun world: zones, capture, fortify, districts, Zone Deeds, $MOVE, proof of movement, oracle, H3, and more." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/glossary/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Glossary & references — MovenRun Docs" />
-<meta property="og:description" content="Definitions for MovenRun terms — zones, capture, fortify, Zone Deed, Locked MOVE, testnet, oracle, H3 — plus canonical repository and external references." />
+<meta property="og:title" content="Glossary — MovenRun Docs" />
+<meta property="og:description" content="Definitions for the MovenRun world: zones, capture, fortify, districts, Zone Deeds, $MOVE, proof of movement, oracle, H3, and more." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/glossary/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,81 +26,56 @@
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
     <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
-    <a class="dhead-link dhead-gh" href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper 2026</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement sessions</a></li><li><a href="/docs/product/territory/">Territory & defense</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Clubs & city layer</a></li><li><a href="/docs/product/deed-preview/">Zone Deed preview</a></li><li><a href="/docs/product/wellbeing/">Wellbeing</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Status & roadmap</summary><ul><li><a href="/docs/status/current/">Current status</a></li><li><a href="/docs/status/roadmap/">Roadmap & gates</a></li><li><a href="/docs/status/development-history/">Development history</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/mobile/">Mobile app</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/backend/">Backend & verification</a></li><li><a href="/docs/technology/security/">Security & data</a></li><li><a href="/docs/technology/web3/">Web3 overview</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/contracts/">Contract status</a></li><li><a href="/docs/technology/token-design/">Token & governance</a></li></ul></details><details class="dgroup" open><summary>Trust & support</summary><ul><li><a href="/docs/trust/risks/">Risks</a></li><li><a href="/docs/trust/disclaimers/">Disclaimers</a></li><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/" aria-current="page">Glossary & references</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup" open><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/" aria-current="page">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
-    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Trust & support</li><li aria-current="page">Glossary & references</li></ol></nav>
-    <div class="dmeta"><span class="dreviewed">Last reviewed: 12 July 2026</span></div>
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Resources</li><li aria-current="page">Glossary</li></ol></nav>
+    
     <article class="darticle">
 
-<h1>Glossary &amp; references</h1>
-<p class="lead">The terms these docs use, defined once — followed by the sources they are built from.</p>
+<h1>Glossary</h1>
+<p class="lead">The language of the MovenRun world, defined once.</p>
 
-<h2 id="terms">Glossary</h2>
 <dl class="dgloss">
-<dt>Move session</dt><dd>A recorded period of walking, running, or cycling: route, distance, duration, pace.</dd>
-<dt>Zone</dt><dd>One hexagonal cell of the map grid — the atom of territory. A digital game concept, never real land.</dd>
-<dt>Territory</dt><dd>The set of zones a player has captured and maintains.</dd>
-<dt>Capture</dt><dd>Claiming a zone by finishing a session whose route touched it. Currently an on-device simulation.</dd>
-<dt>Defense</dt><dd>A zone's resistance to fading (and, in the future model, to challenges). Decays with neglect; refreshed by returning.</dd>
-<dt>Fortify</dt><dd>An explicit action that strengthens a zone you hold.</dd>
-<dt>District</dt><dd>A named group of zones at city scale, with its own mastery progression. Currently fictional groupings.</dd>
-<dt>Club</dt><dd>A team players join for shared motivation and (future) shared territory. Currently a local preview with four fictional clubs.</dd>
-<dt>Crew mission</dt><dd>A weekly team-style goal generated from territory activity. Local preview.</dd>
-<dt>City war</dt><dd>A season-long, city-scale competition between clubs. Currently a fictional preview board.</dd>
-<dt>Zone Deed</dt><dd>A proposed on-chain territory record (ERC-721) for committed players. Local showroom + experimental testnet only; never required; not land.</dd>
-<dt>Movement points / Locked MOVE</dt><dd>The in-app progress counter shown on summaries. In the current build, a display preview derived from XP, labeled “not a payout”. Not a token; nothing is stored or redeemable.</dd>
-<dt>Liquid MOVE</dt><dd>A historical design term for a capped, transferable reward concept for deed holders — strictly gated, never implemented, and not promised.</dd>
-<dt>Testnet</dt><dd>A public blockchain for experiments, with valueless tokens. MovenRun's V1 contracts are on Base Sepolia.</dd>
-<dt>Mainnet</dt><dd>A production blockchain carrying real value. <strong>MovenRun has no mainnet deployment.</strong></dd>
-<dt>Oracle</dt><dd>The backend acting as a signed witness that a route passed verification, so contracts can require proof of movement.</dd>
-<dt>H3</dt><dd>The open-source hexagonal geospatial grid system used to define zones.</dd>
-<dt>Route hash</dt><dd>A deterministic fingerprint (SHA-256) of a route used for deduplication and replay prevention.</dd>
-<dt>V1</dt><dd>The first contract suite, deployed to Base Sepolia. Experimental; 16 documented discrepancies.</dd>
-<dt>V2</dt><dd>The redesigned contract suite fixing V1's defects. Under review: source and tests only, not merged, not deployed.</dd>
+<dt>Movement session</dt><dd>A recorded period of walking, running, or cycling — the fundamental action in MovenRun.</dd>
+<dt>Proof of movement</dt><dd>A verifiable, deterministic proof that a session really happened, attested by the oracle so onchain contracts can act on it.</dd>
+<dt>Zone</dt><dd>One hexagonal cell of the world map — the atom of territory. Every location belongs to exactly one zone.</dd>
+<dt>Territory</dt><dd>The set of zones a player owns and maintains.</dd>
+<dt>Capture</dt><dd>Claiming the zones a verified route crossed, turning them into owned territory.</dd>
+<dt>Zone Deed</dt><dd>The onchain asset representing ownership of a zone — one deed per zone, held under the owner's keys, carrying provenance, defense, and yield.</dd>
+<dt>Defense</dt><dd>A zone's resistance to being taken; it rises with active holding and fortification and is tested by challenges.</dd>
+<dt>Fortify</dt><dd>An action that strengthens a zone you hold.</dd>
+<dt>Challenge</dt><dd>The onchain contest by which one player competes for another's held zone; movement is weighed and the deed holds or changes hands.</dd>
+<dt>District</dt><dd>A group of zones forming a neighborhood, with its own mastery and role in city competition.</dd>
+<dt>City war</dt><dd>A season-long contest between clubs for control of a city's districts.</dd>
+<dt>Club</dt><dd>A team of players who pool territory and standing to compete at district and city scale.</dd>
+<dt>Crew mission</dt><dd>A shared, team-oriented objective for a club.</dd>
+<dt>$MOVE</dt><dd>The network's native asset: minted by verified movement, used across the game, and burned by core actions.</dd>
+<dt>Movement points</dt><dd>The in-game measure of your activity in a session.</dd>
+<dt>Season</dt><dd>A recurring period of competition with its own objectives, standings, and rewards.</dd>
+<dt>Oracle</dt><dd>The service that attests verified proofs of movement onchain, bridging real-world activity to the protocol.</dd>
+<dt>Vault</dt><dd>The staking and community-treasury contract — the network's economic reserve.</dd>
+<dt>Governance</dt><dd>Onchain, timelock-secured proposals and voting through which the community controls the network.</dd>
+<dt>Timelock</dt><dd>A mandatory delay between a governance decision passing and taking effect, giving the community time to react.</dd>
+<dt>H3</dt><dd>The open hexagonal grid system MovenRun uses to tile the world into zones.</dd>
+<dt>Embedded wallet</dt><dd>A secure wallet created for a player automatically, so ownership works without seed phrases or setup.</dd>
+<dt>Sponsored gas</dt><dd>Transaction fees paid on the player's behalf, so no one needs to hold a gas token to play.</dd>
+<dt>Base</dt><dd>The Ethereum Layer 2 network MovenRun settles on.</dd>
 </dl>
 
-<h2 id="references">References</h2>
-<h3>Canonical repository documents</h3>
-<ul>
-<li><a href="https://github.com/suhaib155/arena/blob/main/movenrun/docs/ROADMAP.md" target="_blank" rel="noopener noreferrer">ROADMAP.md</a> — internal product scope and phases (some sections predate the recent mobile milestones; reconciled here against the PR record).</li>
-<li><a href="https://github.com/suhaib155/arena/blob/main/movenrun/docs/ARCHITECTURE.md" target="_blank" rel="noopener noreferrer">ARCHITECTURE.md</a> — contract interaction and verification pipeline design.</li>
-<li><a href="https://github.com/suhaib155/arena/blob/main/movenrun/docs/CONTRACTS_AUDIT.md" target="_blank" rel="noopener noreferrer">CONTRACTS_AUDIT.md</a> — on-chain asset record and deployment reconciliation.</li>
-<li><a href="https://github.com/suhaib155/arena/blob/main/movenrun/docs/TOKENOMICS.md" target="_blank" rel="noopener noreferrer">TOKENOMICS.md</a> — the legacy experimental V1 economic design (historical).</li>
-</ul>
-<h3>Key merged pull requests</h3>
-<ul>
-<li><a href="https://github.com/suhaib155/arena/pull/13" target="_blank" rel="noopener noreferrer">#13 GPS movement sessions</a> · <a href="https://github.com/suhaib155/arena/pull/14" target="_blank" rel="noopener noreferrer">#14 territory capture</a> · <a href="https://github.com/suhaib155/arena/pull/15" target="_blank" rel="noopener noreferrer">#15 defend &amp; fortify</a> · <a href="https://github.com/suhaib155/arena/pull/16" target="_blank" rel="noopener noreferrer">#16 clubs preview</a></li>
-<li><a href="https://github.com/suhaib155/arena/pull/40" target="_blank" rel="noopener noreferrer">#40 oracle alignment</a> · <a href="https://github.com/suhaib155/arena/pull/41" target="_blank" rel="noopener noreferrer">#41 route persistence &amp; dedup</a> · <a href="https://github.com/suhaib155/arena/pull/42" target="_blank" rel="noopener noreferrer">#42 backend auth &amp; security</a></li>
-<li><a href="https://github.com/suhaib155/arena/pull/46" target="_blank" rel="noopener noreferrer">#46 health-first website</a> — the live landing page.</li>
-</ul>
-<h3>Open / incoming pull requests <span class="badge b-review">Under review</span></h3>
-<ul>
-<li><a href="https://github.com/suhaib155/arena/pull/44" target="_blank" rel="noopener noreferrer">#44 V1 lifecycle characterization</a> — open; documentation and tests only.</li>
-<li><a href="https://github.com/suhaib155/arena/pull/45" target="_blank" rel="noopener noreferrer">#45 isolated V2 contracts</a> — open; source and tests only, not deployed.</li>
-</ul>
-<h3>External documentation</h3>
-<ul>
-<li><a href="https://h3geo.org/" target="_blank" rel="noopener noreferrer">H3 — hexagonal geospatial indexing</a></li>
-<li><a href="https://docs.base.org/" target="_blank" rel="noopener noreferrer">Base documentation</a></li>
-<li><a href="https://docs.expo.dev/" target="_blank" rel="noopener noreferrer">Expo documentation</a></li>
-<li><a href="https://docs.openzeppelin.com/contracts/" target="_blank" rel="noopener noreferrer">OpenZeppelin Contracts documentation</a></li>
-</ul>
-
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/trust/faq/"><span>Previous</span><strong>Frequently asked questions</strong></a><span class="pn empty"></span></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/trust/faq/"><span>Previous</span><strong>Frequently asked questions</strong></a><a class="pn next" href="/docs/trust/risks/"><span>Next</span><strong>Risk factors</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. Features and availability may change. Nothing in this documentation is financial advice or a promise of rewards. Zone Deeds and territory are digital game concepts — not real-world land.</p>
-      <p><a href="/docs/trust/disclaimers/">Read the full disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
@@ -112,7 +87,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “roadmap”, or “wallet”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>
