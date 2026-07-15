@@ -578,17 +578,20 @@ yarn install --immutable
   unused artifact left over from before this package joined the Yarn
   workspace — not an intentionally-maintained independent npm project. The
   monorepo uses Yarn workspaces with a single lockfile at `movenrun/yarn.lock`.
-- **One resolution override.** Root `package.json` pins
-  `"@zksync/contracts": "npm:@openzeppelin/contracts@^5.0.2"` under
-  `"resolutions"`. `@zksync/contracts` is a *transitive* devDependency of
-  `@chainlink/contracts` (itself unused by our own Solidity — grepped clean)
-  that points at a git commit of `matter-labs/era-contracts`; resolving it
-  requires Yarn's internal "classic bootstrap" fetch, an extra network
-  dependency with no bearing on anything this repo compiles or tests. The
-  override substitutes an already-fetched, already-used package into that
-  unused dependency slot so installation is fully deterministic without
-  pulling in an unrelated git-hosted package neither we nor Chainlink's
-  published sources actually need here.
+- **`@chainlink/contracts` removed (unused).** A full repo-wide search (Solidity
+  imports, TS/JS imports, Hardhat config, scripts, tests, docs, `.env.example`,
+  and specifically `AggregatorV3Interface`/`VRF`/`Automation`/`FunctionsClient`)
+  found **zero** references anywhere outside `contracts/package.json`'s
+  `devDependencies` entry itself. It was a devDependency with no consumer, so it
+  has been **removed** from `contracts/package.json` and `yarn.lock`
+  regenerated — not aliased, not kept "for later." Removing it also drops its
+  entire transitive subtree (including a git-hosted `@zksync/contracts` /
+  `matter-labs/era-contracts` dependency that previously required Yarn's
+  internal "classic bootstrap" fetch), so no `resolutions` override or any
+  other workaround is needed for that subtree anymore. If Chainlink is ever
+  genuinely needed by future Solidity, add it back as a real dependency and
+  resolve its transitive deps normally — never alias one package's identifier
+  to an unrelated package's implementation.
 - **`.github/workflows/contracts-checks.yml` (new).** Runs on PRs/pushes
   touching `movenrun/contracts/**` or `movenrun/shared/**`: `corepack enable`
   → `yarn install --immutable` → `yarn workspace @movenrun/contracts compile`
@@ -597,7 +600,7 @@ yarn install --immutable
   key are used or required — this workflow never deploys anything and never
   makes a network call to a chain.** No test-path filter is applied, so it
   runs every test file under `contracts/test/` — the 26 pre-existing V1 tests,
-  the 18 V1 characterization tests, the 6 new deployment-command safety tests,
+  the 17 V1 characterization tests, the 6 deployment-command safety tests,
   and any future suite (e.g. a V2 suite, once merged) automatically.
 - **Root `verify:contracts` script (new).** `yarn verify:contracts` runs the
   same compile + test sequence locally. The full monorepo verification suite
@@ -630,3 +633,47 @@ yarn install --immutable
 - Resolve the pre-existing `@nomicfoundation/hardhat-ignition*` /
   `@nomicfoundation/hardhat-verify` peer-dependency range warnings surfaced by
   `yarn install` (`YN0060`) — non-blocking today, unrelated to this PR's scope.
+
+### Revision: invalid dependency workaround removed, package-manager
+### verification consolidated (this revision)
+
+A prior revision of this same change had introduced two things that did not
+meet engineering-quality standards and have since been corrected:
+
+1. **The `resolutions` package-impersonation override has been removed
+   entirely, with no replacement alias.** Root `package.json` no longer
+   contains any `resolutions` field. Substituting `@openzeppelin/contracts` for
+   `@zksync/contracts` under a `resolutions` alias — even for an allegedly
+   unused transitive dependency — made an unrelated package masquerade as a
+   different package with a different API, path, and security surface. That is
+   never acceptable, so instead of aliasing around the dependency that made it
+   "necessary," the dependency itself was removed (see above): once
+   `@chainlink/contracts` is gone, so is its entire `@zksync/contracts`
+   transitive subtree, and no override is needed.
+2. **Yarn version verification is now a single reusable script**,
+   `movenrun/scripts/verify-package-manager.mjs` — zero dependencies, reads
+   root `package.json`'s `"packageManager"` field (the one authoritative
+   source for the pinned Yarn version), runs `yarn --version`, and fails
+   loudly with both values printed on any mismatch. `contracts-checks.yml`,
+   `backend-checks.yml`, and `mobile-checks.yml` all call this one script
+   immediately after `corepack enable`, instead of each independently
+   printing (and never actually checking) `yarn --version`, and instead of
+   hardcoding "4.9.1" as an independent constant anywhere in workflow YAML.
+3. **Workflow path filters were widened.** A dependency or package-manager
+   change (root `package.json`, `yarn.lock`, `.yarnrc.yml`, or the
+   verification script) can affect the contracts and backend workspaces even
+   when no file under `contracts/**`/`backend/**` itself changes, so both
+   `contracts-checks.yml` and `backend-checks.yml` now also trigger on those
+   root files (see their `on.pull_request.paths`/`on.push.paths` above).
+   `mobile-checks.yml` already ran on every PR/push with no path filter and is
+   unchanged in that respect.
+4. **Test deduplication.** `test/v1-characterization/05-deploy-script.char.test.ts`
+   previously re-asserted several current-state facts (no command targets
+   `baseMainnet`, the Sepolia command's exact `--network` flag) that
+   `test/tooling/deploymentCommands.test.ts` already asserts authoritatively
+   and more thoroughly. The historical file was trimmed to two tests: a
+   minimal regression guard (`deploy:mainnet` no longer exists) plus the one
+   historical root-cause fact (the Base Sepolia script's own hardcoded
+   network/chainId/output-file metadata) that isn't restated elsewhere. This
+   drops the characterization suite from 18 to **17** tests — contracts test
+   totals below are updated accordingly (26 + 17 + 6 = **49**, not 50).

@@ -46,13 +46,16 @@ begin that work.
 | 14 | DAO votes on live transferable balances (no snapshot) | Medium | Yes | Yes (V2) |
 | 15 | MovenDAO lacks `DAO_ROLE` on MoveVault (as deployed) | Medium | Yes | No — role grant, or clarified V2 wiring |
 
-Test totals: **18 characterization tests** across issues #1–#16, all passing,
-alongside the **26** pre-existing contract tests (44 total). Issue #16's
+Test totals: **17 characterization tests** across issues #1–#16, all passing,
+alongside the **26** pre-existing contract tests (43 total). Issue #16's
 unsafe command has since been removed by
 `chore(contracts): add deterministic CI and disable unsafe mainnet
 deployment`, which adds **6** further static tooling tests
 (`test/tooling/deploymentCommands.test.ts`) guarding the fix going forward —
-**50** contract tests total as of that change.
+**49** contract tests total as of that change. (The characterization suite
+for issue #16 was originally 3 tests / 18 total; a later revision trimmed it
+to 2 tests / 17 total after removing genuine duplication with the tooling
+suite above — see `docs/CONTRACTS_AUDIT.md`'s "Revision" note.)
 
 ---
 
@@ -337,11 +340,14 @@ deployment`, which adds **6** further static tooling tests
   emitted testnet-labelled metadata (and overwritten the testnet record).
 - **Historical characterization test.** `05-deploy-script.char.test.ts` — its
   first assertion was updated (not removed) to reflect that `deploy:mainnet` no
-  longer exists, since the full contract suite must stay green after the fix;
-  the remaining two checks (the Base Sepolia script's own hardcoded
-  network/chainId/output-file metadata) are unaffected by the command removal
-  and still pass unchanged. **No deployment was run** in either the original
-  characterization or this fix.
+  longer exists, since the full contract suite must stay green after the fix.
+  It was later trimmed from 3 to 2 tests: the current-state facts it
+  duplicated (no command targets `baseMainnet`, the exact Sepolia `--network`
+  flag) are now asserted solely by `test/tooling/deploymentCommands.test.ts`
+  below, and this file keeps only the regression guard plus the one
+  historical root-cause fact (the script's own hardcoded
+  network/chainId/output-file metadata) not covered elsewhere. **No
+  deployment was run** in the original characterization or either fix.
 - **Current-state safety test.** `test/tooling/deploymentCommands.test.ts` — 6
   static, non-network assertions: no `deploy:mainnet` script; no package
   command invokes `baseSepolia.ts` with `--network baseMainnet`; the

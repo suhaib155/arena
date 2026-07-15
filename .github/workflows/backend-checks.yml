@@ -6,6 +6,10 @@ name: backend-checks
 on:
   pull_request:
     paths:
+      - "movenrun/package.json"
+      - "movenrun/yarn.lock"
+      - "movenrun/.yarnrc.yml"
+      - "movenrun/scripts/verify-package-manager.mjs"
       - "movenrun/backend/**"
       - "movenrun/shared/**"
       - "movenrun/contracts/deployments/**"
@@ -13,9 +17,19 @@ on:
   push:
     branches: [main]
     paths:
+      - "movenrun/package.json"
+      - "movenrun/yarn.lock"
+      - "movenrun/.yarnrc.yml"
+      - "movenrun/scripts/verify-package-manager.mjs"
       - "movenrun/backend/**"
       - "movenrun/shared/**"
       - "movenrun/contracts/deployments/**"
+      - ".github/workflows/backend-checks.yml"
+
+# Least privilege: this workflow only checks out, installs, type-checks, and
+# tests — it never pushes, comments, or publishes anything.
+permissions:
+  contents: read
 
 jobs:
   backend:
@@ -33,10 +47,13 @@ jobs:
         with:
           node-version: 20
 
-      # The repo pins Yarn 4 via package.json "packageManager"; Corepack
-      # provisions the right Yarn version.
+      # The repo pins Yarn 4 via package.json "packageManager" (the single
+      # source of truth); Corepack provisions the right Yarn version.
       - name: Enable Corepack
         run: corepack enable
+
+      - name: Verify package manager version
+        run: node scripts/verify-package-manager.mjs
 
       # movenrun/yarn.lock is committed and deterministic.
       - name: Install dependencies (immutable)

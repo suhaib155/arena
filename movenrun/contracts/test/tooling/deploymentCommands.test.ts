@@ -15,12 +15,23 @@ import fs from "fs";
 import path from "path";
 
 const CONTRACTS_ROOT = path.join(__dirname, "..", "..");
+const PACKAGE_JSON_PATH = path.join(CONTRACTS_ROOT, "package.json");
 const BASE_SEPOLIA_SCRIPT_PATH = "scripts/deploy/baseSepolia.ts";
+const BASE_SEPOLIA_SCRIPT_ABS_PATH = path.join(CONTRACTS_ROOT, BASE_SEPOLIA_SCRIPT_PATH);
+
+function readPackageJson(filePath: string): any {
+  const raw = fs.readFileSync(filePath, "utf8");
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`deploymentCommands.test.ts: failed to parse ${filePath} as JSON: ${(err as Error).message}`);
+  }
+}
 
 describe("current tooling invariant — deployment command safety (static, no network)", function () {
-  const pkg = JSON.parse(fs.readFileSync(path.join(CONTRACTS_ROOT, "package.json"), "utf8"));
+  const pkg = readPackageJson(PACKAGE_JSON_PATH);
   const scripts: Record<string, string> = pkg.scripts ?? {};
-  const sepoliaScript = fs.readFileSync(path.join(CONTRACTS_ROOT, BASE_SEPOLIA_SCRIPT_PATH), "utf8");
+  const sepoliaScript = fs.readFileSync(BASE_SEPOLIA_SCRIPT_ABS_PATH, "utf8");
 
   it("1. contracts/package.json has no deploy:mainnet command", function () {
     expect(scripts).to.not.have.property("deploy:mainnet");

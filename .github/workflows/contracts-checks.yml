@@ -8,15 +8,28 @@ name: contracts-checks
 on:
   pull_request:
     paths:
+      - "movenrun/package.json"
+      - "movenrun/yarn.lock"
+      - "movenrun/.yarnrc.yml"
+      - "movenrun/scripts/verify-package-manager.mjs"
       - "movenrun/contracts/**"
       - "movenrun/shared/**"
       - ".github/workflows/contracts-checks.yml"
   push:
     branches: [main]
     paths:
+      - "movenrun/package.json"
+      - "movenrun/yarn.lock"
+      - "movenrun/.yarnrc.yml"
+      - "movenrun/scripts/verify-package-manager.mjs"
       - "movenrun/contracts/**"
       - "movenrun/shared/**"
       - ".github/workflows/contracts-checks.yml"
+
+# Least privilege: this workflow only checks out, installs, compiles, and
+# tests — it never pushes, comments, or publishes anything.
+permissions:
+  contents: read
 
 jobs:
   contracts:
@@ -35,13 +48,15 @@ jobs:
         with:
           node-version: 20
 
-      # The repo pins Yarn 4.9.1 via package.json "packageManager"; Corepack
-      # provisions the exact pinned version.
+      # The repo pins Yarn 4.9.1 via package.json "packageManager" (the single
+      # source of truth); Corepack provisions that exact pinned version.
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Confirm Yarn version
-        run: yarn --version
+      # Fails fast if the Corepack-provisioned Yarn doesn't match
+      # package.json's "packageManager" — see movenrun/scripts/verify-package-manager.mjs.
+      - name: Verify package manager version
+        run: node scripts/verify-package-manager.mjs
 
       # movenrun/yarn.lock is committed and deterministic — install must not
       # silently drift or mutate it.
@@ -52,8 +67,8 @@ jobs:
         run: yarn workspace @movenrun/contracts compile
 
       # Runs everything under contracts/test/ (Hardhat's default recursive
-      # glob): the 26 pre-existing V1 tests, the 18 V1 characterization tests,
-      # the deployment-command safety test, and any future test files (e.g.
+      # glob): the 26 pre-existing V1 tests, the 17 V1 characterization tests,
+      # the 6 deployment-command safety tests, and any future test files (e.g.
       # V2 suites once merged) automatically — no test filter/path is passed,
       # so nothing is silently excluded.
       - name: Test contracts
