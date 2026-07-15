@@ -1,0 +1,60 @@
+name: contracts-checks
+
+# Compiles and tests the Hardhat contract suite on PRs that touch contracts /
+# shared, and on pushes to main. Deliberately deployment-free: no deployer
+# private key, no Base RPC secret, no Basescan API key, and no network
+# deployment ever runs here. See movenrun/docs/CONTRACTS_AUDIT.md and
+# movenrun/docs/CONTRACT_V1_DISCREPANCIES.md.
+on:
+  pull_request:
+    paths:
+      - "movenrun/contracts/**"
+      - "movenrun/shared/**"
+      - ".github/workflows/contracts-checks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "movenrun/contracts/**"
+      - "movenrun/shared/**"
+      - ".github/workflows/contracts-checks.yml"
+
+jobs:
+  contracts:
+    name: Contracts compile & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The Yarn 4 workspaces project lives in the movenrun/ subdirectory.
+    defaults:
+      run:
+        working-directory: movenrun
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The repo pins Yarn 4.9.1 via package.json "packageManager"; Corepack
+      # provisions the exact pinned version.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Confirm Yarn version
+        run: yarn --version
+
+      # movenrun/yarn.lock is committed and deterministic — install must not
+      # silently drift or mutate it.
+      - name: Install dependencies (immutable)
+        run: yarn install --immutable
+
+      - name: Compile contracts
+        run: yarn workspace @movenrun/contracts compile
+
+      # Runs everything under contracts/test/ (Hardhat's default recursive
+      # glob): the 26 pre-existing V1 tests, the 18 V1 characterization tests,
+      # the deployment-command safety test, and any future test files (e.g.
+      # V2 suites once merged) automatically — no test filter/path is passed,
+      # so nothing is silently excluded.
+      - name: Test contracts
+        run: yarn workspace @movenrun/contracts test

@@ -17,6 +17,15 @@ re-read this before touching `contracts/`.
 > **characterization + documentation only**: no Solidity source, deployment
 > addresses, or deployment records were changed.
 
+> **Deterministic contract CI (`chore(contracts): add deterministic CI and
+> disable unsafe mainnet deployment`):** the workspace now has a committed,
+> deterministic `movenrun/yarn.lock` and an independent
+> `.github/workflows/contracts-checks.yml` that compiles and tests the
+> contract suite on every contract/shared change. The unsafe `deploy:mainnet`
+> command was **removed** (repo/tooling fix only — no redeploy, no address
+> change). See "Package manager & contract CI" below. **V2 remains source-only
+> on the separate PR #45 branch and is not part of this change.**
+
 ---
 
 ## ✅ Reconciliation summary (this PR)
@@ -538,3 +547,86 @@ clients`.
   against a real Postgres before staging/prod deployment.
 - Mobile wallet connection and client-side signing UX, only once the product
   flow needs it (no mobile changes in this PR).
+
+---
+
+### Package manager & contract CI (added — `chore(contracts): add deterministic
+### CI and disable unsafe mainnet deployment`)
+
+**Yarn 4.9.1 is the authoritative package manager** for this monorepo (pinned
+via root `movenrun/package.json`'s `"packageManager"` field, unchanged by this
+PR). Local setup and CI both use:
+
+```
+corepack enable
+yarn install --immutable
+```
+
+- **`movenrun/yarn.lock` is now committed** — generated from a clean workspace
+  install and verified with `yarn install --immutable` from a clean checkout.
+  Every prior workflow (`backend-checks.yml`, `mobile-checks.yml`,
+  `eas-apk-build.yml`) previously set `YARN_ENABLE_IMMUTABLE_INSTALLS: "false"`
+  specifically because no lockfile existed yet — Yarn 4 enables immutable
+  installs by default, which fails outright without a committed lock. All
+  three now use `yarn install --immutable` and no longer need that workaround.
+  The EAS workflow's Expo/EAS behavior, Expo SDK version, and EAS project id
+  are unchanged; the EAS CLI itself is still invoked via `npx eas-cli@latest`
+  and was not pinned.
+- **One workspace lockfile, not two.** `contracts/package-lock.json` (an npm
+  lockfile) was **removed**: nothing in this repo's scripts or workflows ran
+  `npm install`/`npm ci` against it (confirmed by search), so it was a stale,
+  unused artifact left over from before this package joined the Yarn
+  workspace — not an intentionally-maintained independent npm project. The
+  monorepo uses Yarn workspaces with a single lockfile at `movenrun/yarn.lock`.
+- **One resolution override.** Root `package.json` pins
+  `"@zksync/contracts": "npm:@openzeppelin/contracts@^5.0.2"` under
+  `"resolutions"`. `@zksync/contracts` is a *transitive* devDependency of
+  `@chainlink/contracts` (itself unused by our own Solidity — grepped clean)
+  that points at a git commit of `matter-labs/era-contracts`; resolving it
+  requires Yarn's internal "classic bootstrap" fetch, an extra network
+  dependency with no bearing on anything this repo compiles or tests. The
+  override substitutes an already-fetched, already-used package into that
+  unused dependency slot so installation is fully deterministic without
+  pulling in an unrelated git-hosted package neither we nor Chainlink's
+  published sources actually need here.
+- **`.github/workflows/contracts-checks.yml` (new).** Runs on PRs/pushes
+  touching `movenrun/contracts/**` or `movenrun/shared/**`: `corepack enable`
+  → `yarn install --immutable` → `yarn workspace @movenrun/contracts compile`
+  → `yarn workspace @movenrun/contracts test`. **No deployment environment
+  variables, no deployer private key, no Base RPC secret, and no Basescan API
+  key are used or required — this workflow never deploys anything and never
+  makes a network call to a chain.** No test-path filter is applied, so it
+  runs every test file under `contracts/test/` — the 26 pre-existing V1 tests,
+  the 18 V1 characterization tests, the 6 new deployment-command safety tests,
+  and any future suite (e.g. a V2 suite, once merged) automatically.
+- **Root `verify:contracts` script (new).** `yarn verify:contracts` runs the
+  same compile + test sequence locally. The full monorepo verification suite
+  (`yarn test` / `yarn build` across every workspace) is intentionally **not**
+  expanded yet — backend/shared build work is out of scope here.
+- **The unsafe `deploy:mainnet` command was removed** from
+  `contracts/package.json` with no replacement added (see
+  [`CONTRACT_V1_DISCREPANCIES.md` §16](./CONTRACT_V1_DISCREPANCIES.md#16-mainnet-deployment-script-mismatch--critical--fixed-tooling-only)).
+  **Mainnet deployment remains intentionally unsupported** until a dedicated,
+  reviewed, chain-asserting mainnet deployment script exists. `deploy:local`,
+  `deploy:sepolia`, `verify:sepolia`, `compile`, `test`, and `coverage` are all
+  unchanged.
+- **Base Sepolia V1 is untouched.** `contracts/src/**/*.sol`,
+  `contracts/deployments/baseSepolia.json`, `hardhat.config.ts`, and
+  `scripts/deploy/baseSepolia.ts` are byte-identical before/after this PR. No
+  deployment ran; no address changed.
+- **V2 is out of scope here.** The isolated V2 contract suite lives only on
+  the separate, still-open PR #45 branch
+  (`claude/contracts-v2-territory-economy-vv3xpk`) and was neither read from
+  nor written to by this change. This PR's stated purpose is to prepare the
+  repository (deterministic lockfile + real contract CI) so that PR can later
+  be rebased onto `main` and verified through `contracts-checks.yml`.
+
+**Updated follow-up gates (contracts):**
+- Rebase and revise PR #45 (V2 territory-economy contracts) on top of this PR
+  once merged, so it is verified by `contracts-checks.yml` instead of only
+  local runs.
+- A real, chain-asserting mainnet deployment script — only once mainnet
+  deployment is actually planned and reviewed; none exists today.
+- Resolve the pre-existing `@nomicfoundation/hardhat-ignition*` /
+  `@nomicfoundation/hardhat-verify` peer-dependency range warnings surfaced by
+  `yarn install` (`YN0060`) — non-blocking today, unrelated to this PR's scope.

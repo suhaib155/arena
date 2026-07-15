@@ -15,12 +15,6 @@ jobs:
     defaults:
       run:
         working-directory: movenrun
-    env:
-      # No yarn.lock is committed yet, and Yarn 4 turns on immutable installs
-      # automatically under CI — which would fail without a lockfile. Allow the
-      # lockfile to be created here. Follow-up: commit yarn.lock and flip this
-      # to "true" (or use `yarn install --immutable`).
-      YARN_ENABLE_IMMUTABLE_INSTALLS: "false"
     steps:
       - uses: actions/checkout@v4
 
@@ -34,8 +28,9 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Install dependencies
-        run: yarn install
+      # movenrun/yarn.lock is committed and deterministic.
+      - name: Install dependencies (immutable)
+        run: yarn install --immutable
 
       - name: Type-check @movenrun/mobile
         run: yarn workspace @movenrun/mobile lint
