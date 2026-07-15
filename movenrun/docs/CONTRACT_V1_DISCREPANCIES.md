@@ -31,7 +31,7 @@ begin that work.
 |---|---|---|---|---|
 | 1 | Active challenge can be overwritten | **Critical** | Yes | Yes (V2) |
 | 3 | Settlement depends on the losing defender's approval | **Critical** | Yes | Yes (V2) |
-| 16 | `deploy:mainnet` runs the Base Sepolia script | **Critical** | No (tooling/process) | No — repo script fix |
+| 16 | `deploy:mainnet` runs the Base Sepolia script | **Critical** | No (tooling/process) | ✅ Fixed — repo script fix, no redeploy (see `chore(contracts): add deterministic CI and disable unsafe mainnet deployment`) |
 | 2 | No new challenge after a resolved challenge | High | Yes | Yes (V2) |
 | 4 | Deed transferable during an active challenge | High | Yes | Yes (V2) |
 | 5 | Declaration-signature replay surface | High | Yes | Yes (V2) |
@@ -46,8 +46,16 @@ begin that work.
 | 14 | DAO votes on live transferable balances (no snapshot) | Medium | Yes | Yes (V2) |
 | 15 | MovenDAO lacks `DAO_ROLE` on MoveVault (as deployed) | Medium | Yes | No — role grant, or clarified V2 wiring |
 
-Test totals: **18 characterization tests** across issues #1–#16, all passing,
-alongside the **26** pre-existing contract tests (44 total).
+Test totals: **17 characterization tests** across issues #1–#16, all passing,
+alongside the **26** pre-existing contract tests (43 total). Issue #16's
+unsafe command has since been removed by
+`chore(contracts): add deterministic CI and disable unsafe mainnet
+deployment`, which adds **6** further static tooling tests
+(`test/tooling/deploymentCommands.test.ts`) guarding the fix going forward —
+**49** contract tests total as of that change. (The characterization suite
+for issue #16 was originally 3 tests / 18 total; a later revision trimmed it
+to 2 tests / 17 total after removing genuine duplication with the tooling
+suite above — see `docs/CONTRACTS_AUDIT.md`'s "Revision" note.)
 
 ---
 
@@ -310,27 +318,58 @@ alongside the **26** pre-existing contract tests (44 total).
 - **Migration/redeploy.** No — a role grant on the existing deployment, or a
   clarified V2 wiring; deliberately not done here.
 
-## 16. Mainnet deployment-script mismatch — **Critical**
+## 16. Mainnet deployment-script mismatch — **Critical** — ✅ FIXED (tooling only)
 
-- **Current behavior.** `package.json`'s `deploy:mainnet` runs
+> **Status update (`chore(contracts): add deterministic CI and disable unsafe
+> mainnet deployment`):** the unsafe `deploy:mainnet` command has been
+> **removed** from `contracts/package.json`, with no replacement mainnet
+> command added. Mainnet deployment remains intentionally unsupported until a
+> dedicated, reviewed, chain-asserting mainnet deployment design exists. This
+> was a **repository/tooling fix only** — it required no contract
+> redeployment, changed no contract address, and left
+> `deployments/baseSepolia.json` byte-identical. The original defect is
+> preserved below as historical evidence; the current-state invariant (no
+> mainnet command exists) is now guarded going forward by
+> `test/tooling/deploymentCommands.test.ts`, independent of this historical
+> characterization test.
+
+- **Historical behavior (fixed).** `package.json`'s `deploy:mainnet` ran
   `hardhat run scripts/deploy/baseSepolia.ts --network baseMainnet`. The script
   hardcodes `network: "baseSepolia"`, `chainId: 84532`, and always writes
-  `deployments/baseSepolia.json`. A "mainnet" deploy would therefore emit
-  testnet-labelled metadata (and overwrite the testnet record).
-- **Test.** `05-deploy-script.char.test.ts` — three static (non-network) checks
-  proving `deploy:mainnet` → `baseSepolia.ts`, hardcoded `network:"baseSepolia"`
-  + `chainId:84532`, and the hardcoded `baseSepolia.json` output. **No
-  deployment is run.**
-- **Impact.** A mainnet deploy is silently mislabeled/mis-chained and could
-  clobber the authoritative testnet deployment record. High blast radius if
-  ever executed.
+  `deployments/baseSepolia.json`. A "mainnet" deploy would therefore have
+  emitted testnet-labelled metadata (and overwritten the testnet record).
+- **Historical characterization test.** `05-deploy-script.char.test.ts` — its
+  first assertion was updated (not removed) to reflect that `deploy:mainnet` no
+  longer exists, since the full contract suite must stay green after the fix.
+  It was later trimmed from 3 to 2 tests: the current-state facts it
+  duplicated (no command targets `baseMainnet`, the exact Sepolia `--network`
+  flag) are now asserted solely by `test/tooling/deploymentCommands.test.ts`
+  below, and this file keeps only the regression guard plus the one
+  historical root-cause fact (the script's own hardcoded
+  network/chainId/output-file metadata) not covered elsewhere. **No
+  deployment was run** in the original characterization or either fix.
+- **Current-state safety test.** `test/tooling/deploymentCommands.test.ts` — 6
+  static, non-network assertions: no `deploy:mainnet` script; no package
+  command invokes `baseSepolia.ts` with `--network baseMainnet`; the
+  remaining Base Sepolia command uses only `--network baseSepolia`; the script
+  writes only `deployments/baseSepolia.json`; its recorded chain ID is
+  `84532`; and no command/script combination can produce a
+  `baseSepolia`-labelled artifact while connected to Base mainnet.
+- **Impact (historical).** A mainnet deploy would have been silently
+  mislabeled/mis-chained and could have clobbered the authoritative testnet
+  deployment record. High blast radius if it had ever been executed — it never
+  was.
 - **Deployed V1 affected.** No — the currently deployed Base Sepolia addresses
-  are unaffected; this is a repo/process risk for any future or mainnet deploy.
-- **Required V2 fix.** A real, separate mainnet deploy script writing
-  network-correct metadata (e.g. `base.json`), and/or a guard that refuses to
-  run when the connected `chainId` ≠ the script's expected chain.
-- **Migration/redeploy.** No — a repository script fix (out of scope for this
-  characterization-only PR).
+  were never affected; this was always a repo/process risk for a
+  *hypothetical future* mainnet deploy, not a defect in the deployed contracts.
+- **Required V2 fix — now moot for V1 tooling.** A real, separate mainnet
+  deploy script writing network-correct metadata (e.g. `base.json`), and/or a
+  guard that refuses to run when the connected `chainId` ≠ the script's
+  expected chain, remains the right design **if and when mainnet deployment is
+  actually planned**. No such script exists yet, and none is added by the
+  tooling fix — the unsafe command was deleted, not replaced.
+- **Migration/redeploy.** No — this was a repository script fix; no contract
+  redeployment was required or performed.
 
 ---
 

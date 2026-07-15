@@ -14,9 +14,6 @@ jobs:
       # Authenticates EAS CLI non-interactively. Set in:
       # repo Settings -> Secrets and variables -> Actions -> EXPO_TOKEN
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      # No yarn.lock is committed yet, and Yarn 4 enables immutable installs
-      # under CI; allow the lockfile to be created here.
-      YARN_ENABLE_IMMUTABLE_INSTALLS: "false"
     steps:
       - uses: actions/checkout@v4
 
@@ -48,10 +45,11 @@ jobs:
           fi
           echo "EAS projectId is linked."
 
-      # Install from the Yarn workspaces root (movenrun/).
-      - name: Install dependencies
+      # Install from the Yarn workspaces root (movenrun/). movenrun/yarn.lock
+      # is committed and deterministic.
+      - name: Install dependencies (immutable)
         working-directory: movenrun
-        run: yarn install
+        run: yarn install --immutable
 
       # Build the APK from the mobile package (where app.json + eas.json live).
       # `eas build` submits to EAS Build and prints the build details URL.

@@ -11,6 +11,10 @@ cache/
 typechain-types/
 deployments/
 
+# Yarn Berry (nodeLinker: node-modules) — local install-state cache only;
+# movenrun/yarn.lock is the committed, deterministic lockfile.
+.yarn/install-state.gz
+
 # Expo / React Native
 .expo/
 *.jks

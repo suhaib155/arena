@@ -6,6 +6,10 @@ name: backend-checks
 on:
   pull_request:
     paths:
+      - "movenrun/package.json"
+      - "movenrun/yarn.lock"
+      - "movenrun/.yarnrc.yml"
+      - "movenrun/scripts/verify-package-manager.mjs"
       - "movenrun/backend/**"
       - "movenrun/shared/**"
       - "movenrun/contracts/deployments/**"
@@ -13,9 +17,19 @@ on:
   push:
     branches: [main]
     paths:
+      - "movenrun/package.json"
+      - "movenrun/yarn.lock"
+      - "movenrun/.yarnrc.yml"
+      - "movenrun/scripts/verify-package-manager.mjs"
       - "movenrun/backend/**"
       - "movenrun/shared/**"
       - "movenrun/contracts/deployments/**"
+      - ".github/workflows/backend-checks.yml"
+
+# Least privilege: this workflow only checks out, installs, type-checks, and
+# tests — it never pushes, comments, or publishes anything.
+permissions:
+  contents: read
 
 jobs:
   backend:
@@ -25,11 +39,6 @@ jobs:
     defaults:
       run:
         working-directory: movenrun
-    env:
-      # No yarn.lock is committed yet, and Yarn 4 turns on immutable installs
-      # automatically under CI — which would fail without a lockfile. Allow the
-      # lockfile to be created here (mirrors mobile-checks.yml).
-      YARN_ENABLE_IMMUTABLE_INSTALLS: "false"
     steps:
       - uses: actions/checkout@v4
 
@@ -38,13 +47,17 @@ jobs:
         with:
           node-version: 20
 
-      # The repo pins Yarn 4 via package.json "packageManager"; Corepack
-      # provisions the right Yarn version.
+      # The repo pins Yarn 4 via package.json "packageManager" (the single
+      # source of truth); Corepack provisions the right Yarn version.
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Install dependencies
-        run: yarn install
+      - name: Verify package manager version
+        run: node scripts/verify-package-manager.mjs
+
+      # movenrun/yarn.lock is committed and deterministic.
+      - name: Install dependencies (immutable)
+        run: yarn install --immutable
 
       - name: Type-check @movenrun/backend
         run: yarn workspace @movenrun/backend typecheck

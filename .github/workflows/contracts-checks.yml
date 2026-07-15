@@ -1,0 +1,75 @@
+name: contracts-checks
+
+# Compiles and tests the Hardhat contract suite on PRs that touch contracts /
+# shared, and on pushes to main. Deliberately deployment-free: no deployer
+# private key, no Base RPC secret, no Basescan API key, and no network
+# deployment ever runs here. See movenrun/docs/CONTRACTS_AUDIT.md and
+# movenrun/docs/CONTRACT_V1_DISCREPANCIES.md.
+on:
+  pull_request:
+    paths:
+      - "movenrun/package.json"
+      - "movenrun/yarn.lock"
+      - "movenrun/.yarnrc.yml"
+      - "movenrun/scripts/verify-package-manager.mjs"
+      - "movenrun/contracts/**"
+      - "movenrun/shared/**"
+      - ".github/workflows/contracts-checks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "movenrun/package.json"
+      - "movenrun/yarn.lock"
+      - "movenrun/.yarnrc.yml"
+      - "movenrun/scripts/verify-package-manager.mjs"
+      - "movenrun/contracts/**"
+      - "movenrun/shared/**"
+      - ".github/workflows/contracts-checks.yml"
+
+# Least privilege: this workflow only checks out, installs, compiles, and
+# tests — it never pushes, comments, or publishes anything.
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Contracts compile & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The Yarn 4 workspaces project lives in the movenrun/ subdirectory.
+    defaults:
+      run:
+        working-directory: movenrun
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The repo pins Yarn 4.9.1 via package.json "packageManager" (the single
+      # source of truth); Corepack provisions that exact pinned version.
+      - name: Enable Corepack
+        run: corepack enable
+
+      # Fails fast if the Corepack-provisioned Yarn doesn't match
+      # package.json's "packageManager" — see movenrun/scripts/verify-package-manager.mjs.
+      - name: Verify package manager version
+        run: node scripts/verify-package-manager.mjs
+
+      # movenrun/yarn.lock is committed and deterministic — install must not
+      # silently drift or mutate it.
+      - name: Install dependencies (immutable)
+        run: yarn install --immutable
+
+      - name: Compile contracts
+        run: yarn workspace @movenrun/contracts compile
+
+      # Runs everything under contracts/test/ (Hardhat's default recursive
+      # glob): the 26 pre-existing V1 tests, the 17 V1 characterization tests,
+      # the 6 deployment-command safety tests, and any future test files (e.g.
+      # V2 suites once merged) automatically — no test filter/path is passed,
+      # so nothing is silently excluded.
+      - name: Test contracts
+        run: yarn workspace @movenrun/contracts test

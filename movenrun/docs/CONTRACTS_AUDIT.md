@@ -17,6 +17,15 @@ re-read this before touching `contracts/`.
 > **characterization + documentation only**: no Solidity source, deployment
 > addresses, or deployment records were changed.
 
+> **Deterministic contract CI (`chore(contracts): add deterministic CI and
+> disable unsafe mainnet deployment`):** the workspace now has a committed,
+> deterministic `movenrun/yarn.lock` and an independent
+> `.github/workflows/contracts-checks.yml` that compiles and tests the
+> contract suite on every contract/shared change. The unsafe `deploy:mainnet`
+> command was **removed** (repo/tooling fix only — no redeploy, no address
+> change). See "Package manager & contract CI" below. **V2 remains source-only
+> on the separate PR #45 branch and is not part of this change.**
+
 ---
 
 ## ✅ Reconciliation summary (this PR)
@@ -538,3 +547,133 @@ clients`.
   against a real Postgres before staging/prod deployment.
 - Mobile wallet connection and client-side signing UX, only once the product
   flow needs it (no mobile changes in this PR).
+
+---
+
+### Package manager & contract CI (added — `chore(contracts): add deterministic
+### CI and disable unsafe mainnet deployment`)
+
+**Yarn 4.9.1 is the authoritative package manager** for this monorepo (pinned
+via root `movenrun/package.json`'s `"packageManager"` field, unchanged by this
+PR). Local setup and CI both use:
+
+```
+corepack enable
+yarn install --immutable
+```
+
+- **`movenrun/yarn.lock` is now committed** — generated from a clean workspace
+  install and verified with `yarn install --immutable` from a clean checkout.
+  Every prior workflow (`backend-checks.yml`, `mobile-checks.yml`,
+  `eas-apk-build.yml`) previously set `YARN_ENABLE_IMMUTABLE_INSTALLS: "false"`
+  specifically because no lockfile existed yet — Yarn 4 enables immutable
+  installs by default, which fails outright without a committed lock. All
+  three now use `yarn install --immutable` and no longer need that workaround.
+  The EAS workflow's Expo/EAS behavior, Expo SDK version, and EAS project id
+  are unchanged; the EAS CLI itself is still invoked via `npx eas-cli@latest`
+  and was not pinned.
+- **One workspace lockfile, not two.** `contracts/package-lock.json` (an npm
+  lockfile) was **removed**: nothing in this repo's scripts or workflows ran
+  `npm install`/`npm ci` against it (confirmed by search), so it was a stale,
+  unused artifact left over from before this package joined the Yarn
+  workspace — not an intentionally-maintained independent npm project. The
+  monorepo uses Yarn workspaces with a single lockfile at `movenrun/yarn.lock`.
+- **`@chainlink/contracts` removed (unused).** A full repo-wide search (Solidity
+  imports, TS/JS imports, Hardhat config, scripts, tests, docs, `.env.example`,
+  and specifically `AggregatorV3Interface`/`VRF`/`Automation`/`FunctionsClient`)
+  found **zero** references anywhere outside `contracts/package.json`'s
+  `devDependencies` entry itself. It was a devDependency with no consumer, so it
+  has been **removed** from `contracts/package.json` and `yarn.lock`
+  regenerated — not aliased, not kept "for later." Removing it also drops its
+  entire transitive subtree (including a git-hosted `@zksync/contracts` /
+  `matter-labs/era-contracts` dependency that previously required Yarn's
+  internal "classic bootstrap" fetch), so no `resolutions` override or any
+  other workaround is needed for that subtree anymore. If Chainlink is ever
+  genuinely needed by future Solidity, add it back as a real dependency and
+  resolve its transitive deps normally — never alias one package's identifier
+  to an unrelated package's implementation.
+- **`.github/workflows/contracts-checks.yml` (new).** Runs on PRs/pushes
+  touching `movenrun/contracts/**` or `movenrun/shared/**`: `corepack enable`
+  → `yarn install --immutable` → `yarn workspace @movenrun/contracts compile`
+  → `yarn workspace @movenrun/contracts test`. **No deployment environment
+  variables, no deployer private key, no Base RPC secret, and no Basescan API
+  key are used or required — this workflow never deploys anything and never
+  makes a network call to a chain.** No test-path filter is applied, so it
+  runs every test file under `contracts/test/` — the 26 pre-existing V1 tests,
+  the 17 V1 characterization tests, the 6 deployment-command safety tests,
+  and any future suite (e.g. a V2 suite, once merged) automatically.
+- **Root `verify:contracts` script (new).** `yarn verify:contracts` runs the
+  same compile + test sequence locally. The full monorepo verification suite
+  (`yarn test` / `yarn build` across every workspace) is intentionally **not**
+  expanded yet — backend/shared build work is out of scope here.
+- **The unsafe `deploy:mainnet` command was removed** from
+  `contracts/package.json` with no replacement added (see
+  [`CONTRACT_V1_DISCREPANCIES.md` §16](./CONTRACT_V1_DISCREPANCIES.md#16-mainnet-deployment-script-mismatch--critical--fixed-tooling-only)).
+  **Mainnet deployment remains intentionally unsupported** until a dedicated,
+  reviewed, chain-asserting mainnet deployment script exists. `deploy:local`,
+  `deploy:sepolia`, `verify:sepolia`, `compile`, `test`, and `coverage` are all
+  unchanged.
+- **Base Sepolia V1 is untouched.** `contracts/src/**/*.sol`,
+  `contracts/deployments/baseSepolia.json`, `hardhat.config.ts`, and
+  `scripts/deploy/baseSepolia.ts` are byte-identical before/after this PR. No
+  deployment ran; no address changed.
+- **V2 is out of scope here.** The isolated V2 contract suite lives only on
+  the separate, still-open PR #45 branch
+  (`claude/contracts-v2-territory-economy-vv3xpk`) and was neither read from
+  nor written to by this change. This PR's stated purpose is to prepare the
+  repository (deterministic lockfile + real contract CI) so that PR can later
+  be rebased onto `main` and verified through `contracts-checks.yml`.
+
+**Updated follow-up gates (contracts):**
+- Rebase and revise PR #45 (V2 territory-economy contracts) on top of this PR
+  once merged, so it is verified by `contracts-checks.yml` instead of only
+  local runs.
+- A real, chain-asserting mainnet deployment script — only once mainnet
+  deployment is actually planned and reviewed; none exists today.
+- Resolve the pre-existing `@nomicfoundation/hardhat-ignition*` /
+  `@nomicfoundation/hardhat-verify` peer-dependency range warnings surfaced by
+  `yarn install` (`YN0060`) — non-blocking today, unrelated to this PR's scope.
+
+### Revision: invalid dependency workaround removed, package-manager
+### verification consolidated (this revision)
+
+A prior revision of this same change had introduced two things that did not
+meet engineering-quality standards and have since been corrected:
+
+1. **The `resolutions` package-impersonation override has been removed
+   entirely, with no replacement alias.** Root `package.json` no longer
+   contains any `resolutions` field. Substituting `@openzeppelin/contracts` for
+   `@zksync/contracts` under a `resolutions` alias — even for an allegedly
+   unused transitive dependency — made an unrelated package masquerade as a
+   different package with a different API, path, and security surface. That is
+   never acceptable, so instead of aliasing around the dependency that made it
+   "necessary," the dependency itself was removed (see above): once
+   `@chainlink/contracts` is gone, so is its entire `@zksync/contracts`
+   transitive subtree, and no override is needed.
+2. **Yarn version verification is now a single reusable script**,
+   `movenrun/scripts/verify-package-manager.mjs` — zero dependencies, reads
+   root `package.json`'s `"packageManager"` field (the one authoritative
+   source for the pinned Yarn version), runs `yarn --version`, and fails
+   loudly with both values printed on any mismatch. `contracts-checks.yml`,
+   `backend-checks.yml`, and `mobile-checks.yml` all call this one script
+   immediately after `corepack enable`, instead of each independently
+   printing (and never actually checking) `yarn --version`, and instead of
+   hardcoding "4.9.1" as an independent constant anywhere in workflow YAML.
+3. **Workflow path filters were widened.** A dependency or package-manager
+   change (root `package.json`, `yarn.lock`, `.yarnrc.yml`, or the
+   verification script) can affect the contracts and backend workspaces even
+   when no file under `contracts/**`/`backend/**` itself changes, so both
+   `contracts-checks.yml` and `backend-checks.yml` now also trigger on those
+   root files (see their `on.pull_request.paths`/`on.push.paths` above).
+   `mobile-checks.yml` already ran on every PR/push with no path filter and is
+   unchanged in that respect.
+4. **Test deduplication.** `test/v1-characterization/05-deploy-script.char.test.ts`
+   previously re-asserted several current-state facts (no command targets
+   `baseMainnet`, the Sepolia command's exact `--network` flag) that
+   `test/tooling/deploymentCommands.test.ts` already asserts authoritatively
+   and more thoroughly. The historical file was trimmed to two tests: a
+   minimal regression guard (`deploy:mainnet` no longer exists) plus the one
+   historical root-cause fact (the Base Sepolia script's own hardcoded
+   network/chainId/output-file metadata) that isn't restated elsewhere. This
+   drops the characterization suite from 18 to **17** tests — contracts test
+   totals below are updated accordingly (26 + 17 + 6 = **49**, not 50).
