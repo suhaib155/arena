@@ -275,13 +275,14 @@ test("revoking the active wallet falls back to another verified wallet", async (
 test("wallet changes are blocked while a sensitive operation is pending (policy hook)", async () => {
   const h = createHarness({ walletChangePolicy: () => true });
   const s = await session(h, "policy-1");
-  // Link happens through beginChallenge/completeLink (not gated); the guard is
-  // on active-switch and revoke.
-  const w = await linkEoa(createHarness(), s, Wallet.createRandom()).catch(() => null);
-  void w;
-  const s2 = await session(h, "policy-2");
+  // Seed a verified wallet directly — the policy guards active-switch and
+  // revoke, so both must be denied while the policy reports a pending op.
   const wallet = Wallet.createRandom();
-  // Manually create a verified wallet to attempt switching.
-  const linked = await h.stores.wallets.create({ id: "wpol", userId: s2.userId, addressCanonical: wallet.address.toLowerCase(), walletType: "external_eoa", sourceProvider: "wc", ownershipStatus: "verified" });
-  await expectError(() => h.walletLink.setActiveWallet(s2, linked.id), "wallet_operation_locked");
+  const linked = await h.stores.wallets.create({ id: "wpol", userId: s.userId, addressCanonical: wallet.address.toLowerCase(), walletType: "external_eoa", sourceProvider: "wc", ownershipStatus: "verified" });
+  await expectError(() => h.walletLink.setActiveWallet(s, linked.id), "wallet_operation_locked");
+  await expectError(() => h.walletLink.revokeWallet(s, linked.id), "wallet_operation_locked");
+  // Nothing changed: the wallet is still unrevoked and inactive.
+  const after = await h.stores.wallets.findById(linked.id);
+  assert.equal(after!.isActive, false);
+  assert.equal(after!.revokedAt, null);
 });

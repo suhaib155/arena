@@ -13,7 +13,7 @@
  *  - "set sole active wallet" and "create user + first identity" run inside a
  *    transaction so their invariants hold under concurrency.
  */
-import { and, desc, eq, gt, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "../../../db/client.js";
 import {
   authIdentities,
@@ -108,11 +108,11 @@ export class DrizzleUserRepository implements UserRepository {
     return row ? toUser(row) : null;
   }
   async bumpSecurityVersion(id: string): Promise<UserRecord | null> {
-    const current = await this.findById(id);
-    if (!current) return null;
+    // Atomic in-database increment — a read-then-write here could coalesce two
+    // concurrent bumps across replicas into one.
     const [row] = await this.db
       .update(users)
-      .set({ securityVersion: current.securityVersion + 1, updatedAt: new Date() })
+      .set({ securityVersion: sql`${users.securityVersion} + 1`, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
     return row ? toUser(row) : null;
@@ -437,11 +437,11 @@ export class DrizzleOtpChallengeRepository implements OtpChallengeRepository {
     return row ? toOtp(row) : null;
   }
   async incrementAttempts(id: string): Promise<EmailOtpChallengeRecord | null> {
-    const [current] = await this.db.select().from(emailOtpChallenges).where(eq(emailOtpChallenges.id, id)).limit(1);
-    if (!current) return null;
+    // Atomic in-database increment — the attempt cap is a brute-force control,
+    // so a read-then-write race across replicas must not lose increments.
     const [row] = await this.db
       .update(emailOtpChallenges)
-      .set({ attempts: current.attempts + 1 })
+      .set({ attempts: sql`${emailOtpChallenges.attempts} + 1` })
       .where(eq(emailOtpChallenges.id, id))
       .returning();
     return row ? toOtp(row) : null;

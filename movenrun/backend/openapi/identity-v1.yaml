@@ -206,10 +206,15 @@ paths:
       tags: [wallets]
       security: [{ bearerAuth: [] }]
       summary: Retry a safely-retryable provisioning failure.
+      description: >
+        A transient provider failure surfaces as `provisioning_failed` (503,
+        retry is legitimate); a terminal one as `provisioning_not_retryable`
+        (409, use the recovery flow instead).
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses:
         "200": { description: OK, content: { application/json: { schema: { type: object, properties: { wallet: { $ref: "#/components/schemas/PublicWallet" } } } } } }
         "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
 
   /wallets/link/begin:
     post:

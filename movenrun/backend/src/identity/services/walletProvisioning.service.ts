@@ -134,9 +134,10 @@ export class WalletProvisioningService {
         provisioningState: terminal ? "failed_terminal" : "failed_transient",
       });
       await this.audit.record("wallet_provisioning_failed", { userId: wallet.userId, subjectId: walletId, metadata: { terminal, transient } });
-      // Surface a stable, non-attacker-helpful outcome. Transient failures are
-      // retryable via retry(); terminal ones are recoverable via support flow.
-      throw new IdentityError(terminal ? "provisioning_not_retryable" : "conflict", "wallet provisioning failed");
+      // Surface a stable, non-attacker-helpful outcome with honest retry
+      // semantics: `provisioning_failed` (503) says "retry is legitimate";
+      // `provisioning_not_retryable` (409) says "don't — use the recovery flow".
+      throw new IdentityError(terminal ? "provisioning_not_retryable" : "provisioning_failed", "wallet provisioning failed");
     }
   }
 

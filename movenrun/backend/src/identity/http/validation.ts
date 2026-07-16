@@ -11,10 +11,13 @@
  */
 import { z } from "zod";
 import { IdentityError } from "../domain/errors.js";
-import { WALLET_TYPES } from "../domain/types.js";
+import { WALLET_CHALLENGE_ACTIONS, WALLET_TYPES } from "../domain/types.js";
 
 const address = z.string().min(1).max(100);
-const walletType = z.enum(WALLET_TYPES as unknown as [string, ...string[]]);
+// Built from the domain const tuples, so the parsed results are typed as
+// WalletType / WalletChallengeAction and can never drift from the domain.
+const walletType = z.enum(WALLET_TYPES);
+const challengeAction = z.enum(WALLET_CHALLENGE_ACTIONS);
 
 export const emailOtpBeginSchema = z.object({ email: z.string().min(3).max(254) }).strict();
 export const emailOtpCompleteSchema = z
@@ -25,7 +28,7 @@ export const refreshSchema = z.object({ refreshToken: z.string().min(10).max(409
 
 export const linkBeginSchema = z
   .object({
-    action: z.enum(["link_external_wallet", "base_account_login"]),
+    action: challengeAction,
     address,
     chainId: z.number().int().positive(),
     walletType,
@@ -39,7 +42,7 @@ export const linkCompleteSchema = z
     signature: z.string().min(1).max(4096),
     walletType,
     chainId: z.number().int().positive(),
-    action: z.enum(["link_external_wallet", "base_account_login"]),
+    action: challengeAction,
     sourceProvider: z.string().min(1).max(64),
   })
   .strict();

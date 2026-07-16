@@ -41,18 +41,16 @@ export const ASSURANCE_ORDER: Record<AssuranceLevel, number> = {
 };
 
 /** Wallet categories MovenRun tracks. Embedded wallets are provisioned by the
- *  embedded-wallet provider; external wallets are connected by the user. */
-export type WalletType =
-  | "embedded_eoa"
-  | "base_smart_account"
-  | "external_eoa"
-  | "external_smart_account";
-export const WALLET_TYPES: readonly WalletType[] = [
+ *  embedded-wallet provider; external wallets are connected by the user.
+ *  Declared const-tuple-first so zod schemas (http/validation.ts) can consume
+ *  the tuple directly and stay in lockstep with the type. */
+export const WALLET_TYPES = [
   "embedded_eoa",
   "base_smart_account",
   "external_eoa",
   "external_smart_account",
 ] as const;
+export type WalletType = (typeof WALLET_TYPES)[number];
 
 /** Only EVM is modelled today; the column exists so a future non-EVM chain
  *  family is an additive migration, not a schema rewrite. */
@@ -90,10 +88,12 @@ export type SessionRevocationReason =
 
 /** Actions a wallet-link challenge may authorize. A challenge is bound to
  *  exactly one action so a signature for one purpose cannot be replayed for
- *  another. */
-export type WalletChallengeAction =
-  | "link_external_wallet"
-  | "base_account_login";
+ *  another. Const-tuple-first for the same zod-schema reason as WALLET_TYPES. */
+export const WALLET_CHALLENGE_ACTIONS = [
+  "link_external_wallet",
+  "base_account_login",
+] as const;
+export type WalletChallengeAction = (typeof WALLET_CHALLENGE_ACTIONS)[number];
 
 /** Immutable audit event categories (see security_audit_events). */
 export type AuditEventType =

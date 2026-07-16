@@ -68,7 +68,9 @@ test("a transient failure can be retried safely and then succeeds", async () => 
   const h = createHarness({ embeddedProvider: embedded });
   const userId = await newUser(h);
   const requested = await h.provisioning.request(userId, EMBEDDED_WALLET_SOURCE);
-  await expectError(() => h.provisioning.provision(requested.id), "conflict");
+  // Transient failure surfaces as `provisioning_failed` (503) — retryable —
+  // never the non-retryable 409 codes.
+  await expectError(() => h.provisioning.provision(requested.id), "provisioning_failed");
   const afterFail = await h.provisioning.status(requested.id);
   assert.equal(afterFail!.provisioningState, "failed_transient");
   const retried = await h.provisioning.retry(requested.id);

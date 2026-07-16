@@ -239,6 +239,8 @@ export interface IdentityStores {
    */
   createUserWithIdentity(input: {
     userId: string;
-    identity: CreateAuthIdentityInput;
+    /** The identity's userId is `userId` above by definition, so it is omitted
+     *  here rather than passed as a redundant (and ignorable) field. */
+    identity: Omit<CreateAuthIdentityInput, "userId">;
   }): Promise<{ user: UserRecord; identity: AuthIdentityRecord }>;
 }

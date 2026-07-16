@@ -12,8 +12,8 @@
  *    detail leaks as a "helpful" 4xx;
  *  - no secret material in responses (see publicViews.ts).
  *
- * Handlers never `await` without a surrounding catch — `wrap()` forwards
- * rejections to Express so there is no swallowed promise rejection.
+ * Every handler runs through `handle()`, which awaits it and routes any
+ * rejection — so nothing is ever swallowed, and internal errors never leak.
  */
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { IdentityError, isIdentityError } from "../domain/errors.js";
@@ -35,60 +35,38 @@ import {
   toPublicWallet,
 } from "./publicViews.js";
 
-interface AuthedRequest extends Request {
-  session?: SessionRecord;
-}
-
-function wrap(fn: (req: AuthedRequest, res: Response) => Promise<void>) {
+/**
+ * Route wrapper: an IdentityError becomes its mapped status + public JSON;
+ * anything else forwards to Express's error middleware (the app's generic 500
+ * handler), so no internal detail ever leaks as a "helpful" 4xx.
+ */
+function handle(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
-    fn(req as AuthedRequest, res).catch(next);
+    fn(req, res).catch((err: unknown) => {
+      if (isIdentityError(err)) {
+        res.status(err.status).json(err.toPublicJSON());
+      } else {
+        next(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
   };
-}
-
-function sendError(res: Response, err: unknown): void {
-  if (isIdentityError(err)) {
-    res.status(err.status).json(err.toPublicJSON());
-    return;
-  }
-  throw err instanceof Error ? err : new Error(String(err));
 }
 
 export function createIdentityRouter(services: IdentityServices): Router {
   const router = Router();
 
   // Bearer-auth guard. Reads `Authorization: Bearer <accessToken>` and returns
-  // the verified session. Deny-by-default: any failure is surfaced as 401.
-  const authenticate = async (req: AuthedRequest): Promise<SessionRecord> => {
+  // the verified session. Deny-by-default: any failure is a 401 IdentityError.
+  const authenticate = async (req: Request): Promise<SessionRecord> => {
     const header = req.header("authorization") ?? "";
     const [scheme, token] = header.split(" ");
     if (scheme?.toLowerCase() !== "bearer" || !token) throw new IdentityError("unauthenticated");
     return services.sessions.verifyAccess(token);
   };
 
-  const authed = (fn: (req: AuthedRequest, res: Response, session: SessionRecord) => Promise<void>) =>
-    wrap(async (req, res) => {
-      let session: SessionRecord;
-      try {
-        session = await authenticate(req);
-      } catch (err) {
-        sendError(res, err);
-        return;
-      }
-      try {
-        await fn(req, res, session);
-      } catch (err) {
-        sendError(res, err);
-      }
-    });
-
-  const guard = (fn: (req: AuthedRequest, res: Response) => Promise<void>) =>
-    wrap(async (req, res) => {
-      try {
-        await fn(req, res);
-      } catch (err) {
-        sendError(res, err);
-      }
-    });
+  /** `handle` + bearer authentication for the protected routes. */
+  const authed = (fn: (req: Request, res: Response, session: SessionRecord) => Promise<void>) =>
+    handle(async (req, res) => fn(req, res, await authenticate(req)));
 
   // ---- readiness (separate from liveness /health in index.ts) -------------
   router.get("/ready", (_req, res) => {
@@ -104,7 +82,7 @@ export function createIdentityRouter(services: IdentityServices): Router {
   // ---- unauthenticated auth entry ----------------------------------------
   router.post(
     "/auth/email/begin",
-    guard(async (req, res) => {
+    handle(async (req, res) => {
       const body = parseBody(emailOtpBeginSchema, req.body);
       const result = await services.emailOtp.begin({ email: body.email });
       res.status(202).json(result); // 202: uniform whether or not the email exists
@@ -113,7 +91,7 @@ export function createIdentityRouter(services: IdentityServices): Router {
 
   router.post(
     "/auth/email/complete",
-    guard(async (req, res) => {
+    handle(async (req, res) => {
       const body = parseBody(emailOtpCompleteSchema, req.body);
       const verified = await services.emailOtp.complete({ email: body.email, code: body.code });
       const result = await services.orchestrator.signupOrLogin({
@@ -145,7 +123,7 @@ export function createIdentityRouter(services: IdentityServices): Router {
   for (const path of ["/auth/google/begin", "/auth/google/complete", "/auth/base/begin", "/auth/base/complete"]) {
     router.post(
       path,
-      guard(async () => {
+      handle(async () => {
         throw new IdentityError("provider_not_configured");
       })
     );
@@ -153,7 +131,7 @@ export function createIdentityRouter(services: IdentityServices): Router {
 
   router.post(
     "/auth/refresh",
-    guard(async (req, res) => {
+    handle(async (req, res) => {
       const body = parseBody(refreshSchema, req.body);
       const issued = await services.sessions.refresh(body.refreshToken);
       res.json({
@@ -244,7 +222,7 @@ export function createIdentityRouter(services: IdentityServices): Router {
         action: body.action,
         address: body.address,
         chainId: body.chainId,
-        walletType: body.walletType as never,
+        walletType: body.walletType,
       });
       res.json({ nonce: challenge.nonce, message, expiresAt: challenge.expiresAt.toISOString() });
     })
@@ -259,7 +237,7 @@ export function createIdentityRouter(services: IdentityServices): Router {
         nonce: body.nonce,
         address: body.address,
         signature: body.signature,
-        walletType: body.walletType as never,
+        walletType: body.walletType,
         sourceProvider: body.sourceProvider,
         expect: {
           domain: services.config.authDomain ?? "",

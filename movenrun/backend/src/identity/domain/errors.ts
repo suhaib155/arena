@@ -41,6 +41,9 @@ export type IdentityErrorCode =
   | "wallet_owned_by_another_user"
   | "wallet_challenge_invalid"
   | "wallet_operation_locked"
+  // Transient provider failure — 503, so clients know a retry is legitimate.
+  | "provisioning_failed"
+  // Terminal — 409, so clients know NOT to retry (recovery flow instead).
   | "provisioning_not_retryable";
 
 /** HTTP status each code maps to. Kept here (not in the router) so the mapping
@@ -68,6 +71,7 @@ export const ERROR_HTTP_STATUS: Record<IdentityErrorCode, number> = {
   wallet_owned_by_another_user: 409,
   wallet_challenge_invalid: 401,
   wallet_operation_locked: 409,
+  provisioning_failed: 503,
   provisioning_not_retryable: 409,
 };
 

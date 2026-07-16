@@ -84,7 +84,6 @@ export class IdentityService {
         userId: this.idGen(),
         identity: {
           id: this.idGen(),
-          userId: "", // set inside the atomic op
           provider: input.provider,
           providerSubject: input.providerSubject,
           normalizedEmail: input.normalizedEmail ?? null,

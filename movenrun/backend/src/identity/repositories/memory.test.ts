@@ -81,9 +81,9 @@ test("challenge consume is atomic and single-use", async () => {
 
 test("createUserWithIdentity is all-or-nothing (no orphan user on conflict)", async () => {
   const s = createInMemoryStores();
-  await s.createUserWithIdentity({ userId: "u1", identity: { id: "i1", userId: "", provider: "google", providerSubject: "dup" } });
+  await s.createUserWithIdentity({ userId: "u1", identity: { id: "i1", provider: "google", providerSubject: "dup" } });
   await assert.rejects(
-    s.createUserWithIdentity({ userId: "u2", identity: { id: "i2", userId: "", provider: "google", providerSubject: "dup" } }),
+    s.createUserWithIdentity({ userId: "u2", identity: { id: "i2", provider: "google", providerSubject: "dup" } }),
     (e: unknown) => e instanceof UniqueConstraintError
   );
   // u2 must not exist (rolled back).
