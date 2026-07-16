@@ -324,10 +324,12 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db.update(authSessions).set({ lastUsedAt: at }).where(eq(authSessions.id, id));
   }
   async markRotated(id: string, at: Date): Promise<SessionRecord | null> {
+    // Compare-and-set: only an ACTIVE session transitions, and only one of two
+    // concurrent refreshes can succeed (the other matches zero rows).
     const [row] = await this.db
       .update(authSessions)
       .set({ status: "rotated", rotatedAt: at })
-      .where(eq(authSessions.id, id))
+      .where(and(eq(authSessions.id, id), eq(authSessions.status, "active")))
       .returning();
     return row ? toSession(row) : null;
   }

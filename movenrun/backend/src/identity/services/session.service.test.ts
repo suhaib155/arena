@@ -65,6 +65,30 @@ test("replaying an already-rotated refresh token is detected and revokes the who
   await expectError(() => h.sessions.verifyAccess(rotated.accessToken), "session_invalid");
 });
 
+test("two concurrent refreshes with the same token cannot both succeed", async () => {
+  const h = createHarness();
+  const issued = await newUserSession(h);
+  // Fire both refreshes before awaiting either — they interleave at await
+  // points, so the atomic markRotated CAS is the only thing preventing a
+  // double-spend of the refresh token.
+  const results = await Promise.allSettled([
+    h.sessions.refresh(issued.refreshToken),
+    h.sessions.refresh(issued.refreshToken),
+  ]);
+  const fulfilled = results.filter((r) => r.status === "fulfilled");
+  const rejected = results.filter((r) => r.status === "rejected");
+  assert.equal(fulfilled.length, 1, "exactly one refresh may succeed");
+  assert.equal(rejected.length, 1, "the racing refresh must be rejected");
+  assert.ok(
+    rejected[0].status === "rejected" &&
+      isIdentityError(rejected[0].reason) &&
+      rejected[0].reason.code === "refresh_reuse_detected",
+    "the losing refresh is rejected as reuse (and revokes the family, fail closed)"
+  );
+  // The original refresh token is now spent: a third attempt is also rejected.
+  await expectError(() => h.sessions.refresh(issued.refreshToken), "refresh_reuse_detected");
+});
+
 test("a revoked session's access token is rejected", async () => {
   const h = createHarness();
   const issued = await newUserSession(h);

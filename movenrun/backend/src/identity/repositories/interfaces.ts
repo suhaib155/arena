@@ -149,7 +149,13 @@ export interface SessionRepository {
   findByRefreshHash(refreshTokenHash: string): Promise<SessionRecord | null>;
   listActiveByUser(userId: string): Promise<SessionRecord[]>;
   markUsed(id: string, at: Date): Promise<void>;
-  /** Marks a session `rotated` (its refresh credential superseded). */
+  /**
+   * Atomically transition an ACTIVE session to `rotated`. Returns the row ONLY
+   * if THIS call performed the transition (compare-and-set on status='active');
+   * returns null if the session was already rotated/revoked/absent. This is the
+   * concurrency gate for refresh rotation — two parallel refreshes with the
+   * same token cannot both win, because only one CAS succeeds.
+   */
   markRotated(id: string, at: Date): Promise<SessionRecord | null>;
   revoke(id: string, reason: SessionRevocationReason, at: Date): Promise<SessionRecord | null>;
   /** Revokes every non-revoked session in a family (replay containment). */

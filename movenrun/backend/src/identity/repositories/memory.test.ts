@@ -79,6 +79,20 @@ test("challenge consume is atomic and single-use", async () => {
   assert.equal(second, null); // replay rejected
 });
 
+test("markRotated is a compare-and-set — only the first transition wins", async () => {
+  const s = createInMemoryStores();
+  await seedUser(s, "u1");
+  await s.sessions.create({
+    id: "s1", userId: "u1", familyId: "f1", assuranceLevel: "aal2",
+    refreshTokenHash: "h1", securityVersion: 0,
+    expiresAt: new Date(Date.now() + 1000), lastAuthenticatedAt: new Date(),
+  });
+  const first = await s.sessions.markRotated("s1", new Date());
+  const second = await s.sessions.markRotated("s1", new Date());
+  assert.ok(first, "first rotation transitions the active session");
+  assert.equal(second, null, "a second rotation of an already-rotated session returns null");
+});
+
 test("createUserWithIdentity is all-or-nothing (no orphan user on conflict)", async () => {
   const s = createInMemoryStores();
   await s.createUserWithIdentity({ userId: "u1", identity: { id: "i1", provider: "google", providerSubject: "dup" } });

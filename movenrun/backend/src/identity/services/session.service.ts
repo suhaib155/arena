@@ -38,6 +38,10 @@ import type { SessionRecord } from "../repositories/records.js";
 import type { AuditService } from "./audit.service.js";
 import { createHmac } from "node:crypto";
 
+/** Domain-separation label for the access-token HMAC, keeping its input space
+ *  disjoint from refresh-secret hashing under the shared session pepper. */
+const ACCESS_TOKEN_CONTEXT = "movenrun.session.access.v1\n";
+
 export interface SessionServiceConfig {
   sessionPepper: string;
   accessTokenTtlSeconds: number;
@@ -91,8 +95,23 @@ export class SessionService {
 
   private buildAccessToken(sessionId: string, expiresAt: Date, securityVersion: number): string {
     const payload = `${sessionId}.${expiresAt.getTime()}.${securityVersion}`;
-    const mac = createHmac("sha256", this.config.sessionPepper).update(payload).digest("base64url");
+    const mac = this.accessTokenMac(payload);
     return `${Buffer.from(payload).toString("base64url")}.${mac}`;
+  }
+
+  /**
+   * MAC for access tokens. The shared session pepper is used for two distinct
+   * purposes (access-token signing and refresh-secret hashing), so each is
+   * domain-separated by a fixed context label prepended to the HMAC input.
+   * That makes the two input spaces provably disjoint — a refresh hash can
+   * never coincide with a valid access-token MAC — without introducing a
+   * second secret or bespoke crypto.
+   */
+  private accessTokenMac(payload: string): string {
+    return createHmac("sha256", this.config.sessionPepper)
+      .update(ACCESS_TOKEN_CONTEXT)
+      .update(payload)
+      .digest("base64url");
   }
 
   /** Issue a brand-new session (login/signup) or continue a family (refresh). */
@@ -144,7 +163,7 @@ export class SessionService {
     const [sessionId, expiryStr, versionStr] = payload.split(".");
     if (!sessionId || !expiryStr || !versionStr) throw new IdentityError("session_invalid");
 
-    const expectedMac = createHmac("sha256", this.config.sessionPepper).update(payload).digest("base64url");
+    const expectedMac = this.accessTokenMac(payload);
     if (!safeEqual(mac, expectedMac)) throw new IdentityError("session_invalid");
 
     const expiresAt = Number(expiryStr);
@@ -205,9 +224,19 @@ export class SessionService {
       throw new IdentityError("session_invalid");
     }
 
-    // Rotate: retire the old session, mint a new one in the same family,
-    // carrying forward the assurance level and last-authentication time.
-    await this.sessions.markRotated(session.id, now);
+    // Rotate via an atomic compare-and-set. If it returns null, another
+    // concurrent refresh with the same token already rotated this session
+    // between our status read above and here — that is a reuse race, so we
+    // fail closed exactly like an explicit replay: revoke the whole family.
+    const rotated = await this.sessions.markRotated(session.id, now);
+    if (!rotated) {
+      await this.sessions.revokeFamily(session.familyId, "refresh_replay", now);
+      await this.audit.record("refresh_replay_detected", { userId: session.userId, subjectId: session.familyId });
+      throw new IdentityError("refresh_reuse_detected");
+    }
+
+    // Mint a new session in the same family, carrying forward the assurance
+    // level and last-authentication time.
     const issued = await this.issue({
       userId: session.userId,
       assuranceLevel: session.assuranceLevel,

@@ -294,7 +294,9 @@ export class InMemorySessionRepository implements SessionRepository {
   }
   async markRotated(id: string, at: Date): Promise<SessionRecord | null> {
     const r = this.rows.get(id);
-    if (!r) return null;
+    // Compare-and-set on status='active' — mirrors the DB's conditional UPDATE
+    // so only one of two concurrent refreshes transitions the session.
+    if (!r || r.status !== "active") return null;
     r.status = "rotated";
     r.rotatedAt = at;
     return clone(r);
