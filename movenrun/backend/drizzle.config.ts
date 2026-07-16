@@ -8,7 +8,10 @@ import type { Config } from "drizzle-kit";
 // migration. Generating the initial migration (this schema has never been
 // migrated) is a fast, low-risk follow-up once DB tooling access is available.
 export default {
-  schema: "./src/db/schema.ts",
+  // Both the original route/zone/battle tables and the identity/wallet tables
+  // are listed here so drizzle-kit sees one combined schema. The runtime
+  // client (db/client.ts) merges the same two modules.
+  schema: ["./src/db/schema.ts", "./src/db/identity.schema.ts"],
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {

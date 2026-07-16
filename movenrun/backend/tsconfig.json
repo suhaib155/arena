@@ -20,5 +20,12 @@
       "@movenrun/shared/src/*": ["../shared/src/*"]
     }
   },
-  "include": ["src/blockchain/**/*"]
+  // The read-only blockchain module (pre-existing) plus the identity/wallet
+  // foundation added in this PR. The identity module and the db schema it
+  // relies on import NOTHING from the bare "@movenrun/shared" specifier, so
+  // they type-check cleanly and completely here. The remaining legacy files
+  // (routes/services that import bare "@movenrun/shared") stay out of scope —
+  // that pre-existing gap is called out in this file's history and remains a
+  // separate follow-up.
+  "include": ["src/blockchain/**/*", "src/identity/**/*", "src/db/**/*"]
 }
