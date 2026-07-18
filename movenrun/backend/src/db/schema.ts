@@ -1,6 +1,12 @@
 import { pgTable, text, integer, bigint, boolean, timestamp, real, index, unique } from "drizzle-orm/pg-core";
 import type { PersistedRouteStatus } from "../repositories/route.repository.js";
 
+// Identity & wallet tables live in ./identity.schema.ts. They are combined
+// with these tables in db/client.ts (for the runtime Drizzle client) and are
+// listed alongside this file in drizzle.config.ts (for drizzle-kit), rather
+// than re-exported here — drizzle-kit's CJS loader can't follow a runtime
+// `.js` re-export the way the ESM runtime can.
+
 // Route lifecycle persistence (see backend/src/repositories/route.repository.ts).
 // `status` mirrors @movenrun/shared's RouteStatus string values (SUBMITTED →
 // PROCESSING → REJECTED | VERIFIED) without importing the enum directly, so this

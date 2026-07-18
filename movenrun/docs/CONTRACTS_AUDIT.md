@@ -542,6 +542,38 @@ clients`.
 - DB-backed nonce replay protection (`usedAuthNonces`) once this runs behind
   more than one backend instance — the current in-memory cache is
   single-process only.
+
+## Identity & wallet foundation (security-identity-wallet-foundation PR)
+
+A production-grade identity, session, and wallet architecture was added under
+`backend/src/identity/**` with schema `backend/src/db/identity.schema.ts` and
+migration `backend/drizzle/0001_identity_wallet_foundation.sql`. See
+`docs/IDENTITY_WALLET_FOUNDATION.md`, the ADRs in `docs/adr/`,
+`docs/THREAT_MODEL.md`, and `docs/SECURITY_CHECKLIST.md`. Notes relevant to this
+audit doc:
+
+**Backend typecheck scope — expanded (partially).** `backend/tsconfig.json`'s
+`include` now also covers `src/identity/**` and `src/db/**` in addition to
+`src/blockchain/**`. The identity module and DB schema import nothing from the
+bare `@movenrun/shared` specifier, so they type-check cleanly and completely.
+The legacy route/service files that import bare `@movenrun/shared` remain out of
+scope — the same pre-existing follow-up (`chore(backend): expand typecheck
+coverage`) still stands for those.
+
+**Migration generation — hand-authored 0001.** `drizzle-kit@0.22.8 generate`
+crashes with `Do not know how to serialize a BigInt` when serializing the
+pre-existing `bigint` `0n` column defaults in the route/zone schema (an existing
+tooling limitation, unrelated to the identity tables). Migration `0001` was
+therefore hand-authored to match `identity.schema.ts` exactly and validated by
+applying it — together with `0000` — to an ephemeral PostgreSQL 16 cluster,
+where every identity/wallet uniqueness and ownership constraint was verified to
+reject duplicate states. The drizzle meta snapshot was intentionally not
+regenerated (blocked by the same bug); regenerating snapshots is a follow-up
+once the tooling is upgraded.
+
+**Non-custodial boundary.** No table has a private-key / mnemonic / recovery-
+secret column; no endpoint accepts secret-shaped input; no key is generated in
+application code. See ADR-0008.
 - Broader backend `tsc` coverage beyond `src/blockchain/**`.
 - Live-DB validation of `DrizzleRouteRepository` and the generated migration
   against a real Postgres before staging/prod deployment.

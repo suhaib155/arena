@@ -4,6 +4,7 @@ import gpsRouter from "./routes/gps.js";
 import zonesRouter from "./routes/zones.js";
 import battlesRouter from "./routes/battles.js";
 import usersRouter from "./routes/users.js";
+import { createProductionIdentityRouter } from "./identity/http/productionRouter.js";
 import { createCorsMiddleware, createSecurityHeadersMiddleware } from "./middleware/security.js";
 import { createGlobalRateLimiter } from "./middleware/rateLimit.js";
 
@@ -27,12 +28,16 @@ app.use(
   })
 );
 
+// Liveness — always cheap, no dependency checks.
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: Date.now() }));
 
 app.use("/gps", gpsRouter);
 app.use("/zones", zonesRouter);
 app.use("/battles", battlesRouter);
 app.use("/users", usersRouter);
+// Identity & wallet foundation. Readiness (provider/config status) is exposed
+// at /identity/ready, separate from the liveness probe above.
+app.use("/identity", createProductionIdentityRouter());
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

@@ -1,0 +1,404 @@
+openapi: 3.0.3
+info:
+  title: MovenRun Identity & Wallet API
+  version: 1.0.0
+  description: >
+    Versioned contract for the MovenRun identity, session, and wallet surface
+    (see backend/src/identity/**). This describes the CONCEPTUAL operations of
+    the foundation. Provider-dependent flows (Google OIDC, Base Account, email
+    delivery, embedded-wallet provisioning) exist in the contract but fail
+    closed with `provider_not_configured` until a provider is wired.
+
+    Security invariants reflected here:
+      - No request body has a field for a seed phrase or private key, and any
+        seed-phrase / raw-key shaped input is rejected (`invalid_request`).
+      - Responses never include refresh-token hashes, provider tokens, raw
+        signatures, wallet secrets, or internal audit metadata.
+      - Errors are coarse and non-enumerating (no "user exists" oracle).
+servers:
+  - url: /identity
+    description: Mounted under /identity by the backend app.
+
+tags:
+  - name: auth
+  - name: session
+  - name: identity
+  - name: wallets
+
+paths:
+  /ready:
+    get:
+      tags: [session]
+      summary: Readiness + provider status (separate from liveness /health).
+      responses:
+        "200":
+          description: Service ready.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ready }
+                  providers:
+                    type: object
+                    properties:
+                      embeddedWalletEnabled: { type: boolean }
+                      google: { type: string, enum: [enabled, disabled, misconfigured] }
+
+  /auth/email/begin:
+    post:
+      tags: [auth]
+      summary: Begin email OTP (issues + delivers a hashed code).
+      description: Uniform response whether or not the email is already known.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202": { description: Accepted; a code was delivered if the address is deliverable. }
+        "400": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /auth/email/complete:
+    post:
+      tags: [auth]
+      summary: Complete email OTP; signs up or logs in and returns a session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, code]
+              properties:
+                email: { type: string, format: email }
+                code: { type: string, minLength: 4, maxLength: 12 }
+      responses:
+        "200":
+          description: Authenticated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /auth/google/begin: { post: { tags: [auth], summary: Begin Google auth (PKCE/state/nonce). Fails closed until wired., responses: { "503": { $ref: "#/components/responses/Error" } } } }
+  /auth/google/complete: { post: { tags: [auth], summary: Complete Google callback (issuer/audience/nonce validated). Fails closed until wired., responses: { "503": { $ref: "#/components/responses/Error" } } } }
+  /auth/base/begin: { post: { tags: [auth], summary: Begin Base Account (SIWE) auth. Fails closed until wired., responses: { "503": { $ref: "#/components/responses/Error" } } } }
+  /auth/base/complete: { post: { tags: [auth], summary: Complete Base Account auth (EOA + ERC-1271/6492). Fails closed until wired., responses: { "503": { $ref: "#/components/responses/Error" } } } }
+
+  /auth/refresh:
+    post:
+      tags: [session]
+      summary: Rotate the refresh token. Reuse of a rotated token revokes the family.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200":
+          description: Rotated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session: { $ref: "#/components/schemas/SessionEnvelope" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /session/revoke:
+    post:
+      tags: [session]
+      security: [{ bearerAuth: [] }]
+      summary: Revoke the current session.
+      responses:
+        "200": { description: Revoked. }
+        "401": { $ref: "#/components/responses/Error" }
+  /session/revoke-all:
+    post:
+      tags: [session]
+      security: [{ bearerAuth: [] }]
+      summary: Revoke all sessions and bump the user's security version.
+      responses:
+        "200": { description: Revoked. }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /me:
+    get:
+      tags: [identity]
+      security: [{ bearerAuth: [] }]
+      summary: Current user, session, and linked auth methods.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/PublicUser" }
+                  session: { $ref: "#/components/schemas/PublicSession" }
+                  identities:
+                    type: array
+                    items: { $ref: "#/components/schemas/PublicIdentity" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /identities:
+    get:
+      tags: [identity]
+      security: [{ bearerAuth: [] }]
+      summary: List linked authentication methods.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identities:
+                    type: array
+                    items: { $ref: "#/components/schemas/PublicIdentity" }
+
+  /wallets:
+    get:
+      tags: [wallets]
+      security: [{ bearerAuth: [] }]
+      summary: List the user's wallets.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wallets:
+                    type: array
+                    items: { $ref: "#/components/schemas/PublicWallet" }
+
+  /wallets/provisioning/{id}:
+    get:
+      tags: [wallets]
+      security: [{ bearerAuth: [] }]
+      summary: Embedded-wallet provisioning status.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { wallet: { $ref: "#/components/schemas/PublicWallet" } } } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /wallets/provisioning/{id}/retry:
+    post:
+      tags: [wallets]
+      security: [{ bearerAuth: [] }]
+      summary: Retry a safely-retryable provisioning failure.
+      description: >
+        A transient provider failure surfaces as `provisioning_failed` (503,
+        retry is legitimate); a terminal one as `provisioning_not_retryable`
+        (409, use the recovery flow instead).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { wallet: { $ref: "#/components/schemas/PublicWallet" } } } } } }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /wallets/link/begin:
+    post:
+      tags: [wallets]
+      security: [{ bearerAuth: [] }]
+      summary: Begin an external-wallet link; returns the SIWE message to sign.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action, address, chainId, walletType]
+              properties:
+                action: { type: string, enum: [link_external_wallet, base_account_login] }
+                address: { type: string }
+                chainId: { type: integer }
+                walletType: { $ref: "#/components/schemas/WalletType" }
+      responses:
+        "200":
+          description: Challenge issued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nonce: { type: string }
+                  message: { type: string, description: The exact EIP-4361 message to sign. }
+                  expiresAt: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/Error" }
+  /wallets/link/complete:
+    post:
+      tags: [wallets]
+      security: [{ bearerAuth: [] }]
+      summary: Complete an external-wallet link by submitting the signature.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nonce, address, signature, walletType, chainId, action, sourceProvider]
+              properties:
+                nonce: { type: string }
+                address: { type: string }
+                signature: { type: string, description: Held only for this request; never stored. }
+                walletType: { $ref: "#/components/schemas/WalletType" }
+                chainId: { type: integer }
+                action: { type: string, enum: [link_external_wallet, base_account_login] }
+                sourceProvider: { type: string }
+      responses:
+        "200": { description: Linked, content: { application/json: { schema: { type: object, properties: { wallet: { $ref: "#/components/schemas/PublicWallet" } } } } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /wallets/active:
+    post:
+      tags: [wallets]
+      security: [{ bearerAuth: [] }]
+      summary: Select the active wallet.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [walletId]
+              properties: { walletId: { type: string } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { wallet: { $ref: "#/components/schemas/PublicWallet" } } } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /wallets/revoke:
+    post:
+      tags: [wallets]
+      security: [{ bearerAuth: [] }]
+      summary: Revoke/unlink a wallet (history preserved; safe active fallback).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [walletId]
+              properties: { walletId: { type: string } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { wallet: { $ref: "#/components/schemas/PublicWallet" } } } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /wallets/export/begin:
+    post:
+      tags: [wallets]
+      security: [{ bearerAuth: [] }]
+      summary: Begin sensitive wallet-export authorization (step-up required).
+      description: >
+        Enforces recent authentication, then hands off to the provider's
+        isolated export surface. This endpoint NEVER returns secret material;
+        the exported secret is shown only inside the provider surface, never to
+        MovenRun servers or clients. Fails closed until a provider is wired.
+      responses:
+        "401": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Short-lived opaque access token from a completed auth flow.
+  responses:
+    Error:
+      description: A stable, non-attacker-helpful error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Stable public error code (see backend/src/identity/domain/errors.ts).
+            detail: { type: string, description: Optional non-sensitive detail. }
+    WalletType:
+      type: string
+      enum: [embedded_eoa, base_smart_account, external_eoa, external_smart_account]
+    PublicUser:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+    PublicIdentity:
+      type: object
+      properties:
+        id: { type: string }
+        provider: { type: string, enum: [email_otp, google, base_account] }
+        verificationStatus: { type: string }
+        assuranceLevel: { type: string }
+        createdAt: { type: string, format: date-time }
+    PublicWallet:
+      type: object
+      description: Public wallet view — never carries any secret material.
+      properties:
+        id: { type: string }
+        address: { type: string, nullable: true }
+        addressChecksum: { type: string, nullable: true }
+        walletType: { $ref: "#/components/schemas/WalletType" }
+        sourceProvider: { type: string }
+        chainFamily: { type: string }
+        ownershipStatus: { type: string, enum: [unverified, verified, revoked] }
+        isEmbedded: { type: boolean }
+        isActive: { type: boolean }
+        provisioningState: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    PublicSession:
+      type: object
+      properties:
+        id: { type: string }
+        assuranceLevel: { type: string }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    SessionEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/PublicSession"
+        - type: object
+          properties:
+            accessToken: { type: string }
+            accessTokenExpiresAt: { type: string, format: date-time }
+            refreshToken: { type: string }
+            refreshTokenExpiresAt: { type: string, format: date-time }
+    LoginResult:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/PublicUser" }
+        session: { $ref: "#/components/schemas/SessionEnvelope" }
+        embeddedWallet:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/PublicWallet" }]

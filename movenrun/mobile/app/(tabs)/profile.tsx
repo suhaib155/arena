@@ -785,6 +785,16 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        <Button
+          label="Account & Wallet"
+          icon="wallet-outline"
+          variant="secondary"
+          onPress={() => {
+            tapFeedback();
+            router.push("/account");
+          }}
+        />
+
         <Pressable
           hitSlop={8}
           onPress={() => {
