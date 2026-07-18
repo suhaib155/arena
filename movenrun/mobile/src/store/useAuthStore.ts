@@ -15,7 +15,7 @@ import {
   type PublicIdentity,
   type PublicUser,
   type PublicWallet,
-} from "@/services/identityApi";
+} from "../services/identityApi";
 
 export type AuthStatus = "signedOut" | "authenticating" | "signedIn" | "error";
 
@@ -36,6 +36,8 @@ interface AuthState {
   setActiveWallet: (walletId: string) => Promise<void>;
   revokeWallet: (walletId: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Server-side revoke-all (every device), then local credential clear. */
+  signOutEverywhere: () => Promise<void>;
 }
 
 function codeOf(err: unknown): string {
@@ -123,8 +125,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const client = get().client;
     try {
       await client?.signOut();
-    } finally {
       set({ status: "signedOut", user: null, identities: [], wallets: [], errorCode: null });
+    } catch (err) {
+      // The UI state is cleared regardless, but a failed credential clear is
+      // surfaced honestly — never silently reported as a clean sign-out.
+      set({ status: "signedOut", user: null, identities: [], wallets: [], errorCode: codeOf(err) });
+    }
+  },
+
+  signOutEverywhere: async () => {
+    const client = get().client;
+    try {
+      await client?.signOutEverywhere();
+      set({ status: "signedOut", user: null, identities: [], wallets: [], errorCode: null });
+    } catch (err) {
+      set({ status: "signedOut", user: null, identities: [], wallets: [], errorCode: codeOf(err) });
     }
   },
 }));

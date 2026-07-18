@@ -4,7 +4,7 @@ import gpsRouter from "./routes/gps.js";
 import zonesRouter from "./routes/zones.js";
 import battlesRouter from "./routes/battles.js";
 import usersRouter from "./routes/users.js";
-import { createProductionIdentityRouter } from "./identity/http/productionRouter.js";
+import { createProductionIdentityRouter, createProductionWebhookRouter } from "./identity/http/productionRouter.js";
 import { createCorsMiddleware, createSecurityHeadersMiddleware } from "./middleware/security.js";
 import { createGlobalRateLimiter } from "./middleware/rateLimit.js";
 
@@ -16,6 +16,12 @@ const config = getConfig();
 app.use(createSecurityHeadersMiddleware());
 app.use(createCorsMiddleware());
 app.use(createGlobalRateLimiter());
+
+// Provider webhooks own their raw-body handling (signature verification runs
+// on the exact received bytes BEFORE parsing), so this mounts ahead of the
+// app-wide JSON parser and is excluded from it. Fails closed (503) while no
+// provider/webhook key is configured — see identity/webhooks/router.ts.
+app.use("/identity/webhooks", createProductionWebhookRouter());
 
 app.use(
   express.json({

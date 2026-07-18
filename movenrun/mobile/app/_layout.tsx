@@ -6,6 +6,12 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors, palette, spacing, type } from "@/theme";
 import { Hexagon } from "@/components/Hexagon";
 import { useGameStore } from "@/store/useGameStore";
+import { installExpoSecureSessionStore } from "@/lib/secureSessionExpo";
+
+// Install the OS-keystore session store before anything can touch auth state.
+// Until this runs, getSecureSessionStore() throws — there is no insecure
+// fallback (see src/lib/secureSession.ts, ADR-0012).
+installExpoSecureSessionStore();
 
 /** Branded loading view shown until persisted state has hydrated. */
 function SplashView() {

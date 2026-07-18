@@ -111,3 +111,81 @@ detection · recovery · residual risk · evidence**.
 ### 25. Insecure development/test bypass reaching production
 - **Asset**: production auth integrity. **Actor**: n/a (process risk). **Entry**: code. **Boundary**: import boundary + fail-closed config.
 - **Mitigation**: no production import of test doubles (guard test); no hard-coded test user; provider-dependent flows fail closed; dev-only pepper fallback is impossible in production (required there). **Detection**: guard test; `config.test.ts`. **Recovery**: n/a. **Residual**: none identified. **Evidence**: `securityControls.test.ts` (import boundary), `config.test.ts` (fail-closed).
+
+---
+
+## PR #51 additions — provider webhooks, secure mobile storage, configuration
+
+Scope: `backend/src/identity/{providerConfig.ts,webhooks/**}`, `provider_events`,
+`mobile/src/lib/secureSession*`. Real authentication and wallet provisioning
+remain disabled (ADR-0011 Blocked); these threats cover the newly-added
+surfaces. Format as above: asset · actor · entry · boundary · mitigation ·
+detection · recovery · residual · evidence.
+
+### 26. Webhook forgery
+- **Asset**: identity/wallet state transitions. **Actor**: remote attacker. **Entry**: `POST /identity/webhooks/provider`. **Boundary**: HMAC verifier.
+- **Mitigation**: HMAC-SHA-256 over raw bytes with domain-separation context; timing-safe compare; disabled mode fails closed (503). **Detection**: `webhook_rejected` audit (reason class). **Recovery**: n/a (prevented). **Residual**: key theft (see 29). **Evidence**: `hmacVerifier.test.ts`, `router.test.ts`.
+
+### 27. Webhook replay
+- **Asset**: duplicate side effects. **Actor**: attacker replaying a captured valid delivery. **Entry**: webhook route. **Boundary**: `provider_events` uniqueness + timestamp window.
+- **Mitigation**: unique `(provider, providerEventId)` — replay converges on the same row (idempotent 200, no second side effect); bounded timestamp skew limits the replay window. **Detection**: `webhook_duplicate` audit. **Recovery**: n/a. **Residual**: replay inside the skew window of a not-yet-delivered id is just first delivery. **Evidence**: PG race evidence (200 racing ingests → 1 insert), `eventService.test.ts`.
+
+### 28. Timestamp bypass
+- **Asset**: replay window integrity. **Actor**: attacker with stale/future-dated signed payloads. **Entry**: webhook headers. **Boundary**: verifier clock check.
+- **Mitigation**: timestamp is bound INSIDE the signed message; stale and future both rejected beyond max skew (default 300 s); server-authoritative clock. **Detection**: `stale_timestamp`/`future_timestamp` classes. **Recovery**: n/a. **Residual**: none. **Evidence**: `hmacVerifier.test.ts`.
+
+### 29. Signing-key compromise
+- **Asset**: webhook trust. **Actor**: attacker holding a leaked key. **Entry**: webhook route. **Boundary**: key config + rotation.
+- **Mitigation**: rotation with bounded previous-key overlap; emergency closure via the webhook gate; keys ≥32 chars, never logged. **Detection**: anomalous accepted-event patterns; audit trail. **Recovery**: rotate (docs/KEY_ROTATION.md incident procedure). **Residual**: window between compromise and rotation. **Evidence**: `providerConfig.test.ts` (bounded overlap enforced), rotation runbook.
+
+### 30. Provider-event ID collision
+- **Asset**: event integrity. **Actor**: buggy/malicious provider reusing ids. **Entry**: ingestion. **Boundary**: DB uniqueness.
+- **Mitigation**: collision = duplicate → idempotent no-op; digest column reveals a same-id-different-payload mismatch. **Detection**: digest mismatch on investigation; `webhook_duplicate` audit. **Recovery**: provider-side fix; event ignored. **Residual**: a colliding FIRST delivery wins — inherent to provider-scoped ids. **Evidence**: `eventService.test.ts`.
+
+### 31. Duplicate / out-of-order delivery
+- **Asset**: state-machine integrity. **Actor**: at-least-once provider delivery. **Entry**: ingestion/processing. **Boundary**: state machine CAS.
+- **Mitigation**: idempotent ingest; conditional lifecycle transitions (settled states refuse late calls); handlers go through domain services whose invariants are order-safe. **Detection**: audit trail. **Recovery**: redelivery absorbs gaps. **Residual**: none identified. **Evidence**: `eventService.test.ts` (out-of-order test), PG evidence.
+
+### 32. Body tampering / raw-body loss / parser differential
+- **Asset**: verified-content integrity. **Actor**: MITM/proxy/middleware. **Entry**: request body path. **Boundary**: raw-body route.
+- **Mitigation**: dedicated `express.raw` mount BEFORE (and excluded from) the JSON parser — the verifier sees the exact received bytes; signature verified before parsing; single JSON.parse after verification (no dual-parser differential). **Detection**: `bad_signature` on tamper. **Recovery**: n/a. **Residual**: none. **Evidence**: `hmacVerifier.test.ts` (tamper), `router.test.ts` (raw handling, 415 on wrong content type).
+
+### 33. Oversized-payload DoS
+- **Asset**: service availability. **Actor**: attacker posting huge bodies. **Entry**: webhook route. **Boundary**: body limit.
+- **Mitigation**: explicit 256 KB raw-body limit → stable 413; app-wide 2 MB limit elsewhere. **Detection**: 413 rate. **Recovery**: n/a. **Residual**: volumetric DoS is an edge/infra concern. **Evidence**: `router.test.ts` (413).
+
+### 34. Stale processing lease
+- **Asset**: event liveness + single-processor invariant. **Actor**: crashed worker. **Entry**: processing. **Boundary**: lease CAS.
+- **Mitigation**: leases expire; expired-lease events are atomically reclaimable; live leases block second claims. **Detection**: attempts counter. **Recovery**: automatic reclaim. **Residual**: a zombie worker finishing after lease expiry could double-apply — handlers must stay idempotent via domain services (documented handler contract). **Evidence**: `eventService.test.ts` + PG lease test.
+
+### 35. Malicious / unknown event type
+- **Asset**: processor integrity. **Actor**: attacker or new provider feature. **Entry**: verified event. **Boundary**: explicit allowlist.
+- **Mitigation**: unknown types are durably stored, marked `ignored`, audited — never executed; the production allowlist is empty until provider semantics land. **Detection**: `provider_event_ignored` audit. **Recovery**: reprocess after allowlisting (still bounded by state machine). **Residual**: none. **Evidence**: `eventService.test.ts`.
+
+### 36. Provider-account compromise (sender side)
+- **Asset**: everything the provider can assert. **Actor**: attacker controlling the provider account. **Entry**: validly-signed webhooks. **Boundary**: domain services.
+- **Mitigation**: handlers cannot bypass domain invariants (single wallet owner, ownership scoping); no webhook can persist secret material; blast radius bounded by the empty allowlist today. **Detection**: audit trail of all transitions. **Recovery**: disable webhook gate; rotate provider credentials. **Residual**: with a real provider, validly-signed events are trusted to the extent the domain layer allows — inherent. **Evidence**: `eventService.test.ts` (wrong-user rejection).
+
+### 37. Provider outage
+- **Asset**: auth/wallet availability. **Actor**: n/a. **Entry**: provider calls/webhooks. **Boundary**: fail-closed adapters.
+- **Mitigation**: all provider flows already fail closed; webhook redelivery + idempotent ingest recover the stream; readiness reports disabled features honestly and performs no live provider call. **Detection**: rejection rates, readiness. **Recovery**: automatic on provider recovery. **Residual**: unavailability during outage (accepted). **Evidence**: `router.test.ts` (disabled 503), KEY_ROTATION.md.
+
+### 38. Secure-store extraction (device compromise / rooted device)
+- **Asset**: persisted session tokens. **Actor**: attacker with device access. **Entry**: OS keystore. **Boundary**: platform keystore.
+- **Mitigation**: tokens live only in Keystore/Keychain (never AsyncStorage/Zustand — guard-tested); short access TTL; refresh rotation with family revocation; revoke-all + security-version kill switch. **Detection**: refresh-replay detection server-side. **Recovery**: sign out everywhere. **Residual**: a rooted device weakens keystore guarantees — bounded by token lifetimes and server-side revocation. **Evidence**: `secureSession.test.ts` guards; PR #50 session tests.
+
+### 39. Secure-store unavailability / local session corruption
+- **Asset**: session integrity. **Actor**: OS/storage faults. **Entry**: keystore reads. **Boundary**: fail-closed core.
+- **Mitigation**: read failure → treated as signed-out (deny); malformed/expired data deleted, never returned; write/clear failures propagate — nothing silently succeeds; no insecure fallback exists (registry throws uninstalled). **Detection**: surfaced errors. **Recovery**: re-authenticate. **Residual**: none. **Evidence**: `secureSession.test.ts` (unavailable, malformed, expired, write/clear failure, no-fallback).
+
+### 40. App downgrade
+- **Asset**: stored session format integrity. **Actor**: user installing an older build. **Entry**: versioned storage key. **Boundary**: key versioning.
+- **Mitigation**: `movenrun.session.v1` — an older build reading a future format treats it as malformed and deletes it (fail closed → re-auth); format changes bump the version with a documented migration. **Detection**: n/a. **Recovery**: re-authenticate. **Residual**: none. **Evidence**: ADR-0012, malformed-deletion test.
+
+### 41. Secret-rotation failure / development credentials in production
+- **Asset**: production trust anchors. **Actor**: operator error. **Entry**: configuration. **Boundary**: strict config validation.
+- **Mitigation**: production startup fails closed on missing/short secrets, unknown providers, http URLs, debug/tunnel hosts, wildcard redirects, or an unbounded previous key; no dev fallback exists in production paths; errors name fields, never values. **Detection**: startup failure; `config_invalid` audit hook. **Recovery**: fix config, redeploy (rollback is config-only). **Residual**: none identified. **Evidence**: `providerConfig.test.ts` (13 cases), `config.test.ts`.
+
+### 42. Redirect misconfiguration
+- **Asset**: future OAuth code delivery. **Actor**: attacker exploiting a loose redirect. **Entry**: redirect origins config. **Boundary**: exact-origin allowlist.
+- **Mitigation**: exact https origins only — wildcards, paths, queries, and http (non-loopback) all rejected at config time, before any provider exists to misuse them. **Detection**: config validation. **Recovery**: fix config. **Residual**: none until a provider is wired; re-verify then. **Evidence**: `providerConfig.test.ts`.

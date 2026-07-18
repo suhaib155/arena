@@ -15,6 +15,13 @@
       "when": 1784313600000,
       "tag": "0001_identity_wallet_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784400000000,
+      "tag": "0002_provider_events",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "tsc --noEmit",
+    "test": "node --import tsx --test src/lib/__tests__/secureSession.test.ts",
     "eas-build-pre-install": "corepack enable"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "expo-linking": "~6.3.1",
     "expo-location": "~17.0.1",
     "expo-router": "~3.5.0",
+    "expo-secure-store": "~13.0.1",
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",
     "react-native": "0.74.1",
@@ -29,7 +31,9 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
+    "@types/node": "^20.12.7",
     "@types/react": "~18.2.79",
+    "tsx": "^4.9.3",
     "typescript": "^5.4.5"
   }
 }

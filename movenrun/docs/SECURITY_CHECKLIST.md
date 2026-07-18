@@ -35,5 +35,26 @@ an interface/gate and fails closed until a provider is wired.
 | 27 | Fail-closed configuration | `resolveIdentityConfig` (peppers, partial-provider) | `config.test.ts` | — | none |
 | 28 | No production import of test doubles | dir separation + guard test | `securityControls.test.ts` (import boundary) | — | none |
 | 29 | Public responses hide secrets/internal fields | `publicViews.ts` | `router.test.ts` (no hash/version fields) | — | none |
-| 30 | Mobile: secrets only in secure store | `secureSession.ts` (no AsyncStorage), no persisted tokens | mobile typecheck; ADR-0006/0008 | in-memory default (non-persistent) until keystore wired | `expo-secure-store` adapter (follow-up) |
+| 30 | Mobile: secrets only in secure store | `secureSession.ts` core + expo-secure-store keystore adapter (PR #51; see rows 43–45) | `secureSession.test.ts`; ADR-0012 | rooted-device keystore weakening | none (adapter wired) |
 | 31 | Migrations apply + reject duplicate states | `0001_identity_wallet_foundation.sql` | applied to ephemeral PG 16; constraint checks | snapshot not regenerated (drizzle-kit bug) | none |
+
+## PR #51 additions — provider config, webhooks, secure mobile storage
+
+| # | Requirement | Implementation | Test / evidence | Remaining risk | Provider dependency |
+|---|---|---|---|---|---|
+| 32 | Provider decision documented | ADR-0011 (status: **Blocked** — egress-restricted evidence; provider-neutral infra shipped) | ADR-0011 | selection pending | live doc/pricing verification |
+| 33 | Strict provider config, fail closed | `providerConfig.ts` (unknown provider, http, debug hosts, wildcards, short secrets all rejected; frozen result) | `providerConfig.test.ts` (13) | — | none |
+| 34 | No secret in config errors | field-name-only error strings | `providerConfig.test.ts` (no-echo assertions) | — | none |
+| 35 | Webhook signature over raw bytes, pre-parse | `hmacVerifier.ts` + `express.raw` route mounted before/excluded from JSON parser | `hmacVerifier.test.ts` (14), `router.test.ts` | — | provider header mapping |
+| 36 | Timestamp skew + key-version + bounded rotation overlap | verifier + config validation (previous key requires expiry) | `hmacVerifier.test.ts`, `providerConfig.test.ts` | — | none |
+| 37 | Webhook replay/idempotency is DB-authoritative | `provider_events` unique `(provider, provider_event_id)`; duplicate → idempotent 200 | PG race evidence (200 racing ingests → 1 insert); `router.test.ts` | — | none |
+| 38 | One processor per event (atomic claim + lease) | `claim` CAS with stale-lease recovery | PG race evidence (160 racing claims → 1 winner); `eventService.test.ts` | zombie-worker double-apply bounded by idempotent handlers (documented contract) | none |
+| 39 | Bounded retries; terminal/ignored immutable | state machine + conditional transitions | `eventService.test.ts` | — | none |
+| 40 | Unknown event types safely ignored + audited | explicit allowlist (empty in production) | `eventService.test.ts` | — | provider event semantics |
+| 41 | Webhooks disabled ⇒ fail closed, no fake verifier | null verifier → stable 503; gate cannot enable without full-length key | `router.test.ts`, `providerConfig.test.ts` | — | none |
+| 42 | No raw payload/secret persisted for events | digest + normalized envelope only; immutable provider fields | `eventService.test.ts` | — | none |
+| 43 | Durable secure mobile sessions (OS keystore only) | `secureSession.ts` core + `expo-secure-store` adapter; versioned key; fail-closed lifecycle | `secureSession.test.ts` (13, in CI) | rooted-device keystore weakening (threat 38) | none |
+| 44 | No AsyncStorage / persisted-Zustand credentials; no insecure fallback; test backend unimportable in production | registry throws uninstalled; source-tree guard tests | `secureSession.test.ts` guards | — | none |
+| 45 | Sign-out + revoke-all clear local credentials | `signOut`/`signOutEverywhere` (server revoke-all → local clear) | `secureSession.test.ts` | — | none |
+| 46 | Readiness fails closed on DB unavailability; disabled features reported disabled | `stores.ping()` + `/identity/ready` 503 path | `router.test.ts` (ready), wiring | — | none |
+| 47 | Key rotation documented (overlap, max age, incident, rollback, audit) | docs/KEY_ROTATION.md | runbook + config enforcement | — | provider secret procedures |

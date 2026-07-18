@@ -497,6 +497,10 @@ export function createDrizzleStores(db: Db): IdentityStores {
     walletChallenges: new DrizzleWalletChallengeRepository(db),
     otpChallenges: new DrizzleOtpChallengeRepository(db),
     audit: new DrizzleAuditEventRepository(db),
+    async ping() {
+      // Readiness probe: throws when Postgres is unreachable.
+      await db.execute(sql`select 1`);
+    },
     async createUserWithIdentity({ userId, identity }) {
       return db.transaction(async (tx) => {
         const [userRow] = await tx.insert(users).values({ id: userId, status: "active" }).returning();

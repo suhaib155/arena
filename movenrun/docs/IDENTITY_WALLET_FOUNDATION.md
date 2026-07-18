@@ -36,6 +36,33 @@ fail-closed configuration — deliberately with **no production vendor wired**.
 - **Docs** — ADR-0001…0010 (`docs/adr/`), `docs/THREAT_MODEL.md`,
   `docs/SECURITY_CHECKLIST.md`.
 
+## PR #51 — provider decision, secure storage, webhook security
+
+Added on top of the foundation (real authentication and real wallet
+provisioning remain **disabled**):
+
+- **Provider decision** — ADR-0011, status **Blocked** (egress-restricted
+  evidence); only provider-neutral infrastructure ships.
+- **Strict provider config** — `identity/providerConfig.ts`: fail-closed
+  validation of provider identity, URLs (https-only, no debug/tunnel hosts in
+  production), exact redirect origins (no wildcards), deep-link schemes,
+  webhook signing keys (current + bounded previous-key overlap), and feature
+  gates that can never bypass verification.
+- **Webhook boundary** — `identity/webhooks/**`: raw-bytes HMAC verification
+  (timestamped, key-versioned, timing-safe) before parsing; durable replay-safe
+  `provider_events` persistence (migration `0002`); idempotent processing state
+  machine with atomic claim/lease and an explicit (currently empty) allowlist.
+  Production route fails closed (503) while no provider/key is configured.
+- **Durable secure mobile sessions** — ADR-0012: platform-free core +
+  `expo-secure-store` keystore adapter, versioned key, fail-closed lifecycle,
+  no AsyncStorage/persisted-Zustand credentials, test-only in-memory backend
+  guarded against production import. Sign-out everywhere now calls
+  `/session/revoke-all` server-side before clearing locally.
+- **Readiness** — `/identity/ready` fails closed (503) when Postgres is
+  unreachable and reports disabled features as disabled.
+- **Operations** — `docs/KEY_ROTATION.md` (rotation, incident, rollback,
+  outage behavior).
+
 ## What is intentionally NOT here (follow-ups)
 
 - No production vendor for Google OIDC, Base Account, email delivery, or the
