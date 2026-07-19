@@ -43,12 +43,23 @@ export interface IdentityServices {
   emailOtp: EmailOtpService;
   orchestrator: AuthOrchestrator;
   config: ResolvedIdentityConfig;
+  /** Readiness probe — throws when the backing store is unreachable, so
+   *  /ready can fail closed instead of claiming health it can't verify. */
+  readiness: () => Promise<void>;
+  /** Honest feature summary for /ready: disabled features are reported as
+   *  disabled, never as healthy. */
+  featureSummary: { providerName: string; providerStatus: string; webhooksEnabled: boolean };
 }
 
 export function createIdentityServices(
   stores: IdentityStores,
   config: ResolvedIdentityConfig,
-  providers: IdentityProviders = {}
+  providers: IdentityProviders = {},
+  featureSummary: IdentityServices["featureSummary"] = {
+    providerName: "disabled",
+    providerStatus: "disabled",
+    webhooksEnabled: false,
+  }
 ): IdentityServices {
   const audit = new AuditService(stores.audit);
   const sessions = new SessionService({
@@ -103,5 +114,16 @@ export function createIdentityServices(
     },
   });
 
-  return { audit, sessions, identity, provisioning, walletLink, emailOtp, orchestrator, config };
+  return {
+    audit,
+    sessions,
+    identity,
+    provisioning,
+    walletLink,
+    emailOtp,
+    orchestrator,
+    config,
+    readiness: () => stores.ping(),
+    featureSummary,
+  };
 }

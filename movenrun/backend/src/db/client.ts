@@ -3,10 +3,11 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { getConfig } from "../config.js";
 import * as routeSchema from "./schema.js";
 import * as identitySchema from "./identity.schema.js";
+import * as providerSchema from "./provider.schema.js";
 
 // One combined schema object for the Drizzle client — the route/zone/battle
-// tables plus the identity/wallet tables (see db/identity.schema.ts).
-const schema = { ...routeSchema, ...identitySchema };
+// tables plus the identity/wallet tables and the provider-event table.
+const schema = { ...routeSchema, ...identitySchema, ...providerSchema };
 
 export type Db = NodePgDatabase<typeof schema>;
 

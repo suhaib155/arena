@@ -2719,6 +2719,7 @@ __metadata:
     "@babel/core": "npm:^7.24.0"
     "@expo/vector-icons": "npm:^14.0.0"
     "@react-native-async-storage/async-storage": "npm:1.23.1"
+    "@types/node": "npm:^20.12.7"
     "@types/react": "npm:~18.2.79"
     expo: "npm:~51.0.0"
     expo-constants: "npm:~16.0.0"
@@ -2726,11 +2727,13 @@ __metadata:
     expo-linking: "npm:~6.3.1"
     expo-location: "npm:~17.0.1"
     expo-router: "npm:~3.5.0"
+    expo-secure-store: "npm:~13.0.1"
     expo-status-bar: "npm:~1.12.1"
     react: "npm:18.2.0"
     react-native: "npm:0.74.1"
     react-native-safe-area-context: "npm:4.10.1"
     react-native-screens: "npm:~3.31.1"
+    tsx: "npm:^4.9.3"
     typescript: "npm:^5.4.5"
     zustand: "npm:^4.5.2"
   languageName: unknown
@@ -7793,6 +7796,15 @@ __metadata:
     react-native-reanimated:
       optional: true
   checksum: 10c0/867be5197d3950cbd72e043224b2bd372254b440e26f6b73fd55983fd09a480c6bba42d596f7721bbd76c44a9db8117433921966d0277620efd194be0a32feca
+  languageName: node
+  linkType: hard
+
+"expo-secure-store@npm:~13.0.1":
+  version: 13.0.2
+  resolution: "expo-secure-store@npm:13.0.2"
+  peerDependencies:
+    expo: "*"
+  checksum: 10c0/75d7f447fdfe4a67a09629532e790831c05a9a27671fa8b4ce2e56ddc2828fdc1f84e713ffa3d8a9645a3c080a9c08c0e5571f67bae30a72926ac20e82637c1c
   languageName: node
   linkType: hard
 

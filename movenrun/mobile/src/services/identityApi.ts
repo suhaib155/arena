@@ -15,7 +15,7 @@ import {
   getSecureSessionStore,
   type SecureSessionStore,
   type SecureSessionTokens,
-} from "@/lib/secureSession";
+} from "../lib/secureSession";
 
 export interface PublicUser {
   id: string;
@@ -163,6 +163,19 @@ export class IdentityApiClient {
   async signOut(): Promise<void> {
     try {
       await this.request<{ revoked: boolean }>("/identity/session/revoke", { method: "POST", auth: true });
+    } finally {
+      // Always clear local credentials, even when the revoke call failed —
+      // clear() itself propagates a storage failure (fail closed).
+      await this.store.clear();
+    }
+  }
+
+  /** Revoke EVERY session for the user server-side (bumps the server's
+   *  security version, killing all devices' tokens), then clear local
+   *  credentials. */
+  async signOutEverywhere(): Promise<void> {
+    try {
+      await this.request<{ revoked: number }>("/identity/session/revoke-all", { method: "POST", auth: true });
     } finally {
       await this.store.clear();
     }

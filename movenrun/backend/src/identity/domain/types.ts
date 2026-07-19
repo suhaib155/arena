@@ -116,7 +116,19 @@ export type AuditEventType =
   | "wallet_export_initiated"
   | "wallet_export_completed"
   | "wallet_export_aborted"
-  | "security_policy_denied";
+  | "security_policy_denied"
+  // Provider webhook ingestion/processing (see identity/webhooks/**).
+  | "webhook_accepted"
+  | "webhook_duplicate"
+  | "webhook_rejected"
+  | "provider_event_processing_started"
+  | "provider_event_processed"
+  | "provider_event_retryable"
+  | "provider_event_terminal"
+  | "provider_event_ignored"
+  // Operational security events.
+  | "config_invalid"
+  | "key_rotation_activated";
 
 export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   "signup",
@@ -139,4 +151,14 @@ export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   "wallet_export_completed",
   "wallet_export_aborted",
   "security_policy_denied",
+  "webhook_accepted",
+  "webhook_duplicate",
+  "webhook_rejected",
+  "provider_event_processing_started",
+  "provider_event_processed",
+  "provider_event_retryable",
+  "provider_event_terminal",
+  "provider_event_ignored",
+  "config_invalid",
+  "key_rotation_activated",
 ] as const;

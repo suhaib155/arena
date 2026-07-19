@@ -31,11 +31,19 @@ export default function SecurityScreen() {
   const identities = useAuthStore((s) => s.identities);
   const status = useAuthStore((s) => s.status);
   const signOut = useAuthStore((s) => s.signOut);
+  const signOutEverywhere = useAuthStore((s) => s.signOutEverywhere);
   const [busy, setBusy] = useState(false);
 
   const doSignOut = async () => {
     setBusy(true);
     await signOut();
+    setBusy(false);
+    router.replace("/account");
+  };
+
+  const doSignOutEverywhere = async () => {
+    setBusy(true);
+    await signOutEverywhere();
     setBusy(false);
     router.replace("/account");
   };
@@ -46,7 +54,7 @@ export default function SecurityScreen() {
       "This ends every active MovenRun session. You'll need to sign in again on each device.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Sign out everywhere", style: "destructive", onPress: doSignOut },
+        { text: "Sign out everywhere", style: "destructive", onPress: doSignOutEverywhere },
       ]
     );
   };

@@ -234,6 +234,9 @@ export interface IdentityStores {
   walletChallenges: WalletChallengeRepository;
   otpChallenges: OtpChallengeRepository;
   audit: AuditEventRepository;
+  /** Cheap connectivity probe for readiness — throws when the backing store
+   *  is unreachable. In-memory: no-op. Drizzle: `SELECT 1`. */
+  ping(): Promise<void>;
   /**
    * Atomically create a brand-new user together with its first auth identity.
    * If the identity's (provider, providerSubject) is already actively claimed,

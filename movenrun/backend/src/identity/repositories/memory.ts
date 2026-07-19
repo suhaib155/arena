@@ -476,6 +476,9 @@ export function createInMemoryStores(now: () => Date = () => new Date()): Identi
     walletChallenges: new InMemoryWalletChallengeRepository(now),
     otpChallenges: new InMemoryOtpChallengeRepository(now),
     audit: new InMemoryAuditEventRepository(now),
+    async ping() {
+      // In-memory stores are always reachable.
+    },
     async createUserWithIdentity({ userId, identity }) {
       // All-or-nothing: create the user, then claim the identity. If the
       // identity's active (provider, subject) is already taken, roll the user

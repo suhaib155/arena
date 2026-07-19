@@ -42,3 +42,8 @@ jobs:
 
       - name: Type-check @movenrun/mobile
         run: yarn workspace @movenrun/mobile lint
+
+      # Offline node tests for the secure session storage core (no device, no
+      # network, no native module — see mobile/src/lib/secureSession.ts).
+      - name: Test @movenrun/mobile
+        run: yarn workspace @movenrun/mobile test

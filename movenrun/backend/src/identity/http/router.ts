@@ -69,15 +69,29 @@ export function createIdentityRouter(services: IdentityServices): Router {
     handle(async (req, res) => fn(req, res, await authenticate(req)));
 
   // ---- readiness (separate from liveness /health in index.ts) -------------
-  router.get("/ready", (_req, res) => {
-    res.json({
-      status: "ready",
-      providers: {
-        embeddedWalletEnabled: services.config.embeddedWalletEnabled,
-        google: services.config.googleStatus,
-      },
-    });
-  });
+  // Fails closed (503) when the backing store is unreachable — readiness never
+  // claims health it cannot verify. Disabled features are reported as
+  // "disabled", never as operational. No secret appears in the response.
+  router.get(
+    "/ready",
+    handle(async (_req, res) => {
+      try {
+        await services.readiness();
+      } catch {
+        res.status(503).json({ status: "unavailable" });
+        return;
+      }
+      res.json({
+        status: "ready",
+        providers: {
+          embeddedWalletEnabled: services.config.embeddedWalletEnabled,
+          google: services.config.googleStatus,
+          authProvider: services.featureSummary.providerStatus,
+          webhooks: services.featureSummary.webhooksEnabled ? "enabled" : "disabled",
+        },
+      });
+    })
+  );
 
   // ---- unauthenticated auth entry ----------------------------------------
   router.post(
