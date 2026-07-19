@@ -180,9 +180,16 @@ export function resolveProviderConfig(
   }
 
   const deepLinkSchemes = splitCsv(v.IDENTITY_DEEPLINK_SCHEMES);
+  // Reserved/dangerous schemes must never be used as an app deep-link scheme.
+  const RESERVED_SCHEMES = new Set([
+    "http", "https", "javascript", "data", "file", "about", "blob", "ws", "wss", "ftp", "mailto", "tel",
+  ]);
   for (const scheme of deepLinkSchemes) {
-    if (!/^[a-z][a-z0-9+.-]{2,63}$/.test(scheme)) {
+    const s = scheme.toLowerCase();
+    if (!/^[a-z][a-z0-9+.-]{2,63}$/.test(s)) {
       errors.push("IDENTITY_DEEPLINK_SCHEMES: invalid scheme");
+    } else if (RESERVED_SCHEMES.has(s)) {
+      errors.push("IDENTITY_DEEPLINK_SCHEMES: reserved/dangerous scheme is not allowed");
     }
   }
 

@@ -35,6 +35,10 @@ export const providerEvents = pgTable(
     // Which signing-key version verified the delivery.
     keyId: text("key_id"),
     leaseExpiresAt: timestamp("lease_expires_at"),
+    // Per-claim token (processing generation). Every settle transition matches
+    // on this, so a slow worker whose lease expired and was reclaimed by
+    // another worker cannot overwrite the newer claim's result.
+    leaseToken: text("lease_token"),
     processedAt: timestamp("processed_at"),
     terminalAt: timestamp("terminal_at"),
   },

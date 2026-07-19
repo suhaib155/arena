@@ -81,6 +81,17 @@ test("a validly-signed event is accepted and a duplicate delivery returns idempo
   assert.equal(second.json.duplicate, true);
 });
 
+test("a duplicate event id with a different payload returns a stable 409 (anomaly, not silent duplicate)", async () => {
+  const body1 = Buffer.from(JSON.stringify({ id: "evt_conf", type: "example.event", data: { v: 1 } }));
+  const first = await post(enabledBase, body1, signedHeaders(body1));
+  assert.equal(first.status, 200);
+  // Same id, different payload (validly signed) → 409, not idempotent 200.
+  const body2 = Buffer.from(JSON.stringify({ id: "evt_conf", type: "example.event", data: { v: 2 } }));
+  const second = await post(enabledBase, body2, signedHeaders(body2));
+  assert.equal(second.status, 409);
+  assert.equal(second.json.error.code, "conflict");
+});
+
 test("a bad signature returns a stable 401 without detail", async () => {
   const body = Buffer.from(JSON.stringify({ id: "evt_bad", type: "example.event" }));
   const headers = signedHeaders(body);

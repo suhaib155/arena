@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS "provider_events" (
 	"payload_digest" text NOT NULL,
 	"key_id" text,
 	"lease_expires_at" timestamp,
+	"lease_token" text,
 	"processed_at" timestamp,
 	"terminal_at" timestamp,
 	CONSTRAINT "provider_events_state_valid" CHECK ("state" IN ('received','processing','processed','retryable_failure','terminal_failure','ignored')),

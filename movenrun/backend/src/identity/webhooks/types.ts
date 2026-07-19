@@ -88,6 +88,8 @@ export interface ProviderEventRecord {
   payloadDigest: string;
   keyId: string | null;
   leaseExpiresAt: Date | null;
+  /** Per-claim token (processing generation) — see ProviderEventStore.claim. */
+  leaseToken: string | null;
   processedAt: Date | null;
   terminalAt: Date | null;
 }
@@ -117,14 +119,20 @@ export interface ProviderEventStore {
   /**
    * Atomically claim an event for processing (compare-and-set): transitions
    * received/retryable_failure — or processing with an EXPIRED lease (stale
-   * lease recovery) — to processing, bumping attempts and setting a fresh
-   * lease. Returns the claimed record, or null if another processor holds it.
+   * lease recovery) — to processing, bumping attempts and minting a FRESH
+   * lease token. Returns the claimed record (whose `leaseToken` the caller
+   * must present to every settle transition), or null if another processor
+   * holds it.
+   *
+   * Every settle method below matches on `state='processing' AND
+   * lease_token = <the claim's token>`, so a slow worker whose lease expired
+   * and was reclaimed cannot overwrite the newer claim's result (returns null).
    */
   claim(id: string, now: Date, leaseSeconds: number): Promise<ProviderEventRecord | null>;
-  markProcessed(id: string, at: Date): Promise<ProviderEventRecord | null>;
-  markRetryable(id: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null>;
-  markTerminal(id: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null>;
-  markIgnored(id: string, at: Date): Promise<ProviderEventRecord | null>;
+  markProcessed(id: string, leaseToken: string, at: Date): Promise<ProviderEventRecord | null>;
+  markRetryable(id: string, leaseToken: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null>;
+  markTerminal(id: string, leaseToken: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null>;
+  markIgnored(id: string, leaseToken: string, at: Date): Promise<ProviderEventRecord | null>;
 }
 
 /** Outcome a processor handler reports for a claimed event. */

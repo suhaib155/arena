@@ -46,7 +46,14 @@ ignored`. Claiming is an atomic compare-and-set with a lease (exactly one
 processor wins; expired leases are safely reclaimable), retries are bounded
 (attempt cap → terminal), terminal states refuse further transitions, and the
 event-type allowlist is explicit — unknown types are durably stored, marked
-`ignored`, and audited. Handlers must call the existing domain services, so a
+`ignored`, and audited. Each claim mints a fresh **lease token (processing
+generation)**; every settle transition matches on `state='processing' AND
+lease_token = <that claim's token>`, so a slow worker whose lease expired and
+was reclaimed by another worker cannot overwrite the newer claim's result (its
+stale-token settle matches zero rows). A same-event-id delivery with a
+DIFFERENT payload digest is treated as a security anomaly (`webhook_rejected` /
+digest_mismatch, stable 409), never a silent duplicate; the first delivery's
+content stays authoritative. Handlers must call the existing domain services, so a
 webhook can never bypass ownership/uniqueness invariants, persist secret
 material, or attach a wallet to the wrong user (tested against the domain
 layer). The production handler registry is **empty** until ADR-0011 selects a

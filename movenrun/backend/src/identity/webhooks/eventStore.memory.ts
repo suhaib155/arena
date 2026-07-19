@@ -6,6 +6,7 @@
  * (provider, providerEventId) uniqueness, CAS claim with lease, and immutable
  * provider identity fields (lifecycle methods never touch them).
  */
+import { randomToken } from "../crypto/secure.js";
 import { UniqueConstraintError } from "../repositories/interfaces.js";
 import type {
   InsertProviderEventInput,
@@ -42,6 +43,7 @@ export class InMemoryProviderEventStore implements ProviderEventStore {
       payloadDigest: input.payloadDigest,
       keyId: input.keyId ?? null,
       leaseExpiresAt: null,
+      leaseToken: null,
       processedAt: null,
       terminalAt: null,
     };
@@ -66,44 +68,54 @@ export class InMemoryProviderEventStore implements ProviderEventStore {
     r.state = "processing";
     r.attempts += 1;
     r.leaseExpiresAt = new Date(now.getTime() + leaseSeconds * 1000);
+    r.leaseToken = randomToken(16); // fresh processing generation
     return clone(r);
   }
 
-  async markProcessed(id: string, at: Date): Promise<ProviderEventRecord | null> {
+  /** A settle transition is valid only for the CURRENT claim's token. */
+  private owns(r: ProviderEventRecord | undefined, leaseToken: string): r is ProviderEventRecord {
+    return !!r && r.state === "processing" && r.leaseToken === leaseToken;
+  }
+
+  async markProcessed(id: string, leaseToken: string, at: Date): Promise<ProviderEventRecord | null> {
     const r = this.rows.get(id);
-    if (!r || r.state !== "processing") return null;
+    if (!this.owns(r, leaseToken)) return null;
     r.state = "processed";
     r.processedAt = at;
     r.leaseExpiresAt = null;
+    r.leaseToken = null;
     return clone(r);
   }
 
-  async markRetryable(id: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null> {
+  async markRetryable(id: string, leaseToken: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null> {
     const r = this.rows.get(id);
-    if (!r || r.state !== "processing") return null;
+    if (!this.owns(r, leaseToken)) return null;
     r.state = "retryable_failure";
     r.lastErrorClass = errorClass;
     r.leaseExpiresAt = null;
+    r.leaseToken = null;
     void at;
     return clone(r);
   }
 
-  async markTerminal(id: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null> {
+  async markTerminal(id: string, leaseToken: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null> {
     const r = this.rows.get(id);
-    if (!r || (r.state !== "processing" && r.state !== "retryable_failure")) return null;
+    if (!this.owns(r, leaseToken)) return null;
     r.state = "terminal_failure";
     r.lastErrorClass = errorClass;
     r.terminalAt = at;
     r.leaseExpiresAt = null;
+    r.leaseToken = null;
     return clone(r);
   }
 
-  async markIgnored(id: string, at: Date): Promise<ProviderEventRecord | null> {
+  async markIgnored(id: string, leaseToken: string, at: Date): Promise<ProviderEventRecord | null> {
     const r = this.rows.get(id);
-    if (!r || r.state !== "processing") return null;
+    if (!this.owns(r, leaseToken)) return null;
     r.state = "ignored";
     r.terminalAt = at;
     r.leaseExpiresAt = null;
+    r.leaseToken = null;
     return clone(r);
   }
 }

@@ -13,6 +13,7 @@
  * No method can modify the provider identity fields after insert.
  */
 import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { randomToken } from "../crypto/secure.js";
 import type { Db } from "../../db/client.js";
 import { providerEvents } from "../../db/provider.schema.js";
 import type {
@@ -66,7 +67,8 @@ export class DrizzleProviderEventStore implements ProviderEventStore {
     const lease = new Date(now.getTime() + leaseSeconds * 1000);
     const [row] = await this.db
       .update(providerEvents)
-      .set({ state: "processing", attempts: sql`${providerEvents.attempts} + 1`, leaseExpiresAt: lease })
+      // Fresh processing generation every claim (stale reclaims get a new one).
+      .set({ state: "processing", attempts: sql`${providerEvents.attempts} + 1`, leaseExpiresAt: lease, leaseToken: randomToken(16) })
       .where(
         and(
           eq(providerEvents.id, id),
@@ -81,38 +83,47 @@ export class DrizzleProviderEventStore implements ProviderEventStore {
     return row ? toRecord(row) : null;
   }
 
-  async markProcessed(id: string, at: Date): Promise<ProviderEventRecord | null> {
+  /** Settle only the CURRENT claim: state='processing' AND matching token. */
+  private ownedProcessing(id: string, leaseToken: string) {
+    return and(
+      eq(providerEvents.id, id),
+      eq(providerEvents.state, "processing"),
+      eq(providerEvents.leaseToken, leaseToken)
+    );
+  }
+
+  async markProcessed(id: string, leaseToken: string, at: Date): Promise<ProviderEventRecord | null> {
     const [row] = await this.db
       .update(providerEvents)
-      .set({ state: "processed", processedAt: at, leaseExpiresAt: null })
-      .where(and(eq(providerEvents.id, id), eq(providerEvents.state, "processing")))
+      .set({ state: "processed", processedAt: at, leaseExpiresAt: null, leaseToken: null })
+      .where(this.ownedProcessing(id, leaseToken))
       .returning();
     return row ? toRecord(row) : null;
   }
 
-  async markRetryable(id: string, errorClass: string, _at: Date): Promise<ProviderEventRecord | null> {
+  async markRetryable(id: string, leaseToken: string, errorClass: string, _at: Date): Promise<ProviderEventRecord | null> {
     const [row] = await this.db
       .update(providerEvents)
-      .set({ state: "retryable_failure", lastErrorClass: errorClass, leaseExpiresAt: null })
-      .where(and(eq(providerEvents.id, id), eq(providerEvents.state, "processing")))
+      .set({ state: "retryable_failure", lastErrorClass: errorClass, leaseExpiresAt: null, leaseToken: null })
+      .where(this.ownedProcessing(id, leaseToken))
       .returning();
     return row ? toRecord(row) : null;
   }
 
-  async markTerminal(id: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null> {
+  async markTerminal(id: string, leaseToken: string, errorClass: string, at: Date): Promise<ProviderEventRecord | null> {
     const [row] = await this.db
       .update(providerEvents)
-      .set({ state: "terminal_failure", lastErrorClass: errorClass, terminalAt: at, leaseExpiresAt: null })
-      .where(and(eq(providerEvents.id, id), inArray(providerEvents.state, ["processing", "retryable_failure"])))
+      .set({ state: "terminal_failure", lastErrorClass: errorClass, terminalAt: at, leaseExpiresAt: null, leaseToken: null })
+      .where(this.ownedProcessing(id, leaseToken))
       .returning();
     return row ? toRecord(row) : null;
   }
 
-  async markIgnored(id: string, at: Date): Promise<ProviderEventRecord | null> {
+  async markIgnored(id: string, leaseToken: string, at: Date): Promise<ProviderEventRecord | null> {
     const [row] = await this.db
       .update(providerEvents)
-      .set({ state: "ignored", terminalAt: at, leaseExpiresAt: null })
-      .where(and(eq(providerEvents.id, id), eq(providerEvents.state, "processing")))
+      .set({ state: "ignored", terminalAt: at, leaseExpiresAt: null, leaseToken: null })
+      .where(this.ownedProcessing(id, leaseToken))
       .returning();
     return row ? toRecord(row) : null;
   }

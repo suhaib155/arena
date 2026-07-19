@@ -135,6 +135,15 @@ test("redirect origins with paths or queries are rejected (exact origins only)",
   assert.equal(r.ok, false);
 });
 
+test("reserved/dangerous deep-link schemes are rejected; a normal app scheme is accepted", () => {
+  for (const scheme of ["http", "https", "javascript", "data", "file"]) {
+    const r = resolveProviderConfig({ NODE_ENV: "development", IDENTITY_DEEPLINK_SCHEMES: scheme }, { requireStrict: false });
+    assert.equal(r.ok, false, `${scheme} must be rejected`);
+  }
+  const ok = resolveProviderConfig({ NODE_ENV: "development", IDENTITY_DEEPLINK_SCHEMES: "movenrun" }, { requireStrict: false });
+  assert.equal(ok.ok, true);
+});
+
 test("an unknown provider name is rejected", () => {
   const r = resolveProviderConfig(
     { NODE_ENV: "production", IDENTITY_PROVIDER_NAME: "totally-unknown-vendor" },

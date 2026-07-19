@@ -40,6 +40,10 @@ export interface ProviderEventServiceOptions {
 export interface IngestResult {
   record: ProviderEventRecord;
   duplicate: boolean;
+  /** True when this delivery duplicates a stored event ID but carries a
+   *  DIFFERENT payload digest — a security anomaly (a valid-signed reuse of an
+   *  id with changed content), not an ordinary duplicate. */
+  digestMismatch: boolean;
 }
 
 export class ProviderEventService {
@@ -73,11 +77,28 @@ export class ProviderEventService {
       payloadDigest: event.payloadDigest,
       keyId: event.keyId,
     });
-    await this.audit.record(inserted ? "webhook_accepted" : "webhook_duplicate", {
-      subjectId: record.id,
-      metadata: { provider: event.provider, eventType: event.eventType },
-    });
-    return { record, duplicate: !inserted };
+    // A duplicate that carries a DIFFERENT digest for the same event id is a
+    // security anomaly (valid-signed reuse of an id with changed content), not
+    // an ordinary duplicate — surface it as a distinct rejection signal. The
+    // FIRST delivery's content stays authoritative (never overwritten).
+    const digestMismatch = !inserted && record.payloadDigest !== event.payloadDigest;
+    if (inserted) {
+      await this.audit.record("webhook_accepted", {
+        subjectId: record.id,
+        metadata: { provider: event.provider, eventType: event.eventType },
+      });
+    } else if (digestMismatch) {
+      await this.audit.record("webhook_rejected", {
+        subjectId: record.id,
+        metadata: { provider: event.provider, eventType: event.eventType, reason: "digest_mismatch" },
+      });
+    } else {
+      await this.audit.record("webhook_duplicate", {
+        subjectId: record.id,
+        metadata: { provider: event.provider, eventType: event.eventType },
+      });
+    }
+    return { record, duplicate: !inserted, digestMismatch };
   }
 
   /**
@@ -88,7 +109,10 @@ export class ProviderEventService {
   async process(eventId: string, data: Record<string, unknown> = {}): Promise<ProviderEventRecord | null> {
     const now = this.now();
     const claimed = await this.store.claim(eventId, now, this.leaseSeconds);
-    if (!claimed) return null; // someone else holds it, or it is finished
+    if (!claimed || !claimed.leaseToken) return null; // someone else holds it, or it is finished
+    // Bind every settle transition to THIS claim's token, so a slow worker
+    // whose lease was reclaimed cannot overwrite the newer claim's result.
+    const token = claimed.leaseToken;
 
     await this.audit.record("provider_event_processing_started", {
       subjectId: claimed.id,
@@ -98,7 +122,7 @@ export class ProviderEventService {
     const handler = this.handlers.get(claimed.eventType);
     if (!handler) {
       // Not on the allowlist → safely ignored, durably recorded, audited.
-      const ignored = await this.store.markIgnored(claimed.id, this.now());
+      const ignored = await this.store.markIgnored(claimed.id, token, this.now());
       await this.audit.record("provider_event_ignored", {
         subjectId: claimed.id,
         metadata: { eventType: claimed.eventType },
@@ -109,38 +133,38 @@ export class ProviderEventService {
     try {
       const outcome = await handler.handle(claimed, data);
       if (outcome.kind === "processed") {
-        const done = await this.store.markProcessed(claimed.id, this.now());
-        await this.audit.record("provider_event_processed", { subjectId: claimed.id });
+        const done = await this.store.markProcessed(claimed.id, token, this.now());
+        if (done) await this.audit.record("provider_event_processed", { subjectId: claimed.id });
         return done;
       }
       if (outcome.kind === "terminal") {
-        const term = await this.store.markTerminal(claimed.id, outcome.errorClass, this.now());
-        await this.audit.record("provider_event_terminal", {
+        const term = await this.store.markTerminal(claimed.id, token, outcome.errorClass, this.now());
+        if (term) await this.audit.record("provider_event_terminal", {
           subjectId: claimed.id,
           metadata: { errorClass: outcome.errorClass },
         });
         return term;
       }
-      return this.settleRetry(claimed, outcome.errorClass);
+      return this.settleRetry(claimed, token, outcome.errorClass);
     } catch (err) {
       // A throwing handler is a retryable failure by default — bounded below.
       const errorClass = err instanceof Error ? err.name : "unknown_error";
-      return this.settleRetry(claimed, errorClass);
+      return this.settleRetry(claimed, token, errorClass);
     }
   }
 
   /** Bounded retries: beyond maxAttempts a retryable failure becomes terminal. */
-  private async settleRetry(claimed: ProviderEventRecord, errorClass: string): Promise<ProviderEventRecord | null> {
+  private async settleRetry(claimed: ProviderEventRecord, token: string, errorClass: string): Promise<ProviderEventRecord | null> {
     if (claimed.attempts >= this.maxAttempts) {
-      const term = await this.store.markTerminal(claimed.id, errorClass, this.now());
-      await this.audit.record("provider_event_terminal", {
+      const term = await this.store.markTerminal(claimed.id, token, errorClass, this.now());
+      if (term) await this.audit.record("provider_event_terminal", {
         subjectId: claimed.id,
         metadata: { errorClass, exhausted: true },
       });
       return term;
     }
-    const retry = await this.store.markRetryable(claimed.id, errorClass, this.now());
-    await this.audit.record("provider_event_retryable", {
+    const retry = await this.store.markRetryable(claimed.id, token, errorClass, this.now());
+    if (retry) await this.audit.record("provider_event_retryable", {
       subjectId: claimed.id,
       metadata: { errorClass, attempt: claimed.attempts },
     });

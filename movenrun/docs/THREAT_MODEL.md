@@ -138,9 +138,9 @@ detection · recovery · residual · evidence.
 - **Asset**: webhook trust. **Actor**: attacker holding a leaked key. **Entry**: webhook route. **Boundary**: key config + rotation.
 - **Mitigation**: rotation with bounded previous-key overlap; emergency closure via the webhook gate; keys ≥32 chars, never logged. **Detection**: anomalous accepted-event patterns; audit trail. **Recovery**: rotate (docs/KEY_ROTATION.md incident procedure). **Residual**: window between compromise and rotation. **Evidence**: `providerConfig.test.ts` (bounded overlap enforced), rotation runbook.
 
-### 30. Provider-event ID collision
-- **Asset**: event integrity. **Actor**: buggy/malicious provider reusing ids. **Entry**: ingestion. **Boundary**: DB uniqueness.
-- **Mitigation**: collision = duplicate → idempotent no-op; digest column reveals a same-id-different-payload mismatch. **Detection**: digest mismatch on investigation; `webhook_duplicate` audit. **Recovery**: provider-side fix; event ignored. **Residual**: a colliding FIRST delivery wins — inherent to provider-scoped ids. **Evidence**: `eventService.test.ts`.
+### 30. Provider-event ID collision / same-id payload swap
+- **Asset**: event integrity. **Actor**: buggy/malicious/compromised provider reusing ids. **Entry**: ingestion. **Boundary**: DB uniqueness + digest check.
+- **Mitigation**: collision = duplicate → idempotent no-op; a same-id delivery with a DIFFERENT payload digest is actively flagged as a **security anomaly** (`webhook_rejected`/digest_mismatch audit, stable 409) rather than silently accepted, and the first delivery's content stays authoritative. **Detection**: `webhook_rejected` (digest_mismatch) audit — distinct from `webhook_duplicate`. **Recovery**: provider-side investigation; the reused id is never reprocessed with new content. **Residual**: a colliding FIRST delivery wins — inherent to provider-scoped ids. **Evidence**: `eventService.test.ts` (digest-mismatch anomaly), `router.test.ts` (409).
 
 ### 31. Duplicate / out-of-order delivery
 - **Asset**: state-machine integrity. **Actor**: at-least-once provider delivery. **Entry**: ingestion/processing. **Boundary**: state machine CAS.
@@ -154,9 +154,9 @@ detection · recovery · residual · evidence.
 - **Asset**: service availability. **Actor**: attacker posting huge bodies. **Entry**: webhook route. **Boundary**: body limit.
 - **Mitigation**: explicit 256 KB raw-body limit → stable 413; app-wide 2 MB limit elsewhere. **Detection**: 413 rate. **Recovery**: n/a. **Residual**: volumetric DoS is an edge/infra concern. **Evidence**: `router.test.ts` (413).
 
-### 34. Stale processing lease
-- **Asset**: event liveness + single-processor invariant. **Actor**: crashed worker. **Entry**: processing. **Boundary**: lease CAS.
-- **Mitigation**: leases expire; expired-lease events are atomically reclaimable; live leases block second claims. **Detection**: attempts counter. **Recovery**: automatic reclaim. **Residual**: a zombie worker finishing after lease expiry could double-apply — handlers must stay idempotent via domain services (documented handler contract). **Evidence**: `eventService.test.ts` + PG lease test.
+### 34. Stale processing lease / zombie worker
+- **Asset**: event liveness + single-processor invariant. **Actor**: crashed or slow worker. **Entry**: processing. **Boundary**: lease CAS + lease token.
+- **Mitigation**: leases expire and expired-lease events are atomically reclaimable; live leases block second claims; **each claim mints a fresh lease token and every settle transition matches on that token**, so a slow worker whose lease was reclaimed cannot mark the event processed/terminal/etc. over the newer claim (stale-token settle matches zero rows). **Detection**: attempts counter; stale settle returns null. **Recovery**: automatic reclaim; the newer claim owns settlement. **Residual**: a handler side effect already committed to an EXTERNAL system before the lease-token settle is refused would still have happened once — bounded by requiring handlers to bind mutations to the provider event id / be idempotent (the empty production allowlist means no such handler runs today). **Evidence**: `eventService.test.ts` (lease-token/generation guard, transition table) + real-PG zombie-worker test (25 trials: stale settle refused, current wins).
 
 ### 35. Malicious / unknown event type
 - **Asset**: processor integrity. **Actor**: attacker or new provider feature. **Entry**: verified event. **Boundary**: explicit allowlist.

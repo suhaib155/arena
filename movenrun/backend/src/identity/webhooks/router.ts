@@ -66,7 +66,13 @@ export function createProviderWebhookRouter(deps: WebhookRouterDeps): Router {
             },
             now: now(),
           });
-          const { duplicate } = await deps.events.ingest(event);
+          const { duplicate, digestMismatch } = await deps.events.ingest(event);
+          if (digestMismatch) {
+            // Same event id, different payload — a security anomaly (audited in
+            // ingest). Stable 409; the first delivery's content is authoritative.
+            res.status(409).json({ error: { code: "conflict" } });
+            return;
+          }
           // Duplicates are idempotent success — the provider must not retry.
           res.status(200).json({ received: true, duplicate });
         } catch (err) {

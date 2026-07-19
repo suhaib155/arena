@@ -219,11 +219,91 @@ test("out-of-order duplicate lifecycle calls cannot corrupt the state machine", 
   const { record } = await service.ingest(makeEvent());
   const claimed = await store.claim(record.id, now(), 60);
   assert.ok(claimed);
-  const processed = await store.markProcessed(record.id, now());
+  const token = claimed!.leaseToken!;
+  const processed = await store.markProcessed(record.id, token, now());
   assert.ok(processed);
   // Late/out-of-order transitions against a settled event are refused.
-  assert.equal(await store.markRetryable(record.id, "late", now()), null);
-  assert.equal(await store.markIgnored(record.id, now()), null);
-  assert.equal(await store.markProcessed(record.id, now()), null);
+  assert.equal(await store.markRetryable(record.id, token, "late", now()), null);
+  assert.equal(await store.markIgnored(record.id, token, now()), null);
+  assert.equal(await store.markProcessed(record.id, token, now()), null);
   assert.equal((await store.findById(record.id))!.state, "processed");
+});
+
+test("a stale worker cannot settle an event after its lease was reclaimed (lease-token/generation guard)", async () => {
+  const { store, advance, now } = makeService({ leaseSeconds: 60 });
+  const { record } = await store.insertIfNew({ id: "pe_z", provider: "disabled", providerEventId: "evt_zombie", eventType: "t", payloadDigest: "d".repeat(64) });
+  // Worker A claims and gets token A.
+  const a = await store.claim(record.id, now(), 60);
+  const tokenA = a!.leaseToken!;
+  // A's lease expires; worker B reclaims → token B, event still 'processing'.
+  advance(61);
+  const b = await store.claim(record.id, now(), 60);
+  const tokenB = b!.leaseToken!;
+  assert.notEqual(tokenA, tokenB);
+  // Slow worker A finishes and tries to settle with its STALE token → refused.
+  assert.equal(await store.markProcessed(record.id, tokenA, now()), null, "stale worker cannot mark processed");
+  assert.equal(await store.markTerminal(record.id, tokenA, "x", now()), null, "stale worker cannot mark terminal");
+  assert.equal((await store.findById(record.id))!.state, "processing", "still owned by worker B");
+  // Worker B settles successfully with the current token.
+  assert.ok(await store.markProcessed(record.id, tokenB, now()));
+});
+
+test("a valid-signed duplicate event id with a DIFFERENT payload digest is a flagged anomaly, not a silent duplicate", async () => {
+  const { service } = makeService();
+  const first = await service.ingest(makeEvent({ payloadDigest: "a".repeat(64) }));
+  assert.equal(first.digestMismatch, false);
+  // Same provider + event id, different digest.
+  const second = await service.ingest(makeEvent({ payloadDigest: "b".repeat(64) }));
+  assert.equal(second.duplicate, true);
+  assert.equal(second.digestMismatch, true, "digest mismatch is surfaced as an anomaly");
+  // The first delivery's content stays authoritative (never overwritten).
+  assert.equal(second.record.payloadDigest, "a".repeat(64));
+});
+
+test("state-machine transition table: only the allowed transitions succeed", async () => {
+  // Enumerate a settle attempt against every non-processing state and confirm
+  // each is refused, and each allowed processing→X transition succeeds.
+  const digest = "d".repeat(64);
+  const fresh = async () => {
+    const { store, now } = makeService();
+    const { record } = await store.insertIfNew({ id: "pe_tt_" + Math.random(), provider: "disabled", providerEventId: "evt_" + Math.random(), eventType: "t", payloadDigest: digest });
+    return { store, now, id: record.id };
+  };
+
+  // received → (no token yet) settle attempts refused.
+  {
+    const { store, now, id } = await fresh();
+    assert.equal(await store.markProcessed(id, "any", now()), null);
+  }
+  // processing → processed / retryable / terminal / ignored all succeed (each fresh).
+  for (const target of ["processed", "retryable", "terminal", "ignored"] as const) {
+    const { store, now, id } = await fresh();
+    const c = await store.claim(id, now(), 60);
+    const t = c!.leaseToken!;
+    const res =
+      target === "processed" ? await store.markProcessed(id, t, now())
+      : target === "retryable" ? await store.markRetryable(id, t, "e", now())
+      : target === "terminal" ? await store.markTerminal(id, t, "e", now())
+      : await store.markIgnored(id, t, now());
+    assert.ok(res, `processing → ${target} must succeed`);
+  }
+  // Settled states (processed/terminal/ignored) refuse any later settle.
+  for (const settle of ["processed", "terminal", "ignored"] as const) {
+    const { store, now, id } = await fresh();
+    const c = await store.claim(id, now(), 60);
+    const t = c!.leaseToken!;
+    if (settle === "processed") await store.markProcessed(id, t, now());
+    if (settle === "terminal") await store.markTerminal(id, t, "e", now());
+    if (settle === "ignored") await store.markIgnored(id, t, now());
+    assert.equal(await store.markProcessed(id, t, now()), null, `${settle} is settled`);
+    assert.equal(await store.markRetryable(id, t, "e", now()), null, `${settle} is settled`);
+    assert.equal(await store.claim(id, now(), 60), null, `${settle} is not re-claimable`);
+  }
+  // retryable_failure IS re-claimable (→ processing again).
+  {
+    const { store, now, id } = await fresh();
+    const c = await store.claim(id, now(), 60);
+    await store.markRetryable(id, c!.leaseToken!, "e", now());
+    assert.ok(await store.claim(id, now(), 60), "retryable_failure is re-claimable");
+  }
 });
