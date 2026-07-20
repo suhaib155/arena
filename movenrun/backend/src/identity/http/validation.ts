@@ -21,8 +21,23 @@ const challengeAction = z.enum(WALLET_CHALLENGE_ACTIONS);
 
 export const emailOtpBeginSchema = z.object({ email: z.string().min(3).max(254) }).strict();
 export const emailOtpCompleteSchema = z
-  .object({ email: z.string().min(3).max(254), code: z.string().min(4).max(12) })
+  .object({
+    email: z.string().min(3).max(254),
+    code: z.string().min(4).max(12),
+    // Optional cosmetic device label. Bounded here; fully normalized (and
+    // fail-safe-nulled) by sanitizeDeviceLabel before it is ever stored.
+    deviceLabel: z.string().max(200).optional(),
+  })
   .strict();
+
+/**
+ * Public session-id handle: the session UUID (or the repositories' canonical
+ * opaque-id format in tests). Bounded charset/length — rejects control
+ * characters, overlong values, and non-strings before any lookup runs, with a
+ * stable `invalid_request` (never a database error). Existence/ownership is
+ * decided later, inside the ownership-scoped conditional UPDATE.
+ */
+export const PUBLIC_SESSION_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const refreshSchema = z.object({ refreshToken: z.string().min(10).max(4096) }).strict();
 

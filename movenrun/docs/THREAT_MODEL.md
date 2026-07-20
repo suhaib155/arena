@@ -189,3 +189,42 @@ detection · recovery · residual · evidence.
 ### 42. Redirect misconfiguration
 - **Asset**: future OAuth code delivery. **Actor**: attacker exploiting a loose redirect. **Entry**: redirect origins config. **Boundary**: exact-origin allowlist.
 - **Mitigation**: exact https origins only — wildcards, paths, queries, and http (non-loopback) all rejected at config time, before any provider exists to misuse them. **Detection**: config validation. **Recovery**: fix config. **Residual**: none until a provider is wired; re-verify then. **Evidence**: `providerConfig.test.ts`.
+
+## PR #53 additions — session & device management
+
+New attack surface introduced by the session inventory, per-session
+revocation, and revoke-others endpoints, plus the device label. Each entry:
+asset · attacker · precondition · attack · impact · controls · detection ·
+residual risk · evidence.
+
+### 43. Session-ID enumeration
+- **Asset**: existence/metadata of other users' sessions. **Attacker**: any authenticated user probing `/sessions/:id/revoke` with guessed or harvested ids. **Precondition**: a valid account of their own. **Attack**: sweep well-formed ids and read responses as an oracle. **Impact**: confirming a session exists (reconnaissance for targeted attacks).
+- **Controls**: session ids are random UUIDs (nothing sequential to sweep); ownership is inside the conditional UPDATE, so foreign and nonexistent ids return byte-identical 404s; malformed ids get a stable 400 before any lookup; no bulk arbitrary-ID lookup exists. **Detection**: audit trail of revocation attempts per user. **Residual**: response-timing differences bounded by normal DB behavior (not intentionally data-dependent). **Evidence**: `router.test.ts` (identical 404 bodies), `sessionManagement.test.ts` (foreign = nonexistent), PG evidence R1.
+
+### 44. Cross-user session revocation (IDOR)
+- **Asset**: other users' session availability. **Attacker**: authenticated user substituting another user's session id in the path. **Precondition**: a leaked/guessed victim session id. **Attack**: `POST /sessions/<victim-id>/revoke`. **Impact**: denial of service against the victim (forced sign-out).
+- **Controls**: the bearer's userId is bound into the UPDATE's WHERE clause — a path id can never widen authorization; list endpoint queries by owner only. **Detection**: `not_found` outcomes in audit. **Residual**: none identified. **Evidence**: `router.test.ts` (foreign 404, victim session unaffected), `memory.test.ts` + PG evidence (ownership-scoped transitions).
+
+### 45. Device-label injection
+- **Asset**: UI integrity and log hygiene. **Attacker**: malicious client sending a crafted `deviceLabel` at login. **Precondition**: ability to call the API directly. **Attack**: control characters, ANSI escapes, overlong strings, or misleading text ("Support — tap here"). **Impact**: log spoofing or misleading session lists.
+- **Controls**: server sanitization (whitespace collapse, control chars rejected, 64-char cap, generic fallback); the label is never trusted for authorization and never written to audit metadata; the UI re-sanitizes before display; React Native renders text, not markup. **Detection**: n/a (rejected at write). **Residual**: a plausible-but-false label ("iPhone" from a script) — labels are display hints, never evidence. **Evidence**: `deviceLabel.test` cases in `sessionManagement.test.ts` (backend) and mobile `sessionManagement.test.ts`.
+
+### 46. Stale-session UI
+- **Asset**: correctness of the user's security decisions. **Attacker**: n/a (integrity hazard) or an attacker relying on the victim seeing stale state. **Precondition**: cached list after network loss or app suspend. **Attack**: user believes a device was signed out (or still is) when it wasn't. **Impact**: wrong security posture; missed compromise.
+- **Controls**: the list re-fetches after every server-confirmed action (no optimistic deletion), on app resume, and on pull-to-refresh; transient failures keep the last confirmed list but surface an explicit error state; sessions are never fabricated locally. **Detection**: error banner in UI. **Residual**: staleness within one refresh interval while backgrounded. **Evidence**: mobile `sessionManagement.test.ts` (re-list after revoke, retained-list-on-error, no fabrication).
+
+### 47. Revoke/refresh race
+- **Asset**: revocation finality. **Attacker**: stolen-refresh-token holder racing the victim's revoke-others/revoke-all. **Precondition**: attacker holds a valid refresh token and times the request. **Attack**: refresh concurrently with revocation so the freshly minted session escapes the sweep. **Impact**: a "revoked" family stays usable — revocation silently fails.
+- **Controls**: refresh re-reads its old session after minting; if revoked meanwhile, the whole family (including the new session) is revoked and the refresh fails closed; sweeps match `revoked_at IS NULL`, covering rotated chain links; revoke-all additionally bumps `securityVersion`. **Detection**: `session_revoked` audit with `raceGuard: refresh_vs_revocation`. **Residual**: none found across interleavings. **Evidence**: `session.service.test.ts` (interposed race), PG evidence R3/R4 (10 rounds each, 0 escapes/survivors).
+
+### 48. Lost device (updated for session management)
+- **Asset**: the sessions on the lost device. **Attacker**: finder/thief with the unlocked device. **Precondition**: device loss before revocation. **Attack**: use the app's live session. **Impact**: account access until revoked.
+- **Controls**: the victim can now revoke *just that device* from the inventory (per-session revoke) or "Sign out other devices" — no longer only the all-or-nothing revoke-all; revocation invalidates the device's access tokens immediately (live-row check) and its refresh token permanently. **Detection**: inventory shows the unfamiliar session's label and last-used time. **Residual**: window before the user notices; coarse labels may make the device hard to identify. **Evidence**: `router.test.ts` (revoked bearer 401s immediately), PG evidence R5.
+
+### 49. Stolen refresh token (updated for session management)
+- **Asset**: session family continuity. **Attacker**: holder of an exfiltrated refresh token. **Precondition**: token theft (e.g. device backup, malware). **Attack**: refresh in parallel with the legitimate device, or race a revocation (see 47). **Impact**: persistent account access.
+- **Controls**: rotation + reuse detection revokes the family on replay; per-session revoke and revoke-others now let the user kill the stolen family specifically; the race guard prevents revocation escapes; revoked sessions cannot refresh (`refresh_reuse_detected`). **Detection**: `refresh_replay_detected` audit; unfamiliar session in the inventory. **Residual**: an attacker refreshing *faster* than the victim revokes rotates the family but stays visible in the inventory as the same session lineage. **Evidence**: `session.service.test.ts` (replay, concurrent refresh), PG evidence R5.
+
+### 50. Misleading session metadata
+- **Asset**: the user's trust in the inventory. **Attacker**: attacker whose session hides among legitimate ones. **Precondition**: an attacker-held session (from any prior compromise). **Attack**: blend in via a familiar-looking self-reported label and plausible timestamps. **Impact**: the victim fails to revoke the attacker's session.
+- **Controls**: timestamps (`issuedAt`, `lastUsedAt`, `expiresAt`, `revokedAt`) are server-recorded and cannot be forged by the client; the label is the only client-influenced field and is sanitized; the current session is flagged server-side, so an attacker session can never masquerade as "this device"; when in doubt, revoke-others/revoke-all end everything else regardless of labels. **Detection**: user review of the inventory. **Residual**: labels remain self-reported — documented as display hints. **Evidence**: `sessionManagement.test.ts` (server-authoritative `isCurrent`, public-field exclusion), `router.test.ts`.

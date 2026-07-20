@@ -45,6 +45,21 @@ export interface PublicWallet {
   createdAt: string;
 }
 
+/** One row of the session inventory — only privacy-preserving public fields.
+ *  The server never sends tokens, hashes, family IDs, user-agent data, or
+ *  security versions here, and this client never re-derives them. */
+export interface PublicSessionSummary {
+  id: string;
+  isCurrent: boolean;
+  deviceLabel: string;
+  status: "active" | "revoked" | "expired" | string;
+  assuranceLevel: string;
+  issuedAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
 export interface SessionEnvelope extends SecureSessionTokens {
   id: string;
   assuranceLevel: string;
@@ -151,10 +166,10 @@ export class IdentityApiClient {
     await this.request<{ challengeId: string }>("/identity/auth/email/begin", { method: "POST", body: { email } });
   }
 
-  async completeEmailOtp(email: string, code: string): Promise<LoginResult> {
+  async completeEmailOtp(email: string, code: string, deviceLabel?: string): Promise<LoginResult> {
     const result = await this.request<LoginResult>("/identity/auth/email/complete", {
       method: "POST",
-      body: { email, code },
+      body: deviceLabel === undefined ? { email, code } : { email, code, deviceLabel },
     });
     await this.persistSession(result.session);
     return result;
@@ -190,6 +205,28 @@ export class IdentityApiClient {
   }
   listIdentities(): Promise<{ identities: PublicIdentity[] }> {
     return this.request("/identity/identities", { auth: true });
+  }
+
+  // ---- session management -------------------------------------------------
+  /** The caller's session inventory (current first, server-ordered, bounded). */
+  listSessions(): Promise<{ sessions: PublicSessionSummary[] }> {
+    return this.request("/identity/sessions", { auth: true });
+  }
+
+  /** Revoke ONE other session by its opaque public id. The server refuses the
+   *  current session (409) and answers foreign/nonexistent ids with an
+   *  indistinguishable 404. Idempotent for already-settled owned sessions. */
+  revokeSession(sessionId: string): Promise<{ revoked: boolean }> {
+    return this.request(`/identity/sessions/${encodeURIComponent(sessionId)}/revoke`, {
+      method: "POST",
+      auth: true,
+    });
+  }
+
+  /** Revoke every OTHER active session, keeping this device signed in. Local
+   *  credentials are deliberately NOT cleared — the current session survives. */
+  revokeOtherSessions(): Promise<{ revoked: number }> {
+    return this.request("/identity/session/revoke-others", { method: "POST", auth: true });
   }
 
   // ---- wallet actions -----------------------------------------------------

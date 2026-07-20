@@ -75,3 +75,53 @@ export function toPublicSession(s: SessionRecord): PublicSession {
     expiresAt: s.expiresAt.toISOString(),
   };
 }
+
+/** Coarse, user-facing session status. `expired` is computed from
+ *  server-authoritative time — a stale persisted "active" is never shown as
+ *  active past its expiry. Internal states (`rotated`) are never exposed;
+ *  rotated rows are filtered out before this mapping runs. */
+export type PublicSessionStatus = "active" | "revoked" | "expired";
+
+/** Fallback when no (valid) client-supplied label exists. */
+export const GENERIC_DEVICE_LABEL = "MovenRun mobile";
+
+/**
+ * Privacy-preserving session summary for the session-inventory API.
+ * Deliberately EXCLUDES: userId, familyId, refreshTokenHash, securityVersion,
+ * userAgentHash, revocationReason (mapped to the coarse status only), and any
+ * token material. The `id` is the session UUID — safe as a public handle
+ * because it is 122-bit CSPRNG-random (never sequential), and every endpoint
+ * that accepts it re-checks ownership against the authenticated bearer, so
+ * knowing an id grants nothing.
+ */
+export interface PublicSessionSummary {
+  id: string;
+  isCurrent: boolean;
+  deviceLabel: string;
+  status: PublicSessionStatus;
+  assuranceLevel: string;
+  issuedAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+export function toPublicSessionSummary(
+  s: SessionRecord,
+  currentSessionId: string,
+  now: Date
+): PublicSessionSummary {
+  const status: PublicSessionStatus =
+    s.revokedAt !== null ? "revoked" : s.expiresAt.getTime() <= now.getTime() ? "expired" : "active";
+  return {
+    id: s.id,
+    isCurrent: s.id === currentSessionId,
+    deviceLabel: s.deviceLabel ?? GENERIC_DEVICE_LABEL,
+    status,
+    assuranceLevel: s.assuranceLevel,
+    issuedAt: s.issuedAt.toISOString(),
+    expiresAt: s.expiresAt.toISOString(),
+    lastUsedAt: s.lastUsedAt ? s.lastUsedAt.toISOString() : null,
+    revokedAt: s.revokedAt ? s.revokedAt.toISOString() : null,
+  };
+}

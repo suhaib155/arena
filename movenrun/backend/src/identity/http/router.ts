@@ -25,9 +25,11 @@ import {
   linkBeginSchema,
   linkCompleteSchema,
   parseBody,
+  PUBLIC_SESSION_ID_RE,
   refreshSchema,
   walletIdSchema,
 } from "./validation.js";
+import { sanitizeDeviceLabel } from "../domain/deviceLabel.js";
 import {
   toPublicIdentity,
   toPublicSession,
@@ -116,6 +118,9 @@ export function createIdentityRouter(services: IdentityServices): Router {
           emailVerified: true,
           assuranceLevel: "aal2",
         },
+        // Cosmetic only — sanitized (malformed → null → generic fallback in
+        // the public view), never trusted for authorization, never logged.
+        deviceLabel: sanitizeDeviceLabel(body.deviceLabel),
         userAgentHash: undefined,
       });
       res.json({
@@ -180,6 +185,43 @@ export function createIdentityRouter(services: IdentityServices): Router {
     authed(async (_req, res, session) => {
       const identities = await services.identity.listIdentities(session.userId);
       res.json({ identities: identities.map(toPublicIdentity) });
+    })
+  );
+
+  // ---- session/device management (PR #53) ---------------------------------
+
+  // Session inventory: caller-owned sessions only, privacy-preserving summary
+  // fields only (see PublicSessionSummary), current-first deterministic order,
+  // bounded count + fixed retention for settled sessions.
+  router.get(
+    "/sessions",
+    authed(async (_req, res, session) => {
+      const sessions = await services.sessions.listSessions(session);
+      res.json({ sessions });
+    })
+  );
+
+  // Revoke ONE other session. Current session is refused (409); foreign and
+  // nonexistent ids are indistinguishable (404); already-settled caller-owned
+  // ids are idempotent success.
+  router.post(
+    "/sessions/:id/revoke",
+    authed(async (req, res, session) => {
+      const targetId = req.params.id;
+      if (typeof targetId !== "string" || !PUBLIC_SESSION_ID_RE.test(targetId)) {
+        throw new IdentityError("invalid_request");
+      }
+      await services.sessions.revokeOtherSession(session, targetId);
+      res.json({ revoked: true });
+    })
+  );
+
+  // Revoke every other session, preserving the caller's credentials.
+  router.post(
+    "/session/revoke-others",
+    authed(async (_req, res, session) => {
+      const count = await services.sessions.revokeOtherSessions(session);
+      res.json({ revoked: count });
     })
   );
 

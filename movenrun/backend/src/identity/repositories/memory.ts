@@ -24,6 +24,7 @@ import {
   type CreateWalletInput,
   type IdentityStores,
   type OtpChallengeRepository,
+  type OwnedRevokeOutcome,
   type SessionRepository,
   type UserRepository,
   type WalletChallengeRepository,
@@ -287,6 +288,46 @@ export class InMemorySessionRepository implements SessionRepository {
     return [...this.rows.values()]
       .filter((r) => r.userId === userId && r.status === "active" && r.revokedAt === null)
       .map(clone);
+  }
+  async listByUser(userId: string, limit: number): Promise<SessionRecord[]> {
+    return [...this.rows.values()]
+      .filter((r) => r.userId === userId)
+      .sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime() || (a.id < b.id ? -1 : 1))
+      .slice(0, limit)
+      .map(clone);
+  }
+  async revokeOwned(
+    sessionId: string,
+    userId: string,
+    reason: SessionRevocationReason,
+    at: Date
+  ): Promise<OwnedRevokeOutcome> {
+    const r = this.rows.get(sessionId);
+    // Ownership inside the "WHERE clause": a foreign row is indistinguishable
+    // from a missing one — never a transition, never an existence signal.
+    if (!r || r.userId !== userId) return "not_found";
+    if (r.revokedAt !== null) return "already_settled";
+    r.revokedAt = at;
+    r.revocationReason = reason;
+    r.status = "revoked";
+    return "revoked";
+  }
+  async revokeAllExcept(
+    userId: string,
+    keepSessionId: string,
+    reason: SessionRevocationReason,
+    at: Date
+  ): Promise<number> {
+    let n = 0;
+    for (const r of this.rows.values()) {
+      if (r.userId === userId && r.id !== keepSessionId && r.revokedAt === null) {
+        r.revokedAt = at;
+        r.revocationReason = reason;
+        r.status = "revoked";
+        n++;
+      }
+    }
+    return n;
   }
   async markUsed(id: string, at: Date): Promise<void> {
     const r = this.rows.get(id);

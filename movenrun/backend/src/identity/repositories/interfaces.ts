@@ -143,11 +143,33 @@ export interface CreateSessionInput {
   userAgentHash?: string | null;
 }
 
+/** Outcome of a caller-scoped single-session revocation. `not_found` covers
+ *  BOTH nonexistent and foreign-owned ids — indistinguishable by design, so
+ *  the endpoint can never confirm that someone else's session id exists. */
+export type OwnedRevokeOutcome = "revoked" | "already_settled" | "not_found";
+
 export interface SessionRepository {
   create(input: CreateSessionInput): Promise<SessionRecord>;
   findById(id: string): Promise<SessionRecord | null>;
   findByRefreshHash(refreshTokenHash: string): Promise<SessionRecord | null>;
   listActiveByUser(userId: string): Promise<SessionRecord[]>;
+  /** Bounded, newest-first (by issuedAt) list of ALL of one user's sessions —
+   *  the caller (SessionService.listSessions) applies ordering, retention,
+   *  and public-view mapping. Never returns another user's rows. */
+  listByUser(userId: string, limit: number): Promise<SessionRecord[]>;
+  /**
+   * Atomically revoke ONE session iff it belongs to `userId` and is not yet
+   * revoked (conditional UPDATE — safe under concurrent attempts; exactly one
+   * concurrent caller observes "revoked"). Ownership is part of the WHERE
+   * clause, so a foreign id can never transition and classifies as
+   * `not_found` alongside nonexistent ids. Current-session refusal is the
+   * service's job (it knows the caller's session id).
+   */
+  revokeOwned(sessionId: string, userId: string, reason: SessionRevocationReason, at: Date): Promise<OwnedRevokeOutcome>;
+  /** Atomically revoke every not-yet-revoked session of `userId` EXCEPT
+   *  `keepSessionId` (single conditional UPDATE). Returns the number revoked
+   *  by THIS call — repeated calls return 0 (idempotent). */
+  revokeAllExcept(userId: string, keepSessionId: string, reason: SessionRevocationReason, at: Date): Promise<number>;
   markUsed(id: string, at: Date): Promise<void>;
   /**
    * Atomically transition an ACTIVE session to `rotated`. Returns the row ONLY

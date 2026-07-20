@@ -10,7 +10,7 @@
  * and no seed phrase / private key is ever requested.
  */
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
@@ -20,6 +20,7 @@ import { colors, radius, shadows, spacing, type } from "@/theme";
 import { useAuthStore } from "@/store/useAuthStore";
 import { IdentityApiClient } from "@/services/identityApi";
 import { shortAddress, walletTypeLabel } from "@/lib/walletPresentation";
+import { buildDeviceLabel } from "@/lib/deviceLabel";
 
 function friendlyError(code: string | null): string | null {
   if (!code) return null;
@@ -165,7 +166,7 @@ export default function AccountScreen() {
               />
               <Button
                 label="Verify code"
-                onPress={() => completeEmailOtp(email, code)}
+                onPress={() => completeEmailOtp(email, code, buildDeviceLabel(Platform.OS))}
                 loading={busy}
                 disabled={busy || code.length < 4}
               />
