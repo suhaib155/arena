@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +19,7 @@ import { zoneStatus } from "@/lib/territory";
 import { getClubById, CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { computePassport } from "@/lib/routePassport";
+import { createTapGuard } from "@/lib/openingAnimation";
 import { buildCollections } from "@/lib/zoneCollections";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
@@ -44,6 +46,9 @@ function timeAgo(iso: string): string {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  // Rapid taps on "Replay opening intro" must push exactly one OpeningScreen —
+  // Expo Router does not deduplicate pushes, so double-taps would stack.
+  const replayGuard = useRef(createTapGuard(1200)).current;
   const totalXp = useGameStore((s) => s.totalXp);
   const streak = useGameStore((s) => s.streak);
   const questsCompleted = useGameStore((s) => s.questsCompleted);
@@ -797,7 +802,9 @@ export default function ProfileScreen() {
 
         <Pressable
           hitSlop={8}
+          accessibilityRole="button"
           onPress={() => {
+            if (!replayGuard.tryAcquire()) return;
             tapFeedback();
             router.push("/opening");
           }}
