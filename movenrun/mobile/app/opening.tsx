@@ -9,6 +9,7 @@ import { FadeSlideIn } from "@/components/FadeSlideIn";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
+import { createTapGuard, SCAN_BAND_WIDTH, scanTranslateRange } from "@/lib/openingAnimation";
 
 interface Panel {
   title: string;
@@ -59,6 +60,11 @@ export default function OpeningScreen() {
 
   const pulse = useRef(new Animated.Value(0)).current;
   const scan = useRef(new Animated.Value(0)).current;
+  // The scan band travels in PIXELS via translateX (the native animated module
+  // does not support layout styles like `left`), so the board must be measured
+  // before the scan loop starts.
+  const [boardWidth, setBoardWidth] = useState(0);
+
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
@@ -66,24 +72,34 @@ export default function OpeningScreen() {
         Animated.timing(pulse, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ]),
     );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  useEffect(() => {
+    if (boardWidth <= 0) return; // wait for a real measurement
+    scan.setValue(0); // reset so every (re)play starts from the left edge
     const scanLoop = Animated.loop(
       Animated.timing(scan, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
     );
-    loop.start();
     scanLoop.start();
-    return () => {
-      loop.stop();
-      scanLoop.stop();
-    };
-  }, [pulse, scan]);
+    return () => scanLoop.stop();
+  }, [scan, boardWidth]);
 
   const panel = PANELS[step];
   const isLast = step === PANELS.length - 1;
 
+  // One exit per play: Skip / "Enter MovenRun" double-taps and races collapse
+  // into a single navigation instead of stacking replace() calls.
+  const exitGuard = useRef(createTapGuard(1200)).current;
   const finish = () => {
+    if (!exitGuard.tryAcquire()) return;
     successFeedback();
     markOpeningSeen();
-    router.replace(hasOnboarded ? "/(tabs)" : "/onboarding");
+    // Replay (pushed from Profile) pops back without leaking this screen into
+    // history; first run (arrived via replace) keeps the original replace flow.
+    if (router.canGoBack()) router.back();
+    else router.replace(hasOnboarded ? "/(tabs)" : "/onboarding");
   };
   const next = () => {
     if (isLast) {
@@ -96,7 +112,8 @@ export default function OpeningScreen() {
 
   const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.85] });
   const glowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
-  const scanX = scan.interpolate({ inputRange: [0, 1], outputRange: ["-40%", "140%"] });
+  const scanRange = scanTranslateRange(boardWidth);
+  const scanX = scanRange ? scan.interpolate(scanRange) : null;
 
   return (
     <Screen>
@@ -111,30 +128,38 @@ export default function OpeningScreen() {
       </View>
 
       {/* Cinematic territory board */}
-      <View style={styles.board}>
+      <View style={styles.board} onLayout={(e) => setBoardWidth(e.nativeEvent.layout.width)}>
         <View style={[styles.road, { top: "40%" }]} />
         <View style={[styles.road, { top: "62%" }]} />
         <View style={[styles.roadV, { left: "38%" }]} />
         <View style={[styles.roadV, { left: "64%" }]} />
 
-        {/* glowing route scan */}
-        <Animated.View style={[styles.scanLine, { left: scanX, backgroundColor: `${panel.accent}66` }]} />
-
-        {HEXES.map((h, i) => (
+        {/* glowing route scan — moved with translateX only: the native
+            animated module cannot drive layout styles such as `left`. */}
+        {scanX ? (
           <Animated.View
-            key={i}
-            style={[
-              styles.hex,
-              { left: h.left, top: h.top },
-              i === 0 ? { opacity: glowOpacity, transform: [{ translateX: -h.size / 2 }, { translateY: -h.size / 2 }, { scale: glowScale }] } : { transform: [{ translateX: -h.size / 2 }, { translateY: -h.size / 2 }] },
-            ]}
-          >
-            <Hexagon
-              size={h.size}
-              color={h.teal ? "#CFF6E6" : "#D4E2FE"}
-              coreColor={h.teal ? palette.pulseGreen : palette.baseBlue}
-            />
-          </Animated.View>
+            style={[styles.scanLine, { backgroundColor: `${panel.accent}66`, transform: [{ translateX: scanX }] }]}
+          />
+        ) : null}
+
+        {/* Static positioning lives on the plain wrapper; the Animated.View
+            carries only native-driver-safe styles (opacity/transform). */}
+        {HEXES.map((h, i) => (
+          <View key={i} style={[styles.hex, { left: h.left, top: h.top }]}>
+            <Animated.View
+              style={
+                i === 0
+                  ? { opacity: glowOpacity, transform: [{ translateX: -h.size / 2 }, { translateY: -h.size / 2 }, { scale: glowScale }] }
+                  : { transform: [{ translateX: -h.size / 2 }, { translateY: -h.size / 2 }] }
+              }
+            >
+              <Hexagon
+                size={h.size}
+                color={h.teal ? "#CFF6E6" : "#D4E2FE"}
+                coreColor={h.teal ? palette.pulseGreen : palette.baseBlue}
+              />
+            </Animated.View>
+          </View>
         ))}
       </View>
 
@@ -199,7 +224,8 @@ const styles = StyleSheet.create({
   },
   road: { position: "absolute", left: 0, right: 0, height: 6, backgroundColor: "#E2E8EC" },
   roadV: { position: "absolute", top: 0, bottom: 0, width: 6, backgroundColor: "#E6EBEF" },
-  scanLine: { position: "absolute", top: 0, bottom: 0, width: 70 },
+  // Static left: 0 anchor — all motion is translateX (native-driver safe).
+  scanLine: { position: "absolute", top: 0, bottom: 0, left: 0, width: SCAN_BAND_WIDTH },
   hex: { position: "absolute" },
 
   copy: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, gap: spacing.sm, flex: 1 },
