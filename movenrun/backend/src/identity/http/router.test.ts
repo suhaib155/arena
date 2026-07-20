@@ -130,6 +130,86 @@ test("wallet export begins with step-up and exposes NO secret", async () => {
   assert.ok(!/mnemonic|privatekey|private_key|seed/i.test(blob));
 });
 
+test("GET /sessions returns the caller's inventory with only public fields, current first", async () => {
+  const { accessToken } = await login("sess-inv@example.com");
+  const res = await get("/identity/sessions", accessToken);
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.json.sessions) && res.json.sessions.length >= 1);
+  assert.equal(res.json.sessions[0].isCurrent, true, "current session first, server-authoritative");
+  const blob = JSON.stringify(res.json);
+  for (const secret of ["refreshTokenHash", "familyId", "userId", "securityVersion", "userAgentHash", "revocationReason"]) {
+    assert.ok(!blob.includes(secret), `${secret} must not appear in the inventory response`);
+  }
+});
+
+test("POST /sessions/:id/revoke — malformed 400; current 409; foreign and nonexistent both 404; owned 200 idempotent", async () => {
+  // Two distinct users, each with their own session.
+  const a = await login("sess-a@example.com");
+  const b = await login("sess-b@example.com");
+  const aInv = await get("/identity/sessions", a.accessToken);
+  const bInv = await get("/identity/sessions", b.accessToken);
+  const aCurrent = aInv.json.sessions[0].id;
+  const bCurrent = bInv.json.sessions[0].id;
+
+  // Malformed id → stable validation error before any lookup.
+  const malformed = await post(`/identity/sessions/${encodeURIComponent("!!bad id!!")}/revoke`, {}, a.accessToken);
+  assert.equal(malformed.status, 400);
+  assert.equal(malformed.json.error.code, "invalid_request");
+
+  // Current session refused on the per-session endpoint.
+  const current = await post(`/identity/sessions/${aCurrent}/revoke`, {}, a.accessToken);
+  assert.equal(current.status, 409);
+
+  // Foreign (user B's real session) vs nonexistent — indistinguishable 404s.
+  const foreign = await post(`/identity/sessions/${bCurrent}/revoke`, {}, a.accessToken);
+  const ghost = await post(`/identity/sessions/00000000-0000-4000-8000-000000000000/revoke`, {}, a.accessToken);
+  assert.equal(foreign.status, 404);
+  assert.equal(ghost.status, 404);
+  assert.deepEqual(foreign.json, ghost.json, "identical bodies — no existence oracle");
+  // B is untouched.
+  const bStill = await get("/identity/me", b.accessToken);
+  assert.equal(bStill.status, 200);
+
+  // A second login for user A gives A an "other" session to revoke.
+  const a2 = await login("sess-a@example.com");
+  const a2Inv = await get("/identity/sessions", a2.accessToken);
+  const otherOfA2 = a2Inv.json.sessions.find((s: { isCurrent: boolean }) => !s.isCurrent);
+  assert.ok(otherOfA2, "user A's first session appears as an other session");
+  const revoke1 = await post(`/identity/sessions/${otherOfA2.id}/revoke`, {}, a2.accessToken);
+  assert.equal(revoke1.status, 200);
+  assert.equal(revoke1.json.revoked, true);
+  const revoke2 = await post(`/identity/sessions/${otherOfA2.id}/revoke`, {}, a2.accessToken);
+  assert.equal(revoke2.status, 200, "idempotent repeat");
+  // The revoked session's bearer no longer works.
+  const dead = await get("/identity/me", a.accessToken);
+  assert.equal(dead.status, 401);
+});
+
+test("POST /session/revoke-others preserves the caller and returns a count", async () => {
+  const first = await login("sess-others@example.com");
+  const second = await login("sess-others@example.com");
+  const res = await post("/identity/session/revoke-others", {}, second.accessToken);
+  assert.equal(res.status, 200);
+  assert.equal(typeof res.json.revoked, "number");
+  assert.ok(res.json.revoked >= 1);
+  // Caller still valid; the other session is dead.
+  assert.equal((await get("/identity/me", second.accessToken)).status, 200);
+  assert.equal((await get("/identity/me", first.accessToken)).status, 401);
+  // Idempotent.
+  const again = await post("/identity/session/revoke-others", {}, second.accessToken);
+  assert.equal(again.json.revoked, 0);
+});
+
+test("a device label sent at login is sanitized and shown; malformed labels fall back to the generic", async () => {
+  const email = "sess-label@example.com";
+  await post("/identity/auth/email/begin", { email });
+  const code = delivery.lastCodeFor(email)!;
+  const res = await post("/identity/auth/email/complete", { email, code, deviceLabel: "  My   Pixel  " });
+  assert.equal(res.status, 200);
+  const inv = await get("/identity/sessions", res.json.session.accessToken);
+  assert.equal(inv.json.sessions[0].deviceLabel, "My Pixel");
+});
+
 test("a full wallet-link challenge round-trip works over HTTP", async () => {
   const { Wallet } = await import("ethers");
   const wallet = Wallet.createRandom();

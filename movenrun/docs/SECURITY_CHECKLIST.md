@@ -58,3 +58,8 @@ an interface/gate and fails closed until a provider is wired.
 | 45 | Sign-out + revoke-all clear local credentials | `signOut`/`signOutEverywhere` (server revoke-all → local clear) | `secureSession.test.ts` | — | none |
 | 46 | Readiness fails closed on DB unavailability; disabled features reported disabled | `stores.ping()` + `/identity/ready` 503 path | `router.test.ts` (ready), wiring | — | none |
 | 47 | Key rotation documented (overlap, max age, incident, rollback, audit) | docs/KEY_ROTATION.md | runbook + config enforcement | — | provider secret procedures |
+| 48 | Session inventory shows only public fields, bounded + retention-capped | `toPublicSessionSummary` dedicated view; 7-day retention, 20-session cap | `sessionManagement.test.ts`, `router.test.ts` (no secret fields) | — | none |
+| 49 | Per-session revoke is ownership-scoped, idempotent, no existence oracle | conditional UPDATE (`id AND userId AND revoked_at IS NULL`); foreign = nonexistent 404 | `router.test.ts`, `memory.test.ts`, PG evidence R1 | timing bounded by normal DB behavior | none |
+| 50 | Revoke-others keeps the caller; revoke-all still kills everything | atomic `revokeAllExcept`; no securityVersion bump vs. revoke-all bump | `sessionManagement.test.ts`, PG evidence R2 | — | none |
+| 51 | Refresh cannot outrun revocation (rotate→issue window closed) | post-issue re-check revokes the family and fails closed | `session.service.test.ts` race test, PG evidence R3/R4 | — | none |
+| 52 | Device label: coarse, sanitized, display-only, never audited | `Platform.OS`-only client label; server sanitizer + generic fallback | backend + mobile `sessionManagement.test.ts` | self-reported label is a hint, not evidence (threat 45/50) | none |

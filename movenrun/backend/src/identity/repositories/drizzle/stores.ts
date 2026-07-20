@@ -37,6 +37,7 @@ import {
   type IdentityStores,
   type OtpChallengeRepository,
   type SessionRepository,
+  type OwnedRevokeOutcome,
   type UniqueConstraint,
   type UserRepository,
   type WalletChallengeRepository,
@@ -319,6 +320,52 @@ export class DrizzleSessionRepository implements SessionRepository {
       .from(authSessions)
       .where(and(eq(authSessions.userId, userId), eq(authSessions.status, "active"), isNull(authSessions.revokedAt)));
     return rows.map(toSession);
+  }
+  async listByUser(userId: string, limit: number): Promise<SessionRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(authSessions)
+      .where(eq(authSessions.userId, userId))
+      .orderBy(desc(authSessions.issuedAt), authSessions.id)
+      .limit(limit);
+    return rows.map(toSession);
+  }
+  async revokeOwned(
+    sessionId: string,
+    userId: string,
+    reason: SessionRevocationReason,
+    at: Date
+  ): Promise<OwnedRevokeOutcome> {
+    // Ownership + not-yet-revoked inside one conditional UPDATE: atomic under
+    // concurrency (exactly one racing caller matches the row), and a foreign
+    // id can never transition.
+    const [row] = await this.db
+      .update(authSessions)
+      .set({ status: "revoked", revokedAt: at, revocationReason: reason })
+      .where(and(eq(authSessions.id, sessionId), eq(authSessions.userId, userId), isNull(authSessions.revokedAt)))
+      .returning();
+    if (row) return "revoked";
+    // Classify without ever exposing foreign existence: the SELECT is also
+    // ownership-scoped, so foreign and nonexistent both land on "not_found".
+    const [existing] = await this.db
+      .select({ id: authSessions.id })
+      .from(authSessions)
+      .where(and(eq(authSessions.id, sessionId), eq(authSessions.userId, userId)))
+      .limit(1);
+    return existing ? "already_settled" : "not_found";
+  }
+  async revokeAllExcept(
+    userId: string,
+    keepSessionId: string,
+    reason: SessionRevocationReason,
+    at: Date
+  ): Promise<number> {
+    const rows = await this.db
+      .update(authSessions)
+      .set({ status: "revoked", revokedAt: at, revocationReason: reason })
+      .where(and(eq(authSessions.userId, userId), ne(authSessions.id, keepSessionId), isNull(authSessions.revokedAt)))
+      .returning({ id: authSessions.id });
+    return rows.length;
   }
   async markUsed(id: string, at: Date): Promise<void> {
     await this.db.update(authSessions).set({ lastUsedAt: at }).where(eq(authSessions.id, id));

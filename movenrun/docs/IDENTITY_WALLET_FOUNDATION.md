@@ -63,6 +63,78 @@ provisioning remain **disabled**):
 - **Operations** — `docs/KEY_ROTATION.md` (rotation, incident, rollback,
   outage behavior).
 
+## PR #53 — session & device management
+
+Provider-independent session/device management on top of the existing session
+model. Nothing here requires (or touches) a provider decision.
+
+- **Session inventory** — `GET /identity/sessions` returns the caller's
+  sessions as public summaries: `id`, `isCurrent`, `deviceLabel`, `status`
+  (`active` | `revoked` | `expired`), `assuranceLevel`, `issuedAt`,
+  `expiresAt`, `lastUsedAt`, `revokedAt`. Excluded by construction (the
+  summary is a dedicated mapping in `http/publicViews.ts`, never a raw
+  repository record): `userId`, `familyId`, `refreshTokenHash`,
+  `securityVersion`, `userAgentHash`, `revocationReason`, and all token
+  material. `isCurrent` derives from the verified bearer's session — never
+  client input. `expired` is computed from server time, so an unswept row is
+  never shown as active past its expiry.
+  - **Ordering**: current session first; other active sessions by most recent
+    use (fallback: issue time); recently ended sessions last by most recent
+    relevant timestamp. Rotated rows (internal refresh-chain links) never
+    appear.
+  - **Retention/cap**: settled sessions older than 7 days are omitted
+    (`INVENTORY_RETENTION_DAYS`); the response is capped at 20 sessions
+    (`INVENTORY_MAX_SESSIONS`). No unbounded history.
+  - **Public ID**: the session UUID is reused as the public handle. This is
+    safe because it is random (not sequential, nothing derivable from it) and
+    useless without the owner's bearer: every session endpoint scopes the id
+    to the authenticated user inside the query itself.
+- **Per-session revoke** — `POST /identity/sessions/:id/revoke`. Ownership and
+  the state transition are one conditional UPDATE
+  (`id AND userId AND revoked_at IS NULL`), so foreign and nonexistent ids are
+  indistinguishable (same 404 body — no existence oracle), the current session
+  is refused with 409 (use `/session/revoke` for self sign-out), repeats on an
+  already-settled owned session succeed idempotently, and concurrent attempts
+  produce exactly one transition.
+- **Revoke others** — `POST /identity/session/revoke-others`: one atomic
+  UPDATE revokes every non-revoked session except the caller's; returns a
+  count only. The caller's access AND refresh tokens stay valid (no
+  `securityVersion` bump). Idempotent. Existing `/session/revoke` and
+  `/session/revoke-all` are unchanged; the three routes are disjoint by path.
+- **Refresh/revocation race guard** — refresh re-reads its old session after
+  minting the replacement; if a revocation (revoke-one, revoke-others,
+  revoke-all, replay-triggered family revoke) landed in the rotate→issue
+  window, the freshly minted session is revoked with its family and the
+  refresh fails closed with `session_invalid`. Combined with sweeps keyed on
+  `revoked_at IS NULL` (which cover rotated chain links too), no interleaving
+  leaves a logically revoked family usable — proven against real Postgres.
+- **Device label** — clients may send a bounded label at login
+  (`deviceLabel` on email-complete). The mobile app only ever sends a coarse
+  platform label ("iPhone" / "Android device" / "MovenRun mobile") derived
+  from `Platform.OS` — no hardware ids, advertising ids, vendor ids, device
+  names, fingerprinting, or new permissions. The server sanitizes
+  (whitespace-collapse, control characters rejected, 64-char max,
+  `domain/deviceLabel.ts`) and falls back to the generic label; the label is
+  display-only, never used for authorization, never audited. The UI
+  re-sanitizes before display (defense in depth). Labels persist across
+  refresh rotation (carried into the successor session).
+- **Mobile UX** — the Account Security screen shows the current-session card
+  (never revocable in place), other devices (each with a confirmed revoke),
+  recently ended sessions, "Sign out other devices" (keeps this device;
+  SecureStore untouched), and "Sign out everywhere" (revoke-all; SecureStore
+  and runtime state cleared, navigation returns to the account entry). Lists
+  re-fetch after every server-confirmed action — no optimistic deletion; a
+  401 that survives the single refresh retry clears local auth and signs out.
+  Session actions are deduplicated while one is in flight; the list reloads
+  on app resume and by pull-to-refresh.
+- **Residual risks** — a revoked session's access token can be replayed only
+  within its ≤10-minute TTL *if* verification were ever done offline (it is
+  not: `verifyAccess` re-checks the live row, so revocation is immediate);
+  the inventory shows coarse metadata only, so a user may not be able to tell
+  two same-platform devices apart (accepted: privacy over precision); device
+  labels are self-reported by clients and are therefore untrusted display
+  hints, never evidence.
+
 ## What is intentionally NOT here (follow-ups)
 
 - No production vendor for Google OIDC, Base Account, email delivery, or the

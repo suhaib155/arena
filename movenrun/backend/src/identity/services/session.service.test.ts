@@ -77,16 +77,40 @@ test("two concurrent refreshes with the same token cannot both succeed", async (
   ]);
   const fulfilled = results.filter((r) => r.status === "fulfilled");
   const rejected = results.filter((r) => r.status === "rejected");
-  assert.equal(fulfilled.length, 1, "exactly one refresh may succeed");
-  assert.equal(rejected.length, 1, "the racing refresh must be rejected");
+  // Fail-closed semantics (tightened by the post-issue race guard): AT MOST
+  // one refresh may succeed; when the race is detected the whole family dies,
+  // which can take the would-be winner down with it (0 or 1 fulfilled).
+  assert.ok(fulfilled.length <= 1, "concurrent refreshes can never both succeed");
+  assert.ok(rejected.length >= 1, "the racing refresh must be rejected");
   assert.ok(
-    rejected[0].status === "rejected" &&
-      isIdentityError(rejected[0].reason) &&
-      rejected[0].reason.code === "refresh_reuse_detected",
-    "the losing refresh is rejected as reuse (and revokes the family, fail closed)"
+    rejected.some((r) => r.status === "rejected" && isIdentityError(r.reason) && r.reason.code === "refresh_reuse_detected"),
+    "at least one rejection is flagged as reuse"
   );
-  // The original refresh token is now spent: a third attempt is also rejected.
+  // The decisive invariant: after a detected reuse race, NO usable session
+  // remains in the family — nothing minted during the race survives it.
+  const remaining = await h.stores.sessions.listActiveByUser(issued.session.userId);
+  assert.equal(remaining.length, 0, "no active session survives a reuse race (fail closed)");
+  // The original refresh token is spent: a further attempt is also rejected.
   await expectError(() => h.sessions.refresh(issued.refreshToken), "refresh_reuse_detected");
+});
+
+test("a revocation landing between rotate and issue cannot leave the new session usable (refresh vs revoke race guard)", async () => {
+  const h = createHarness();
+  const issued = await newUserSession(h);
+  // Interpose on the sessions repo: the moment refresh() inserts its NEW
+  // session (repo.create), revoke every other session of the user — exactly
+  // the revoke-others / revoke-all interleaving that lands in the
+  // rotate→issue window.
+  const realCreate = h.stores.sessions.create.bind(h.stores.sessions);
+  h.stores.sessions.create = async (input) => {
+    const created = await realCreate(input);
+    await h.stores.sessions.revokeAllExcept(input.userId, created.id, "user_logout", h.now());
+    return created;
+  };
+  await expectError(() => h.sessions.refresh(issued.refreshToken), "session_invalid");
+  // Nothing survives: the guard revoked the family including the new session.
+  const remaining = await h.stores.sessions.listActiveByUser(issued.session.userId);
+  assert.equal(remaining.length, 0, "revocation racing a refresh leaves no usable session");
 });
 
 test("a revoked session's access token is rejected", async () => {

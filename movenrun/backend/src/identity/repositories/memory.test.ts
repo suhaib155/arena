@@ -93,6 +93,59 @@ test("markRotated is a compare-and-set — only the first transition wins", asyn
   assert.equal(second, null, "a second rotation of an already-rotated session returns null");
 });
 
+test("revokeOwned: ownership-scoped conditional transition — foreign = nonexistent, transitions are monotonic", async () => {
+  const s = createInMemoryStores();
+  await seedUser(s, "u1");
+  await seedUser(s, "u2");
+  const mk = (id: string, userId: string) =>
+    s.sessions.create({ id, userId, familyId: `f_${id}`, assuranceLevel: "aal2", refreshTokenHash: `h_${id}`, securityVersion: 0, expiresAt: new Date(Date.now() + 60000), lastAuthenticatedAt: new Date() });
+  await mk("s1", "u1");
+  await mk("s2", "u2");
+
+  // Foreign and nonexistent are the same outcome.
+  assert.equal(await s.sessions.revokeOwned("s2", "u1", "user_logout", new Date()), "not_found");
+  assert.equal(await s.sessions.revokeOwned("ghost", "u1", "user_logout", new Date()), "not_found");
+  // Owned: exactly one transition; repeats classify as already settled.
+  assert.equal(await s.sessions.revokeOwned("s1", "u1", "user_logout", new Date()), "revoked");
+  assert.equal(await s.sessions.revokeOwned("s1", "u1", "user_logout", new Date()), "already_settled");
+  // Monotonic: the settled session stays revoked with its original reason.
+  const rec = await s.sessions.findById("s1");
+  assert.equal(rec!.status, "revoked");
+  // The foreign session was never touched.
+  assert.equal((await s.sessions.findById("s2"))!.status, "active");
+});
+
+test("revokeAllExcept: single-call sweep preserving one session; idempotent; scoped to the user", async () => {
+  const s = createInMemoryStores();
+  await seedUser(s, "u1");
+  await seedUser(s, "u2");
+  const mk = (id: string, userId: string) =>
+    s.sessions.create({ id, userId, familyId: `f_${id}`, assuranceLevel: "aal2", refreshTokenHash: `h_${id}`, securityVersion: 0, expiresAt: new Date(Date.now() + 60000), lastAuthenticatedAt: new Date() });
+  await mk("keep", "u1");
+  await mk("a", "u1");
+  await mk("b", "u1");
+  await mk("other-user", "u2");
+
+  assert.equal(await s.sessions.revokeAllExcept("u1", "keep", "user_logout", new Date()), 2);
+  assert.equal(await s.sessions.revokeAllExcept("u1", "keep", "user_logout", new Date()), 0, "idempotent");
+  assert.equal((await s.sessions.findById("keep"))!.status, "active");
+  assert.equal((await s.sessions.findById("a"))!.status, "revoked");
+  assert.equal((await s.sessions.findById("other-user"))!.status, "active", "never crosses users");
+});
+
+test("listByUser is bounded and user-scoped", async () => {
+  const s = createInMemoryStores();
+  await seedUser(s, "u1");
+  await seedUser(s, "u2");
+  for (let i = 0; i < 5; i++) {
+    await s.sessions.create({ id: `u1_${i}`, userId: "u1", familyId: `f${i}`, assuranceLevel: "aal2", refreshTokenHash: `h1_${i}`, securityVersion: 0, expiresAt: new Date(Date.now() + 60000), lastAuthenticatedAt: new Date() });
+  }
+  await s.sessions.create({ id: "u2_0", userId: "u2", familyId: "fx", assuranceLevel: "aal2", refreshTokenHash: "h2_0", securityVersion: 0, expiresAt: new Date(Date.now() + 60000), lastAuthenticatedAt: new Date() });
+  const rows = await s.sessions.listByUser("u1", 3);
+  assert.equal(rows.length, 3, "bounded");
+  assert.ok(rows.every((r) => r.userId === "u1"), "user-scoped");
+});
+
 test("createUserWithIdentity is all-or-nothing (no orphan user on conflict)", async () => {
   const s = createInMemoryStores();
   await s.createUserWithIdentity({ userId: "u1", identity: { id: "i1", provider: "google", providerSubject: "dup" } });

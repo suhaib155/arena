@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test src/lib/__tests__/secureSession.test.ts",
+    "test": "node --import tsx --test src/lib/__tests__/secureSession.test.ts src/store/__tests__/sessionManagement.test.ts",
     "eas-build-pre-install": "corepack enable"
   },
   "dependencies": {

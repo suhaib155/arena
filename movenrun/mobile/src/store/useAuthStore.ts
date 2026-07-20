@@ -13,11 +13,13 @@ import {
   IdentityApiClient,
   IdentityApiError,
   type PublicIdentity,
+  type PublicSessionSummary,
   type PublicUser,
   type PublicWallet,
 } from "../services/identityApi";
 
 export type AuthStatus = "signedOut" | "authenticating" | "signedIn" | "error";
+export type SessionsStatus = "idle" | "loading" | "refreshing" | "ready" | "error";
 
 interface AuthState {
   status: AuthStatus;
@@ -29,12 +31,27 @@ interface AuthState {
   /** Injected so screens/tests can supply a configured client. */
   client: IdentityApiClient | null;
 
+  /** Server-derived session inventory — never fabricated locally. */
+  sessions: PublicSessionSummary[];
+  sessionsStatus: SessionsStatus;
+  sessionsErrorCode: string | null;
+  /** Dedup key for the in-flight destructive session action: a session id,
+   *  "revoke-others", or null. While set, all session actions are refused. */
+  pendingSessionAction: string | null;
+
   setClient: (client: IdentityApiClient) => void;
   beginEmailOtp: (email: string) => Promise<void>;
-  completeEmailOtp: (email: string, code: string) => Promise<void>;
+  completeEmailOtp: (email: string, code: string, deviceLabel?: string) => Promise<void>;
   refresh: () => Promise<void>;
   setActiveWallet: (walletId: string) => Promise<void>;
   revokeWallet: (walletId: string) => Promise<void>;
+  /** Load or explicitly refresh the session inventory from the server. */
+  loadSessions: (mode?: "initial" | "refresh") => Promise<void>;
+  /** Revoke ONE other session, then re-list from the server (no optimistic
+   *  deletion — the server confirms before the row disappears). */
+  revokeSession: (sessionId: string) => Promise<void>;
+  /** Revoke every other session, keep this device signed in, then re-list. */
+  revokeOtherSessions: () => Promise<void>;
   signOut: () => Promise<void>;
   /** Server-side revoke-all (every device), then local credential clear. */
   signOutEverywhere: () => Promise<void>;
@@ -44,6 +61,24 @@ function codeOf(err: unknown): string {
   return err instanceof IdentityApiError ? err.code : "request_failed";
 }
 
+/** A 401 after the client's single transparent refresh attempt means the
+ *  current session was revoked externally: the client has already cleared the
+ *  secure store, so runtime state must fall back to signed-out too. */
+function isAuthLost(err: unknown): boolean {
+  return err instanceof IdentityApiError && (err.status === 401 || err.code === "unauthenticated");
+}
+
+const SIGNED_OUT_STATE = {
+  status: "signedOut" as const,
+  user: null,
+  identities: [],
+  wallets: [],
+  sessions: [],
+  sessionsStatus: "idle" as const,
+  sessionsErrorCode: null,
+  pendingSessionAction: null,
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: "signedOut",
   user: null,
@@ -51,6 +86,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   wallets: [],
   errorCode: null,
   client: null,
+  sessions: [],
+  sessionsStatus: "idle",
+  sessionsErrorCode: null,
+  pendingSessionAction: null,
 
   setClient: (client) => set({ client }),
 
@@ -66,12 +105,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  completeEmailOtp: async (email, code) => {
+  completeEmailOtp: async (email, code, deviceLabel) => {
     const client = get().client;
     if (!client) return set({ status: "error", errorCode: "client_unavailable" });
     set({ status: "authenticating", errorCode: null });
     try {
-      const result = await client.completeEmailOtp(email, code);
+      const result = await client.completeEmailOtp(email, code, deviceLabel);
       const wallets = await client.listWallets();
       const me = await client.me();
       set({
@@ -121,15 +160,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  loadSessions: async (mode = "initial") => {
+    const client = get().client;
+    if (!client) return set({ sessionsStatus: "error", sessionsErrorCode: "client_unavailable" });
+    // "refreshing" keeps the existing list on screen during pull-to-refresh;
+    // "loading" is the first fetch (spinner over an empty list).
+    set({
+      sessionsStatus: mode === "refresh" && get().sessions.length > 0 ? "refreshing" : "loading",
+      sessionsErrorCode: null,
+    });
+    try {
+      const { sessions } = await client.listSessions();
+      set({ sessions, sessionsStatus: "ready", sessionsErrorCode: null });
+    } catch (err) {
+      if (isAuthLost(err)) return set({ ...SIGNED_OUT_STATE, errorCode: codeOf(err) });
+      // Transient failure: keep whatever list we had — recoverable, not stale-
+      // as-truth (the error state tells the user the list may be outdated).
+      set({ sessionsStatus: "error", sessionsErrorCode: codeOf(err) });
+    }
+  },
+
+  revokeSession: async (sessionId) => {
+    const client = get().client;
+    if (!client || get().pendingSessionAction !== null) return; // dedup in-flight actions
+    set({ pendingSessionAction: sessionId, sessionsErrorCode: null });
+    try {
+      await client.revokeSession(sessionId);
+      // Only after server confirmation: re-list rather than optimistic delete.
+      const { sessions } = await client.listSessions();
+      set({ sessions, sessionsStatus: "ready", pendingSessionAction: null });
+    } catch (err) {
+      if (isAuthLost(err)) return set({ ...SIGNED_OUT_STATE, errorCode: codeOf(err) });
+      set({ pendingSessionAction: null, sessionsStatus: "error", sessionsErrorCode: codeOf(err) });
+    }
+  },
+
+  revokeOtherSessions: async () => {
+    const client = get().client;
+    if (!client || get().pendingSessionAction !== null) return;
+    set({ pendingSessionAction: "revoke-others", sessionsErrorCode: null });
+    try {
+      await client.revokeOtherSessions();
+      // The current session (and its SecureStore credentials) survive; the
+      // list is re-fetched so the server stays the source of truth.
+      const { sessions } = await client.listSessions();
+      set({ sessions, sessionsStatus: "ready", pendingSessionAction: null });
+    } catch (err) {
+      if (isAuthLost(err)) return set({ ...SIGNED_OUT_STATE, errorCode: codeOf(err) });
+      set({ pendingSessionAction: null, sessionsStatus: "error", sessionsErrorCode: codeOf(err) });
+    }
+  },
+
   signOut: async () => {
     const client = get().client;
     try {
       await client?.signOut();
-      set({ status: "signedOut", user: null, identities: [], wallets: [], errorCode: null });
+      set({ ...SIGNED_OUT_STATE, errorCode: null });
     } catch (err) {
       // The UI state is cleared regardless, but a failed credential clear is
       // surfaced honestly — never silently reported as a clean sign-out.
-      set({ status: "signedOut", user: null, identities: [], wallets: [], errorCode: codeOf(err) });
+      set({ ...SIGNED_OUT_STATE, errorCode: codeOf(err) });
     }
   },
 
@@ -137,9 +227,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const client = get().client;
     try {
       await client?.signOutEverywhere();
-      set({ status: "signedOut", user: null, identities: [], wallets: [], errorCode: null });
+      set({ ...SIGNED_OUT_STATE, errorCode: null });
     } catch (err) {
-      set({ status: "signedOut", user: null, identities: [], wallets: [], errorCode: codeOf(err) });
+      set({ ...SIGNED_OUT_STATE, errorCode: codeOf(err) });
     }
   },
 }));

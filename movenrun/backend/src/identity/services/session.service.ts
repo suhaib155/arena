@@ -36,6 +36,9 @@ import type {
 } from "../repositories/interfaces.js";
 import type { SessionRecord } from "../repositories/records.js";
 import type { AuditService } from "./audit.service.js";
+// publicViews is a pure mapping module (no Express import) — the service uses
+// it so there is exactly ONE definition of the public session shape.
+import { toPublicSessionSummary, type PublicSessionSummary } from "../http/publicViews.js";
 import { createHmac } from "node:crypto";
 
 /** Domain-separation label for the access-token HMAC, keeping its input space
@@ -245,6 +248,24 @@ export class SessionService {
       userAgentHash: session.userAgentHash,
       lastAuthenticatedAt: session.lastAuthenticatedAt,
     });
+
+    // Close the rotate→issue window: a revocation (revoke-others, revoke-all,
+    // reuse-triggered family revoke) that landed between our CAS above and the
+    // new session's insert was intended to cover this family — the freshly
+    // minted session must not outlive it. Fail closed: revoke the family
+    // (which now includes the new session) and reject this refresh.
+    const oldAfterIssue = await this.sessions.findById(session.id);
+    if (!oldAfterIssue || oldAfterIssue.revokedAt !== null) {
+      const reason: SessionRevocationReason = oldAfterIssue?.revocationReason ?? "refresh_replay";
+      await this.sessions.revokeFamily(session.familyId, reason, this.now());
+      await this.audit.record("session_revoked", {
+        userId: session.userId,
+        subjectId: issued.session.id,
+        metadata: { reason, raceGuard: "refresh_vs_revocation" },
+      });
+      throw new IdentityError("session_invalid");
+    }
+
     await this.audit.record("session_refreshed", {
       userId: session.userId,
       subjectId: issued.session.id,
@@ -263,6 +284,111 @@ export class SessionService {
     const n = await this.sessions.revokeAllForUser(userId, reason, this.now());
     await this.users.bumpSecurityVersion(userId);
     await this.audit.record("session_revoked", { userId, metadata: { reason, scope: "all", count: n } });
+    return n;
+  }
+
+  // ---- session/device management (PR #53) ---------------------------------
+
+  /** Sessions revoked/expired longer ago than this are omitted from the
+   *  inventory — a fixed retention window, not unbounded history. */
+  static readonly INVENTORY_RETENTION_DAYS = 7;
+  /** Hard cap on inventory size (current session always included). */
+  static readonly INVENTORY_MAX_SESSIONS = 20;
+  /** How many raw rows to pull from the repository before mapping. */
+  private static readonly INVENTORY_FETCH_LIMIT = 100;
+
+  /**
+   * The caller's session inventory as privacy-preserving public summaries.
+   * Ordering: current session first; other ACTIVE sessions by most recent use
+   * (falling back to issue time); recently revoked/expired sessions last, by
+   * most recent relevant timestamp. Rotated rows (internal refresh-chain
+   * links) are never shown. `isCurrent` is derived from the verified bearer's
+   * session id — server-authoritative, never client-supplied.
+   */
+  async listSessions(currentSession: SessionRecord): Promise<PublicSessionSummary[]> {
+    const now = this.now();
+    const retentionMs = SessionService.INVENTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const rows = await this.sessions.listByUser(currentSession.userId, SessionService.INVENTORY_FETCH_LIMIT);
+
+    const current: SessionRecord[] = [];
+    const active: SessionRecord[] = [];
+    const settled: SessionRecord[] = [];
+    for (const r of rows) {
+      if (r.id === currentSession.id) {
+        current.push(r);
+        continue;
+      }
+      // Rotated rows are superseded internal lifecycle links, not devices —
+      // even when a later sweep also revoked them. Each lineage's terminal
+      // (never-rotated) row is the single record shown for that device.
+      if (r.rotatedAt !== null) continue;
+      if (r.revokedAt !== null) {
+        if (now.getTime() - r.revokedAt.getTime() <= retentionMs) settled.push(r);
+        continue;
+      }
+      if (r.expiresAt.getTime() <= now.getTime()) {
+        if (now.getTime() - r.expiresAt.getTime() <= retentionMs) settled.push(r);
+        continue;
+      }
+      active.push(r);
+    }
+
+    const recency = (r: SessionRecord) => (r.lastUsedAt ?? r.issuedAt).getTime();
+    active.sort((a, b) => recency(b) - recency(a) || (a.id < b.id ? -1 : 1));
+    const settledAt = (r: SessionRecord) => (r.revokedAt ?? r.expiresAt).getTime();
+    settled.sort((a, b) => settledAt(b) - settledAt(a) || (a.id < b.id ? -1 : 1));
+
+    return [...current, ...active, ...settled]
+      .slice(0, SessionService.INVENTORY_MAX_SESSIONS)
+      .map((r) => toPublicSessionSummary(r, currentSession.id, now));
+  }
+
+  /**
+   * Revoke ONE other caller-owned session. Refuses the current session
+   * (`conflict` — the caller should use /session/revoke for that). Foreign
+   * and nonexistent ids both yield `not_found` — indistinguishable by
+   * construction (ownership sits inside the repository's conditional UPDATE).
+   * Idempotent: an already-settled caller-owned session returns success
+   * without a second transition or audit event.
+   */
+  async revokeOtherSession(currentSession: SessionRecord, targetSessionId: string): Promise<void> {
+    if (targetSessionId === currentSession.id) {
+      throw new IdentityError("conflict", "use session/revoke for the current session");
+    }
+    const outcome = await this.sessions.revokeOwned(
+      targetSessionId,
+      currentSession.userId,
+      "user_logout",
+      this.now()
+    );
+    if (outcome === "not_found") throw new IdentityError("not_found");
+    if (outcome === "revoked") {
+      await this.audit.record("session_revoked", {
+        userId: currentSession.userId,
+        subjectId: targetSessionId,
+        metadata: { reason: "user_logout", scope: "other" },
+      });
+    }
+    // "already_settled" → idempotent success, no duplicate transition/audit.
+  }
+
+  /**
+   * Revoke every other session of the caller in one atomic repository
+   * operation, preserving the current session's access AND refresh
+   * credentials (no securityVersion bump — that is what distinguishes this
+   * from revokeAll). Idempotent; returns the count revoked by this call.
+   */
+  async revokeOtherSessions(currentSession: SessionRecord): Promise<number> {
+    const n = await this.sessions.revokeAllExcept(
+      currentSession.userId,
+      currentSession.id,
+      "user_logout",
+      this.now()
+    );
+    await this.audit.record("session_revoked", {
+      userId: currentSession.userId,
+      metadata: { reason: "user_logout", scope: "others", count: n },
+    });
     return n;
   }
 
