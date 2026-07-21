@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
-import { Button } from "@/components/Button";
 import { RouteCanvas } from "@/components/RouteCanvas";
+import { ReadinessChip } from "@/components/ReadinessChip";
+import { MovementMetric } from "@/components/MovementMetric";
+import { MovementControlBar } from "@/components/MovementControlBar";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import {
   acceptPoint,
@@ -17,6 +19,7 @@ import {
 import { createTracker, type TrackerMode } from "@/services/moveTracker";
 import { setLastSession } from "@/services/moveSession";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
+import type { IoniconName } from "@/types";
 
 /** Distance that fills the capture-preview ring once (territory beta teaser). */
 const ZONE_PREVIEW_M = 500;
@@ -116,6 +119,27 @@ export default function MoveSessionScreen() {
     ]);
   }, [router]);
 
+  /* Finish is a deliberate action — confirm before ending so it's never
+     accidental. The confirmed path calls the unchanged finish(). */
+  const confirmFinish = useCallback(() => {
+    tapFeedback();
+    Alert.alert("Finish session?", "End tracking and review your route.", [
+      { text: "Keep moving", style: "cancel" },
+      { text: "Finish", style: "default", onPress: finish },
+    ]);
+  }, [finish]);
+
+  /* Android hardware back must not silently discard a session — intercept it
+     and route through the same confirm dialog as the close button. */
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (finishedRef.current) return false;
+      quit();
+      return true;
+    });
+    return () => sub.remove();
+  }, [quit]);
+
   const pace = formatPace(distanceM, elapsedMs);
   const zoneProgress = Math.min(1, (distanceM % ZONE_PREVIEW_M) / ZONE_PREVIEW_M);
   const zonesPassed = Math.floor(distanceM / ZONE_PREVIEW_M);
@@ -126,11 +150,17 @@ export default function MoveSessionScreen() {
         <Pressable onPress={quit} hitSlop={12} style={styles.quitBtn}>
           <Ionicons name="close" size={24} color={colors.textDim} />
         </Pressable>
-        <Text style={styles.topTitle}>{paused ? "Paused" : "Moving"}</Text>
+        <View style={styles.statusWrap}>
+          <View
+            style={[styles.stateDot, { backgroundColor: paused ? palette.moveGold : palette.pulseGreen }]}
+          />
+          <Text style={styles.topTitle}>{paused ? "Paused" : "Moving"}</Text>
+        </View>
         <GpsChip mode={mode} state={gpsState} />
       </View>
 
-      <RouteCanvas points={points} height={236} live />
+      {/* Live map/route dominates the top of the screen */}
+      <RouteCanvas points={points} height={248} live />
 
       {mode === "demo" ? (
         <View style={styles.demoBanner}>
@@ -139,16 +169,17 @@ export default function MoveSessionScreen() {
         </View>
       ) : null}
 
-      <View style={styles.statHero}>
-        <Text style={styles.statHeroValue}>{formatDistance(distanceM)}</Text>
-        <Text style={styles.statHeroLabel}>distance</Text>
+      {/* Dominant distance metric + supporting time/pace */}
+      <View style={styles.metrics}>
+        <MovementMetric value={formatDistance(distanceM)} label="distance" size="hero" />
+        <View style={styles.metricRow}>
+          <MovementMetric value={formatDuration(elapsedMs)} label="time" />
+          <View style={styles.metricDivider} />
+          <MovementMetric value={pace ?? "—"} label="pace /km" />
+        </View>
       </View>
 
-      <View style={styles.statRow}>
-        <StatTile label="Time" value={formatDuration(elapsedMs)} />
-        <StatTile label="Pace /km" value={pace ?? "—"} />
-      </View>
-
+      {/* Claim-in-progress */}
       <View style={styles.zoneCard}>
         <View style={styles.zoneHead}>
           <Text style={styles.zoneTitle}>Capture preview</Text>
@@ -164,15 +195,9 @@ export default function MoveSessionScreen() {
         </Text>
       </View>
 
+      {/* Large, unmistakable controls; Finish is separated + confirmed */}
       <View style={styles.controls}>
-        <Button
-          label={paused ? "Resume" : "Pause"}
-          icon={paused ? "play" : "pause"}
-          variant="secondary"
-          onPress={togglePause}
-          style={styles.controlBtn}
-        />
-        <Button label="Finish" icon="checkmark" onPress={finish} style={styles.controlBtn} />
+        <MovementControlBar paused={paused} onPauseResume={togglePause} onFinish={confirmFinish} />
       </View>
     </Screen>
   );
@@ -180,34 +205,18 @@ export default function MoveSessionScreen() {
 
 function GpsChip({ mode, state }: { mode: TrackerMode; state: GpsState }) {
   if (mode === "demo") {
-    return (
-      <View style={styles.gpsChip}>
-        <View style={[styles.gpsDot, { backgroundColor: palette.silverTrail }]} />
-        <Text style={styles.gpsText}>Demo</Text>
-      </View>
-    );
+    return <ReadinessChip icon="flask-outline" label="Demo" tone="neutral" />;
   }
-  const map: Record<GpsState, { color: string; label: string }> = {
-    waiting: { color: palette.silverTrail, label: "Searching…" },
-    locked: { color: palette.pulseGreen, label: "GPS locked" },
-    weak: { color: palette.heatCoral, label: "Weak signal" },
+  const map: Record<
+    GpsState,
+    { icon: IoniconName; label: string; tone: "neutral" | "ok" | "warning" }
+  > = {
+    waiting: { icon: "ellipsis-horizontal", label: "Searching…", tone: "neutral" },
+    locked: { icon: "navigate", label: "GPS locked", tone: "ok" },
+    weak: { icon: "warning-outline", label: "Weak signal", tone: "warning" },
   };
-  const { color, label } = map[state];
-  return (
-    <View style={styles.gpsChip}>
-      <View style={[styles.gpsDot, { backgroundColor: color }]} />
-      <Text style={styles.gpsText}>{label}</Text>
-    </View>
-  );
-}
-
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.statTile}>
-      <Text style={styles.statTileValue}>{value}</Text>
-      <Text style={styles.statTileLabel}>{label}</Text>
-    </View>
-  );
+  const { icon, label, tone } = map[state];
+  return <ReadinessChip icon={icon} label={label} tone={tone} />;
 }
 
 const styles = StyleSheet.create({
@@ -217,21 +226,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
+    gap: spacing.sm,
   },
   quitBtn: { padding: spacing.xs },
-  topTitle: { ...type.heading, fontSize: 16 },
-  gpsChip: {
+  statusWrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
-    ...shadows.card,
+    gap: 7,
+    flex: 1,
+    justifyContent: "center",
   },
-  gpsDot: { width: 8, height: 8, borderRadius: 4 },
-  gpsText: { ...type.caption, fontSize: 11.5, fontWeight: "700", color: colors.text },
+  stateDot: { width: 9, height: 9, borderRadius: 5 },
+  topTitle: { ...type.heading, fontSize: 16 },
   demoBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -243,35 +249,20 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   demoText: { ...type.caption, fontSize: 11.5, fontWeight: "600" },
-  statHero: { alignItems: "center", marginTop: spacing.lg },
-  statHeroValue: {
-    ...type.display,
-    fontSize: 46,
-    fontVariant: ["tabular-nums"],
+  metrics: { marginTop: spacing.lg, gap: spacing.md },
+  metricRow: { flexDirection: "row", alignItems: "center" },
+  metricDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    marginVertical: 6,
+    backgroundColor: colors.surfaceAlt,
   },
-  statHeroLabel: { ...type.kicker },
-  statRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
-  statTile: {
-    flex: 1,
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    gap: 2,
-    ...shadows.card,
-  },
-  statTileValue: {
-    ...type.title,
-    fontSize: 22,
-    fontVariant: ["tabular-nums"],
-  },
-  statTileLabel: { ...type.caption, fontSize: 11 },
   zoneCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.sm,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
     ...shadows.card,
   },
   zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -298,11 +289,5 @@ const styles = StyleSheet.create({
     backgroundColor: palette.voltMint,
   },
   zoneNote: { ...type.caption, fontSize: 12 },
-  controls: {
-    flexDirection: "row",
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    marginTop: "auto",
-  },
-  controlBtn: { flex: 1 },
+  controls: { paddingVertical: spacing.md, marginTop: "auto" },
 });
