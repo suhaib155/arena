@@ -9,29 +9,34 @@ import { TerritoryPreview } from "@/components/TerritoryPreview";
 import { ZoneCard } from "@/components/ZoneCard";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
+import { StatCard } from "@/components/StatCard";
+import { NavRow } from "@/components/NavRow";
+import { MissionCard } from "@/components/MissionCard";
+import { NotificationBell } from "@/components/NotificationBell";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
-import { ScalePress } from "@/components/ScalePress";
-import { Hexagon } from "@/components/Hexagon";
 import { useGameStore } from "@/store/useGameStore";
 import { zoneStatus } from "@/lib/territory";
-import { getClubById } from "@/data/clubs";
-import { CLUBS } from "@/data/clubs";
+import { getClubById, CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { buildQuestline } from "@/lib/onboardingQuestline";
 import { buildTerritoryAlerts } from "@/lib/territoryAlerts";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { buildCityDistricts } from "@/lib/cityDistricts";
-import { buildRivalGhosts } from "@/lib/rivalGhosts";
 import { buildCollections } from "@/lib/zoneCollections";
-import { buildCityWarBoard } from "@/lib/cityWarBoard";
-import { buildSponsorZones } from "@/lib/sponsorZones";
-import { buildEventZones } from "@/lib/eventZones";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { getLocalDateKey } from "@/lib/date";
 import { tapFeedback } from "@/lib/haptics";
+import {
+  buildUpNext,
+  missionHasOwnCta,
+  resolveHeroState,
+  selectHomeMission,
+  type MissionAction,
+  type UpNextId,
+} from "@/lib/homeMission";
 
 function greeting(date = new Date()): string {
   const h = date.getHours();
@@ -40,14 +45,28 @@ function greeting(date = new Date()): string {
   return "Good evening";
 }
 
+/** Route each semantic mission/up-next action to a concrete screen. */
+const MISSION_ROUTE: Record<MissionAction, string> = {
+  "resume-move": "/move",
+  move: "/move",
+  territory: "/territory/map",
+  objective: "/questline",
+  weekly: "/season-objectives",
+};
+
+const UP_NEXT_ROUTE: Record<UpNextId, string> = {
+  objectives: "/season-objectives",
+  "weekly-recap": "/weekly-recap",
+  club: "/clubs",
+  questline: "/questline",
+  city: "/city-districts",
+  collections: "/collections",
+};
+
 export default function TodayScreen() {
   const router = useRouter();
-  const {
-    dailyQuest,
-    recommendedQuests,
-    completedTodayIds,
-    dailyCompletedToday,
-  } = useSessionStart();
+  const { dailyQuest, recommendedQuests, completedTodayIds, dailyCompletedToday } =
+    useSessionStart();
 
   const totalXp = useGameStore((s) => s.totalXp);
   const streak = useGameStore((s) => s.streak);
@@ -59,6 +78,8 @@ export default function TodayScreen() {
   const lastTrustScore = useGameStore((s) => s.lastTrustScore);
   const viewedRoutePassport = useGameStore((s) => s.viewedRoutePassport);
   const viewedRouteProof = useGameStore((s) => s.viewedRouteProof);
+
+  const selectedClub = getClubById(selectedClubId);
   const questline = buildQuestline({
     hasHistory: history.length > 0,
     savedRoutes: routeTrustHistory.length,
@@ -69,7 +90,6 @@ export default function TodayScreen() {
     viewedPassport: viewedRoutePassport,
     viewedProof: viewedRouteProof,
   });
-  const selectedClub = getClubById(selectedClubId);
   const alertsSummary = buildTerritoryAlerts({
     zones,
     streak,
@@ -77,7 +97,6 @@ export default function TodayScreen() {
       (rec) => getLocalDateKey(new Date(rec.completedAt)) === getLocalDateKey(),
     ),
   });
-  const showAlertChip = alertsSummary.urgent + alertsSummary.caution > 0;
   const weeklyRecap = buildWeeklyRecap({
     history,
     routeTrustHistory,
@@ -86,8 +105,10 @@ export default function TodayScreen() {
     clubName: selectedClub?.name ?? null,
   });
   const cityDistricts = buildCityDistricts(zones);
-  const rivals = buildRivalGhosts(zones);
-  const seasonAtRisk = zones.filter((z) => zoneStatus(z).health !== "yours").length;
+  const zonesWithStatus = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
+  const atRisk = zonesWithStatus.filter((e) => e.status.health !== "yours");
+  const priority = [...zonesWithStatus].sort((a, b) => b.status.risk - a.status.risk)[0] ?? null;
+  const seasonAtRisk = atRisk.length;
   const seasonObjectives = buildSeasonObjectives({
     routesThisWeek: weeklyRecap.routes,
     savedRoutes: routeTrustHistory.length,
@@ -114,40 +135,8 @@ export default function TodayScreen() {
       viewedProof: viewedRouteProof,
     }).unlocked,
   });
-  const cityWar = buildCityWarBoard({
-    zones,
-    city: cityDistricts,
-    rivals,
-    objectives: seasonObjectives,
-    recap: weeklyRecap,
-    clubName: selectedClub?.name ?? null,
-    streak,
-  });
-  const sponsors = buildSponsorZones({
-    hasZones: zones.length > 0,
-    city: cityDistricts,
-    momentum: weeklyRecap.momentum,
-    objectivesProgress: seasonObjectives.progressPct,
-    weeklyActive: weeklyRecap.hasActivity,
-  });
-  const events = buildEventZones({
-    hasZones: zones.length > 0,
-    city: cityDistricts,
-    rivals,
-    sponsors,
-    momentum: weeklyRecap.momentum,
-    objectivesProgress: seasonObjectives.progressPct,
-    streak,
-  });
-  /* Defend reminders: surface the most urgent zone (decay is computed on
-     read, so this is deterministic with no background work). */
-  const zonesWithStatus = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
-  const atRisk = zonesWithStatus.filter((e) => e.status.health !== "yours");
-  const priority =
-    [...zonesWithStatus].sort((a, b) => b.status.risk - a.status.risk)[0] ?? null;
-  const level = getLevelInfo(totalXp);
 
-  // Presentation-only derivations — no store/data changes.
+  const level = getLevelInfo(totalXp);
   const todayKey = getLocalDateKey();
   const xpToday = history
     .filter((rec) => getLocalDateKey(new Date(rec.completedAt)) === todayKey)
@@ -163,417 +152,197 @@ export default function TodayScreen() {
       }).find((r) => r.isUserClub)?.rank ?? null
     : null;
 
+  const hasMovedEver = history.length > 0 || routeTrustHistory.length > 0;
+
+  /* Persistent movement recovery is not implemented yet (finished routes live
+     only in memory during the summary flow), so there is never a genuinely
+     recoverable session to resume here. The value is honestly false today; the
+     selector supports the state and its ordering is covered by tests. */
+  const hasRecoverableMovement = false;
+
+  const missionInput = {
+    hasRecoverableMovement,
+    atRiskZoneCount: atRisk.length,
+    topRiskZoneName: atRisk.length > 0 ? priority?.zone.name ?? null : null,
+    // A "current objective" is meaningful once the player is in the loop; brand
+    // new users fall through to the first-movement mission instead.
+    currentObjectiveTitle:
+      hasMovedEver && !questline.allComplete ? questline.currentStep?.title ?? null : null,
+    hasMovedEver,
+    zonesOwned: zones.length,
+    weeklyObjectiveTitle: seasonObjectives.nextObjective?.title ?? null,
+  };
+  const hero = resolveHeroState(missionInput);
+  const mission = selectHomeMission(missionInput);
+  const missionShowsButton = missionHasOwnCta(mission, hero);
+
+  const upNext = buildUpNext({
+    missionKind: mission.kind,
+    hasSeasonObjective: seasonObjectives.nextObjective != null,
+    seasonObjectiveSubtitle: seasonObjectives.nextObjective
+      ? `Next · ${seasonObjectives.nextObjective.title}`
+      : "All objectives complete this season",
+    hasWeeklyActivity: weeklyRecap.hasActivity,
+    weeklyRecapSubtitle: `${weeklyRecap.routes} route${weeklyRecap.routes === 1 ? "" : "s"} · ${weeklyRecap.zonesCaptured} captured · ${weeklyRecap.momentumLabel}`,
+    hasClub: selectedClub != null,
+    clubSubtitle: selectedClub
+      ? `City rank #${clubRank ?? "—"} · your movement powers the club`
+      : "Local preview · pick a club to represent",
+    questlineComplete: questline.allComplete,
+    questlineSubtitle: questline.allComplete
+      ? "Local beta loop complete"
+      : `Next · ${questline.currentStep?.title ?? ""}`,
+    hasZones: zones.length > 0,
+    citySubtitle: `${cityDistricts.controlledDistricts}/${cityDistricts.activeDistricts} controlled · ${cityDistricts.nextAction.label}`,
+  });
+
+  const alertsUnread = alertsSummary.urgent + alertsSummary.caution > 0;
+
+  const startMove = () => {
+    tapFeedback();
+    router.push("/move");
+  };
+  const goMission = () => {
+    tapFeedback();
+    router.push(MISSION_ROUTE[mission.action]);
+  };
   const openQuest = (id: string) => {
     tapFeedback();
     router.push({ pathname: "/quest/[id]", params: { id } });
   };
 
+  const editorialHeadline =
+    atRisk.length > 0 ? "Defend\nyour ground." : hasMovedEver ? "Own\nyour city." : "Ready\nto move.";
+
   return (
     <Screen>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {/* Header: brand + greeting + single bell affordance (no banners) */}
         <View style={styles.headerRow}>
           <View style={styles.headerText}>
+            <Text style={styles.brandKicker}>MOVENRUN</Text>
             <Text style={styles.greeting}>{greeting()}</Text>
-            <Text style={styles.brand}>
-              {dailyCompletedToday ? "You've moved today" : "Ready to move?"}
-            </Text>
           </View>
-          <View style={styles.streakChip}>
-            <Ionicons name="flame" size={15} color={palette.moveGold} />
-            <Text style={styles.streakNum}>{streak}</Text>
-            <Text style={styles.streakLabel}>day streak</Text>
-          </View>
-        </View>
-
-        {/* Hero: territory warmup + Start Move */}
-        <FadeSlideIn>
-          <View style={styles.hero}>
-            <Text style={styles.heroKicker}>Free map beta · Warmup</Text>
-            <View style={styles.heroLevelRow}>
-              <Text style={styles.heroLevel}>Level {level.level}</Text>
-              <Text style={styles.heroXp}>
-                {level.xpIntoLevel} / {level.xpForLevel} XP
-              </Text>
-            </View>
-            <RoutePath progress={level.progress} />
-            <Button
-              label="Start Move"
-              icon="play"
-              onPress={() => {
-                tapFeedback();
-                router.push("/move");
-              }}
-              style={styles.heroCta}
-            />
-            <Text style={styles.heroNote}>
-              Foreground GPS session — your route, distance, and pace, all
-              on-device. Territory capture comes next.
-            </Text>
-          </View>
-        </FadeSlideIn>
-
-        {/* Today chips: XP / streak-safe / Locked MOVE preview */}
-        <FadeSlideIn delay={STAGGER_MS}>
-          <View style={styles.chipsRow}>
-            <View style={styles.chip}>
-              <Text style={[styles.chipValue, { color: "#B07908" }]}>+{xpToday}</Text>
-              <Text style={styles.chipLabel}>XP today</Text>
-            </View>
-            <View style={styles.chip}>
-              <Text style={[styles.chipValue, { color: palette.heatCoral }]}>{streak}</Text>
-              <Text style={styles.chipLabel}>streak</Text>
-            </View>
-            <View style={styles.chip}>
-              <Text style={[styles.chipValue, { color: palette.deedViolet }]}>{lockedMove}</Text>
-              <Text style={styles.chipLabel}>Locked MOVE · preview</Text>
-            </View>
-          </View>
-        </FadeSlideIn>
-
-        {/* Club chip — local clubs preview (one line, links to Clubs tab) */}
-        <FadeSlideIn delay={STAGGER_MS}>
-          <ScalePress
-            to={0.98}
-            style={styles.clubRow}
+          <NotificationBell
+            unread={alertsUnread}
             onPress={() => {
               tapFeedback();
-              router.push("/clubs");
+              router.push("/territory/alerts");
             }}
-          >
-            {selectedClub ? (
+          />
+        </View>
+
+        <Text style={styles.headline}>{editorialHeadline}</Text>
+
+        {/* Territory hero — the visual centre; one primary movement CTA */}
+        <FadeSlideIn>
+          <View style={styles.hero}>
+            {zones.length > 0 ? (
               <>
-                <Hexagon size={26} color="#C9EEDE" coreColor={palette.pulseGreen} />
-                <View style={styles.clubRowBody}>
-                  <Text style={styles.clubRowName}>{selectedClub.name}</Text>
-                  <Text style={styles.clubRowSub}>
-                    City rank #{clubRank ?? "—"} · your movement powers the club
-                  </Text>
+                <Text style={styles.heroKicker}>Your territory</Text>
+                <View style={styles.heroStatsRow}>
+                  <HeroStat
+                    value={zones.length}
+                    label={zones.length === 1 ? "zone" : "zones"}
+                    tint={palette.pulseGreen}
+                  />
+                  <View style={styles.heroDivider} />
+                  <HeroStat
+                    value={atRisk.length}
+                    label="need defence"
+                    tint={atRisk.length > 0 ? palette.heatCoral : colors.textDim}
+                  />
+                  <View style={styles.heroDivider} />
+                  <HeroStat
+                    value={`L${level.level}`}
+                    label={`${level.xpIntoLevel}/${level.xpForLevel} XP`}
+                    tint={palette.baseBlue}
+                  />
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
               </>
             ) : (
               <>
-                <View style={styles.clubRowIcon}>
-                  <Ionicons name="people" size={16} color={colors.primary} />
+                <Text style={styles.heroKicker}>Free map beta · Warmup</Text>
+                <View style={styles.heroLevelRow}>
+                  <Text style={styles.heroLevel}>Level {level.level}</Text>
+                  <Text style={styles.heroXp}>
+                    {level.xpIntoLevel} / {level.xpForLevel} XP
+                  </Text>
                 </View>
-                <View style={styles.clubRowBody}>
-                  <Text style={styles.clubRowName}>Choose your club</Text>
-                  <Text style={styles.clubRowSub}>Local preview · city wars arrive later</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
               </>
             )}
-          </ScalePress>
-        </FadeSlideIn>
-
-        {/* Questline — compact local onboarding progress */}
-        <FadeSlideIn delay={STAGGER_MS}>
-          <ScalePress
-            to={0.98}
-            style={styles.questRow}
-            onPress={() => {
-              tapFeedback();
-              router.push("/questline");
-            }}
-          >
-            <View style={styles.questIcon}>
-              <Ionicons
-                name={questline.allComplete ? "trophy-outline" : "compass-outline"}
-                size={18}
-                color={colors.primary}
+            <RoutePath progress={level.progress} />
+            <Button label={hero.ctaLabel} icon="play" onPress={startMove} style={styles.heroCta} />
+            {zones.length > 0 ? (
+              <Button
+                label="View Map"
+                icon="map-outline"
+                variant="secondary"
+                onPress={() => {
+                  tapFeedback();
+                  router.push("/territory/map");
+                }}
               />
-            </View>
-            <View style={styles.questBody}>
-              <View style={styles.questTitleRow}>
-                <Text style={styles.questName}>MovenRun Questline</Text>
-                <Text style={styles.questCount}>
-                  {questline.completedCount}/{questline.total}
-                </Text>
-              </View>
-              <View style={styles.questTrack}>
-                <View
-                  style={[
-                    styles.questFill,
-                    {
-                      width: `${Math.round((questline.completedCount / questline.total) * 100)}%`,
-                      backgroundColor: questline.allComplete ? palette.pulseGreen : palette.moveGold,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.questSub} numberOfLines={1}>
-                {questline.allComplete
-                  ? "Local beta loop complete · run again to strengthen your territory"
-                  : `Next · ${questline.currentStep?.title ?? ""}`}
+            ) : (
+              <Text style={styles.heroNote}>
+                Foreground GPS session — your route, distance, and pace, all on-device. Capture your
+                first zone as you move.
               </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-          </ScalePress>
-        </FadeSlideIn>
-
-        {/* Territory alerts — only when something needs attention */}
-        {showAlertChip ? (
-          <FadeSlideIn delay={STAGGER_MS}>
-            <ScalePress
-              to={0.98}
-              style={styles.alertChip}
-              onPress={() => {
-                tapFeedback();
-                router.push("/territory/alerts");
-              }}
-            >
-              <View style={styles.alertChipIcon}>
-                <Ionicons name="notifications-outline" size={16} color={palette.heatCoral} />
-              </View>
-              <View style={styles.alertChipBody}>
-                <Text style={styles.alertChipName}>Territory Alerts</Text>
-                <Text style={styles.alertChipSub} numberOfLines={1}>
-                  {alertsSummary.urgent > 0 ? `${alertsSummary.urgent} urgent · ` : ""}
-                  {alertsSummary.caution > 0 ? `${alertsSummary.caution} caution · ` : ""}
-                  {alertsSummary.topAction?.title ?? "Tap to review"}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        {/* Season objectives — compact weekly goals */}
-        <FadeSlideIn delay={STAGGER_MS}>
-          <ScalePress
-            to={0.98}
-            style={styles.objectivesChip}
-            onPress={() => {
-              tapFeedback();
-              router.push("/season-objectives");
-            }}
-          >
-            <View style={styles.objectivesChipIcon}>
-              <Ionicons name="ribbon-outline" size={16} color={colors.primary} />
-            </View>
-            <View style={styles.objectivesChipBody}>
-              <View style={styles.objectivesChipTitleRow}>
-                <Text style={styles.objectivesChipName}>Season Objectives</Text>
-                <Text style={styles.objectivesChipCount}>
-                  {seasonObjectives.completed}/{seasonObjectives.total}
-                </Text>
-              </View>
-              <Text style={styles.objectivesChipSub} numberOfLines={1}>
-                {seasonObjectives.nextObjective
-                  ? `Next · ${seasonObjectives.nextObjective.title}`
-                  : "All objectives complete this season"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-          </ScalePress>
-        </FadeSlideIn>
-
-        {/* Weekly recap — local reflection, only once there's something to show */}
-        {weeklyRecap.hasActivity ? (
-          <FadeSlideIn delay={STAGGER_MS}>
-            <ScalePress
-              to={0.98}
-              style={styles.recapChip}
-              onPress={() => {
-                tapFeedback();
-                router.push("/weekly-recap");
-              }}
-            >
-              <View style={styles.recapChipIcon}>
-                <Ionicons name="bar-chart-outline" size={16} color={colors.primary} />
-              </View>
-              <View style={styles.recapChipBody}>
-                <Text style={styles.recapChipName}>Weekly Recap</Text>
-                <Text style={styles.recapChipSub} numberOfLines={1}>
-                  {weeklyRecap.routes} route{weeklyRecap.routes === 1 ? "" : "s"} ·{" "}
-                  {weeklyRecap.zonesCaptured} captured · {weeklyRecap.momentumLabel}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        {/* City districts — local city preview, once there's territory */}
-        {zones.length > 0 ? (
-          <FadeSlideIn delay={STAGGER_MS}>
-            <ScalePress
-              to={0.98}
-              style={styles.cityChip}
-              onPress={() => {
-                tapFeedback();
-                router.push("/city-districts");
-              }}
-            >
-              <View style={styles.cityChipIcon}>
-                <Ionicons name="business-outline" size={16} color={colors.primary} />
-              </View>
-              <View style={styles.cityChipBody}>
-                <Text style={styles.cityChipName}>City Districts</Text>
-                <Text style={styles.cityChipSub} numberOfLines={1}>
-                  {cityDistricts.controlledDistricts}/{cityDistricts.activeDistricts} controlled ·{" "}
-                  {cityDistricts.nextAction.label}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        {/* Rival ghosts — only when there's real (medium/high) pressure */}
-        {rivals.hasPressure ? (
-          <FadeSlideIn delay={STAGGER_MS}>
-            <ScalePress
-              to={0.98}
-              style={styles.rivalChip}
-              onPress={() => {
-                tapFeedback();
-                router.push("/rivals");
-              }}
-            >
-              <View style={styles.rivalChipIcon}>
-                <Ionicons name="color-wand-outline" size={16} color={palette.deedViolet} />
-              </View>
-              <View style={styles.rivalChipBody}>
-                <Text style={styles.rivalChipName}>Rival Ghosts</Text>
-                <Text style={styles.rivalChipSub} numberOfLines={1}>
-                  {rivals.highPressure > 0 ? `${rivals.highPressure} high-pressure · ` : ""}
-                  {rivals.topResponse?.name ?? "fictional rivals"} circling
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        {/* City war board — when the city is big enough for a season battle */}
-        {cityDistricts.activeDistricts >= 2 ? (
-          <FadeSlideIn delay={STAGGER_MS}>
-            <ScalePress
-              to={0.98}
-              style={styles.warChip}
-              onPress={() => {
-                tapFeedback();
-                router.push("/city-war");
-              }}
-            >
-              <View style={styles.warChipIcon}>
-                <Ionicons name="flag-outline" size={16} color={palette.deedViolet} />
-              </View>
-              <View style={styles.warChipBody}>
-                <Text style={styles.warChipName}>City War Board</Text>
-                <Text style={styles.warChipSub} numberOfLines={1}>
-                  {cityWar.playerSideLabel} {cityWar.playerScore} · Ghost Crews{" "}
-                  {cityWar.rivalPressureScore} · {cityWar.balanceLabel}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        {/* Sponsor zones — only once a sponsor is active-preview (kept rare) */}
-        {sponsors.activePreviewCount > 0 ? (
-          <FadeSlideIn delay={STAGGER_MS}>
-            <ScalePress
-              to={0.98}
-              style={styles.sponsorChip}
-              onPress={() => {
-                tapFeedback();
-                router.push("/sponsor-zones");
-              }}
-            >
-              <View style={styles.sponsorChipIcon}>
-                <Ionicons name="storefront-outline" size={16} color={palette.deedViolet} />
-              </View>
-              <View style={styles.sponsorChipBody}>
-                <Text style={styles.sponsorChipName}>Sponsor Zones</Text>
-                <Text style={styles.sponsorChipSub} numberOfLines={1}>
-                  {sponsors.activePreviewCount} active preview · fictional · no ads
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        {/* Event zones — only once an event is active-preview (kept rare) */}
-        {events.activePreviewCount > 0 ? (
-          <FadeSlideIn delay={STAGGER_MS}>
-            <ScalePress
-              to={0.98}
-              style={styles.eventChip}
-              onPress={() => {
-                tapFeedback();
-                router.push("/event-zones");
-              }}
-            >
-              <View style={styles.eventChipIcon}>
-                <Ionicons name="sparkles-outline" size={16} color={palette.deedViolet} />
-              </View>
-              <View style={styles.eventChipBody}>
-                <Text style={styles.eventChipName}>Event Zones</Text>
-                <Text style={styles.eventChipSub} numberOfLines={1}>
-                  {events.activePreviewCount} active preview · fictional · no live events
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        {dailyCompletedToday ? (
-          <View style={styles.doneBanner}>
-            <Ionicons name="checkmark-circle" size={18} color={palette.pulseGreen} />
-            <Text style={styles.doneText}>
-              Daily quest done — streak safe. Try a bonus quest below for more XP.
-            </Text>
+            )}
           </View>
+        </FadeSlideIn>
+
+        {/* Two performance widgets — varied hierarchy, not a wall of cards */}
+        <FadeSlideIn delay={STAGGER_MS}>
+          <View style={styles.statsRow}>
+            <StatCard icon="flame" value={streak} label="day streak" tint={palette.heatCoral} />
+            <StatCard icon="flash" value={`+${xpToday}`} label="XP today" tint={palette.moveGold} />
+          </View>
+        </FadeSlideIn>
+
+        {/* The single prioritized mission */}
+        <FadeSlideIn delay={STAGGER_MS}>
+          <MissionCard
+            mission={mission}
+            showButton={missionShowsButton}
+            onPress={missionShowsButton ? goMission : startMove}
+          />
+        </FadeSlideIn>
+
+        {/* Up Next — capped at three prioritized secondary destinations */}
+        {upNext.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS}>
+            <View style={styles.upNextWrap}>
+              <SectionHeader title="Up next" />
+              <View style={styles.upNextList}>
+                {upNext.map((item) => (
+                  <NavRow
+                    key={item.id}
+                    icon={item.icon as never}
+                    title={item.title}
+                    subtitle={item.subtitle}
+                    onPress={() => {
+                      tapFeedback();
+                      router.push(UP_NEXT_ROUTE[item.id]);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          </FadeSlideIn>
         ) : null}
 
-        {/* Territory portfolio — captured common zones (local simulation) */}
+        {/* Territory portfolio */}
         <FadeSlideIn delay={STAGGER_MS * 2}>
           <SectionHeader
             title="Your territory"
-            trailing={zones.length > 0 ? `${zones.length} zone${zones.length === 1 ? "" : "s"}` : "soon"}
+            trailing={
+              zones.length > 0 ? `${zones.length} zone${zones.length === 1 ? "" : "s"}` : "soon"
+            }
           />
-          {zones.length > 0 ? (
-            <ScalePress
-              to={0.98}
-              style={styles.mapChip}
-              onPress={() => {
-                tapFeedback();
-                router.push("/territory/map");
-              }}
-            >
-              <Ionicons name="grid-outline" size={15} color={colors.primary} />
-              <Text style={styles.mapChipText}>View Territory Map</Text>
-              <Ionicons name="chevron-forward" size={15} color={colors.textFaint} />
-            </ScalePress>
-          ) : null}
           <View style={styles.sectionGap} />
           {priority ? (
             <View style={styles.territoryWrap}>
-              <View
-                style={[
-                  styles.stabilityBanner,
-                  atRisk.length > 0 ? styles.stabilityBannerRisk : null,
-                ]}
-              >
-                <Ionicons
-                  name={atRisk.length > 0 ? "shield-half" : "shield-checkmark"}
-                  size={15}
-                  color={atRisk.length > 0 ? palette.heatCoral : palette.pulseGreen}
-                />
-                <Text style={styles.stabilityText}>
-                  {atRisk.length > 0
-                    ? `${atRisk.length} zone${atRisk.length > 1 ? "s" : ""} need${atRisk.length > 1 ? "" : "s"} defending`
-                    : "Territory stable"}
-                </Text>
-              </View>
               <ZoneCard
                 zone={priority.zone}
                 onPress={() => {
@@ -586,7 +355,7 @@ export default function TodayScreen() {
                 <Text style={styles.defendTeaserText}>
                   {atRisk.length > 0
                     ? "Start Move through a zone to defend it."
-                    : "Moving through your zones keeps defense charged."}
+                    : "Moving through your zones keeps defence charged."}
                 </Text>
               </View>
             </View>
@@ -595,6 +364,7 @@ export default function TodayScreen() {
           )}
         </FadeSlideIn>
 
+        {/* Daily quest — the streak-safe warmup loop */}
         <FadeSlideIn delay={STAGGER_MS * 3}>
           <SectionHeader title="Today's Quest" />
           <View style={styles.sectionGap} />
@@ -619,36 +389,44 @@ export default function TodayScreen() {
           ))}
         </View>
 
-        <Text style={styles.footerLoop}>Move → Capture → Defend → Own</Text>
+        <Text style={styles.footerLoop}>
+          {lockedMove} Locked MOVE · Move → Capture → Defend → Own
+        </Text>
       </ScrollView>
     </Screen>
   );
 }
 
+function HeroStat({
+  value,
+  label,
+  tint,
+}: {
+  value: string | number;
+  label: string;
+  tint: string;
+}) {
+  return (
+    <View style={styles.heroStat}>
+      <Text style={[styles.heroStatValue, { color: tint }]}>{value}</Text>
+      <Text style={styles.heroStatLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   // Extra bottom padding clears the floating tab bar.
-  content: { paddingTop: spacing.sm, paddingBottom: 110, gap: spacing.lg },
+  content: { paddingTop: spacing.sm, paddingBottom: 120, gap: spacing.lg },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     paddingTop: spacing.md,
   },
-  headerText: { flex: 1 },
-  greeting: { ...type.caption, fontSize: 14 },
-  brand: { ...type.display, fontSize: 26 },
-  streakChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    ...shadows.card,
-  },
-  streakNum: { ...type.heading, fontSize: 16 },
-  streakLabel: { ...type.caption, fontSize: 11 },
+  headerText: { flex: 1, gap: 2 },
+  brandKicker: { ...type.kicker, color: colors.primary },
+  greeting: { ...type.body, fontSize: 15, color: colors.textDim },
+  headline: { ...type.display, fontSize: 34, lineHeight: 36, letterSpacing: -1 },
   hero: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
@@ -657,269 +435,31 @@ const styles = StyleSheet.create({
     ...shadows.float,
   },
   heroKicker: { ...type.kicker, color: colors.primary },
-  heroLevelRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
+  heroStatsRow: { flexDirection: "row", alignItems: "center" },
+  heroStat: { flex: 1, alignItems: "center", gap: 2 },
+  heroStatValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+    fontVariant: ["tabular-nums"],
   },
+  heroStatLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
+  heroDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    marginVertical: 4,
+    backgroundColor: colors.surfaceAlt,
+  },
+  heroLevelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
   heroLevel: { ...type.title, fontSize: 20 },
   heroXp: { ...type.mono, fontSize: 12.5 },
   heroCta: { marginTop: spacing.xs },
   heroNote: { ...type.caption, fontSize: 12, textAlign: "center", color: colors.textFaint },
-  chipsRow: { flexDirection: "row", gap: spacing.md },
-  chip: {
-    flex: 1,
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xs,
-    gap: 2,
-    ...shadows.card,
-  },
-  chipValue: { fontSize: 20, fontWeight: "800", letterSpacing: -0.4 },
-  chipLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
-  doneBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: `${palette.pulseGreen}14`,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  doneText: { flex: 1, ...type.caption, fontSize: 13, lineHeight: 18, color: colors.text },
-  clubRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  clubRowIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  clubRowBody: { flex: 1, gap: 1 },
-  clubRowName: { ...type.heading, fontSize: 14.5 },
-  clubRowSub: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
-  questRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  questIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  questBody: { flex: 1, gap: 4 },
-  questTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  questName: { ...type.heading, fontSize: 14 },
-  questCount: { ...type.mono, fontSize: 12, color: colors.textDim },
-  questTrack: { height: 6, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden" },
-  questFill: { height: 6, borderRadius: radius.pill },
-  questSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  alertChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  alertChipIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.heatCoral}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  alertChipBody: { flex: 1, gap: 1 },
-  alertChipName: { ...type.heading, fontSize: 14 },
-  alertChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  recapChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  recapChipIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  recapChipBody: { flex: 1, gap: 1 },
-  recapChipName: { ...type.heading, fontSize: 14 },
-  recapChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  objectivesChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  objectivesChipIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  objectivesChipBody: { flex: 1, gap: 1 },
-  objectivesChipTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  objectivesChipName: { ...type.heading, fontSize: 14 },
-  objectivesChipCount: { ...type.mono, fontSize: 12, color: colors.textDim },
-  objectivesChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  cityChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  cityChipIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cityChipBody: { flex: 1, gap: 1 },
-  cityChipName: { ...type.heading, fontSize: 14 },
-  cityChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  rivalChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  rivalChipIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rivalChipBody: { flex: 1, gap: 1 },
-  rivalChipName: { ...type.heading, fontSize: 14 },
-  rivalChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  warChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  warChipIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  warChipBody: { flex: 1, gap: 1 },
-  warChipName: { ...type.heading, fontSize: 14 },
-  warChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  sponsorChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  sponsorChipIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sponsorChipBody: { flex: 1, gap: 1 },
-  sponsorChipName: { ...type.heading, fontSize: 14 },
-  sponsorChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  eventChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  eventChipIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  eventChipBody: { flex: 1, gap: 1 },
-  eventChipName: { ...type.heading, fontSize: 14 },
-  eventChipSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  mapChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    alignSelf: "flex-start",
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    paddingVertical: 7,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    ...shadows.card,
-  },
-  mapChipText: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.text },
+  statsRow: { flexDirection: "row", gap: spacing.md },
+  upNextWrap: { gap: spacing.md },
+  upNextList: { gap: spacing.sm },
   sectionGap: { height: spacing.md },
   territoryWrap: { gap: spacing.sm },
-  stabilityBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: `${palette.pulseGreen}12`,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  stabilityBannerRisk: { backgroundColor: `${palette.heatCoral}12` },
-  stabilityText: { ...type.caption, fontSize: 13, color: colors.text, fontWeight: "700" },
   defendTeaser: {
     flexDirection: "row",
     alignItems: "center",
