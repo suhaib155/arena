@@ -5,16 +5,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
+import { MovementMetric } from "@/components/MovementMetric";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
-import {
-  buildWeeklyRecap,
-  recapFormat,
-  type MomentumTone,
-} from "@/lib/weeklyRecap";
+import { buildWeeklyRecap, type MomentumTone } from "@/lib/weeklyRecap";
+import { buildRecapView } from "@/lib/recapView";
 import type { IoniconName } from "@/types";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
 
@@ -27,11 +25,11 @@ const MOMENTUM_TINT: Record<MomentumTone, string> = {
 };
 
 /**
- * Weekly Recap — a local, read-only reflection of recent movement and territory
- * progress (rolling 7-day window). Derived on demand from existing local state;
- * no backend, network, chain, wallet, push notifications, or background work.
- * Share is text-only via the OS share sheet (scalar stats only — no raw GPS,
- * coordinates, route path, or location). It affects nothing.
+ * Weekly Recap — a local, editorial reflection of the movement week (rolling
+ * 7-day window). Leads with one dominant real metric, supporting stats, the
+ * week's story, and a single next action. No fabricated previous-week
+ * comparison — the model has none, so none is shown. Logic is unchanged
+ * (buildWeeklyRecap); share is text-only, scalar stats, no raw GPS.
  */
 export default function WeeklyRecapScreen() {
   const router = useRouter();
@@ -52,6 +50,7 @@ export default function WeeklyRecapScreen() {
       }),
     [history, routeTrustHistory, zones, streak, selectedClub],
   );
+  const view = useMemo(() => buildRecapView(recap), [recap]);
 
   const onShare = async () => {
     tapFeedback();
@@ -78,16 +77,14 @@ export default function WeeklyRecapScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
           <View style={styles.hero}>
-            <Text style={styles.heroKicker}>{recap.weekLabel} · {recap.rangeLabel}</Text>
-            <Text style={styles.heroTitle}>Your movement this week.</Text>
+            <Text style={styles.heroKicker}>
+              {recap.weekLabel} · {recap.rangeLabel}
+            </Text>
+            <Text style={styles.heroTitle}>Your week in motion.</Text>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
-                <Ionicons name="phone-portrait-outline" size={13} color={palette.baseBlue} />
-                <Text style={[styles.badgeText, { color: palette.baseBlue }]}>In-app only</Text>
-              </View>
-              <View style={[styles.badge, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name="eye-outline" size={13} color={colors.textDim} />
-                <Text style={[styles.badgeText, { color: colors.textDim }]}>Local preview</Text>
+                <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
+                <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: `${palette.pulseGreen}14` }]}>
                 <Ionicons name="lock-closed-outline" size={13} color="#0A8F60" />
@@ -97,111 +94,73 @@ export default function WeeklyRecapScreen() {
           </View>
         </FadeSlideIn>
 
-        {recap.hasActivity ? (
+        {view.hasActivity && view.dominant ? (
           <>
-            {/* Momentum */}
+            {/* One dominant metric */}
             <FadeSlideIn delay={STAGGER_MS}>
-              <View style={styles.momentumCard}>
-                <View style={styles.momentumText}>
-                  <Text style={styles.momentumKicker}>Momentum</Text>
-                  <Text style={[styles.momentumLabel, { color: momentumTint }]}>
-                    {recap.momentumLabel}
-                  </Text>
-                  <Text style={styles.momentumNote}>{recap.topAchievement}</Text>
-                </View>
-                <View style={styles.momentumScoreWrap}>
-                  <Text style={[styles.momentumScore, { color: momentumTint }]}>
-                    {recap.momentum}
-                  </Text>
-                  <Text style={styles.momentumOutOf}>/ 100</Text>
-                </View>
+              <View style={styles.dominantCard}>
+                <MovementMetric value={view.dominant.value} label={view.dominant.label} size="hero" tint={palette.baseBlue} />
+                {view.supporting.length > 0 ? (
+                  <View style={styles.supportingRow}>
+                    {view.supporting.map((s, i) => (
+                      <View key={s.label} style={styles.supportingWrap}>
+                        {i > 0 ? <View style={styles.supportingDivider} /> : null}
+                        <MovementMetric value={s.value} label={s.label} />
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
               </View>
             </FadeSlideIn>
 
-            {/* Movement totals */}
+            {/* The week's story */}
             <FadeSlideIn delay={STAGGER_MS * 2}>
-              <Text style={styles.sectionLabel}>Movement</Text>
-              <View style={styles.statGrid}>
-                <StatTile
-                  icon="navigate-outline"
-                  value={`${recap.routes}`}
-                  label={`route${recap.routes === 1 ? "" : "s"}`}
-                  tint={palette.baseBlue}
-                />
-                <StatTile
-                  icon="walk-outline"
-                  value={recapFormat.fmtKm(recap.distanceMeters)}
-                  label="distance"
-                  tint={palette.pulseGreen}
-                />
-                <StatTile
-                  icon="time-outline"
-                  value={recapFormat.fmtDuration(recap.durationSeconds)}
-                  label="active time"
-                  tint={palette.deedViolet}
-                />
-                <StatTile
-                  icon="flame-outline"
-                  value={`+${recap.xpGained}`}
-                  label="XP gained"
-                  tint="#B07908"
-                />
+              <View style={styles.storyCard}>
+                <View style={styles.storyIcon}>
+                  <Ionicons name="sparkles-outline" size={18} color={palette.moveGold} />
+                </View>
+                <View style={styles.storyBody}>
+                  <Text style={styles.storyKicker}>This week</Text>
+                  <Text style={styles.storyTitle}>{view.topAchievement}</Text>
+                </View>
               </View>
             </FadeSlideIn>
 
-            {/* Territory totals */}
+            {/* Territory change (only real values) */}
             <FadeSlideIn delay={STAGGER_MS * 3}>
-              <Text style={styles.sectionLabel}>Territory</Text>
-              <View style={styles.statGrid}>
-                <StatTile
-                  icon="add-circle-outline"
-                  value={`${recap.zonesCaptured}`}
-                  label="captured"
-                  tint={palette.pulseGreen}
-                />
-                <StatTile
-                  icon="shield-checkmark-outline"
-                  value={`${recap.defends}`}
-                  label="defends"
-                  tint={palette.baseBlue}
-                />
-                <StatTile
-                  icon="grid-outline"
-                  value={`${recap.totalZones}`}
-                  label="zones held"
-                  tint={colors.text}
-                />
-                <StatTile
-                  icon="warning-outline"
-                  value={`${recap.atRiskZones}`}
-                  label="need defending"
+              <View style={styles.territoryRow}>
+                <TerritoryStat value={recap.zonesCaptured} label="captured" tint={palette.pulseGreen} />
+                <View style={styles.tStatDivider} />
+                <TerritoryStat value={recap.totalZones} label="held" tint={colors.text} />
+                <View style={styles.tStatDivider} />
+                <TerritoryStat
+                  value={recap.atRiskZones}
+                  label="need defence"
                   tint={recap.atRiskZones > 0 ? palette.heatCoral : colors.textFaint}
                 />
               </View>
             </FadeSlideIn>
 
-            {/* Route trust */}
-            {recap.bestTrustScore != null ? (
-              <FadeSlideIn delay={STAGGER_MS * 4}>
-                <View style={styles.trustCard}>
-                  <View style={styles.trustIcon}>
-                    <Ionicons name="ribbon-outline" size={18} color={palette.moveGold} />
-                  </View>
-                  <View style={styles.trustBody}>
-                    <Text style={styles.trustName}>Best route trust</Text>
-                    <Text style={styles.trustNote}>
-                      {recap.bestTrustLabel ?? "—"}
-                      {recap.averageTrustScore != null
-                        ? ` · avg ${recap.averageTrustScore} this week`
-                        : ""}
+            {/* Momentum + best trust (only when real) */}
+            <FadeSlideIn delay={STAGGER_MS * 4}>
+              <View style={styles.momentumCard}>
+                <View style={styles.momentumText}>
+                  <Text style={styles.momentumKicker}>Momentum</Text>
+                  <Text style={[styles.momentumLabel, { color: momentumTint }]}>{recap.momentumLabel}</Text>
+                  {recap.bestTrustScore != null ? (
+                    <Text style={styles.momentumNote}>
+                      Best route trust · {recap.bestTrustLabel ?? "—"} {recap.bestTrustScore}
                     </Text>
-                  </View>
-                  <Text style={styles.trustScore}>{recap.bestTrustScore}</Text>
+                  ) : null}
                 </View>
-              </FadeSlideIn>
-            ) : null}
+                <View style={styles.momentumScoreWrap}>
+                  <Text style={[styles.momentumScore, { color: momentumTint }]}>{recap.momentum}</Text>
+                  <Text style={styles.momentumOutOf}>/ 100</Text>
+                </View>
+              </View>
+            </FadeSlideIn>
 
-            {/* Streak + club + next focus */}
+            {/* Streak + club + single next action */}
             <FadeSlideIn delay={STAGGER_MS * 5}>
               <View style={styles.focusCard}>
                 <View style={styles.focusTopRow}>
@@ -212,25 +171,34 @@ export default function WeeklyRecapScreen() {
                   {recap.clubName ? (
                     <View style={styles.clubPill}>
                       <Hexagon size={16} color="#C9EEDE" coreColor={palette.pulseGreen} />
-                      <Text style={styles.clubPillText} numberOfLines={1}>{recap.clubName}</Text>
+                      <Text style={styles.clubPillText} numberOfLines={1}>
+                        {recap.clubName}
+                      </Text>
                     </View>
                   ) : null}
                 </View>
                 <View style={styles.focusRow}>
                   <Ionicons name="trail-sign-outline" size={16} color={colors.primary} />
-                  <Text style={styles.focusText}>Next · {recap.nextFocus}</Text>
+                  <Text style={styles.focusText}>Next · {view.nextFocus}</Text>
                 </View>
               </View>
             </FadeSlideIn>
+
+            <FadeSlideIn delay={STAGGER_MS * 6}>
+              <Button label="Share recap" icon="share-outline" onPress={onShare} />
+            </FadeSlideIn>
           </>
         ) : (
+          /* Confident editorial empty state */
           <FadeSlideIn delay={STAGGER_MS}>
             <View style={styles.emptyCard}>
-              <Ionicons name="calendar-outline" size={30} color={colors.primary} />
-              <Text style={styles.emptyTitle}>No movement logged yet this week</Text>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="pulse-outline" size={28} color={colors.primary} />
+              </View>
+              <Text style={styles.emptyTitle}>Your week hasn't started moving</Text>
               <Text style={styles.emptyText}>
-                Start a move and save a route — your weekly recap fills in as you
-                go.
+                Save a route and your recap builds itself — distance, territory,
+                and momentum, all from real movement.
               </Text>
               <Button
                 label="Start Move"
@@ -245,8 +213,8 @@ export default function WeeklyRecapScreen() {
           </FadeSlideIn>
         )}
 
-        {/* Season objectives — link into the weekly goals */}
-        <FadeSlideIn delay={STAGGER_MS * 6}>
+        {/* Season objectives link (kept for both states) */}
+        <FadeSlideIn delay={STAGGER_MS * 7}>
           <ScalePress
             to={0.98}
             style={styles.objectivesCta}
@@ -254,6 +222,8 @@ export default function WeeklyRecapScreen() {
               tapFeedback();
               router.push("/season-objectives");
             }}
+            accessibilityRole="button"
+            accessibilityLabel="Season Objectives. Local goals for your territory week"
           >
             <View style={styles.objectivesCtaIcon}>
               <Ionicons name="ribbon-outline" size={18} color={colors.primary} />
@@ -266,14 +236,6 @@ export default function WeeklyRecapScreen() {
           </ScalePress>
         </FadeSlideIn>
 
-        {recap.hasActivity ? (
-          <FadeSlideIn delay={STAGGER_MS * 7}>
-            <View style={styles.shareWrap}>
-              <Button label="Share recap" icon="share-outline" onPress={onShare} />
-            </View>
-          </FadeSlideIn>
-        ) : null}
-
         <Text style={styles.footerNote}>
           A local reflection of your recent movement. It does not affect XP,
           rewards, ownership, or on-chain status.
@@ -283,24 +245,11 @@ export default function WeeklyRecapScreen() {
   );
 }
 
-function StatTile({
-  icon,
-  value,
-  label,
-  tint,
-}: {
-  icon: IoniconName;
-  value: string;
-  label: string;
-  tint: string;
-}) {
+function TerritoryStat({ value, label, tint }: { value: number; label: string; tint: string }) {
   return (
-    <View style={styles.statTile}>
-      <View style={[styles.statTileIcon, { backgroundColor: `${tint}14` }]}>
-        <Ionicons name={icon} size={16} color={tint} />
-      </View>
-      <Text style={styles.statTileValue}>{value}</Text>
-      <Text style={styles.statTileLabel}>{label}</Text>
+    <View style={styles.tStat} accessibilityLabel={`${value} ${label}`}>
+      <Text style={[styles.tStatValue, { color: tint }]}>{value}</Text>
+      <Text style={styles.tStatLabel}>{label}</Text>
     </View>
   );
 }
@@ -320,7 +269,7 @@ const styles = StyleSheet.create({
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
   heroKicker: { ...type.kicker, color: colors.primary },
-  heroTitle: { ...type.display, fontSize: 23, lineHeight: 29 },
+  heroTitle: { ...type.display, fontSize: 30, lineHeight: 34, letterSpacing: -0.8 },
   badgeRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.xs },
   badge: {
     flexDirection: "row",
@@ -331,6 +280,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   badgeText: { fontSize: 12, fontWeight: "700" },
+
+  dominantCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.lg,
+    ...shadows.float,
+  },
+  supportingRow: { flexDirection: "row", alignItems: "center" },
+  supportingWrap: { flex: 1, flexDirection: "row", alignItems: "center" },
+  supportingDivider: { width: 1, height: 30, backgroundColor: colors.surfaceAlt },
+
+  storyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  storyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.moveGold}1A`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  storyBody: { flex: 1, gap: 2 },
+  storyKicker: { ...type.kicker, fontSize: 10.5, color: colors.textFaint },
+  storyTitle: { ...type.heading, fontSize: 15.5 },
+
+  territoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.lg,
+    ...shadows.card,
+  },
+  tStat: { flex: 1, alignItems: "center", gap: 2 },
+  tStatValue: { ...type.title, fontSize: 22, fontVariant: ["tabular-nums"] },
+  tStatLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
+  tStatDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.surfaceAlt },
 
   momentumCard: {
     flexDirection: "row",
@@ -344,53 +339,10 @@ const styles = StyleSheet.create({
   momentumText: { flex: 1, gap: 2 },
   momentumKicker: { ...type.kicker, color: colors.textFaint },
   momentumLabel: { ...type.title, fontSize: 22 },
-  momentumNote: { ...type.caption, fontSize: 12.5, color: colors.textDim },
+  momentumNote: { ...type.caption, fontSize: 12, color: colors.textDim },
   momentumScoreWrap: { alignItems: "flex-end" },
   momentumScore: { ...type.display, fontSize: 34, fontVariant: ["tabular-nums"] },
   momentumOutOf: { ...type.caption, fontSize: 11, color: colors.textFaint },
-
-  sectionLabel: { ...type.kicker, color: colors.textFaint, marginBottom: -spacing.sm },
-  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  statTile: {
-    flexGrow: 1,
-    flexBasis: "45%",
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: 4,
-    ...shadows.card,
-  },
-  statTileIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statTileValue: { ...type.title, fontSize: 20, fontVariant: ["tabular-nums"] },
-  statTileLabel: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
-
-  trustCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    ...shadows.card,
-  },
-  trustIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.moveGold}1A`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  trustBody: { flex: 1, gap: 2 },
-  trustName: { ...type.heading, fontSize: 15 },
-  trustNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
-  trustScore: { ...type.title, fontSize: 22, color: palette.moveGold },
 
   focusCard: {
     backgroundColor: colors.surface,
@@ -426,14 +378,23 @@ const styles = StyleSheet.create({
 
   emptyCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     padding: spacing.xl,
     alignItems: "center",
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyTitle: { ...type.heading, fontSize: 16, textAlign: "center", marginTop: spacing.xs },
-  emptyText: { ...type.caption, fontSize: 13, lineHeight: 18, color: colors.textDim, textAlign: "center" },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
+  emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },
 
   objectivesCta: {
@@ -456,8 +417,6 @@ const styles = StyleSheet.create({
   objectivesCtaBody: { flex: 1, gap: 2 },
   objectivesCtaName: { ...type.heading, fontSize: 15 },
   objectivesCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
-
-  shareWrap: { gap: spacing.sm },
 
   footerNote: {
     ...type.mono,
