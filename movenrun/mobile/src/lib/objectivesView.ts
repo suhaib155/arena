@@ -9,6 +9,7 @@
  * keeps the screen from showing two Start-Move CTAs at once.
  */
 import type {
+  ObjectiveAction,
   ObjectiveGroupKey,
   SeasonObjective,
   SeasonObjectivesOverview,
@@ -28,6 +29,9 @@ export interface CategorySummary {
   /** "2/3" style progress value. */
   progressLabel: string;
   allComplete: boolean;
+  /** The next active objective's action, so the row can navigate; null when the
+   *  category has nothing actionable (all complete / all locked). */
+  nextAction: ObjectiveAction | null;
 }
 
 export interface ObjectivesView {
@@ -81,6 +85,7 @@ export function buildObjectivesView(overview: SeasonObjectivesOverview): Objecti
             : "Locked — complete earlier objectives",
         progressLabel: `${g.completed}/${g.total}`,
         allComplete: groupAllComplete,
+        nextAction: next ? next.action : null,
       };
     });
 
