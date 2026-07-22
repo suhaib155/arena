@@ -37,6 +37,31 @@ export async function hasForegroundPermission(): Promise<boolean> {
   }
 }
 
+/** Coarse foreground-permission status for the readiness screen. Read-only —
+ *  does not request permission or change tracking behaviour. */
+export type ForegroundPermission = "granted" | "denied" | "undetermined";
+
+export async function getForegroundPermissionStatus(): Promise<ForegroundPermission> {
+  try {
+    const res = await Location.getForegroundPermissionsAsync();
+    if (res.status === "granted") return "granted";
+    if (res.status === "denied") return "denied";
+    return "undetermined";
+  } catch {
+    return "undetermined";
+  }
+}
+
+/** Whether device location services (the radio) are enabled. Unknown/errored
+ *  is treated as enabled so we never raise a false "unavailable" alarm. */
+export async function hasLocationServices(): Promise<boolean> {
+  try {
+    return await Location.hasServicesEnabledAsync();
+  } catch {
+    return true;
+  }
+}
+
 export class GpsTracker implements MoveTracker {
   readonly mode = "gps" as const;
   private sub: Location.LocationSubscription | null = null;

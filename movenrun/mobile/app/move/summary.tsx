@@ -7,6 +7,8 @@ import { Button } from "@/components/Button";
 import { RouteCanvas } from "@/components/RouteCanvas";
 import { CountUpText } from "@/components/CountUpText";
 import { Hexagon } from "@/components/Hexagon";
+import { MovementMetric } from "@/components/MovementMetric";
+import { ResultCallout } from "@/components/ResultCallout";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { formatDuration, formatPace } from "@/lib/geo";
@@ -20,7 +22,8 @@ import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
-import type { Quest } from "@/types";
+import { resolveCompletion } from "@/lib/completionSummary";
+import type { Quest, IoniconName } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 
 /**
@@ -84,6 +87,19 @@ export default function MoveSummaryScreen() {
   );
   const captureEligible =
     saveable && !alreadySavedToday && candidate !== null;
+
+  /* Truthful completion state — the reward block only shows when there is a
+     real reward to bank, and is always tagged local preview (never confirmed
+     payout). Capture/defend saves navigate away to the capture screen, so the
+     "saved" state reachable here is the zero-capture save. */
+  const completion = resolveCompletion({
+    mode: session.mode,
+    saveable,
+    alreadySavedToday,
+    saved,
+    outcome: saved ? "saved" : null,
+    defendedCount: 0,
+  });
 
   const save = () => {
     tapFeedback();
@@ -157,246 +173,242 @@ export default function MoveSummaryScreen() {
     router.dismissAll();
   };
 
+  const showFooterSave = saveable && !saved && !alreadySavedToday;
+
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-      <View style={styles.header}>
-        <Text style={styles.kicker}>
-          {session.mode === "demo" ? "Demo session" : "Session complete"}
-        </Text>
-        <Text style={styles.title}>Every move{"\n"}leaves a mark.</Text>
-      </View>
-
-      <FadeSlideIn>
-        <RouteCanvas points={session.points} height={210} />
-      </FadeSlideIn>
-
-      <FadeSlideIn delay={STAGGER_MS}>
-        <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <CountUpText value={km} decimals={2} style={styles.statValue} />
-            <Text style={styles.statLabel}>km</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{formatDuration(session.durationMs)}</Text>
-            <Text style={styles.statLabel}>time</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{pace ?? "—"}</Text>
-            <Text style={styles.statLabel}>pace /km</Text>
-          </View>
+        <View style={styles.header}>
+          <Text style={styles.kicker}>{completion.kicker}</Text>
+          <Text style={styles.title}>Every move{"\n"}leaves a mark.</Text>
         </View>
-      </FadeSlideIn>
 
-      <FadeSlideIn delay={STAGGER_MS * 2}>
-        <View style={styles.rewardCard}>
-          <View style={styles.rewardRow}>
-            <View style={[styles.rewardIcon, { backgroundColor: `${palette.moveGold}1F` }]}>
-              <Ionicons name="flash" size={18} color={palette.moveGold} />
+        {/* Route closes — the map result leads */}
+        <FadeSlideIn>
+          <RouteCanvas points={session.points} height={210} />
+        </FadeSlideIn>
+
+        {/* Honest result state */}
+        <FadeSlideIn delay={STAGGER_MS}>
+          <ResultCallout
+            icon={completionIcon(completion.kind)}
+            kicker={completion.kicker}
+            headline={completion.headline}
+            detail={completion.detail}
+            tone={completion.tone}
+          />
+        </FadeSlideIn>
+
+        {/* Movement metrics — route summary */}
+        <FadeSlideIn delay={STAGGER_MS * 2}>
+          <View style={styles.statsRow}>
+            <View style={styles.stat}>
+              <CountUpText value={km} decimals={2} style={styles.statValue} />
+              <Text style={styles.statLabel}>km</Text>
             </View>
-            <Text style={styles.rewardLabel}>XP</Text>
-            <CountUpText value={xp} prefix="+" style={[styles.rewardValue, { color: "#B07908" }]} />
+            <View style={styles.statDivider} />
+            <MovementMetric value={formatDuration(session.durationMs)} label="time" />
+            <View style={styles.statDivider} />
+            <MovementMetric value={pace ?? "—"} label="pace /km" />
           </View>
-          <View style={styles.rewardDivider} />
-          <View style={styles.rewardRow}>
-            <View style={[styles.rewardIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
-              <Hexagon size={15} color={palette.deedViolet} />
-            </View>
-            <View style={styles.rewardLabelWrap}>
-              <Text style={styles.rewardLabelPlain}>Locked MOVE</Text>
-              <Text style={styles.rewardSub}>preview · in-app progress, not a payout</Text>
-            </View>
-            <Text style={[styles.rewardValue, { color: palette.deedViolet }]}>
-              +{lockedMoveDelta}
-            </Text>
-          </View>
-        </View>
-      </FadeSlideIn>
+        </FadeSlideIn>
 
-      {/* Territory touched — Free Map Beta simulation */}
-      <FadeSlideIn delay={STAGGER_MS * 3}>
-        <View style={styles.zoneCard}>
-          <View style={styles.zoneHead}>
-            <Text style={styles.zoneTitle}>Territory touched</Text>
-            <Text style={styles.zoneCount}>
-              {zonesTouched.length} zone{zonesTouched.length === 1 ? "" : "s"}
-            </Text>
-          </View>
-
-          <View style={styles.zoneHexRow}>
-            {zonesTouched.slice(0, 5).map((t, i) => {
-              const owned = ownedZones.some((z) => z.id === t.id);
-              const isCandidate = candidate?.id === t.id;
-              return (
-                <Hexagon
-                  key={t.id}
-                  size={i === 0 ? 36 : 30}
-                  color={owned ? "#C9EEDE" : isCandidate ? "#D9F0E5" : "#E8EDF0"}
-                  coreColor={
-                    owned
-                      ? palette.pulseGreen
-                      : isCandidate
-                        ? palette.voltMint
-                        : undefined
-                  }
-                />
-              );
-            })}
-            {zonesTouched.length === 0 ? (
-              <Text style={styles.zoneEmpty}>No zones reached yet</Text>
-            ) : null}
-          </View>
-
-          {candidate ? (
-            <View style={styles.candidateRow}>
-              <View style={styles.candidateBadge}>
-                <Text style={styles.candidateBadgeText}>Common Zone</Text>
+        {/* Rewards — only when there's a real reward to bank; always local preview */}
+        {completion.showRewards ? (
+          <FadeSlideIn delay={STAGGER_MS * 3}>
+            <View style={styles.rewardCard}>
+              {!completion.progressPersisted ? (
+                <View style={styles.pendingBadge}>
+                  <Ionicons name="time-outline" size={13} color={colors.textDim} />
+                  <Text style={styles.pendingText}>Save to bank these — not yet earned</Text>
+                </View>
+              ) : null}
+              <View style={styles.rewardRow}>
+                <View style={[styles.rewardIcon, { backgroundColor: `${palette.moveGold}1F` }]}>
+                  <Ionicons name="flash" size={18} color={palette.moveGold} />
+                </View>
+                <Text style={styles.rewardLabel}>XP</Text>
+                <CountUpText value={xp} prefix="+" style={[styles.rewardValue, { color: "#B07908" }]} />
               </View>
-              <Text style={styles.candidateName} numberOfLines={1}>
-                {candidate.name}
-              </Text>
-              <Text style={styles.candidateHint}>
-                {session.mode === "demo"
-                  ? "demo only"
-                  : captureEligible
-                    ? "ready to capture"
-                    : "capture preview"}
-              </Text>
+              <View style={styles.rewardDivider} />
+              <View style={styles.rewardRow}>
+                <View style={[styles.rewardIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+                  <Hexagon size={15} color={palette.deedViolet} />
+                </View>
+                <View style={styles.rewardLabelWrap}>
+                  <Text style={styles.rewardLabelPlain}>Locked MOVE</Text>
+                  <Text style={styles.rewardSub}>preview · in-app progress, not a payout</Text>
+                </View>
+                <Text style={[styles.rewardValue, { color: palette.deedViolet }]}>
+                  +{lockedMoveDelta}
+                </Text>
+              </View>
             </View>
-          ) : zonesTouched.length > 0 ? (
-            <Text style={styles.zoneEmpty}>All touched zones are already yours.</Text>
-          ) : null}
+          </FadeSlideIn>
+        ) : null}
 
-          {ownedTouched.length > 0 && session.mode === "gps" ? (
-            <Text style={styles.defendHint}>
-              {ownedTouched.length} of yours touched — defense refreshes when you
-              save.
-            </Text>
-          ) : null}
-
-          <Text style={styles.zoneBeta}>Local territory preview · on-device simulation</Text>
-        </View>
-      </FadeSlideIn>
-
-      {/* Route Trust — local verification preview (does not affect rewards) */}
-      {trust ? (
+        {/* Territory touched — Free Map Beta simulation */}
         <FadeSlideIn delay={STAGGER_MS * 4}>
-          <View style={styles.trustCard}>
-            <View style={styles.trustHead}>
-              <Text style={styles.trustTitle}>Route Trust Preview</Text>
-              <View style={styles.previewBadge}>
-                <Text style={styles.previewBadgeText}>Preview only</Text>
-              </View>
+          <View style={styles.zoneCard}>
+            <View style={styles.zoneHead}>
+              <Text style={styles.zoneTitle}>Territory touched</Text>
+              <Text style={styles.zoneCount}>
+                {zonesTouched.length} zone{zonesTouched.length === 1 ? "" : "s"}
+              </Text>
             </View>
 
-            <View style={styles.trustScoreRow}>
-              <View style={styles.trustScoreWrap}>
-                <Text style={[styles.trustScore, { color: toneColor(trust.tone).text }]}>
-                  {trust.score}
+            <View style={styles.zoneHexRow}>
+              {zonesTouched.slice(0, 5).map((t, i) => {
+                const owned = ownedZones.some((z) => z.id === t.id);
+                const isCandidate = candidate?.id === t.id;
+                return (
+                  <Hexagon
+                    key={t.id}
+                    size={i === 0 ? 36 : 30}
+                    color={owned ? "#C9EEDE" : isCandidate ? "#D9F0E5" : "#E8EDF0"}
+                    coreColor={
+                      owned
+                        ? palette.pulseGreen
+                        : isCandidate
+                          ? palette.voltMint
+                          : undefined
+                    }
+                  />
+                );
+              })}
+              {zonesTouched.length === 0 ? (
+                <Text style={styles.zoneEmpty}>No zones reached yet</Text>
+              ) : null}
+            </View>
+
+            {candidate ? (
+              <View style={styles.candidateRow}>
+                <View style={styles.candidateBadge}>
+                  <Text style={styles.candidateBadgeText}>Common Zone</Text>
+                </View>
+                <Text style={styles.candidateName} numberOfLines={1}>
+                  {candidate.name}
                 </Text>
-                <Text style={styles.trustScoreMax}>/100</Text>
-              </View>
-              <View style={styles.trustLabelWrap}>
-                <Text style={[styles.trustLabel, { color: toneColor(trust.tone).text }]}>
-                  {trust.label}
+                <Text style={styles.candidateHint}>
+                  {session.mode === "demo"
+                    ? "demo only"
+                    : captureEligible
+                      ? "ready to capture"
+                      : "capture preview"}
                 </Text>
-                <Text style={styles.trustExplain}>{trust.explanation}</Text>
               </View>
-            </View>
-
-            <View style={styles.trustBarTrack}>
-              <View
-                style={[
-                  styles.trustBarFill,
-                  { width: `${trust.score}%`, backgroundColor: toneColor(trust.tone).bar },
-                ]}
-              />
-            </View>
-
-            {trust.positiveSignals.length > 0 ? (
-              <View style={styles.chipRow}>
-                {trust.positiveSignals.map((s) => (
-                  <View key={s} style={[styles.chip, styles.chipGood]}>
-                    <Ionicons name="checkmark-circle" size={12} color="#0A8F60" />
-                    <Text style={[styles.chipText, { color: "#0A8F60" }]}>{s}</Text>
-                  </View>
-                ))}
-              </View>
+            ) : zonesTouched.length > 0 ? (
+              <Text style={styles.zoneEmpty}>All touched zones are already yours.</Text>
             ) : null}
 
-            {trust.riskFlags.length > 0 ? (
-              <View style={styles.chipRow}>
-                {trust.riskFlags.map((f) => (
-                  <View key={f} style={[styles.chip, styles.chipRisk]}>
-                    <Ionicons name="alert-circle" size={12} color={palette.heatCoral} />
-                    <Text style={[styles.chipText, { color: "#C2492E" }]}>{f}</Text>
-                  </View>
-                ))}
-              </View>
+            {ownedTouched.length > 0 && session.mode === "gps" ? (
+              <Text style={styles.defendHint}>
+                {ownedTouched.length} of yours touched — defense refreshes when you
+                save.
+              </Text>
             ) : null}
 
-            <Text style={styles.trustNote}>
-              Preview only · does not affect rewards or ownership. No location is
-              sent anywhere — this helps MovenRun learn what a clean route looks
-              like.
-            </Text>
+            <Text style={styles.zoneBeta}>Local territory preview · on-device simulation</Text>
           </View>
         </FadeSlideIn>
-      ) : null}
 
-      {trust && session.mode === "gps" ? (
-        <FadeSlideIn delay={STAGGER_MS * 5}>
-          <Pressable
-            style={styles.proofRow}
-            onPress={() => {
-              tapFeedback();
-              router.push({
-                pathname: "/route/proof",
-                params: {
-                  score: String(trust.score),
-                  label: trust.label,
-                  distanceMeters: String(Math.round(session.distanceM)),
-                  durationSeconds: String(Math.round(session.durationMs / 1000)),
-                  outcome: "saved",
-                  zones: String(zonesTouched.length),
-                  defended: "0",
-                  at: new Date(session.finishedAt).toISOString(),
-                },
-              });
-            }}
-          >
-            <Ionicons name="share-social-outline" size={18} color={colors.primary} />
-            <Text style={styles.proofText}>Route Proof Preview</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-          </Pressable>
-        </FadeSlideIn>
-      ) : null}
+        {/* Route Trust — local verification preview (does not affect rewards) */}
+        {trust ? (
+          <FadeSlideIn delay={STAGGER_MS * 5}>
+            <View style={styles.trustCard}>
+              <View style={styles.trustHead}>
+                <Text style={styles.trustTitle}>Route Trust Preview</Text>
+                <View style={styles.previewBadge}>
+                  <Text style={styles.previewBadgeText}>Preview only</Text>
+                </View>
+              </View>
 
-      {session.mode === "demo" ? (
-        <Text style={styles.note}>
-          Demo route — not real GPS. Demo zones are preview only and are never
-          saved as territory.
-        </Text>
-      ) : alreadySavedToday && !saved ? (
-        <Text style={styles.note}>
-          You already saved a session today — extra sessions don't earn more XP.
-        </Text>
-      ) : !saveable && !saved ? (
-        <Text style={styles.note}>
-          Too short to save — move at least 200 m or 5 minutes next time.
-        </Text>
-      ) : saved ? (
-        <View style={styles.savedRow}>
-          <Ionicons name="checkmark-circle" size={16} color={palette.pulseGreen} />
-          <Text style={styles.savedText}>Session saved — streak safe.</Text>
-        </View>
-      ) : null}
+              <View style={styles.trustScoreRow}>
+                <View style={styles.trustScoreWrap}>
+                  <Text style={[styles.trustScore, { color: toneColor(trust.tone).text }]}>
+                    {trust.score}
+                  </Text>
+                  <Text style={styles.trustScoreMax}>/100</Text>
+                </View>
+                <View style={styles.trustLabelWrap}>
+                  <Text style={[styles.trustLabel, { color: toneColor(trust.tone).text }]}>
+                    {trust.label}
+                  </Text>
+                  <Text style={styles.trustExplain}>{trust.explanation}</Text>
+                </View>
+              </View>
 
+              <View style={styles.trustBarTrack}>
+                <View
+                  style={[
+                    styles.trustBarFill,
+                    { width: `${trust.score}%`, backgroundColor: toneColor(trust.tone).bar },
+                  ]}
+                />
+              </View>
+
+              {trust.positiveSignals.length > 0 ? (
+                <View style={styles.chipRow}>
+                  {trust.positiveSignals.map((s) => (
+                    <View key={s} style={[styles.chip, styles.chipGood]}>
+                      <Ionicons name="checkmark-circle" size={12} color="#0A8F60" />
+                      <Text style={[styles.chipText, { color: "#0A8F60" }]}>{s}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {trust.riskFlags.length > 0 ? (
+                <View style={styles.chipRow}>
+                  {trust.riskFlags.map((f) => (
+                    <View key={f} style={[styles.chip, styles.chipRisk]}>
+                      <Ionicons name="alert-circle" size={12} color={palette.heatCoral} />
+                      <Text style={[styles.chipText, { color: "#C2492E" }]}>{f}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <Text style={styles.trustNote}>
+                Preview only · does not affect rewards or ownership. No location is
+                sent anywhere — this helps MovenRun learn what a clean route looks
+                like.
+              </Text>
+            </View>
+          </FadeSlideIn>
+        ) : null}
+
+        {trust && session.mode === "gps" ? (
+          <FadeSlideIn delay={STAGGER_MS * 6}>
+            <Pressable
+              style={styles.proofRow}
+              onPress={() => {
+                tapFeedback();
+                router.push({
+                  pathname: "/route/proof",
+                  params: {
+                    score: String(trust.score),
+                    label: trust.label,
+                    distanceMeters: String(Math.round(session.distanceM)),
+                    durationSeconds: String(Math.round(session.durationMs / 1000)),
+                    outcome: "saved",
+                    zones: String(zonesTouched.length),
+                    defended: "0",
+                    at: new Date(session.finishedAt).toISOString(),
+                  },
+                });
+              }}
+            >
+              <Ionicons name="share-social-outline" size={18} color={colors.primary} />
+              <Text style={styles.proofText}>Route Proof Preview</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+            </Pressable>
+          </FadeSlideIn>
+        ) : null}
       </ScrollView>
+
       <View style={styles.footer}>
-        {saveable && !saved && !alreadySavedToday ? (
+        {showFooterSave ? (
           <Button
             label={captureEligible ? "Save + Capture Zone" : "Save session"}
             icon={captureEligible ? "flag" : "bookmark"}
@@ -406,7 +418,7 @@ export default function MoveSummaryScreen() {
         <Button
           label="Back to Today"
           icon="home"
-          variant={saveable && !saved && !alreadySavedToday ? "secondary" : "primary"}
+          variant={showFooterSave ? "secondary" : "primary"}
           onPress={done}
         />
       </View>
@@ -414,31 +426,60 @@ export default function MoveSummaryScreen() {
   );
 }
 
+function completionIcon(kind: ReturnType<typeof resolveCompletion>["kind"]): IoniconName {
+  switch (kind) {
+    case "saved-captured":
+      return "flag";
+    case "saved-defended":
+      return "shield-checkmark";
+    case "saved":
+      return "checkmark-circle";
+    case "too-short":
+      return "alert-circle-outline";
+    case "already-saved":
+      return "time-outline";
+    case "demo-preview":
+      return "flask-outline";
+    default:
+      return "bookmark-outline";
+  }
+}
+
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: spacing.lg },
-  header: { paddingTop: spacing.lg, paddingBottom: spacing.lg, gap: spacing.xs },
+  scroll: { paddingBottom: spacing.lg, gap: spacing.md },
+  header: { paddingTop: spacing.lg, gap: spacing.xs },
   kicker: { ...type.kicker, color: colors.primary },
   title: { ...type.display, fontSize: 28 },
   statsRow: {
     flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingVertical: spacing.lg,
-    marginTop: spacing.md,
     ...shadows.card,
   },
   stat: { flex: 1, alignItems: "center", gap: 2 },
   statValue: { ...type.title, fontSize: 22, fontVariant: ["tabular-nums"] },
   statLabel: { ...type.caption, fontSize: 11 },
-  statDivider: { width: 1, backgroundColor: colors.surfaceAlt },
+  statDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.surfaceAlt },
   rewardCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     padding: spacing.lg,
     gap: spacing.md,
-    marginTop: spacing.md,
     ...shadows.float,
   },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  pendingText: { ...type.caption, fontSize: 11, fontWeight: "600", color: colors.textDim },
   rewardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   rewardIcon: {
     width: 38,
@@ -453,28 +494,11 @@ const styles = StyleSheet.create({
   rewardSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
   rewardValue: { fontSize: 22, fontWeight: "800", letterSpacing: -0.4 },
   rewardDivider: { height: 1, backgroundColor: colors.surfaceAlt },
-  note: {
-    ...type.caption,
-    fontSize: 12.5,
-    color: colors.textFaint,
-    textAlign: "center",
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-  },
-  savedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: spacing.lg,
-  },
-  savedText: { ...type.caption, fontSize: 13, color: colors.text, fontWeight: "600" },
   zoneCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     padding: spacing.lg,
     gap: spacing.md,
-    marginTop: spacing.md,
     ...shadows.card,
   },
   zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -499,7 +523,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing.lg,
     gap: spacing.md,
-    marginTop: spacing.md,
     ...shadows.card,
   },
   trustHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -545,11 +568,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
-    marginTop: spacing.md,
     ...shadows.card,
   },
   proofText: { flex: 1, ...type.heading, fontSize: 14.5 },
-  footer: { marginTop: "auto", paddingVertical: spacing.md, gap: spacing.sm },
+  footer: { paddingVertical: spacing.md, gap: spacing.sm },
   missingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   missingText: { ...type.body },
 });

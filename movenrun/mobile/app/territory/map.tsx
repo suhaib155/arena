@@ -6,43 +6,46 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { ScalePress } from "@/components/ScalePress";
-import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
+import { FloatingMapControl } from "@/components/FloatingMapControl";
+import { MapLegend, type LegendItem } from "@/components/MapLegend";
+import { ZoneSheet } from "@/components/ZoneSheet";
 import { healthVisual } from "@/components/ZoneCard";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { HEALTH_LABEL } from "@/lib/territory";
-import { buildTerritoryOverview, MAP_COLUMNS, type MapCell } from "@/lib/territoryMap";
-import { buildCityDistricts } from "@/lib/cityDistricts";
-import { buildRivalGhosts } from "@/lib/rivalGhosts";
+import { buildTerritoryOverview, type MapCell } from "@/lib/territoryMap";
 import { tapFeedback } from "@/lib/haptics";
 
 function lastDefendedText(iso: string, now: number): string {
   const days = Math.floor((now - new Date(iso).getTime()) / 86_400_000);
-  if (days <= 0) return "defended today";
-  if (days === 1) return "defended yesterday";
-  return `defended ${days}d ago`;
+  if (days <= 0) return "Defended today";
+  if (days === 1) return "Defended yesterday";
+  return `Defended ${days}d ago`;
 }
 
-const LEGEND: { label: string; core: string }[] = [
-  { label: "Healthy", core: palette.pulseGreen },
-  { label: "At risk", core: palette.heatCoral },
-  { label: "Dormant", core: palette.silverTrail },
-  { label: "Deed preview", core: palette.deedViolet },
+const LEGEND: LegendItem[] = [
+  { label: "Healthy", color: palette.pulseGreen },
+  { label: "At risk", color: palette.heatCoral },
+  { label: "Dormant", color: palette.silverTrail },
+  { label: "Deed", color: palette.deedViolet },
 ];
 
 /**
- * Territory Map — a local territory *board* (not a real map). Renders captured
- * zones as a deterministic pseudo-hex grid from safe zone state only: no raw
- * GPS, coordinates, route paths, or location names. Read-only; gates nothing.
+ * Territory — the primary spatial surface. The territory board (real captured
+ * zones, no decorative fake hexes) fills the viewport; compact floating
+ * controls sit over it; the selected zone opens a collapsed/expanded sheet.
+ * All geometry comes from safe zone state (no raw GPS, coordinates, or route
+ * paths).
  */
 export default function TerritoryMapScreen() {
   const router = useRouter();
   const zones = useGameStore((s) => s.zones);
+  const hydrated = useGameStore((s) => s._hydrated);
   const now = Date.now();
   const overview = useMemo(() => buildTerritoryOverview(zones, now), [zones, now]);
-  const city = useMemo(() => buildCityDistricts(zones, now), [zones, now]);
-  const rivals = useMemo(() => buildRivalGhosts(zones, now), [zones, now]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [showLegend, setShowLegend] = useState(true);
 
   const selected = overview.cells.find((c) => c.zone.id === selectedId) ?? null;
   const rows = useMemo(() => {
@@ -55,52 +58,65 @@ export default function TerritoryMapScreen() {
 
   const needsDefense = overview.atRisk + overview.contestedPreview + overview.dormant;
 
+  const selectZone = (id: string) => {
+    tapFeedback();
+    setExpanded(false);
+    setSelectedId((cur) => (cur === id ? null : id));
+  };
+
   const viewZone = (id: string) => {
     tapFeedback();
     router.push({ pathname: "/zone/[id]", params: { id } });
   };
 
   return (
-    <Screen>
+    <Screen edgeTop>
       <View style={styles.headerRow}>
         <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Territory</Text>
-        <View style={styles.backBtn} />
+        {overview.total > 0 ? (
+          <View style={styles.headerStat}>
+            <Text style={styles.headerStatValue}>{overview.total}</Text>
+            <Text style={styles.headerStatLabel}>{overview.total === 1 ? "zone" : "zones"}</Text>
+          </View>
+        ) : (
+          <View style={styles.backBtn} />
+        )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <FadeSlideIn>
-          <View style={styles.hero}>
-            <Text style={styles.heroKicker}>Territory Map</Text>
-            <Text style={styles.heroTitle}>Your local captured zones at a glance.</Text>
-            <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
-                <Ionicons name="grid-outline" size={13} color={palette.baseBlue} />
-                <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
-              </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.pulseGreen}1A` }]}>
-                <Ionicons name="location-outline" size={13} color="#0A8F60" />
-                <Text style={[styles.badgeText, { color: "#0A8F60" }]}>No raw GPS</Text>
-              </View>
+      {/* The board dominates the viewport */}
+      <View style={styles.board}>
+        {!hydrated ? (
+          <MapSkeleton />
+        ) : overview.total === 0 ? (
+          <View style={styles.empty}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="map-outline" size={30} color={colors.primary} />
             </View>
+            <Text style={styles.emptyTitle}>No territory yet</Text>
+            <Text style={styles.emptyText}>
+              Start Move to capture your first zone. Your captured tiles appear
+              here as a live local board.
+            </Text>
+            <Button
+              label="Start Move"
+              icon="walk"
+              onPress={() => {
+                tapFeedback();
+                router.push("/move");
+              }}
+              style={styles.emptyCta}
+            />
           </View>
-        </FadeSlideIn>
-
-        {/* Map board */}
-        <FadeSlideIn delay={STAGGER_MS}>
-          <View style={styles.board}>
-            {overview.total === 0 ? (
-              <View style={styles.empty}>
-                <Ionicons name="map-outline" size={30} color={colors.textFaint} />
-                <Text style={styles.emptyText}>
-                  No territory yet. Start Move to capture your first zone.
-                </Text>
-                <Button label="Start Move" icon="walk" onPress={() => { tapFeedback(); router.push("/move"); }} />
-              </View>
-            ) : (
-              rows.map((row, ri) => (
+        ) : (
+          <>
+            <ScrollView
+              contentContainerStyle={styles.boardScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              {rows.map((row, ri) => (
                 <View key={ri} style={[styles.boardRow, ri % 2 === 1 ? styles.boardRowOffset : null]}>
                   {row.map((cell) => {
                     const hv = healthVisual(cell.status.health);
@@ -108,15 +124,14 @@ export default function TerritoryMapScreen() {
                     return (
                       <ScalePress
                         key={cell.zone.id}
-                        to={0.92}
+                        to={0.9}
                         style={sel ? [styles.cell, styles.cellSelected] : styles.cell}
-                        onPress={() => {
-                          tapFeedback();
-                          setSelectedId(sel ? null : cell.zone.id);
-                        }}
+                        onPress={() => selectZone(cell.zone.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${cell.zone.name}, ${HEALTH_LABEL[cell.status.health]}${sel ? ", selected" : ""}`}
                       >
                         <Hexagon
-                          size={40}
+                          size={44}
                           color={cell.zone.isDeedPreview ? "#E1DAFF" : hv.fill}
                           coreColor={cell.zone.isDeedPreview ? palette.deedViolet : hv.core}
                         />
@@ -124,198 +139,136 @@ export default function TerritoryMapScreen() {
                     );
                   })}
                 </View>
-              ))
-            )}
-          </View>
-        </FadeSlideIn>
+              ))}
+            </ScrollView>
 
-        {overview.total > 0 ? (
-          <>
-            {/* Stats strip */}
-            <FadeSlideIn delay={STAGGER_MS * 2}>
-              <View style={styles.strip}>
-                <Stat value={overview.total} label="zones" />
-                <View style={styles.stripDivider} />
-                <Stat value={overview.healthy} label="healthy" tint="#0A8F60" />
-                <View style={styles.stripDivider} />
-                <Stat value={needsDefense} label="need defense" tint={needsDefense > 0 ? "#C2492E" : undefined} />
-                <View style={styles.stripDivider} />
-                <Stat value={overview.territoryScore} label="score" tint={palette.baseBlue} />
+            {/* Floating map controls */}
+            <View style={styles.floatingControls}>
+              <FloatingMapControl
+                icon="information-circle-outline"
+                accessibilityLabel={showLegend ? "Hide legend" : "Show legend"}
+                active={showLegend}
+                onPress={() => {
+                  tapFeedback();
+                  setShowLegend((v) => !v);
+                }}
+              />
+              {selectedId ? (
+                <FloatingMapControl
+                  icon="scan-outline"
+                  accessibilityLabel="Clear selection"
+                  onPress={() => {
+                    tapFeedback();
+                    setSelectedId(null);
+                  }}
+                />
+              ) : null}
+            </View>
+
+            {/* Compact legend overlay */}
+            {showLegend && !selected ? (
+              <View style={styles.legendWrap} pointerEvents="box-none">
+                <MapLegend items={LEGEND} />
               </View>
-            </FadeSlideIn>
-
-            {/* Selected zone preview */}
-            {selected ? (
-              <FadeSlideIn delay={STAGGER_MS / 2}>
-                <View style={styles.selectedCard}>
-                  <Hexagon
-                    size={36}
-                    color={selected.zone.isDeedPreview ? "#E1DAFF" : healthVisual(selected.status.health).fill}
-                    coreColor={selected.zone.isDeedPreview ? palette.deedViolet : healthVisual(selected.status.health).core}
-                  />
-                  <View style={styles.selectedBody}>
-                    <Text style={styles.selectedName} numberOfLines={1}>{selected.zone.name}</Text>
-                    <Text style={[styles.selectedHealth, { color: healthVisual(selected.status.health).text }]}>
-                      {HEALTH_LABEL[selected.status.health]} · {lastDefendedText(selected.zone.lastDefendedAt, now)}
-                    </Text>
-                    <Text style={styles.selectedMeta}>
-                      Control {selected.status.control}% · Defense {selected.status.defense}%
-                    </Text>
-                  </View>
-                  <Pressable hitSlop={8} onPress={() => viewZone(selected.zone.id)}>
-                    <Text style={styles.viewLink}>View</Text>
-                  </Pressable>
-                </View>
-              </FadeSlideIn>
             ) : null}
-
-            {/* Priority card */}
-            {overview.priority ? (
-              <FadeSlideIn delay={STAGGER_MS * 3}>
-                <View style={styles.priorityCard}>
-                  <View style={styles.priorityIcon}>
-                    <Ionicons name="shield-outline" size={18} color={palette.heatCoral} />
-                  </View>
-                  <View style={styles.priorityBody}>
-                    <Text style={styles.priorityKicker}>Defend next</Text>
-                    <Text style={styles.priorityName} numberOfLines={1}>{overview.priority.name}</Text>
-                  </View>
-                  <Button
-                    label="View Zone"
-                    variant="secondary"
-                    onPress={() => viewZone(overview.priority!.id)}
-                  />
-                </View>
-              </FadeSlideIn>
-            ) : (
-              <FadeSlideIn delay={STAGGER_MS * 3}>
-                <View style={styles.allClear}>
-                  <Ionicons name="checkmark-circle" size={16} color={palette.pulseGreen} />
-                  <Text style={styles.allClearText}>All zones healthy — strengthen your territory by moving.</Text>
-                </View>
-              </FadeSlideIn>
-            )}
-
-            {/* Legend */}
-            <FadeSlideIn delay={STAGGER_MS * 4}>
-              <View style={styles.legend}>
-                {LEGEND.map((l) => (
-                  <View key={l.label} style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: l.core }]} />
-                    <Text style={styles.legendText}>{l.label}</Text>
-                  </View>
-                ))}
-              </View>
-            </FadeSlideIn>
           </>
-        ) : null}
+        )}
+      </View>
 
-        {overview.total > 0 ? (
-          <FadeSlideIn delay={STAGGER_MS * 5}>
-            <ScalePress
-              to={0.98}
-              style={styles.collectionsCta}
-              onPress={() => {
-                tapFeedback();
-                router.push("/territory/alerts");
-              }}
-            >
-              <View style={[styles.collectionsIcon, { backgroundColor: `${palette.heatCoral}14` }]}>
-                <Ionicons name="notifications-outline" size={18} color={palette.heatCoral} />
-              </View>
-              <View style={styles.collectionsBody}>
-                <Text style={styles.collectionsName}>Territory Alerts</Text>
-                <Text style={styles.collectionsNote}>Local reminders for what needs attention</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        <FadeSlideIn delay={STAGGER_MS * 6}>
-          <ScalePress
-            to={0.98}
-            style={styles.collectionsCta}
-            onPress={() => {
+      {/* Selected → sheet; else compact status/actions */}
+      {hydrated && overview.total > 0 ? (
+        selected ? (
+          <ZoneSheet
+            zoneName={selected.zone.name}
+            statusLabel={HEALTH_LABEL[selected.status.health]}
+            statusColor={healthVisual(selected.status.health).core}
+            activity={lastDefendedText(selected.zone.lastDefendedAt, now)}
+            actionLabel="View Zone"
+            onAction={() => viewZone(selected.zone.id)}
+            expanded={expanded}
+            onToggle={() => {
               tapFeedback();
-              router.push("/city-districts");
+              setExpanded((v) => !v);
             }}
-          >
-            <View style={[styles.collectionsIcon, { backgroundColor: `${palette.baseBlue}14` }]}>
-              <Ionicons name="business-outline" size={18} color={palette.baseBlue} />
-            </View>
-            <View style={styles.collectionsBody}>
-              <Text style={styles.collectionsName}>City Districts</Text>
-              <Text style={styles.collectionsNote}>
-                {city.hasZones
-                  ? `${city.controlledDistricts}/${city.activeDistricts} controlled · local city preview`
-                  : "Group your zones into a local city preview"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-          </ScalePress>
-        </FadeSlideIn>
-
-        {overview.total > 0 ? (
-          <FadeSlideIn delay={STAGGER_MS * 7}>
-            <ScalePress
-              to={0.98}
-              style={styles.collectionsCta}
-              onPress={() => {
-                tapFeedback();
-                router.push("/rivals");
-              }}
-            >
-              <View style={[styles.collectionsIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
-                <Ionicons name="color-wand-outline" size={18} color={palette.deedViolet} />
-              </View>
-              <View style={styles.collectionsBody}>
-                <Text style={styles.collectionsName}>Rival Ghosts</Text>
-                <Text style={styles.collectionsNote}>
-                  {rivals.hasPressure
-                    ? `${rivals.highPressure > 0 ? `${rivals.highPressure} high-pressure · ` : ""}fictional rivals circling`
-                    : "Fictional pressure preview · no real users"}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-            </ScalePress>
-          </FadeSlideIn>
-        ) : null}
-
-        <FadeSlideIn delay={STAGGER_MS * 8}>
-          <ScalePress
-            to={0.98}
-            style={styles.collectionsCta}
-            onPress={() => {
+            onClose={() => {
               tapFeedback();
-              router.push("/collections");
+              setSelectedId(null);
             }}
-          >
-            <View style={styles.collectionsIcon}>
-              <Ionicons name="ribbon-outline" size={18} color={palette.deedViolet} />
-            </View>
-            <View style={styles.collectionsBody}>
-              <Text style={styles.collectionsName}>Zone Collections</Text>
-              <Text style={styles.collectionsNote}>Local badges for your territory journey</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-          </ScalePress>
-        </FadeSlideIn>
-
-        <Text style={styles.footerNote}>
-          This is a local territory board, not a real map. Raw GPS and paths are
-          not stored.
-        </Text>
-      </ScrollView>
+            meters={[
+              { label: "Control", value: selected.status.control, color: palette.baseBlue },
+              { label: "Defence", value: selected.status.defense, color: palette.pulseGreen },
+            ]}
+            rows={[
+              { label: "Health", value: HEALTH_LABEL[selected.status.health] },
+              { label: "Risk", value: `${selected.status.risk}%` },
+              { label: "Last defended", value: lastDefendedText(selected.zone.lastDefendedAt, now) },
+            ]}
+          />
+        ) : (
+          <View style={styles.statusPanel}>
+            {overview.priority ? (
+              <View style={styles.priorityRow}>
+                <View style={styles.priorityIcon}>
+                  <Ionicons name="shield-half-outline" size={18} color={palette.heatCoral} />
+                </View>
+                <View style={styles.priorityBody}>
+                  <Text style={styles.priorityKicker}>
+                    {needsDefense} zone{needsDefense === 1 ? "" : "s"} need defence
+                  </Text>
+                  <Text style={styles.priorityName} numberOfLines={1}>
+                    Defend next · {overview.priority.name}
+                  </Text>
+                </View>
+                <Button label="View" variant="secondary" onPress={() => viewZone(overview.priority!.id)} />
+              </View>
+            ) : (
+              <View style={styles.allClear}>
+                <Ionicons name="checkmark-circle" size={16} color={palette.pulseGreen} />
+                <Text style={styles.allClearText}>All zones healthy — moving keeps them charged.</Text>
+              </View>
+            )}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickRow}
+            >
+              <QuickLink icon="notifications-outline" label="Alerts" onPress={() => { tapFeedback(); router.push("/territory/alerts"); }} />
+              <QuickLink icon="business-outline" label="City" onPress={() => { tapFeedback(); router.push("/city-districts"); }} />
+              <QuickLink icon="color-wand-outline" label="Rivals" onPress={() => { tapFeedback(); router.push("/rivals"); }} />
+              <QuickLink icon="ribbon-outline" label="Collections" onPress={() => { tapFeedback(); router.push("/collections"); }} />
+            </ScrollView>
+          </View>
+        )
+      ) : null}
     </Screen>
   );
 }
 
-function Stat({ value, label, tint }: { value: number; label: string; tint?: string }) {
+function QuickLink({ icon, label, onPress }: { icon: React.ComponentProps<typeof Ionicons>["name"]; label: string; onPress: () => void }) {
   return (
-    <View style={styles.stat}>
-      <Text style={[styles.statValue, tint ? { color: tint } : null]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <ScalePress
+      to={0.95}
+      onPress={onPress}
+      style={styles.quickLink}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Ionicons name={icon} size={18} color={colors.primary} />
+      <Text style={styles.quickLabel}>{label}</Text>
+    </ScalePress>
+  );
+}
+
+function MapSkeleton() {
+  return (
+    <View style={styles.skeleton} accessibilityLabel="Loading your territory">
+      {[0, 1, 2].map((r) => (
+        <View key={r} style={[styles.boardRow, r % 2 === 1 ? styles.boardRowOffset : null]}>
+          {[0, 1, 2].map((c) => (
+            <View key={c} style={styles.skeletonCell} />
+          ))}
+        </View>
+      ))}
     </View>
   );
 }
@@ -327,72 +280,66 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
+    paddingBottom: spacing.sm,
   },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
-
-  hero: { gap: spacing.sm, paddingTop: spacing.sm },
-  heroKicker: { ...type.kicker, color: colors.primary },
-  heroTitle: { ...type.display, fontSize: 23, lineHeight: 29 },
-  badgeRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.xs },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
-  },
-  badgeText: { fontSize: 12, fontWeight: "700" },
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerTitle: { ...type.heading, fontSize: 17 },
+  headerStat: { alignItems: "center", minWidth: 40 },
+  headerStatValue: { ...type.heading, fontSize: 16, fontVariant: ["tabular-nums"] },
+  headerStatLabel: { ...type.caption, fontSize: 9.5, textTransform: "uppercase", letterSpacing: 0.5 },
 
   board: {
-    backgroundColor: colors.surfaceAlt,
+    flex: 1,
+    marginHorizontal: spacing.lg,
     borderRadius: radius.xl,
+    backgroundColor: colors.surfaceAlt,
+    overflow: "hidden",
+    ...shadows.card,
+  },
+  boardScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
-    minHeight: 160,
-    justifyContent: "center",
-    ...shadows.card,
   },
   boardRow: { flexDirection: "row", justifyContent: "center", gap: spacing.sm },
-  boardRowOffset: { marginLeft: 24 },
+  boardRowOffset: { marginLeft: 26 },
   cell: { borderRadius: radius.pill, padding: 3 },
-  cellSelected: { backgroundColor: `${palette.baseBlue}1F` },
-  empty: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
+  cellSelected: { backgroundColor: `${palette.baseBlue}24` },
+
+  floatingControls: { position: "absolute", top: spacing.md, right: spacing.md, gap: spacing.sm },
+  legendWrap: { position: "absolute", left: 0, right: 0, bottom: spacing.md, alignItems: "center" },
+
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.xl },
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  emptyTitle: { ...type.heading, fontSize: 17 },
   emptyText: { ...type.body, fontSize: 13.5, textAlign: "center", color: colors.textDim },
+  emptyCta: { marginTop: spacing.md, alignSelf: "stretch" },
 
-  strip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    ...shadows.card,
+  skeleton: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  skeletonCell: {
+    width: 44,
+    height: 50,
+    borderRadius: radius.md,
+    backgroundColor: "#E4EAED",
+    opacity: 0.7,
   },
-  stat: { flex: 1, alignItems: "center", gap: 2 },
-  statValue: { ...type.title, fontSize: 20, fontVariant: ["tabular-nums"] },
-  statLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
-  stripDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.surfaceAlt },
 
-  selectedCard: {
-    flexDirection: "row",
-    alignItems: "center",
+  statusPanel: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
     gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadows.card,
   },
-  selectedBody: { flex: 1, gap: 2 },
-  selectedName: { ...type.heading, fontSize: 15 },
-  selectedHealth: { ...type.caption, fontSize: 12, fontWeight: "700" },
-  selectedMeta: { ...type.mono, fontSize: 11, color: colors.textFaint },
-  viewLink: { ...type.caption, fontSize: 13, fontWeight: "700", color: colors.primary },
-
-  priorityCard: {
+  priorityRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
@@ -402,16 +349,16 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   priorityIcon: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: radius.md,
     backgroundColor: `${palette.heatCoral}14`,
     alignItems: "center",
     justifyContent: "center",
   },
   priorityBody: { flex: 1, gap: 1 },
-  priorityKicker: { ...type.kicker, color: palette.heatCoral, fontSize: 10.5 },
-  priorityName: { ...type.heading, fontSize: 15 },
+  priorityKicker: { ...type.kicker, color: palette.heatCoral, fontSize: 10 },
+  priorityName: { ...type.heading, fontSize: 14.5 },
   allClear: {
     flexDirection: "row",
     alignItems: "center",
@@ -421,37 +368,17 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   allClearText: { flex: 1, ...type.caption, fontSize: 12.5, color: "#0A8F60", fontWeight: "600" },
-
-  legend: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, justifyContent: "center" },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot: { width: 9, height: 9, borderRadius: 5 },
-  legendText: { ...type.caption, fontSize: 11, color: colors.textDim },
-
-  collectionsCta: {
+  quickRow: { flexDirection: "row", gap: spacing.sm, paddingRight: spacing.sm },
+  quickLink: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
+    justifyContent: "center",
+    gap: 6,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     ...shadows.card,
   },
-  collectionsIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  collectionsBody: { flex: 1, gap: 1 },
-  collectionsName: { ...type.heading, fontSize: 14.5 },
-  collectionsNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
-  footerNote: {
-    ...type.mono,
-    fontSize: 11,
-    color: colors.textFaint,
-    textAlign: "center",
-    paddingTop: spacing.xs,
-  },
+  quickLabel: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.text },
 });

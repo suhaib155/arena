@@ -3,6 +3,7 @@ import {
   Animated,
   Pressable,
   type AccessibilityRole,
+  type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { motion } from "@/theme";
@@ -13,7 +14,7 @@ interface ScalePressProps {
   disabled?: boolean;
   /** Scale while pressed. */
   to?: number;
-  style?: ViewStyle | ViewStyle[];
+  style?: StyleProp<ViewStyle>;
   /** Accessibility — forwarded to the underlying Pressable so icon-only and
    *  composite controls can describe themselves to screen readers. */
   accessibilityLabel?: string;
