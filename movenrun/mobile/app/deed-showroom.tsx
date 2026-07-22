@@ -1,10 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
+import { ProgressHero } from "@/components/ProgressHero";
+import { StatusPill } from "@/components/StatusPill";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
@@ -22,19 +24,15 @@ import { buildSponsorZones } from "@/lib/sponsorZones";
 import { buildEventZones } from "@/lib/eventZones";
 import { buildCrewMissions } from "@/lib/crewMissions";
 import { buildDistrictMastery } from "@/lib/districtMastery";
-import {
-  buildDeedShowroom,
-  DEED_TIER_LABEL,
-  type DeedAction,
-  type DeedPreviewCard,
-} from "@/lib/deedPreview";
+import { buildDeedShowroom, DEED_TIER_LABEL, type DeedAction, type DeedPreviewCard } from "@/lib/deedPreview";
+import { buildDeedsView, deedStatusLabel } from "@/lib/deedsView";
 import { tapFeedback } from "@/lib/haptics";
 
 /**
- * Deed Preview Showroom — a local, read-only, educational look at what a
- * FUTURE Zone Deed layer might look like. Local preview only — not real
- * ownership, not minting, not claiming, not tradable, no market/rarity value,
- * no rewards, no earnings, no wallet, no chain. Read-only; gates nothing.
+ * Deed Preview Showroom — a local, read-only, educational look at what a FUTURE
+ * Zone Deed layer might look like. Local preview only — not real ownership, not
+ * minting, not claiming, not tradable, no market/rarity value, no rewards, no
+ * wallet, no chain. Read-only; gates nothing. (buildDeedShowroom is unchanged.)
  */
 export default function DeedShowroomScreen() {
   const router = useRouter();
@@ -46,6 +44,7 @@ export default function DeedShowroomScreen() {
   const selectedClubId = useGameStore((s) => s.selectedClubId);
   const viewedRoutePassport = useGameStore((s) => s.viewedRoutePassport);
   const viewedRouteProof = useGameStore((s) => s.viewedRouteProof);
+  const [lockedExpanded, setLockedExpanded] = useState(false);
 
   const showroom = useMemo(() => {
     const now = Date.now();
@@ -146,16 +145,9 @@ export default function DeedShowroomScreen() {
       avgTrust: recap.averageTrustScore ?? 0,
     });
     return buildDeedShowroom({ hasZones, zones, districtMastery, passport, now });
-  }, [
-    zones,
-    history,
-    routeTrustHistory,
-    streak,
-    timesDefended,
-    selectedClubId,
-    viewedRoutePassport,
-    viewedRouteProof,
-  ]);
+  }, [zones, history, routeTrustHistory, streak, timesDefended, selectedClubId, viewedRoutePassport, viewedRouteProof]);
+
+  const view = useMemo(() => buildDeedsView(showroom), [showroom]);
 
   const go = (action: DeedAction) => {
     tapFeedback();
@@ -180,7 +172,9 @@ export default function DeedShowroomScreen() {
     }
   };
 
-  const top = showroom.topCard;
+  const otherReady = view.featured
+    ? view.readyCards.filter((c) => c.id !== view.featured!.id)
+    : view.readyCards;
 
   return (
     <Screen>
@@ -188,7 +182,7 @@ export default function DeedShowroomScreen() {
         <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Deed Preview Showroom</Text>
+        <Text style={styles.headerTitle}>Deeds</Text>
         <View style={styles.backBtn} />
       </View>
 
@@ -197,19 +191,11 @@ export default function DeedShowroomScreen() {
           <View style={styles.hero}>
             <Text style={styles.heroKicker}>Deed Preview Showroom</Text>
             <Text style={styles.heroTitle}>A safe look at future Zone Deeds.</Text>
-            <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.deedViolet}14` }]}>
-                <Ionicons name="eye-outline" size={13} color={palette.deedViolet} />
-                <Text style={[styles.badgeText, { color: palette.deedViolet }]}>Local preview</Text>
-              </View>
-              <View style={[styles.badge, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name="wallet-outline" size={13} color={colors.textDim} />
-                <Text style={[styles.badgeText, { color: colors.textDim }]}>No wallet</Text>
-              </View>
-              <View style={[styles.badge, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name="hammer-outline" size={13} color={colors.textDim} />
-                <Text style={[styles.badgeText, { color: colors.textDim }]}>No minting</Text>
-              </View>
+            <View style={styles.pillRow}>
+              <StatusPill icon="eye-outline" label="Local preview" tone="primary" />
+              <StatusPill icon="wallet-outline" label="No wallet" tone="neutral" />
+              <StatusPill icon="hammer-outline" label="No minting" tone="neutral" />
+              <StatusPill icon="cube-outline" label="Not on-chain" tone="neutral" />
             </View>
           </View>
         </FadeSlideIn>
@@ -218,90 +204,121 @@ export default function DeedShowroomScreen() {
           <View style={styles.explainCard}>
             <Ionicons name="information-circle-outline" size={16} color={colors.textDim} />
             <Text style={styles.explainText}>
-              Zone Deeds are a future layer of MovenRun and are not live in this
-              app build. This showroom is an educational preview only — it does
-              not mint, claim, sell, trade, or verify ownership of anything.
+              Zone Deeds are a future layer of MovenRun and are not live in this app
+              build. This showroom is an educational preview only — it does not mint,
+              claim, sell, trade, or verify ownership of anything.
             </Text>
           </View>
         </FadeSlideIn>
 
-        {/* Summary */}
-        <FadeSlideIn delay={STAGGER_MS * 2}>
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryRow}>
-              <Stat value={showroom.previewCount} label="previews" tint={palette.deedViolet} />
-              <View style={styles.sumDivider} />
-              <Stat value={showroom.readyCount} label="ready" tint="#0A8F60" />
-              <View style={styles.sumDivider} />
-              <Stat value={showroom.lockedCount} label="locked" tint={colors.textFaint} />
-            </View>
-            {top ? (
-              <Text style={styles.summaryNext}>Top preview · {top.label}</Text>
-            ) : (
-              <Text style={styles.summaryNext}>{showroom.summaryLine}</Text>
-            )}
-          </View>
-        </FadeSlideIn>
-
-        {!showroom.hasZones ? (
-          <FadeSlideIn delay={STAGGER_MS * 3}>
+        {!view.hasZones ? (
+          <FadeSlideIn delay={STAGGER_MS * 2}>
             <View style={styles.emptyCard}>
-              <Ionicons name="shapes-outline" size={28} color={palette.deedViolet} />
-              <Text style={styles.emptyText}>Capture zones to unlock local deed previews.</Text>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="shapes-outline" size={26} color={palette.deedViolet} />
+              </View>
+              <Text style={styles.emptyTitle}>No deed previews yet</Text>
+              <Text style={styles.emptyText}>
+                Capture a zone and your first local deed preview appears here —
+                earned on this device, never minted or owned.
+              </Text>
               <Button label="Start Move" icon="play" onPress={() => go("move")} style={styles.emptyBtn} />
             </View>
           </FadeSlideIn>
         ) : (
           <>
-            {/* Featured preview */}
-            {top ? (
+            <FadeSlideIn delay={STAGGER_MS * 2}>
+              <ProgressHero
+                value={view.ready}
+                outOf={`/ ${view.total}`}
+                label="deed previews ready"
+                percent={view.readyPct}
+                statement={view.statement}
+                accent={palette.deedViolet}
+              />
+            </FadeSlideIn>
+
+            {view.featured ? (
               <FadeSlideIn delay={STAGGER_MS * 3}>
-                <FeaturedDeedCard card={top} onPress={() => go(top.action)} />
+                <FeaturedDeedCard card={view.featured} onPress={() => go(view.featured!.action)} />
               </FadeSlideIn>
             ) : null}
 
-            {/* Preview grid */}
-            <FadeSlideIn delay={STAGGER_MS * 4}>
-              <Text style={styles.sectionLabel}>All previews</Text>
-              <View style={styles.list}>
-                {showroom.cards.map((card) => (
-                  <DeedPreviewRow key={card.id} card={card} onPress={() => go(card.action)} />
-                ))}
-              </View>
-            </FadeSlideIn>
+            {otherReady.length > 0 ? (
+              <FadeSlideIn delay={STAGGER_MS * 4}>
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>More previews earned</Text>
+                  <View style={styles.rowList}>
+                    {otherReady.map((c) => (
+                      <DeedRow key={c.id} card={c} onPress={() => go(c.action)} />
+                    ))}
+                  </View>
+                </View>
+              </FadeSlideIn>
+            ) : null}
+
+            {view.lockedCards.length > 0 ? (
+              <FadeSlideIn delay={STAGGER_MS * 5}>
+                <View style={styles.lockedWrap}>
+                  <Pressable
+                    onPress={() => {
+                      tapFeedback();
+                      setLockedExpanded((v) => !v);
+                    }}
+                    style={styles.lockedHeader}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${view.lockedCards.length} locked previews`}
+                    accessibilityHint={lockedExpanded ? "Collapse locked" : "Expand locked"}
+                  >
+                    <View style={styles.lockedIcon}>
+                      <Ionicons name="lock-closed" size={14} color={colors.textDim} />
+                    </View>
+                    <Text style={styles.lockedTitle}>{view.lockedCards.length} locked previews</Text>
+                    <Ionicons name={lockedExpanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textFaint} />
+                  </Pressable>
+                  {lockedExpanded ? (
+                    <View style={styles.rowList}>
+                      {view.lockedCards.map((c) => (
+                        <View key={c.id} style={styles.lockedRow}>
+                          <Ionicons name="lock-closed-outline" size={15} color={colors.textFaint} />
+                          <View style={styles.lockedRowBody}>
+                            <Text style={styles.lockedRowTitle} numberOfLines={1}>
+                              {c.typeLabel}
+                            </Text>
+                            <Text style={styles.lockedRowReq} numberOfLines={2}>
+                              {c.lockedExplanation}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              </FadeSlideIn>
+            ) : null}
           </>
         )}
 
-        {/* How future deeds may work */}
-        <FadeSlideIn delay={STAGGER_MS * 5}>
+        <FadeSlideIn delay={STAGGER_MS * 6}>
           <View style={styles.howCard}>
             <Text style={styles.howTitle}>How future deeds may work</Text>
             <HowRow icon="finger-print-outline" text="A future zone identity tied to the territory you build here." />
             <HowRow icon="business-outline" text="A future layer on top of the fictional city districts you already explore." />
-            <HowRow icon="people-outline" text="Possible future hooks into clubs, sponsor zones, and event zones." />
             <HowRow icon="git-network-outline" text="Possible future governance or utility roles — details are not decided yet." />
             <Text style={styles.howDisclaimer}>
-              None of this is live. It does not promise ownership, rewards,
-              payouts, market value, tradability, or eligibility of any kind.
+              None of this is live. It does not promise ownership, rewards, payouts,
+              market value, tradability, or eligibility of any kind. Previews are
+              earned on this device and are not on-chain.
             </Text>
           </View>
         </FadeSlideIn>
 
         <Text style={styles.footerNote}>
-          Deed Preview Showroom is local and educational. It does not mint,
-          claim, sell, trade, or verify ownership.
+          Deed Preview Showroom is local and educational. Ownership is not
+          finalized — it does not mint, claim, sell, trade, or verify ownership.
         </Text>
       </ScrollView>
     </Screen>
-  );
-}
-
-function Stat({ value, label, tint }: { value: number; label: string; tint: string }) {
-  return (
-    <View style={styles.stat}>
-      <Text style={[styles.statValue, { color: tint }]}>{value}</Text>
-      <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
-    </View>
   );
 }
 
@@ -326,14 +343,14 @@ function HowRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: st
   );
 }
 
-/** Abstract pseudo deed art: a tinted hex outline + a proof-like id string.
- *  No real NFT/token, no price, no rarity value, no marketplace frame. */
+/** Abstract pseudo deed art: a tinted hex + a short preview-id string. No real
+ *  NFT/token, no price, no rarity value, no marketplace frame. */
 function DeedArt({ card, size = 64 }: { card: DeedPreviewCard; size?: number }) {
-  const proofId = card.id.slice(0, 10).toUpperCase();
+  const previewId = card.id.slice(0, 10).toUpperCase();
   return (
     <View style={styles.deedArtWrap}>
       <Hexagon size={size} color={`${card.accent}1F`} coreColor={card.ready ? card.accent : undefined} />
-      <Text style={styles.deedArtId}>{proofId}</Text>
+      <Text style={styles.deedArtId}>{previewId}</Text>
     </View>
   );
 }
@@ -342,15 +359,23 @@ function FeaturedDeedCard({ card, onPress }: { card: DeedPreviewCard; onPress: (
   return (
     <View style={styles.featuredCard}>
       <View style={styles.featuredTop}>
-        <DeedArt card={card} size={72} />
+        <DeedArt card={card} size={64} />
         <View style={styles.featuredBody}>
           <Text style={styles.featuredKicker}>{card.typeLabel}</Text>
-          <Text style={styles.featuredName} numberOfLines={1}>{card.label}</Text>
-          <Text style={styles.featuredDistrict} numberOfLines={1}>{card.districtName}</Text>
+          <Text style={styles.featuredName} numberOfLines={1}>
+            {card.label}
+          </Text>
+          <Text style={styles.featuredDistrict} numberOfLines={1}>
+            {card.districtName}
+          </Text>
         </View>
         <View style={[styles.tierChip, { backgroundColor: `${card.accent}1A` }]}>
           <Text style={[styles.tierChipText, { color: card.accent }]}>{DEED_TIER_LABEL[card.visualTier]}</Text>
         </View>
+      </View>
+
+      <View style={styles.featuredStatus}>
+        <StatusPill icon="phone-portrait-outline" label={deedStatusLabel(card)} tone="success" />
       </View>
 
       <View style={styles.scoreLine}>
@@ -365,16 +390,15 @@ function FeaturedDeedCard({ card, onPress }: { card: DeedPreviewCard; onPress: (
         <Bar label="Signal" value={card.signalContribution} color={palette.deedViolet} />
       </View>
 
-      <View style={styles.utilityList}>
-        {card.utilityBullets.map((bullet) => (
-          <View key={bullet} style={styles.utilityRow}>
-            <Ionicons name="sparkles-outline" size={12} color={palette.deedViolet} />
-            <Text style={styles.utilityText}>{bullet}</Text>
-          </View>
-        ))}
-      </View>
+      <Text style={styles.featuredNote}>Ownership not finalized · not on-chain · earned on this device.</Text>
 
-      <Pressable hitSlop={8} style={styles.featuredCta} onPress={onPress}>
+      <Pressable
+        hitSlop={8}
+        style={styles.featuredCta}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={card.ctaLabel}
+      >
         <Text style={styles.featuredCtaText}>{card.ctaLabel}</Text>
         <Ionicons name="chevron-forward" size={13} color={colors.primary} />
       </Pressable>
@@ -382,37 +406,25 @@ function FeaturedDeedCard({ card, onPress }: { card: DeedPreviewCard; onPress: (
   );
 }
 
-function DeedPreviewRow({ card, onPress }: { card: DeedPreviewCard; onPress: () => void }) {
-  const locked = !card.ready;
+function DeedRow({ card, onPress }: { card: DeedPreviewCard; onPress: () => void }) {
   return (
-    <View style={[styles.row, locked ? styles.rowLocked : null]}>
-      <View style={styles.rowTop}>
-        <DeedArt card={card} size={40} />
-        <View style={styles.rowBody}>
-          <Text style={[styles.rowName, locked ? styles.rowNameLocked : null]} numberOfLines={1}>
-            {card.label}
-          </Text>
-          <Text style={styles.rowDistrict} numberOfLines={1}>{card.districtName}</Text>
-        </View>
-        <View style={[styles.tierChip, { backgroundColor: `${card.accent}1A` }]}>
-          <Text style={[styles.tierChipText, { color: card.accent }]}>{DEED_TIER_LABEL[card.visualTier]}</Text>
-        </View>
+    <Pressable
+      style={styles.deedRow}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${card.typeLabel}, ${card.label}, ${deedStatusLabel(card)}`}
+    >
+      <DeedArt card={card} size={36} />
+      <View style={styles.deedRowBody}>
+        <Text style={styles.deedRowName} numberOfLines={1}>
+          {card.typeLabel}
+        </Text>
+        <Text style={styles.deedRowSub} numberOfLines={1}>
+          {card.label} · {DEED_TIER_LABEL[card.visualTier]}
+        </Text>
       </View>
-
-      {locked ? (
-        <Text style={styles.lockedNote}>{card.lockedExplanation}</Text>
-      ) : (
-        <View style={styles.scoreLine}>
-          <Text style={styles.scoreValue}>{card.readinessScore}</Text>
-          <Text style={styles.scoreUnit}>/ 100 readiness</Text>
-        </View>
-      )}
-      <Text style={styles.rowRec}>{card.recommendation}</Text>
-      <Pressable hitSlop={8} onPress={onPress} style={styles.ctaBtn}>
-        <Text style={styles.ctaText}>{card.ctaLabel}</Text>
-        <Ionicons name="chevron-forward" size={13} color={colors.primary} />
-      </Pressable>
-    </View>
+      <Ionicons name="chevron-forward" size={15} color={colors.textFaint} />
+    </Pressable>
   );
 }
 
@@ -431,17 +443,8 @@ const styles = StyleSheet.create({
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
   heroKicker: { ...type.kicker, color: palette.deedViolet },
-  heroTitle: { ...type.display, fontSize: 23, lineHeight: 29 },
-  badgeRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.xs },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
-  },
-  badgeText: { fontSize: 12, fontWeight: "700" },
+  heroTitle: { ...type.display, fontSize: 28, lineHeight: 32, letterSpacing: -0.6 },
+  pillRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.xs },
 
   explainCard: {
     flexDirection: "row",
@@ -452,20 +455,6 @@ const styles = StyleSheet.create({
   },
   explainText: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.textDim, flex: 1 },
 
-  summaryCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.md,
-    ...shadows.card,
-  },
-  summaryRow: { flexDirection: "row", alignItems: "center" },
-  stat: { flex: 1, alignItems: "center", gap: 2 },
-  statValue: { ...type.title, fontSize: 20, fontVariant: ["tabular-nums"] },
-  statLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
-  sumDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.surfaceAlt },
-  summaryNext: { ...type.caption, fontSize: 12.5, color: colors.textDim, textAlign: "center" },
-
   emptyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
@@ -474,15 +463,27 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyText: { ...type.heading, fontSize: 15, textAlign: "center", marginTop: spacing.xs },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: `${palette.deedViolet}14`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
+  emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },
 
   featuredCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: `${palette.deedViolet}22`,
     padding: spacing.lg,
     gap: spacing.md,
-    ...shadows.float,
+    ...shadows.card,
   },
   featuredTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   deedArtWrap: { alignItems: "center", justifyContent: "center" },
@@ -493,6 +494,7 @@ const styles = StyleSheet.create({
   featuredDistrict: { ...type.caption, fontSize: 12, color: colors.textFaint },
   tierChip: { borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.sm },
   tierChipText: { fontSize: 10.5, fontWeight: "800" },
+  featuredStatus: { flexDirection: "row" },
 
   scoreLine: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm },
   scoreValue: { ...type.title, fontSize: 20, fontVariant: ["tabular-nums"] },
@@ -505,32 +507,59 @@ const styles = StyleSheet.create({
   barFill: { height: 6, borderRadius: radius.pill },
   barPct: { ...type.mono, fontSize: 10, color: colors.textDim, width: 20, textAlign: "right" },
 
-  utilityList: { gap: 6 },
-  utilityRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  utilityText: { ...type.caption, fontSize: 12, color: colors.textDim, flex: 1 },
-
-  featuredCta: { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start", marginTop: 2 },
+  featuredNote: { ...type.mono, fontSize: 10.5, color: colors.textFaint, lineHeight: 15 },
+  featuredCta: { flexDirection: "row", alignItems: "center", gap: 3, alignSelf: "flex-start" },
   featuredCtaText: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.primary },
 
-  sectionLabel: { ...type.kicker, color: colors.textFaint, marginBottom: spacing.sm },
-  list: { gap: spacing.sm },
-  row: {
+  section: { gap: spacing.sm },
+  sectionLabel: { ...type.kicker, color: colors.textFaint },
+  rowList: { gap: spacing.sm },
+  deedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
-    gap: 6,
+    minHeight: 56,
     ...shadows.card,
   },
-  rowLocked: { backgroundColor: colors.surfaceAlt, shadowOpacity: 0.04 },
-  rowTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  rowBody: { flex: 1, gap: 1 },
-  rowName: { ...type.heading, fontSize: 14.5 },
-  rowNameLocked: { color: colors.textFaint },
-  rowDistrict: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  lockedNote: { ...type.caption, fontSize: 12, color: colors.textFaint },
-  rowRec: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.textDim },
-  ctaBtn: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
-  ctaText: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.primary },
+  deedRowBody: { flex: 1, gap: 1 },
+  deedRowName: { ...type.heading, fontSize: 14 },
+  deedRowSub: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
+
+  lockedWrap: { gap: spacing.sm },
+  lockedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 48,
+  },
+  lockedIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedTitle: { ...type.heading, fontSize: 14.5, flex: 1, color: colors.textDim },
+  lockedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  lockedRowBody: { flex: 1, gap: 1 },
+  lockedRowTitle: { ...type.heading, fontSize: 13.5, color: colors.textDim },
+  lockedRowReq: { ...type.caption, fontSize: 11.5, color: colors.textFaint, lineHeight: 15 },
 
   howCard: {
     backgroundColor: colors.surface,
@@ -542,13 +571,7 @@ const styles = StyleSheet.create({
   howTitle: { ...type.heading, fontSize: 15 },
   howRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   howText: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.textDim, flex: 1 },
-  howDisclaimer: {
-    ...type.mono,
-    fontSize: 10.5,
-    color: colors.textFaint,
-    lineHeight: 15,
-    marginTop: spacing.xs,
-  },
+  howDisclaimer: { ...type.mono, fontSize: 10.5, color: colors.textFaint, lineHeight: 15, marginTop: spacing.xs },
 
   footerNote: {
     ...type.mono,
