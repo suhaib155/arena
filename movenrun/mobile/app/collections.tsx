@@ -1,19 +1,26 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { Button } from "@/components/Button";
+import { ProgressHero } from "@/components/ProgressHero";
+import { CompletedSummary } from "@/components/CompletedSummary";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { zoneStatus } from "@/lib/territory";
-import {
-  buildCollections,
-  type Badge,
-  type BadgeCollection,
-} from "@/lib/zoneCollections";
+import { buildCollections, type Badge } from "@/lib/zoneCollections";
+import { buildCollectionsView, lockedRequirement } from "@/lib/collectionsView";
 import type { IoniconName } from "@/types";
+import { tapFeedback } from "@/lib/haptics";
 
+/**
+ * Collections — a focused local-badge archive. One dominant completion summary,
+ * the nearest unlock, in-progress badges, and collapsed unlocked/locked
+ * archives. Badges are local previews (no rewards, rarity, value, or ownership).
+ * Logic is unchanged (buildCollections).
+ */
 export default function CollectionsScreen() {
   const router = useRouter();
   const zones = useGameStore((s) => s.zones);
@@ -22,25 +29,30 @@ export default function CollectionsScreen() {
   const routeTrustHistory = useGameStore((s) => s.routeTrustHistory);
   const viewedRoutePassport = useGameStore((s) => s.viewedRoutePassport);
   const viewedRouteProof = useGameStore((s) => s.viewedRouteProof);
+  const [unlockedExpanded, setUnlockedExpanded] = useState(false);
+  const [lockedExpanded, setLockedExpanded] = useState(false);
 
-  const overview = useMemo(() => {
+  const view = useMemo(() => {
     const atRiskOrWorse = zones.filter((z) => zoneStatus(z).health !== "yours").length;
-    const fortifyCount = zones.reduce((s, z) => s + (z.fortifyCount ?? 0), 0);
-    const cleanRoutes = routeTrustHistory.filter((r) => r.riskFlags.length === 0).length;
-    const hasStrongTrust = routeTrustHistory.some((r) => r.trustLabel === "Strong");
-    return buildCollections({
+    const overview = buildCollections({
       savedRoutes: routeTrustHistory.length,
-      cleanRoutes,
-      hasStrongTrust,
+      cleanRoutes: routeTrustHistory.filter((r) => r.riskFlags.length === 0).length,
+      hasStrongTrust: routeTrustHistory.some((r) => r.trustLabel === "Strong"),
       zonesCaptured: zones.length,
       atRiskOrWorse,
       timesDefended,
-      fortifyCount,
+      fortifyCount: zones.reduce((s, z) => s + (z.fortifyCount ?? 0), 0),
       hasClub: selectedClubId != null,
       viewedPassport: viewedRoutePassport,
       viewedProof: viewedRouteProof,
     });
+    return buildCollectionsView(overview);
   }, [zones, timesDefended, selectedClubId, routeTrustHistory, viewedRoutePassport, viewedRouteProof]);
+
+  const heroAccent = view.completionPct === 100 ? palette.pulseGreen : palette.baseBlue;
+  const inProgressRest = view.nextBadge
+    ? view.inProgress.filter((b) => b.id !== view.nextBadge!.id)
+    : view.inProgress;
 
   return (
     <Screen>
@@ -56,46 +68,193 @@ export default function CollectionsScreen() {
         <FadeSlideIn>
           <View style={styles.hero}>
             <Text style={styles.heroKicker}>Zone Collections</Text>
-            <Text style={styles.heroTitle}>Local badges for your captured territory journey.</Text>
-            <View style={styles.badgeRow}>
-              <View style={[styles.chip, { backgroundColor: `${palette.deedViolet}14` }]}>
-                <Ionicons name="ribbon-outline" size={13} color={palette.deedViolet} />
-                <Text style={[styles.chipText, { color: palette.deedViolet }]}>Local preview</Text>
+            <Text style={styles.heroTitle}>Your movement archive.</Text>
+            <View style={styles.chipRow}>
+              <View style={[styles.chip, { backgroundColor: `${palette.baseBlue}14` }]}>
+                <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
+                <Text style={[styles.chipText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
               <View style={[styles.chip, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name="lock-closed-outline" size={13} color={colors.textDim} />
+                <Ionicons name="gift-outline" size={13} color={colors.textDim} />
                 <Text style={[styles.chipText, { color: colors.textDim }]}>No rewards</Text>
               </View>
             </View>
           </View>
         </FadeSlideIn>
 
-        {/* Progress card */}
         <FadeSlideIn delay={STAGGER_MS}>
-          <View style={styles.card}>
-            <View style={styles.progressHead}>
-              <Text style={styles.progressTitle}>Badges unlocked</Text>
-              <Text style={styles.progressCount}>
-                {overview.unlocked}/{overview.total}
+          <ProgressHero
+            value={view.unlocked}
+            outOf={`/ ${view.total}`}
+            label="badges unlocked"
+            percent={view.completionPct}
+            statement={view.statement}
+            accent={heroAccent}
+          />
+        </FadeSlideIn>
+
+        {!view.hasProgress ? (
+          <FadeSlideIn delay={STAGGER_MS * 2}>
+            <View style={styles.emptyCard}>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="ribbon-outline" size={26} color={colors.primary} />
+              </View>
+              <Text style={styles.emptyTitle}>Earn your first badge by moving</Text>
+              <Text style={styles.emptyText}>
+                Save a route, capture a zone, or join a club — badges fill in from
+                your real local progress.
+              </Text>
+              <Button
+                label="Start Move"
+                icon="play"
+                onPress={() => {
+                  tapFeedback();
+                  router.push("/move");
+                }}
+                style={styles.emptyBtn}
+              />
+            </View>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* Nearest unlock */}
+        {view.nextBadge ? (
+          <FadeSlideIn delay={STAGGER_MS * 2}>
+            <View style={styles.nearestCard}>
+              <View style={[styles.nearestIcon, { backgroundColor: `${palette.baseBlue}16` }]}>
+                <Ionicons name={view.nextBadge.icon as IoniconName} size={20} color={palette.baseBlue} />
+              </View>
+              <View style={styles.nearestBody}>
+                <Text style={styles.nearestKicker}>Nearest unlock</Text>
+                <Text style={styles.nearestTitle}>{view.nextBadge.title}</Text>
+                <Text style={styles.nearestDesc}>{view.nextBadge.description}</Text>
+                <View style={styles.nearestBarTrack}>
+                  <View
+                    style={[
+                      styles.nearestBarFill,
+                      { width: `${Math.round((view.nextBadge.current / view.nextBadge.target) * 100)}%` },
+                    ]}
+                  />
+                </View>
+              </View>
+              <Text style={styles.nearestProgress}>
+                {view.nextBadge.current}/{view.nextBadge.target}
               </Text>
             </View>
-            <View style={styles.barTrack}>
-              <View style={[styles.barFill, { width: `${overview.completionPct}%` }]} />
+          </FadeSlideIn>
+        ) : null}
+
+        {/* Other in-progress badges */}
+        {inProgressRest.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 3}>
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>In progress</Text>
+              <View style={styles.rowList}>
+                {inProgressRest.map((b) => (
+                  <BadgeRow key={b.id} badge={b} />
+                ))}
+              </View>
             </View>
-            <Text style={styles.progressNext}>
-              {overview.nextBadge
-                ? `Next · ${overview.nextBadge.title} (${overview.nextBadge.current}/${overview.nextBadge.target})`
-                : "All local badges unlocked — strengthen your territory."}
-            </Text>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* Collection group summaries */}
+        <FadeSlideIn delay={STAGGER_MS * 4}>
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Collections</Text>
+            <View style={styles.rowList}>
+              {view.collections.map((c) => {
+                const done = c.unlocked === c.total;
+                const tint = done ? palette.pulseGreen : palette.baseBlue;
+                return (
+                  <View
+                    key={c.name}
+                    style={styles.groupRow}
+                    accessibilityLabel={`${c.name}, ${c.unlocked} of ${c.total} unlocked`}
+                  >
+                    <View style={[styles.groupIcon, { backgroundColor: `${tint}14` }]}>
+                      <Ionicons name={c.icon as IoniconName} size={16} color={tint} />
+                    </View>
+                    <Text style={styles.groupName}>{c.name}</Text>
+                    <Text style={styles.groupCount}>
+                      {c.unlocked}/{c.total}
+                    </Text>
+                    {done ? <Ionicons name="checkmark-circle" size={16} color={palette.pulseGreen} /> : null}
+                  </View>
+                );
+              })}
+            </View>
           </View>
         </FadeSlideIn>
 
-        {/* Collection groups */}
-        {overview.collections.map((col, i) => (
-          <FadeSlideIn key={col.name} delay={STAGGER_MS * (2 + Math.min(i, 5))}>
-            <CollectionGroup collection={col} />
+        {/* Unlocked archive (collapsed) */}
+        {view.unlockedBadges.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 5}>
+            <CompletedSummary
+              count={view.unlockedBadges.length}
+              noun="unlocked"
+              expanded={unlockedExpanded}
+              onToggle={() => {
+                tapFeedback();
+                setUnlockedExpanded((v) => !v);
+              }}
+            >
+              {view.unlockedBadges.map((b) => (
+                <View key={b.id} style={styles.archiveItem}>
+                  <Ionicons name="checkmark-circle" size={16} color="#0A8F60" />
+                  <Text style={styles.archiveText} numberOfLines={1}>
+                    {b.title}
+                  </Text>
+                </View>
+              ))}
+            </CompletedSummary>
           </FadeSlideIn>
-        ))}
+        ) : null}
+
+        {/* Locked archive (collapsed) — real requirements */}
+        {view.lockedBadges.length > 0 ? (
+          <FadeSlideIn delay={STAGGER_MS * 6}>
+            <View style={styles.lockedWrap}>
+              <Pressable
+                onPress={() => {
+                  tapFeedback();
+                  setLockedExpanded((v) => !v);
+                }}
+                style={styles.lockedHeader}
+                accessibilityRole="button"
+                accessibilityLabel={`${view.lockedBadges.length} locked`}
+                accessibilityHint={lockedExpanded ? "Collapse locked" : "Expand locked"}
+              >
+                <View style={styles.lockedIcon}>
+                  <Ionicons name="lock-closed" size={14} color={colors.textDim} />
+                </View>
+                <Text style={styles.lockedTitle}>{view.lockedBadges.length} locked</Text>
+                <Ionicons
+                  name={lockedExpanded ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={colors.textFaint}
+                />
+              </Pressable>
+              {lockedExpanded ? (
+                <View style={styles.rowList}>
+                  {view.lockedBadges.map((b) => (
+                    <View key={b.id} style={styles.lockedRow}>
+                      <Ionicons name="lock-closed-outline" size={15} color={colors.textFaint} />
+                      <View style={styles.lockedRowBody}>
+                        <Text style={styles.lockedRowTitle} numberOfLines={1}>
+                          {b.title}
+                        </Text>
+                        <Text style={styles.lockedRowReq} numberOfLines={1}>
+                          {lockedRequirement(b)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          </FadeSlideIn>
+        ) : null}
 
         <Text style={styles.footerNote}>
           Badges are local previews. They do not affect rewards, ownership, or
@@ -106,56 +265,28 @@ export default function CollectionsScreen() {
   );
 }
 
-function CollectionGroup({ collection }: { collection: BadgeCollection }) {
-  return (
-    <View style={styles.group}>
-      <View style={styles.groupHead}>
-        <View style={[styles.groupIcon, { backgroundColor: `${collection.accent}14` }]}>
-          <Ionicons name={collection.icon as IoniconName} size={16} color={collection.accent} />
-        </View>
-        <Text style={styles.groupName}>{collection.name}</Text>
-        <Text style={styles.groupCount}>
-          {collection.unlocked}/{collection.total}
-        </Text>
-      </View>
-      <View style={styles.badgeList}>
-        {collection.badges.map((b) => (
-          <BadgeCard key={b.id} badge={b} accent={collection.accent} />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function BadgeCard({ badge, accent }: { badge: Badge; accent: string }) {
-  const unlocked = badge.status === "unlocked";
-  const inProgress = badge.status === "in-progress";
-  const iconColor = unlocked ? accent : inProgress ? colors.textDim : colors.textFaint;
+function BadgeRow({ badge }: { badge: Badge }) {
   const pct = Math.round((badge.current / badge.target) * 100);
   return (
-    <View style={[styles.badge, unlocked ? { backgroundColor: `${accent}0D` } : null]}>
-      <View style={[styles.badgeIcon, { backgroundColor: unlocked ? `${accent}1A` : colors.surfaceAlt }]}>
-        <Ionicons name={badge.icon as IoniconName} size={18} color={iconColor} />
+    <View
+      style={styles.badgeRow}
+      accessibilityLabel={`${badge.title}, ${badge.current} of ${badge.target}. ${badge.description}`}
+    >
+      <View style={styles.badgeIcon}>
+        <Ionicons name={badge.icon as IoniconName} size={17} color={palette.baseBlue} />
       </View>
       <View style={styles.badgeBody}>
         <View style={styles.badgeTitleRow}>
-          <Text style={[styles.badgeTitle, !unlocked && !inProgress ? styles.badgeTitleLocked : null]} numberOfLines={1}>
+          <Text style={styles.badgeTitle} numberOfLines={1}>
             {badge.title}
           </Text>
-          {unlocked ? (
-            <Ionicons name="checkmark-circle" size={16} color={accent} />
-          ) : (
-            <Text style={styles.badgeProgressText}>
-              {badge.current}/{badge.target}
-            </Text>
-          )}
+          <Text style={styles.badgeProgress}>
+            {badge.current}/{badge.target}
+          </Text>
         </View>
-        <Text style={styles.badgeDesc}>{badge.description}</Text>
-        {!unlocked ? (
-          <View style={styles.badgeBarTrack}>
-            <View style={[styles.badgeBarFill, { width: `${pct}%`, backgroundColor: inProgress ? accent : palette.dustGray }]} />
-          </View>
-        ) : null}
+        <View style={styles.badgeBarTrack}>
+          <View style={[styles.badgeBarFill, { width: `${pct}%` }]} />
+        </View>
       </View>
     </View>
   );
@@ -176,8 +307,8 @@ const styles = StyleSheet.create({
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
   heroKicker: { ...type.kicker, color: colors.primary },
-  heroTitle: { ...type.display, fontSize: 23, lineHeight: 29 },
-  badgeRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.xs },
+  heroTitle: { ...type.display, fontSize: 30, lineHeight: 34, letterSpacing: -0.8 },
+  chipRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.xs },
   chip: {
     flexDirection: "row",
     alignItems: "center",
@@ -188,35 +319,65 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 12, fontWeight: "700" },
 
-  card: {
+  emptyCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.md,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: "center",
+    gap: spacing.sm,
     ...shadows.card,
   },
-  progressHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  progressTitle: { ...type.heading, fontSize: 15 },
-  progressCount: { ...type.title, fontSize: 16, color: colors.textDim },
-  barTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden" },
-  barFill: { height: 8, borderRadius: radius.pill, backgroundColor: palette.moveGold },
-  progressNext: { ...type.caption, fontSize: 12.5, color: colors.textDim },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
+  emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
+  emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },
 
-  group: { gap: spacing.sm },
-  groupHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  groupIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.sm,
+  nearestCard: {
+    flexDirection: "row",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: `${palette.baseBlue}22`,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  nearestIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  groupName: { ...type.heading, fontSize: 15, flex: 1 },
-  groupCount: { ...type.mono, fontSize: 12, color: colors.textFaint },
+  nearestBody: { flex: 1, gap: 3 },
+  nearestKicker: { ...type.kicker, fontSize: 10.5, color: palette.baseBlue },
+  nearestTitle: { ...type.heading, fontSize: 15.5 },
+  nearestDesc: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.textDim },
+  nearestBarTrack: {
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
+    overflow: "hidden",
+    marginTop: 4,
+  },
+  nearestBarFill: { height: 6, borderRadius: radius.pill, backgroundColor: palette.baseBlue },
+  nearestProgress: { ...type.mono, fontSize: 12.5, color: colors.textDim },
 
-  badgeList: { gap: spacing.sm },
-  badge: {
+  section: { gap: spacing.sm },
+  sectionLabel: { ...type.kicker, color: colors.textFaint },
+  rowList: { gap: spacing.sm },
+
+  badgeRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -224,20 +385,84 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   badgeIcon: {
-    width: 38,
-    height: 38,
+    width: 34,
+    height: 34,
+    borderRadius: radius.md,
+    backgroundColor: `${palette.baseBlue}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeBody: { flex: 1, gap: 5 },
+  badgeTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  badgeTitle: { ...type.heading, fontSize: 14, flexShrink: 1 },
+  badgeProgress: { ...type.mono, fontSize: 11.5, color: colors.textFaint },
+  badgeBarTrack: { height: 5, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden" },
+  badgeBarFill: { height: 5, borderRadius: radius.pill, backgroundColor: palette.baseBlue },
+
+  groupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    minHeight: 52,
+    ...shadows.card,
+  },
+  groupIcon: {
+    width: 32,
+    height: 32,
     borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeBody: { flex: 1, gap: 4 },
-  badgeTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  badgeTitle: { ...type.heading, fontSize: 14, flex: 1 },
-  badgeTitleLocked: { color: colors.textDim },
-  badgeProgressText: { ...type.mono, fontSize: 11, color: colors.textFaint },
-  badgeDesc: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.textDim },
-  badgeBarTrack: { height: 5, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden", marginTop: 2 },
-  badgeBarFill: { height: 5, borderRadius: radius.pill },
+  groupName: { ...type.heading, fontSize: 14, flex: 1 },
+  groupCount: { ...type.mono, fontSize: 12.5, color: colors.textDim },
+
+  archiveItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    ...shadows.card,
+  },
+  archiveText: { ...type.caption, fontSize: 12.5, color: colors.text, flex: 1 },
+
+  lockedWrap: { gap: spacing.sm },
+  lockedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 48,
+  },
+  lockedIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedTitle: { ...type.heading, fontSize: 14.5, flex: 1, color: colors.textDim },
+  lockedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  lockedRowBody: { flex: 1, gap: 1 },
+  lockedRowTitle: { ...type.heading, fontSize: 13.5, color: colors.textDim },
+  lockedRowReq: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
 
   footerNote: {
     ...type.mono,
