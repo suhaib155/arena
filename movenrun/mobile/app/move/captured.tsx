@@ -5,6 +5,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { colors, glow, palette, radius, shadows, spacing, type } from "@/theme";
+import { useResponsive } from "@/hooks/useResponsive";
 import { useGameStore } from "@/store/useGameStore";
 import { clearLastSession } from "@/services/moveSession";
 import { successFeedback } from "@/lib/haptics";
@@ -20,6 +21,7 @@ const VERTEX_ANGLES = [30, 90, 150, 210, 270, 330];
  */
 export default function ZoneCapturedScreen() {
   const router = useRouter();
+  const r = useResponsive();
   const { id, kind, defended } = useLocalSearchParams<{
     id: string;
     kind?: string;
@@ -100,7 +102,7 @@ export default function ZoneCapturedScreen() {
           {isDefend ? "Defense refreshed" : "Common Zone"}
         </Text>
 
-        <View style={styles.stage}>
+        <View style={[styles.stage, { height: r.vh(0.32, 180, 280) }]}>
           {/* faint map roads */}
           <View style={[styles.road, { top: "30%" }]} />
           <View style={[styles.road, { top: "70%" }]} />
@@ -229,7 +231,6 @@ const styles = StyleSheet.create({
   kicker: { ...type.kicker, color: palette.pulseGreen },
   stage: {
     width: "100%",
-    height: 280,
     borderRadius: radius.xl,
     backgroundColor: colors.surfaceAlt,
     alignItems: "center",

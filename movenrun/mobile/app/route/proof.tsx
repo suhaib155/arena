@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from "react";
-import { type DimensionValue, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Share, StyleSheet, Text, View, type DimensionValue } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { useResponsive } from "@/hooks/useResponsive";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn } from "@/components/FadeSlideIn";
@@ -45,7 +46,16 @@ function fmtDuration(seconds: number): string {
  * cluster derived from safe scalars (zones + a proof seed) — it never uses raw
  * GPS, coordinates, a route path, or location labels.
  */
-function TerritoryHero({ seed, zones }: { seed: number; zones: number }) {
+function TerritoryHero({
+  seed,
+  zones,
+  height,
+}: {
+  seed: number;
+  zones: number;
+  /** Viewport-derived height so the card fits short screens. */
+  height: number;
+}) {
   const nodes = useMemo(() => {
     const count = Math.max(5, Math.min(8, zones || 6));
     const out: { left: DimensionValue; top: DimensionValue; size: number; teal: boolean }[] = [];
@@ -65,7 +75,7 @@ function TerritoryHero({ seed, zones }: { seed: number; zones: number }) {
   }, [seed, zones]);
 
   return (
-    <View style={styles.hero}>
+    <View style={[styles.hero, { height }]}>
       {/* light map-like roads */}
       <View style={[styles.road, { top: "32%" }]} />
       <View style={[styles.road, { top: "66%" }]} />
@@ -110,6 +120,7 @@ function TerritoryHero({ seed, zones }: { seed: number; zones: number }) {
 export default function RouteProofScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const r = useResponsive();
 
   const selectedClub = getClubById(useGameStore((s) => s.selectedClubId));
   const history = useGameStore((s) => s.routeTrustHistory);
@@ -167,7 +178,7 @@ export default function RouteProofScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <View style={styles.body}>
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
         <FadeSlideIn>
           <View style={styles.card}>
             <View style={styles.brandRow}>
@@ -177,7 +188,7 @@ export default function RouteProofScreen() {
               <Text style={styles.previewTag}>Route Proof Preview</Text>
             </View>
 
-            <TerritoryHero seed={seed} zones={zones} />
+            <TerritoryHero seed={seed} zones={zones} height={r.vh(0.24, 140, 200)} />
 
             {/* stat strip */}
             <View style={styles.stripRow}>
@@ -244,7 +255,7 @@ export default function RouteProofScreen() {
             </View>
           </View>
         </FadeSlideIn>
-      </View>
+      </ScrollView>
 
       <View style={styles.footer}>
         <Button label="Share summary" icon="share-outline" onPress={onShare} />
@@ -265,7 +276,8 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   headerTitle: { ...type.heading, fontSize: 16 },
-  body: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  body: { flex: 1 },
+  bodyContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
 
   card: {
     backgroundColor: colors.surface,
@@ -280,7 +292,6 @@ const styles = StyleSheet.create({
 
   /* hero */
   hero: {
-    height: 200,
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceAlt,
     overflow: "hidden",
