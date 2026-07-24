@@ -10,11 +10,11 @@ import { ZoneCard } from "@/components/ZoneCard";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
 import { StatCard } from "@/components/StatCard";
-import { NavRow } from "@/components/NavRow";
 import { MissionCard } from "@/components/MissionCard";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Gradient } from "@/components/Gradient";
-import { colors, gradients, palette, radius, shadows, spacing, type } from "@/theme";
+import { TintedNavCard } from "@/components/TintedNavCard";
+import { colors, gradients, palette, radius, shadows, spacing, type, type TintName } from "@/theme";
 import { alpha } from "@/lib/gradient";
 import { useGameStore } from "@/store/useGameStore";
 import { zoneStatus } from "@/lib/territory";
@@ -63,6 +63,25 @@ const UP_NEXT_ROUTE: Record<UpNextId, string> = {
   questline: "/questline",
   city: "/city-districts",
   collections: "/collections",
+};
+
+/** A stable tint + micro-label per destination, so the list reads as a set. */
+const UP_NEXT_TONE: Record<UpNextId, TintName> = {
+  objectives: "lilac",
+  "weekly-recap": "mint",
+  club: "sky",
+  questline: "sand",
+  city: "slate",
+  collections: "peach",
+};
+
+const UP_NEXT_KICKER: Record<UpNextId, string> = {
+  objectives: "Season",
+  "weekly-recap": "This week",
+  club: "Club",
+  questline: "Questline",
+  city: "City",
+  collections: "Badges",
 };
 
 export default function TodayScreen() {
@@ -324,11 +343,12 @@ export default function TodayScreen() {
               <SectionHeader title="Up next" />
               <View style={styles.upNextList}>
                 {upNext.map((item) => (
-                  <NavRow
+                  <TintedNavCard
                     key={item.id}
-                    icon={item.icon as never}
+                    tone={UP_NEXT_TONE[item.id]}
+                    kicker={UP_NEXT_KICKER[item.id]}
                     title={item.title}
-                    subtitle={item.subtitle}
+                    detail={item.subtitle}
                     onPress={() => {
                       tapFeedback();
                       router.push(UP_NEXT_ROUTE[item.id]);
