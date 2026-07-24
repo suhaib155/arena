@@ -167,9 +167,9 @@ export default function ProfileScreen() {
         {/* Concise real stats */}
         <FadeSlideIn delay={STAGGER_MS}>
           <View style={styles.statsRow}>
-            <StatCard icon="flame" value={streak} label="Day streak" tint={palette.heatCoral} />
-            <StatCard icon="trophy" value={level.level} label="Level" tint={colors.primary} />
-            <StatCard icon="checkmark-done" value={questsCompleted} label="Completed" tint={palette.pulseGreen} />
+            <StatCard icon="flame" value={streak} label="Day streak" tone="peach" />
+            <StatCard icon="trophy" value={level.level} label="Level" tone="sky" />
+            <StatCard icon="checkmark-done" value={questsCompleted} label="Completed" tone="mint" />
           </View>
         </FadeSlideIn>
 

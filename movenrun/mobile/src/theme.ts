@@ -67,6 +67,26 @@ export const colors = {
   onInkDim: "#A9B4D0",
 } as const;
 
+/**
+ * Soft tinted card surfaces.
+ *
+ * A screen of identical white cards reads as a template no matter how good the
+ * type is. Giving each card a faint wash keyed to its meaning — streak warm,
+ * territory green, progress blue — creates rhythm and warmth while keeping the
+ * canvas light. `bg` is the surface, `edge` its hairline, `ink` the accent used
+ * for the value and icon (all `ink` values clear 4.5:1 on their own `bg`).
+ */
+export const tints = {
+  lilac: { bg: "#F2EDFE", edge: "#E4DAFB", ink: "#5B3FD6" },
+  mint: { bg: "#E4F6EE", edge: "#D0EEE1", ink: "#00805A" },
+  peach: { bg: "#FFEDE6", edge: "#FFDCD0", ink: "#CE4A26" },
+  sky: { bg: "#E8EEFF", edge: "#D8E2FF", ink: "#2A48D0" },
+  sand: { bg: "#FFF4E0", edge: "#FFE7C2", ink: "#A9721A" },
+  slate: { bg: "#EDF1FA", edge: "#DFE5F2", ink: "#44506E" },
+} as const;
+
+export type TintName = keyof typeof tints;
+
 /** Hex-zone state colors, shared by the territory preview + the future map. */
 export const zoneColors = {
   owned: palette.pulseGreen,
