@@ -8,11 +8,14 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { NavRow } from "@/components/NavRow";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
-import { RoutePath } from "@/components/RoutePath";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { Gradient } from "@/components/Gradient";
+import { ProgressRing } from "@/components/ProgressRing";
+import { TintedNavCard } from "@/components/TintedNavCard";
+import { colors, gradients, palette, radius, shadows, spacing, type } from "@/theme";
+import { alpha } from "@/lib/gradient";
 import { useGameStore } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { getLevelInfo } from "@/lib/leveling";
@@ -131,17 +134,23 @@ export default function ProfileScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* Identity header */}
+        {/* Identity header — the level ring is the hero, on deep ink */}
         <FadeSlideIn>
           <View style={styles.hero}>
-            <View style={styles.avatarRing}>
-              <View style={styles.avatar}>
-                <Ionicons name="person" size={30} color={colors.primary} />
-              </View>
+            <Gradient colors={gradients.ink} radius={radius.xl} />
+            <View style={styles.heroGlazeMask}>
+              <View style={styles.heroGlaze} />
             </View>
+
+            <ProgressRing progress={level.progress} size={148} color={palette.voltMint}>
+              <Text style={styles.ringValue}>{level.level}</Text>
+              <Text style={styles.ringUnit}>Level</Text>
+            </ProgressRing>
+
             <Text style={styles.name}>Mover</Text>
             <Text style={styles.subtitle}>
-              Level {level.level} · {totalXp.toLocaleString()} XP total
+              {level.xpForLevel - level.xpIntoLevel} XP to level {level.level + 1} ·{" "}
+              {totalXp.toLocaleString()} total
             </Text>
             <View style={styles.pillRow}>
               <StatusPill
@@ -150,15 +159,9 @@ export default function ProfileScreen() {
                 tone={identity.signedIn ? "primary" : "neutral"}
               />
               <StatusPill
-                icon={identity.walletAvailable ? "wallet-outline" : "wallet-outline"}
+                icon="wallet-outline"
                 label={identity.walletLabel}
                 tone={identity.walletAvailable ? "success" : "neutral"}
-              />
-            </View>
-            <View style={styles.heroBar}>
-              <RoutePath
-                progress={level.progress}
-                label={`${level.xpForLevel - level.xpIntoLevel} XP to level ${level.level + 1}`}
               />
             </View>
           </View>
@@ -203,31 +206,42 @@ export default function ProfileScreen() {
           />
         </FadeSlideIn>
 
-        {/* Progress */}
+        {/* Progress — tinted cards carry the identity, so no icon tiles */}
         <NavGroup title="Progress">
-          <NavRow
-            icon="ribbon-outline"
-            title="Season Objectives"
-            subtitle={`${seasonObjectives.completed}/${seasonObjectives.total} complete · local preview`}
-            trailing={`${seasonObjectives.progressPct}%`}
+          <TintedNavCard
+            tone="lilac"
+            kicker="Season"
+            title="Objectives"
+            value={`${seasonObjectives.progressPct}%`}
+            progress={seasonObjectives.progressPct / 100}
+            detail={`${seasonObjectives.completed}/${seasonObjectives.total} complete · local preview`}
             onPress={() => go("/season-objectives")}
           />
-          <NavRow
-            icon="bar-chart-outline"
+          <TintedNavCard
+            tone="mint"
+            kicker="This week"
             title="Weekly Recap"
-            subtitle={recap.hasActivity ? `${recap.weekLabel} · ${recap.momentumLabel}` : "Move to fill it in · local preview"}
+            detail={
+              recap.hasActivity
+                ? `${recap.weekLabel} · ${recap.momentumLabel}`
+                : "Move to fill it in · local preview"
+            }
             onPress={() => go("/weekly-recap")}
           />
-          <NavRow
-            icon="medal-outline"
+          <TintedNavCard
+            tone="sand"
+            kicker="Badges"
             title="Collections"
-            subtitle={`${collections.unlocked}/${collections.total} local badges · preview only`}
+            value={`${collections.unlocked}/${collections.total}`}
+            progress={collections.total > 0 ? collections.unlocked / collections.total : 0}
+            detail="Local badges · preview only"
             onPress={() => go("/collections")}
           />
-          <NavRow
-            icon="trending-up-outline"
+          <TintedNavCard
+            tone="sky"
+            kicker="Long term"
             title="District Mastery"
-            subtitle="Long-term local progress · no ownership"
+            detail="Local progress · no ownership"
             onPress={() => go("/district-mastery")}
           />
         </NavGroup>
@@ -385,33 +399,36 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: "center",
     gap: spacing.xs,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.ink,
     borderRadius: radius.xl,
     padding: spacing.xl,
-    ...shadows.float,
+    ...shadows.hero,
   },
-  avatarRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    borderWidth: 3,
-    borderColor: palette.baseBlue,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
+  heroGlazeMask: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: radius.xl,
+    overflow: "hidden",
   },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
+  heroGlaze: {
+    position: "absolute",
+    top: -150,
+    right: -110,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: alpha(palette.deedViolet, 0.24),
   },
-  name: { ...type.title, fontSize: 24 },
-  subtitle: { ...type.caption, fontSize: 14 },
-  pillRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", justifyContent: "center", marginTop: spacing.xs },
-  heroBar: { alignSelf: "stretch", marginTop: spacing.md },
+  ringValue: {
+    ...type.display,
+    fontSize: 44,
+    letterSpacing: -1.6,
+    color: colors.onInk,
+    fontVariant: ["tabular-nums"],
+  },
+  ringUnit: { ...type.kicker, fontSize: 9.5, color: colors.onInkDim, marginTop: 2 },
+  name: { ...type.title, fontSize: 24, color: colors.onInk, marginTop: spacing.md },
+  subtitle: { ...type.caption, fontSize: 13, color: colors.onInkDim, textAlign: "center" },
+  pillRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", justifyContent: "center", marginTop: spacing.sm },
   statsRow: { flexDirection: "row", gap: spacing.md },
   moveCard: {
     flexDirection: "row",
