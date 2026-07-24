@@ -3,9 +3,10 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { colors, glow, radius, shadows, spacing, type } from "@/theme";
+import { colors, glow, gradients, hairline, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
+import { Gradient } from "./Gradient";
 import { tapFeedback } from "@/lib/haptics";
 
 /**
@@ -120,7 +121,8 @@ function MoveButton({ onPress }: { onPress: () => void }) {
         accessibilityRole="button"
         accessibilityLabel="Move — start a movement session"
       >
-        <Ionicons name="play" size={26} color={colors.surface} />
+        <Gradient colors={gradients.aurora} steps={10} radius={30} />
+        <Ionicons name="play" size={26} color={colors.onInk} />
       </ScalePress>
       <Text style={styles.moveLabel}>Move</Text>
     </View>
@@ -140,10 +142,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 64,
+    height: 68,
     paddingHorizontal: spacing.sm,
-    borderRadius: radius.xl,
+    borderRadius: radius.pill,
     backgroundColor: colors.surface,
+    ...hairline,
     ...shadows.float,
   },
   tab: {
@@ -156,10 +159,10 @@ const styles = StyleSheet.create({
   tabLabel: { ...type.caption, fontSize: 10.5 },
   moveSlot: { width: 72, alignItems: "center", justifyContent: "center" },
   moveButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginTop: -22,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginTop: -24,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",

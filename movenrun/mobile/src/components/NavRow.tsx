@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, shadows, spacing, type } from "@/theme";
+import { colors, hairline, radius, shadows, spacing, type } from "@/theme";
+import { alpha } from "@/lib/gradient";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 
@@ -30,7 +31,12 @@ export function NavRow({ icon, title, subtitle, trailing, onPress, tint = colors
       accessibilityRole="button"
       accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
     >
-      <View style={[styles.iconTile, { backgroundColor: `${tint}14` }]}>
+      <View
+        style={[
+          styles.iconTile,
+          { backgroundColor: alpha(tint, 0.12), borderColor: alpha(tint, 0.2) },
+        ]}
+      >
         <Ionicons name={icon} size={18} color={tint} />
       </View>
       <View style={styles.body}>
@@ -59,13 +65,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
-    minHeight: 60,
-    ...shadows.card,
+    minHeight: 62,
+    ...hairline,
+    ...shadows.soft,
   },
   iconTile: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },

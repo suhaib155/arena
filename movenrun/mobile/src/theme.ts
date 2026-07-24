@@ -1,41 +1,59 @@
 /**
- * MovenRun design tokens — “Daylight Cartography”.
+ * MovenRun design tokens — “Aurora Cartography”.
  *
- * Bright white/light-mode, soft frosted-glass cards, hex-native identity and
- * vibrant territory accents (Base Blue / Pulse Green / Deed Violet). This is
- * the native counterpart of the marketing site in `movenrun/website/`.
- * Centralized so screens/components stay visually consistent.
+ * An evolution of Daylight Cartography: the same bright, trustworthy light
+ * canvas, now with real depth (tinted layered shadows + hairline card edges),
+ * a signature indigo→violet aurora used sparingly on primary moments, deep-ink
+ * hero surfaces for the headline metric on a screen, and jewel-toned territory
+ * accents in place of washed pastels.
+ *
+ * Every token name from the previous scale is preserved, so existing call sites
+ * keep compiling and inherit the refresh automatically.
  */
 import { Platform, type TextStyle, type ViewStyle } from "react-native";
 
-/** The raw Daylight Cartography palette. Prefer the semantic `colors` map in
+/** The raw Aurora Cartography palette. Prefer the semantic `colors` map in
  *  screens; reach for the palette when a token is brand-specific (hex zone
  *  states, Locked MOVE gold, Deed violet, …). */
 export const palette = {
-  morningWhite: "#F8FAF7",
+  /* Surfaces — a cool porcelain canvas reads cleaner and more premium than the
+     previous warm green-grey, and makes white cards actually lift off it. */
+  morningWhite: "#F4F6FC",
   cloudCard: "#FFFFFF",
-  mistPanel: "#F1F6F3",
-  paleSky: "#EAF6FF",
-  deepInk: "#111827",
-  softGraphite: "#667085",
-  silverTrail: "#A3AAB8",
-  baseBlue: "#246BFE",
-  pulseGreen: "#18C987",
-  voltMint: "#58F2B3",
-  heatCoral: "#FF6B4A",
-  moveGold: "#F7B955",
-  deedViolet: "#7657FF",
-  rivalRed: "#EF4444",
-  dustGray: "#D0D5DD",
+  mistPanel: "#EDF1FA",
+  paleSky: "#E6EDFF",
+
+  /* Ink — deep indigo-black instead of neutral slate: richer, and it ties the
+     text to the brand hue instead of fighting it. */
+  deepInk: "#0A0F1F",
+  midnight: "#151C33",
+  softGraphite: "#5A6484",
+  silverTrail: "#98A2BD",
+  dustGray: "#D3D9EA",
+
+  /* Brand — electric indigo replaces the stock system blue; the greens and
+     violets move from pastel to jewel tone so they hold their own on white. */
+  baseBlue: "#3355FF",
+  skyBlue: "#5B8DEF",
+  pulseGreen: "#00C989",
+  voltMint: "#4FEFB8",
+  heatCoral: "#FF6A4D",
+  moveGold: "#FFB43D",
+  deedViolet: "#8A5CFF",
+  rivalRed: "#F04452",
 } as const;
 
-/** Semantic colors. Key names are kept from the previous (dark) theme so all
- *  existing call sites keep compiling; the values are Daylight Cartography. */
+/** Semantic colors. Key names are stable across theme generations so all
+ *  existing call sites keep compiling. */
 export const colors = {
   bg: palette.morningWhite,
   surface: palette.cloudCard,
   surfaceAlt: palette.mistPanel,
-  border: "#E7ECEF",
+  /** Hairline card edge — gives cards a crisp boundary instead of a fuzzy blur. */
+  border: "#E4E9F5",
+  /** Ink surface for hero moments (deep card behind light type). */
+  ink: palette.deepInk,
+  inkSoft: palette.midnight,
   primary: palette.baseBlue,
   primaryDim: palette.paleSky,
   accent: palette.pulseGreen,
@@ -44,6 +62,9 @@ export const colors = {
   text: palette.deepInk,
   textDim: palette.softGraphite,
   textFaint: palette.silverTrail,
+  /** Type colours for use on ink/gradient surfaces. */
+  onInk: "#FFFFFF",
+  onInkDim: "#A9B4D0",
 } as const;
 
 /** Hex-zone state colors, shared by the territory preview + the future map. */
@@ -68,13 +89,20 @@ export const difficultyColor: Record<string, string> = {
 };
 
 /**
- * Gradient endpoint tokens. `expo-linear-gradient` is intentionally NOT a
- * dependency yet — components use the first stop as a solid fill today, and a
- * follow-up PR can switch to real gradients without retouching screens.
+ * Gradient endpoint pairs, rendered by `components/Gradient` as stacked solid
+ * bands (no native gradient dependency). Use sparingly — the aurora is the
+ * app's signature, so it belongs on the primary action and hero surfaces only.
  */
 export const gradients = {
+  /** The signature: electric indigo → violet. Primary CTAs, Move button. */
+  aurora: [palette.baseBlue, palette.deedViolet],
+  /** Alias kept for existing call sites. */
   cta: [palette.baseBlue, palette.deedViolet],
+  /** Deep hero surface — near-black indigo with a lift toward midnight. */
+  ink: [palette.deepInk, palette.midnight],
+  /** Progress / XP fills. */
   xp: [palette.pulseGreen, palette.voltMint],
+  /** Reward and streak moments. */
   reward: [palette.moveGold, palette.heatCoral],
 } as const;
 
@@ -87,32 +115,53 @@ export const spacing = {
   xxl: 32,
 } as const;
 
+/** Generous, modern corner radii — the single cheapest premium signal. */
 export const radius = {
-  sm: 10,
-  md: 16,
-  lg: 22,
-  xl: 28,
+  sm: 12,
+  md: 18,
+  lg: 24,
+  xl: 30,
   pill: 999,
 } as const;
 
-/** Soft layered shadows (iOS) with matched Android elevation. Spread onto a
- *  view style: `{ ...shadows.card }`. */
+/**
+ * Layered shadows tinted with the brand indigo rather than neutral black.
+ * A tinted shadow reads as coloured light rather than grey dirt, which is what
+ * separates a premium surface from a flat one. Spread onto a view style:
+ * `{ ...shadows.card }`.
+ */
 export const shadows = {
-  /** Resting glass card. */
+  /** Subtle lift for secondary chips and inline panels. */
+  soft: {
+    shadowColor: "#1B2559",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  } satisfies ViewStyle,
+  /** Resting card. */
   card: {
-    shadowColor: "#101828",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
+    shadowColor: "#1B2559",
+    shadowOpacity: 0.1,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   } satisfies ViewStyle,
   /** Floating elements: tab bar, hero card, footers. */
   float: {
-    shadowColor: "#101828",
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 6,
+    shadowColor: "#141C3D",
+    shadowOpacity: 0.16,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 9,
+  } satisfies ViewStyle,
+  /** Deep hero surfaces that need to feel anchored and expensive. */
+  hero: {
+    shadowColor: "#0A0F1F",
+    shadowOpacity: 0.28,
+    shadowRadius: 40,
+    shadowOffset: { width: 0, height: 20 },
+    elevation: 14,
   } satisfies ViewStyle,
 } as const;
 
@@ -120,12 +169,22 @@ export const shadows = {
 export function glow(color: string): ViewStyle {
   return {
     shadowColor: color,
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    shadowOpacity: 0.42,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   };
 }
+
+/**
+ * Hairline edge that makes a light card crisp against the canvas. 1dp reads as
+ * a true hairline on every density we ship to, and unlike
+ * `StyleSheet.hairlineWidth` it never rounds away to nothing.
+ */
+export const hairline = {
+  borderWidth: 1,
+  borderColor: colors.border,
+} satisfies ViewStyle;
 
 /**
  * Typography scale.
@@ -139,29 +198,29 @@ export function glow(color: string): ViewStyle {
 export const type = {
   /** Hero numerals and wordmark moments. (Sora target) */
   display: {
-    fontSize: 30,
+    fontSize: 34,
     fontWeight: "800",
-    letterSpacing: -0.8,
+    letterSpacing: -1.1,
     color: colors.text,
   } satisfies TextStyle,
   /** Screen titles. (Sora target) */
   title: {
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: "800",
-    letterSpacing: -0.4,
+    letterSpacing: -0.6,
     color: colors.text,
   } satisfies TextStyle,
   /** Card titles / section headings. */
   heading: {
     fontSize: 17,
     fontWeight: "700",
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
     color: colors.text,
   } satisfies TextStyle,
   /** Body copy. (Plus Jakarta Sans target) */
   body: {
     fontSize: 15,
-    lineHeight: 21,
+    lineHeight: 22,
     color: colors.textDim,
   } satisfies TextStyle,
   /** Supporting captions and labels. */
@@ -172,8 +231,8 @@ export const type = {
   /** Tiny uppercase kickers. */
   kicker: {
     fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.2,
+    fontWeight: "800",
+    letterSpacing: 1.4,
     textTransform: "uppercase",
     color: colors.textFaint,
   } satisfies TextStyle,

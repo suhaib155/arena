@@ -23,6 +23,6 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     justifyContent: "space-between",
   },
-  title: { ...type.heading, fontSize: 18 },
-  trailing: { ...type.caption, fontWeight: "600" },
+  title: { ...type.title, fontSize: 19, letterSpacing: -0.5 },
+  trailing: { ...type.caption, fontWeight: "700" },
 });

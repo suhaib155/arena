@@ -28,18 +28,20 @@ export function MovementMetric({ value, label, size = "tile", tint }: MovementMe
 }
 
 const styles = StyleSheet.create({
-  heroWrap: { alignItems: "center", gap: 2 },
+  heroWrap: { alignItems: "center", gap: spacing.xs },
   heroValue: {
     ...type.display,
-    fontSize: 52,
-    letterSpacing: -1.5,
+    fontSize: 68,
+    lineHeight: 72,
+    letterSpacing: -3,
     fontVariant: ["tabular-nums"],
   },
-  heroLabel: { ...type.kicker, color: colors.textDim },
+  heroLabel: { ...type.kicker, color: colors.textFaint },
   tile: { flex: 1, alignItems: "center", gap: 2, paddingVertical: spacing.xs },
   tileValue: {
     ...type.title,
-    fontSize: 22,
+    fontSize: 24,
+    letterSpacing: -0.8,
     fontVariant: ["tabular-nums"],
   },
   tileLabel: { ...type.caption, fontSize: 11 },
