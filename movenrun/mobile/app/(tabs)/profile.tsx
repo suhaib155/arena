@@ -170,9 +170,9 @@ export default function ProfileScreen() {
         {/* Concise real stats */}
         <FadeSlideIn delay={STAGGER_MS}>
           <View style={styles.statsRow}>
-            <StatCard icon="flame" value={streak} label="Day streak" tone="peach" />
+            <StatCard icon="flame" value={streak} unit="d" label="Day streak" tone="peach" />
             <StatCard icon="trophy" value={level.level} label="Level" tone="sky" />
-            <StatCard icon="checkmark-done" value={questsCompleted} label="Completed" tone="mint" />
+            <StatCard icon="checkmark-done" value={questsCompleted} unit="done" label="Completed" tone="mint" />
           </View>
         </FadeSlideIn>
 

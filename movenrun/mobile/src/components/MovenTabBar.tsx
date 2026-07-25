@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { colors, glow, gradients, hairline, radius, shadows, spacing, type } from "@/theme";
+import { colors, glow, gradients, palette, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 import { Gradient } from "./Gradient";
@@ -96,7 +96,6 @@ function TabButton({
   active: boolean;
   onPress: () => void;
 }) {
-  const color = active ? colors.primary : colors.textFaint;
   return (
     <ScalePress
       to={0.9}
@@ -104,9 +103,13 @@ function TabButton({
       style={styles.tab}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
     >
-      <Ionicons name={icon} size={22} color={color} />
-      <Text style={[styles.tabLabel, { color, fontWeight: active ? "700" : "600" }]}>{label}</Text>
+      {/* The active destination is a filled disc, so selection reads from
+          shape as well as colour. */}
+      <View style={[styles.tabDisc, active ? styles.tabDiscActive : null]}>
+        <Ionicons name={icon} size={20} color={active ? palette.forest : colors.onInkDim} />
+      </View>
     </ScalePress>
   );
 }
@@ -142,21 +145,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 68,
+    height: 66,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    ...hairline,
+    backgroundColor: colors.ink,
     ...shadows.float,
   },
   tab: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
     paddingVertical: spacing.sm,
+    minHeight: 48,
   },
-  tabLabel: { ...type.caption, fontSize: 10.5 },
+  tabDisc: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabDiscActive: { backgroundColor: colors.onInk },
   moveSlot: { width: 72, alignItems: "center", justifyContent: "center" },
   moveButton: {
     width: 60,
@@ -167,14 +176,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 4,
-    borderColor: colors.bg,
-    ...glow(colors.primary),
+    borderColor: colors.ink,
+    ...glow(palette.forestSoft),
   },
   moveLabel: {
     ...type.caption,
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: "700",
-    color: colors.primary,
+    color: colors.onInkDim,
     marginTop: 2,
   },
 });

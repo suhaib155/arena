@@ -2,11 +2,14 @@ import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, hairline, radius, shadows, spacing, tints, type, type TintName } from "@/theme";
 import { alpha } from "@/lib/gradient";
+import { MetricValue } from "./MetricValue";
 import type { IoniconName } from "@/types";
 
 interface StatCardProps {
   icon: IoniconName;
   value: string | number;
+  /** Small unit set tight against the value, e.g. "kcal", "m", "%". */
+  unit?: string;
   label: string;
   /** Icon/value accent. Ignored when `tone` is set (the tint supplies its own). */
   tint?: string;
@@ -21,7 +24,7 @@ interface StatCardProps {
  * A single at-a-glance metric. Either a white card with a tinted icon badge, or
  * — with `tone` — a softly washed surface whose colour carries the meaning.
  */
-export function StatCard({ icon, value, label, tint = colors.primary, tone }: StatCardProps) {
+export function StatCard({ icon, value, unit, label, tint = colors.primary, tone }: StatCardProps) {
   const t = tone ? tints[tone] : null;
   const accent = t ? t.ink : tint;
   return (
@@ -42,7 +45,7 @@ export function StatCard({ icon, value, label, tint = colors.primary, tone }: St
       >
         <Ionicons name={icon} size={18} color={accent} />
       </View>
-      <Text style={[styles.value, t ? { color: t.ink } : null]}>{value}</Text>
+      <MetricValue value={value} unit={unit} size={26} color={t ? t.ink : colors.text} />
       {/* Full-strength ink, de-emphasised by weight rather than opacity: a
           faded label would drop under 4.5:1 on the warmer tints. */}
       <Text style={[styles.label, t ? styles.labelTinted : null, t ? { color: t.ink } : null]} numberOfLines={2}>
@@ -62,20 +65,16 @@ const styles = StyleSheet.create({
     ...hairline,
     ...shadows.card,
   },
+  /* Circular badge, not a rounded square — a disc reads softer against the
+     warm canvas and matches the rest of the badge system. */
   iconTile: {
     width: 38,
     height: 38,
-    borderRadius: radius.sm,
+    borderRadius: 19,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.xs,
-  },
-  value: {
-    ...type.title,
-    fontSize: 26,
-    letterSpacing: -0.9,
-    fontVariant: ["tabular-nums"],
   },
   label: { ...type.caption },
   labelTinted: { fontWeight: "600" },

@@ -322,8 +322,8 @@ export default function TodayScreen() {
         {/* Two performance widgets — varied hierarchy, not a wall of cards */}
         <FadeSlideIn delay={STAGGER_MS}>
           <View style={styles.statsRow}>
-            <StatCard icon="flame" value={streak} label="day streak" tone="peach" />
-            <StatCard icon="flash" value={`+${xpToday}`} label="XP today" tone="sand" />
+            <StatCard icon="flame" value={streak} unit="d" label="Day streak" tone="peach" />
+            <StatCard icon="flash" value={`+${xpToday}`} unit="xp" label="Earned today" tone="sand" />
           </View>
         </FadeSlideIn>
 

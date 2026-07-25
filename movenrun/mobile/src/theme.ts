@@ -1,46 +1,47 @@
 /**
- * MovenRun design tokens — “Aurora Cartography”.
+ * MovenRun design tokens — “Warm Cartography”.
  *
- * An evolution of Daylight Cartography: the same bright, trustworthy light
- * canvas, now with real depth (tinted layered shadows + hairline card edges),
- * a signature indigo→violet aurora used sparingly on primary moments, deep-ink
- * hero surfaces for the headline metric on a screen, and jewel-toned territory
- * accents in place of washed pastels.
+ * A warm sand-cream canvas with ivory cards, deep forest green as the brand
+ * lead, a warm near-black for hero surfaces and the tab bar, and soft tinted
+ * badges (sage, peach, sky, lilac, sand). Shadows are warm-tinted, because a
+ * cool navy shadow reads as dirt over cream.
  *
- * Every token name from the previous scale is preserved, so existing call sites
- * keep compiling and inherit the refresh automatically.
+ * Every token name is preserved across theme generations, so existing call
+ * sites keep compiling and inherit the retone automatically.
  */
 import { Platform, type TextStyle, type ViewStyle } from "react-native";
 
-/** The raw Aurora Cartography palette. Prefer the semantic `colors` map in
+/** The raw Warm Cartography palette. Prefer the semantic `colors` map in
  *  screens; reach for the palette when a token is brand-specific (hex zone
  *  states, Locked MOVE gold, Deed violet, …). */
 export const palette = {
-  /* Surfaces — a cool porcelain canvas reads cleaner and more premium than the
-     previous warm green-grey, and makes white cards actually lift off it. */
-  morningWhite: "#F4F6FC",
-  cloudCard: "#FFFFFF",
-  mistPanel: "#EDF1FA",
-  paleSky: "#E6EDFF",
+  /* Canvas — a warm sand cream rather than a cool white. This is what gives
+     the whole app its calm, editorial feel; cards then sit on it as ivory. */
+  morningWhite: "#F0E9DE",
+  cloudCard: "#FCF9F3",
+  mistPanel: "#EAE2D5",
+  paleSky: "#DCEDE0",
 
-  /* Ink — deep indigo-black instead of neutral slate: richer, and it ties the
-     text to the brand hue instead of fighting it. */
-  deepInk: "#0A0F1F",
-  midnight: "#151C33",
-  softGraphite: "#5A6484",
-  silverTrail: "#98A2BD",
-  dustGray: "#D3D9EA",
+  /* Ink — a warm near-black. Pure black is harsh against cream. */
+  deepInk: "#171613",
+  midnight: "#262420",
+  softGraphite: "#6B6459",
+  silverTrail: "#A79E90",
+  dustGray: "#D8CFC0",
 
-  /* Brand — electric indigo replaces the stock system blue; the greens and
-     violets move from pastel to jewel tone so they hold their own on white. */
-  baseBlue: "#3355FF",
-  skyBlue: "#5B8DEF",
-  pulseGreen: "#00C989",
-  voltMint: "#4FEFB8",
-  heatCoral: "#FF6A4D",
-  moveGold: "#FFB43D",
-  deedViolet: "#8A5CFF",
-  rivalRed: "#F04452",
+  /* Brand — deep forest green leads, with warm clay and amber supporting.
+     `baseBlue` stays a real blue: it denotes the Base chain on the Network
+     screen and must not silently become green. */
+  forest: "#1E4D3A",
+  forestSoft: "#3A7A5C",
+  pulseGreen: "#2F7A55",
+  voltMint: "#8FD9A8",
+  heatCoral: "#DE7440",
+  moveGold: "#D9A03C",
+  deedViolet: "#6F5FA8",
+  rivalRed: "#C9524C",
+  baseBlue: "#2F6BD8",
+  skyBlue: "#5A8FD6",
 } as const;
 
 /** Semantic colors. Key names are stable across theme generations so all
@@ -50,11 +51,11 @@ export const colors = {
   surface: palette.cloudCard,
   surfaceAlt: palette.mistPanel,
   /** Hairline card edge — gives cards a crisp boundary instead of a fuzzy blur. */
-  border: "#E4E9F5",
+  border: "#E2D9C9",
   /** Ink surface for hero moments (deep card behind light type). */
   ink: palette.deepInk,
   inkSoft: palette.midnight,
-  primary: palette.baseBlue,
+  primary: palette.forest,
   primaryDim: palette.paleSky,
   accent: palette.pulseGreen,
   danger: palette.rivalRed,
@@ -64,7 +65,7 @@ export const colors = {
   textFaint: palette.silverTrail,
   /** Type colours for use on ink/gradient surfaces. */
   onInk: "#FFFFFF",
-  onInkDim: "#A9B4D0",
+  onInkDim: "#B5AFA3",
 } as const;
 
 /**
@@ -73,16 +74,16 @@ export const colors = {
  * A screen of identical white cards reads as a template no matter how good the
  * type is. Giving each card a faint wash keyed to its meaning — streak warm,
  * territory green, progress blue — creates rhythm and warmth while keeping the
- * canvas light. `bg` is the surface, `edge` its hairline, `ink` the accent used
+ * canvas warm. `bg` is the surface, `edge` its hairline, `ink` the accent used
  * for the value and icon (all `ink` values clear 4.5:1 on their own `bg`).
  */
 export const tints = {
-  lilac: { bg: "#F2EDFE", edge: "#E4DAFB", ink: "#5B3FD6" },
-  mint: { bg: "#E4F6EE", edge: "#D0EEE1", ink: "#00805A" },
-  peach: { bg: "#FFEDE6", edge: "#FFDCD0", ink: "#CE4A26" },
-  sky: { bg: "#E8EEFF", edge: "#D8E2FF", ink: "#2A48D0" },
-  sand: { bg: "#FFF4E0", edge: "#FFE7C2", ink: "#A9721A" },
-  slate: { bg: "#EDF1FA", edge: "#DFE5F2", ink: "#44506E" },
+  lilac: { bg: "#E7E1F4", edge: "#D7CEEC", ink: "#544590" },
+  mint: { bg: "#DCEDE0", edge: "#C7E0CE", ink: "#1D5A3E" },
+  peach: { bg: "#F9E4CE", edge: "#F1D4B6", ink: "#A3571F" },
+  sky: { bg: "#DBE8F4", edge: "#C7DAEC", ink: "#2A5478" },
+  sand: { bg: "#F5EAD2", edge: "#EADCB9", ink: "#856520" },
+  slate: { bg: "#E9E2D6", edge: "#DAD1C1", ink: "#4A443A" },
 } as const;
 
 export type TintName = keyof typeof tints;
@@ -110,15 +111,15 @@ export const difficultyColor: Record<string, string> = {
 
 /**
  * Gradient endpoint pairs, rendered by `components/Gradient` as stacked solid
- * bands (no native gradient dependency). Use sparingly — the aurora is the
+ * bands (no native gradient dependency). Use sparingly — the forest ramp is the
  * app's signature, so it belongs on the primary action and hero surfaces only.
  */
 export const gradients = {
-  /** The signature: electric indigo → violet. Primary CTAs, Move button. */
-  aurora: [palette.baseBlue, palette.deedViolet],
+  /** The signature: deep forest → soft forest. Primary CTAs, Move button. */
+  aurora: [palette.forest, palette.forestSoft],
   /** Alias kept for existing call sites. */
-  cta: [palette.baseBlue, palette.deedViolet],
-  /** Deep hero surface — near-black indigo with a lift toward midnight. */
+  cta: [palette.forest, palette.forestSoft],
+  /** Deep hero surface — warm near-black with a lift toward midnight. */
   ink: [palette.deepInk, palette.midnight],
   /** Progress / XP fills. */
   xp: [palette.pulseGreen, palette.voltMint],
@@ -145,15 +146,14 @@ export const radius = {
 } as const;
 
 /**
- * Layered shadows tinted with the brand indigo rather than neutral black.
- * A tinted shadow reads as coloured light rather than grey dirt, which is what
- * separates a premium surface from a flat one. Spread onto a view style:
- * `{ ...shadows.card }`.
+ * Layered shadows tinted warm rather than neutral black. A warm shadow reads as
+ * light falling across cream; a cool one reads as dirt. Spread onto a view
+ * style: `{ ...shadows.card }`.
  */
 export const shadows = {
   /** Subtle lift for secondary chips and inline panels. */
   soft: {
-    shadowColor: "#1B2559",
+    shadowColor: "#4A3F2E",
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -161,7 +161,7 @@ export const shadows = {
   } satisfies ViewStyle,
   /** Resting card. */
   card: {
-    shadowColor: "#1B2559",
+    shadowColor: "#4A3F2E",
     shadowOpacity: 0.1,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 10 },
@@ -169,7 +169,7 @@ export const shadows = {
   } satisfies ViewStyle,
   /** Floating elements: tab bar, hero card, footers. */
   float: {
-    shadowColor: "#141C3D",
+    shadowColor: "#43392A",
     shadowOpacity: 0.16,
     shadowRadius: 32,
     shadowOffset: { width: 0, height: 16 },
@@ -177,7 +177,7 @@ export const shadows = {
   } satisfies ViewStyle,
   /** Deep hero surfaces that need to feel anchored and expensive. */
   hero: {
-    shadowColor: "#0A0F1F",
+    shadowColor: "#241E15",
     shadowOpacity: 0.28,
     shadowRadius: 40,
     shadowOffset: { width: 0, height: 20 },
