@@ -16,17 +16,16 @@
  * unit-testable without a database or Express.
  */
 import { h3CellToGeoJsonFeature, type CellFeature } from "../h3.js";
-import { actionEligibility, relationshipFor } from "../rules.js";
+import { actionEligibility, relationshipFor, type TerritoryViewer } from "../rules.js";
 import type {
   TerritoryOwnershipEvent,
   TerritoryRecord,
   TerritoryRelationship,
 } from "../types.js";
 
-export interface Viewer {
-  walletAddress: string | null;
-  clubId: string | null;
-}
+/** Re-exported so call sites have one name for "who is asking". Identity is
+ *  established in http/viewer.ts and never from a client-supplied claim (D2). */
+export type Viewer = TerritoryViewer;
 
 /**
  * Public owner summary. Deliberately not the full address: `0x1234…cdef` is
@@ -92,9 +91,12 @@ const RELATIONSHIP_PRIORITY: Record<TerritoryRelationship, number> = {
   club: 1,
   contested: 2,
   rival: 3,
-  protected: 4,
-  neutral: 5,
-  restricted: 6,
+  // Anonymous viewers see held ground as `claimed` (D2). It ranks with `rival`
+  // because it is real territory — more worth showing than empty ground.
+  claimed: 4,
+  protected: 5,
+  neutral: 6,
+  restricted: 7,
 };
 
 /**

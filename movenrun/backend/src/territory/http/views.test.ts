@@ -25,6 +25,15 @@ const CELL = latLngToCell(51.5, -0.1, TERRITORY_H3_RESOLUTION_V2)!;
 const RUNNER = "0x1111111111111111111111111111111111111111";
 const RIVAL = "0x2222222222222222222222222222222222222222";
 
+/** Build a session-shaped viewer (D2). Identity only ever comes from a verified
+ *  session, so tests construct it directly rather than faking a header. */
+function viewer(wallet: string | null, clubId: string | null) {
+  return wallet
+    ? { userId: `user-${wallet.slice(-4)}`, walletAddresses: [wallet.toLowerCase()], clubId, authenticated: true }
+    : { userId: null, walletAddresses: [], clubId, authenticated: false };
+}
+
+
 function owned(wallet: string, overrides: Partial<TerritoryRecord> = {}): TerritoryRecord {
   return {
     ...neutralTerritory(CELL, 2, TERRITORY_H3_RESOLUTION_V2),
@@ -91,7 +100,7 @@ test("an unowned cell has no owner summary", () => {
 // ---------------------------------------------------------------- map view
 
 test("a map feature carries safe properties and a cell-derived polygon", () => {
-  const feature = toMapFeature(owned(RUNNER), { walletAddress: RUNNER, clubId: null });
+  const feature = toMapFeature(owned(RUNNER), viewer(RUNNER, null));
   assert.equal(feature.geometry.type, "Polygon");
   assert.equal(feature.properties.cellId, CELL);
   assert.equal(feature.properties.relationship, "mine");
@@ -104,21 +113,24 @@ test("a map feature carries safe properties and a cell-derived polygon", () => {
 
 test("the same cell is labelled per viewer without changing its data", () => {
   const territory = owned(RUNNER);
-  const mine = toMapFeature(territory, { walletAddress: RUNNER, clubId: null });
-  const theirs = toMapFeature(territory, { walletAddress: RIVAL, clubId: null });
+  const mine = toMapFeature(territory, viewer(RUNNER, null));
+  const theirs = toMapFeature(territory, viewer(RIVAL, null));
   assert.equal(mine.properties.relationship, "mine");
   assert.equal(theirs.properties.relationship, "rival");
   assert.deepEqual(mine.geometry, theirs.geometry, "geometry must not vary by viewer");
   assert.equal(mine.properties.controlScore, theirs.properties.controlScore);
 });
 
-test("an anonymous viewer sees owned cells as rival, not as their own", () => {
-  const feature = toMapFeature(owned(RUNNER), { walletAddress: null, clubId: null });
-  assert.equal(feature.properties.relationship, "rival");
+test("D2: an anonymous viewer sees owned cells as `claimed`, never `rival` or `mine`", () => {
+  // `rival` asserts the cell belongs to somebody other than the viewer, which
+  // is not knowable without an identity. Asserting it anyway is what made a
+  // runner's own territory render in rival colours.
+  const feature = toMapFeature(owned(RUNNER), viewer(null, null));
+  assert.equal(feature.properties.relationship, "claimed");
 });
 
 test("the map response reports truncation honestly", () => {
-  const response = toMapResponse([owned(RUNNER)], { walletAddress: RUNNER, clubId: null }, {
+  const response = toMapResponse([owned(RUNNER)], viewer(RUNNER, null), {
     gridVersion: 2,
     resolution: 9,
     total: 5000,
@@ -139,7 +151,7 @@ test("detail carries neighbours, actions and requirements", () => {
     owned(RIVAL),
     [neighbour],
     [event()],
-    { walletAddress: RUNNER, clubId: null },
+    viewer(RUNNER, null),
     describeCaptureRequirements(TERRITORY_DEFAULTS),
   );
   assert.equal(response.relationship, "rival");
@@ -180,7 +192,7 @@ test("public history strips route ids and evidence hashes", () => {
 
 test("NO response shape leaks GPS, a route id, an evidence hash or a full address", () => {
   const responses = [
-    toMapResponse([owned(RUNNER)], { walletAddress: RIVAL, clubId: null }, {
+    toMapResponse([owned(RUNNER)], viewer(RIVAL, null), {
       gridVersion: 2,
       resolution: 9,
       total: 1,
@@ -190,7 +202,7 @@ test("NO response shape leaks GPS, a route id, an evidence hash or a full addres
       owned(RUNNER),
       [neutralTerritory("892a100894bffff", 2, 9)],
       [event()],
-      { walletAddress: RIVAL, clubId: null },
+      viewer(RIVAL, null),
       describeCaptureRequirements(TERRITORY_DEFAULTS),
     ),
     { events: [toPublicEvent(event())] },
@@ -227,8 +239,8 @@ test("NO response shape leaks GPS, a route id, an evidence hash or a full addres
 });
 
 test("cell geometry is derived from the cell id alone — identical for everyone", () => {
-  const a = toMapFeature(owned(RUNNER), { walletAddress: RUNNER, clubId: null });
-  const b = toMapFeature(owned(RIVAL), { walletAddress: null, clubId: null });
+  const a = toMapFeature(owned(RUNNER), viewer(RUNNER, null));
+  const b = toMapFeature(owned(RIVAL), viewer(null, null));
   assert.deepEqual(a.geometry, b.geometry);
   // And the polygon is the H3 cell itself, not anything route-shaped. A cell
   // has 6 corners, or a few more where it straddles an icosahedron face

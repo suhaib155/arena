@@ -28,6 +28,15 @@ const CELL = latLngToCell(51.5, -0.1, RES)!;
 const RUNNER = "0x1111111111111111111111111111111111111111";
 const RIVAL = "0x2222222222222222222222222222222222222222";
 
+/** Build a session-shaped viewer (D2). Identity only ever comes from a verified
+ *  session, so tests construct it directly rather than faking a header. */
+function viewer(wallet: string | null, clubId: string | null) {
+  return wallet
+    ? { userId: `user-${wallet.slice(-4)}`, walletAddresses: [wallet.toLowerCase()], clubId, authenticated: true }
+    : { userId: null, walletAddresses: [], clubId, authenticated: false };
+}
+
+
 interface Captured {
   status: number;
   body: unknown;
@@ -126,14 +135,14 @@ function session(overrides: Partial<TerritoryCaptureSession> = {}): TerritoryCap
   };
 }
 
-function router(repository = new InMemoryTerritoryRepository(), viewer = RUNNER) {
+function router(repository = new InMemoryTerritoryRepository(), who = RUNNER) {
   return {
     repository,
     router: createTerritoryRouter({
       repository,
       config: TERRITORY_DEFAULTS,
       broadcaster: new TerritoryBroadcaster(),
-      resolveViewer: () => ({ walletAddress: viewer, clubId: null }),
+      resolveViewer: () => viewer(who, null),
     }),
   };
 }

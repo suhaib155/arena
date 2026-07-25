@@ -24,6 +24,7 @@ import type {
   CellClassification,
   TerritoryEventType,
   TerritoryRecord,
+  TerritoryRelationship,
   TerritoryState,
 } from "./types.js";
 import { isCapturableClassification } from "./types.js";
@@ -305,25 +306,54 @@ export function applyOutcomeScores(
  * How a cell relates to the requesting user. Computed per request; never
  * stored, because the same cell is `mine` to one runner and `rival` to another.
  */
+/**
+ * Who is asking (D2).
+ *
+ * `walletAddresses` is a list because one account can link several wallets, and
+ * territory captured from any of them is still *theirs*. It is populated only
+ * from a verified session — there is deliberately no field here a client could
+ * set directly.
+ */
+export interface TerritoryViewer {
+  /** Verified user id, or null for an anonymous caller. */
+  userId: string | null;
+  /** Every wallet address the verified user owns, lowercased. */
+  walletAddresses: string[];
+  clubId: string | null;
+  /** False for an anonymous caller. Drives the `claimed` answer below. */
+  authenticated: boolean;
+}
+
+/** An anonymous viewer. The only viewer that can be constructed without auth. */
+export const ANONYMOUS_VIEWER: TerritoryViewer = {
+  userId: null,
+  walletAddresses: [],
+  clubId: null,
+  authenticated: false,
+};
+
 export function relationshipFor(
   territory: Pick<
     TerritoryRecord,
     "state" | "ownerWalletAddress" | "ownerClubId" | "classification"
   >,
-  viewer: { walletAddress: string | null; clubId: string | null },
-): "mine" | "club" | "rival" | "contested" | "neutral" | "protected" | "restricted" {
+  viewer: TerritoryViewer,
+): TerritoryRelationship {
   if (territory.state === "restricted" || !isCapturableClassification(territory.classification)) {
     return "restricted";
   }
   if (territory.state === "protected") return "protected";
   if (territory.state === "contested") return "contested";
   if (!territory.ownerWalletAddress || territory.state === "neutral") return "neutral";
-  if (
-    viewer.walletAddress &&
-    territory.ownerWalletAddress.toLowerCase() === viewer.walletAddress.toLowerCase()
-  ) {
-    return "mine";
-  }
+
+  // An anonymous caller gets `claimed`, never `rival`. `rival` asserts the cell
+  // belongs to somebody *other than the viewer*, and that is not knowable
+  // without an identity — asserting it anyway is what made a runner's own
+  // territory render in rival colours (D2).
+  if (!viewer.authenticated) return "claimed";
+
+  const owner = territory.ownerWalletAddress.toLowerCase();
+  if (viewer.walletAddresses.includes(owner)) return "mine";
   if (viewer.clubId && territory.ownerClubId && territory.ownerClubId === viewer.clubId) {
     return "club";
   }
@@ -336,7 +366,7 @@ export function actionEligibility(
     TerritoryRecord,
     "state" | "ownerWalletAddress" | "ownerClubId" | "classification"
   >,
-  viewer: { walletAddress: string | null; clubId: string | null },
+  viewer: TerritoryViewer,
 ): { canCapture: boolean; canReinforce: boolean; canAttack: boolean } {
   const relationship = relationshipFor(territory, viewer);
   switch (relationship) {
@@ -345,6 +375,10 @@ export function actionEligibility(
       return { canCapture: false, canReinforce: false, canAttack: false };
     case "neutral":
       return { canCapture: true, canReinforce: false, canAttack: false };
+    case "claimed":
+      // Anonymous: the ground is held by someone, but we cannot say by whom
+      // relative to this caller, so we promise them no action at all.
+      return { canCapture: false, canReinforce: false, canAttack: false };
     case "mine":
     case "club":
       return { canCapture: false, canReinforce: true, canAttack: false };

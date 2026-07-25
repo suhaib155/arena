@@ -293,7 +293,10 @@ test("out-of-order events settle on the newest state", () => {
 test("relationship is derived from the event against the viewer", () => {
   assert.equal(relationshipFromEvent(event(), "0x1111…1111"), "mine");
   assert.equal(relationshipFromEvent(event(), "0x2222…2222"), "rival");
-  assert.equal(relationshipFromEvent(event(), null), "rival");
+  // D2: an anonymous viewer gets `claimed`, never `rival` — a live event must
+  // not flip a runner's own cell into rival colours just because the client
+  // has no identity to compare against.
+  assert.equal(relationshipFromEvent(event(), null), "claimed");
   assert.equal(
     relationshipFromEvent(event({ nextState: "contested" }), "0x1111…1111"),
     "contested",

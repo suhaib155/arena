@@ -26,6 +26,15 @@ const RES = TERRITORY_H3_RESOLUTION_V2;
 const RUNNER = "0x1111111111111111111111111111111111111111";
 const RIVAL = "0x2222222222222222222222222222222222222222";
 
+/** Build a session-shaped viewer (D2). Identity only ever comes from a verified
+ *  session, so tests construct it directly rather than faking a header. */
+function viewer(wallet: string | null, clubId: string | null) {
+  return wallet
+    ? { userId: `user-${wallet.slice(-4)}`, walletAddresses: [wallet.toLowerCase()], clubId, authenticated: true }
+    : { userId: null, walletAddresses: [], clubId, authenticated: false };
+}
+
+
 /** The widest viewport the config allows, at the equator (most cells). */
 const WIDE = (() => {
   const side = Math.sqrt(TERRITORY_DEFAULTS.maxMapViewportArea);
@@ -40,13 +49,10 @@ interface Captured {
 async function getMap(
   repository: InMemoryTerritoryRepository,
   bounds: { west: number; south: number; east: number; north: number },
-  viewer: { walletAddress: string | null; clubId: string | null } = {
-    walletAddress: RUNNER,
-    clubId: null,
-  },
+  who: ReturnType<typeof viewer> = viewer(RUNNER, null),
   config: TerritoryConfig = TERRITORY_DEFAULTS,
 ): Promise<Captured> {
-  const router = createTerritoryRouter({ repository, config, resolveViewer: () => viewer });
+  const router = createTerritoryRouter({ repository, config, resolveViewer: () => who });
   const captured: Captured = { status: 200, body: undefined };
   const res = {
     status(c: number) { captured.status = c; return this; },
@@ -158,7 +164,7 @@ test("D3: truncation is reported only when MATCHES exceed the cap", async () => 
   const repository = new InMemoryTerritoryRepository();
   for (let i = 0; i < 10; i++) repository.seed(owned(candidates[i], RUNNER));
 
-  const result = await getMap(repository, WIDE, { walletAddress: RUNNER, clubId: null }, smallCap);
+  const result = await getMap(repository, WIDE, viewer(RUNNER, null), smallCap);
   assert.equal(result.body.features.length, 3);
   assert.equal(result.body.meta.count, 3);
   assert.equal(result.body.meta.total, 10, "total is the honest match count");
@@ -202,7 +208,7 @@ test("D3: results are ordered mine, club, contested, rival, then neutral", async
   repository.seed(owned(c3, RIVAL, { state: "contested" }));
   repository.seed({ ...neutralTerritory(c4, GRID, RES), version: 1 });
 
-  const result = await getMap(repository, WIDE, { walletAddress: RUNNER, clubId: "club-a" });
+  const result = await getMap(repository, WIDE, viewer(RUNNER, "club-a"));
   assert.deepEqual(
     result.body.features.map((f: any) => f.properties.relationship),
     ["mine", "club", "contested", "rival", "neutral"],
@@ -232,7 +238,7 @@ test("D3: truncation keeps the runner's own territory, dropping rivals first", a
   const mine = candidates[50];
   repository.seed(owned(mine, RUNNER));
 
-  const result = await getMap(repository, WIDE, { walletAddress: RUNNER, clubId: null }, smallCap);
+  const result = await getMap(repository, WIDE, viewer(RUNNER, null), smallCap);
   const ids = result.body.features.map((f: any) => f.properties.cellId);
   assert.ok(ids.includes(mine), "the runner's own cell must survive truncation");
   assert.equal(result.body.features[0].properties.relationship, "mine");
@@ -243,15 +249,15 @@ test("D3: truncation keeps the runner's own territory, dropping rivals first", a
 test("D3: sortTerritoriesForViewer never mutates its input", () => {
   const input = [owned("892a1008943ffff", RIVAL), owned("892a100894bffff", RUNNER)];
   const before = input.map((t) => t.h3CellId);
-  sortTerritoriesForViewer(input, { walletAddress: RUNNER, clubId: null });
+  sortTerritoriesForViewer(input, viewer(RUNNER, null));
   assert.deepEqual(input.map((t) => t.h3CellId), before);
 });
 
 test("D3: sorting is viewer-relative — the same rows order differently", () => {
   const a = owned("892a1008943ffff", RIVAL);
   const b = owned("892a100894bffff", RUNNER);
-  const forRunner = sortTerritoriesForViewer([a, b], { walletAddress: RUNNER, clubId: null });
-  const forRival = sortTerritoriesForViewer([a, b], { walletAddress: RIVAL, clubId: null });
+  const forRunner = sortTerritoriesForViewer([a, b], viewer(RUNNER, null));
+  const forRival = sortTerritoriesForViewer([a, b], viewer(RIVAL, null));
   assert.equal(forRunner[0].h3CellId, b.h3CellId);
   assert.equal(forRival[0].h3CellId, a.h3CellId);
 });

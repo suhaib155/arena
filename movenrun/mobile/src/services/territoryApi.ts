@@ -9,6 +9,7 @@
  * a proxy that returns an HTML error page, must not crash the map.
  */
 import { resolveMapConfig } from "@/config/map";
+import { territoryAuthHeaders } from "@/lib/territory/territoryAuth";
 import { toRelationship } from "@/lib/territory/territoryStyle";
 import type { TerritoryCell, Viewport } from "@/lib/territory/viewport";
 import type { CaptureResult } from "@/lib/territory/capturePreview";
@@ -33,12 +34,18 @@ function baseUrl(): string {
   return apiBaseUrl;
 }
 
+/**
+ * Every territory read goes through here, and every territory read carries the
+ * runner's own session (D2 — see `@/lib/territory/territoryAuth`). Without it
+ * the backend cannot tell a runner's own ground from a rival's, and labels all
+ * of it `claimed`.
+ */
 async function getJson(path: string, signal?: AbortSignal): Promise<unknown> {
   let response: Response;
   try {
     response = await fetch(`${baseUrl()}${path}`, {
       signal,
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...(await territoryAuthHeaders()) },
     });
   } catch (error) {
     if (error instanceof TerritoryApiError) throw error;

@@ -17,11 +17,17 @@
  * auth and returns only the authenticated signer's own route. Even then it
  * returns cell ids and scalar summaries, never the route's points.
  *
- * ## Viewer identity
- * Ownership *relationship* (`mine` / `club` / `rival`) is computed against the
- * caller's wallet when one is supplied. The public endpoints accept an
- * unauthenticated caller, who simply sees every owned cell as `rival` — the
- * data returned is identical either way, only the labelling differs.
+ * ## Viewer identity (D2)
+ * Ownership *relationship* (`mine` / `club` / `rival`) is computed **only** from
+ * a verified session — see `viewer.ts`. Nothing here reads an identity claim
+ * from a header, query parameter or body, so there is nothing to spoof.
+ *
+ * The public endpoints still accept an unauthenticated caller and return them
+ * exactly the same cells, scores and geometry. Only the label differs: held
+ * ground reads `claimed` rather than `rival`, because `rival` asserts the cell
+ * belongs to somebody other than the viewer and that is not knowable without an
+ * identity. Asserting it anyway is what made a runner's own territory render in
+ * rival colours.
  */
 import { Router, type Request, type Response } from "express";
 import { getTerritoryConfig, type TerritoryConfig } from "../config.js";
@@ -29,7 +35,7 @@ import { cellsInBoundingBox, getNeighboringCells, isCellOnGrid, resolutionForGri
 import type { TerritoryRepository } from "../repository.js";
 import { neutralTerritory } from "../rules.js";
 import { territoryBroadcaster, type TerritoryBroadcaster } from "../realtime.js";
-import { AUTH_HEADER_ADDRESS } from "../../middleware/auth.js";
+import { ANONYMOUS_VIEWER, type TerritoryViewer } from "../rules.js";
 import {
   capFeatures,
   validateCellId,
@@ -52,11 +58,16 @@ export interface TerritoryRouterDeps {
   config?: TerritoryConfig;
   broadcaster?: TerritoryBroadcaster;
   /**
-   * Resolves the caller's identity for relationship labelling. Injected so the
-   * router does not bind to a particular auth strategy, and so tests can drive
-   * every viewer case without signing requests.
+   * Resolves the caller's identity for relationship labelling from their
+   * verified session (see http/viewer.ts). Injected so the router does not bind
+   * to a particular identity implementation, and so tests can drive every
+   * viewer case without minting real tokens.
+   *
+   * Defaults to anonymous. A deployment that does not wire this up therefore
+   * labels held ground `claimed` for everyone — never `mine` for the wrong
+   * person, which is the direction that matters.
    */
-  resolveViewer?: (req: Request) => Viewer;
+  resolveViewer?: (req: Request) => TerritoryViewer | Promise<TerritoryViewer>;
   /** Reads the route's lifecycle status. Injected to avoid importing the
    *  route repository (which would drag `@movenrun/shared` into scope). */
   getRouteOwnerAndStatus?: (
@@ -67,19 +78,17 @@ export interface TerritoryRouterDeps {
 }
 
 /**
- * Default viewer resolution: the wallet-signature middleware's verified address
- * when present, otherwise the claimed address header used only for *labelling*.
+ * Default viewer: anonymous.
  *
- * Reading an unverified header here is safe precisely because it changes
- * nothing but presentation — the endpoints return the same cells and the same
- * scores regardless, so a spoofed header buys an attacker a differently
- * coloured map of public data and nothing else. Anything that grants or reveals
- * something goes through `requireAuth`.
+ * Deliberately NOT header-derived. The previous default read the unverified
+ * `x-movenrun-address` header, which is spoofable and which the mobile client
+ * never sent anyway — so it produced `rival` for everyone (D2). Falling back to
+ * anonymous is both safe and honest: a deployment that has not wired
+ * `resolveViewer` labels held ground `claimed`, never `mine` for the wrong
+ * person.
  */
-function defaultResolveViewer(req: Request): Viewer {
-  const verified = req.movenrunAuth?.address ?? null;
-  const claimed = req.header(AUTH_HEADER_ADDRESS) ?? null;
-  return { walletAddress: verified ?? claimed, clubId: null };
+function defaultResolveViewer(): TerritoryViewer {
+  return ANONYMOUS_VIEWER;
 }
 
 export function createTerritoryRouter(deps: TerritoryRouterDeps): Router {
@@ -97,7 +106,7 @@ export function createTerritoryRouter(deps: TerritoryRouterDeps): Router {
     }
     const { west, south, east, north, gridVersion } = validated.value;
     const resolution = resolutionForGridVersion(gridVersion) ?? config.resolution;
-    const viewer = resolveViewer(req);
+    const viewer = await resolveViewer(req);
 
     // D3 — the order of these four steps is the whole fix.
     //
@@ -208,7 +217,7 @@ export function createTerritoryRouter(deps: TerritoryRouterDeps): Router {
       .map((id) => records.get(id))
       .filter((record): record is NonNullable<typeof record> => record !== undefined);
 
-    const viewer = resolveViewer(req);
+    const viewer = await resolveViewer(req);
     return res.json(
       toDetailResponse(
         territory,

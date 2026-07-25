@@ -45,7 +45,18 @@ export type TerritoryRelationship =
   | "contested"
   | "neutral"
   | "protected"
-  | "restricted";
+  | "restricted"
+  /**
+   * Held by someone, but the viewer is not signed in so no relationship can be
+   * computed (D2).
+   *
+   * This exists because `rival` is a *claim about the viewer* — it asserts the
+   * cell belongs to someone else. For an anonymous caller that assertion is
+   * unfounded: the cell may well be their own. Labelling every owned cell
+   * `rival` is what made a runner's own territory render in rival colours, so
+   * the anonymous answer is now explicitly "claimed by someone" and nothing more.
+   */
+  | "claimed";
 
 /**
  * Playability classification of a cell's ground. Independent of ownership: a

@@ -93,8 +93,12 @@ export interface ReconcileResult {
  *
  * The broadcast carries truncated owner references (the backend never sends
  * full addresses), so this compares against the viewer's own truncated form.
- * When the viewer is anonymous, an owned cell reads as `rival` — which is what
- * the map API would have said too.
+ *
+ * When the viewer is anonymous, an owned cell reads as `claimed`, never
+ * `rival` — matching what the map API now returns (D2). `rival` asserts the
+ * cell belongs to someone *other than the viewer*, which is not knowable
+ * without an identity; asserting it anyway is what made a runner's own
+ * territory flip to rival colours the moment a live event touched it.
  */
 export function relationshipFromEvent(
   event: TerritoryEvent,
@@ -104,7 +108,8 @@ export function relationshipFromEvent(
   if (event.nextState === "protected") return "protected";
   if (event.nextState === "restricted") return "restricted";
   if (event.nextState === "neutral" || !event.nextOwner) return "neutral";
-  if (viewerDisplayAddress && event.nextOwner === viewerDisplayAddress) return "mine";
+  if (!viewerDisplayAddress) return "claimed";
+  if (event.nextOwner === viewerDisplayAddress) return "mine";
   return "rival";
 }
 

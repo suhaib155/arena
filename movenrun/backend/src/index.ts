@@ -4,12 +4,17 @@ import gpsRouter from "./routes/gps.js";
 import zonesRouter from "./routes/zones.js";
 import battlesRouter from "./routes/battles.js";
 import usersRouter from "./routes/users.js";
-import { createProductionIdentityRouter, createProductionWebhookRouter } from "./identity/http/productionRouter.js";
+import {
+  createProductionIdentityRouter,
+  createProductionWebhookRouter,
+  createTerritoryViewerServices,
+} from "./identity/http/productionRouter.js";
 import { createCorsMiddleware, createSecurityHeadersMiddleware } from "./middleware/security.js";
 import { createGlobalRateLimiter } from "./middleware/rateLimit.js";
 import { requireWalletAuth } from "./middleware/auth.js";
 import { getTerritoryConfig } from "./territory/config.js";
 import { createTerritoryRouter } from "./territory/http/router.js";
+import { createSessionViewerResolver } from "./territory/http/viewer.js";
 import { DrizzleTerritoryRepository } from "./territory/repository.drizzle.js";
 import { getDb } from "./db/client.js";
 
@@ -50,11 +55,16 @@ app.get("/health", (_req, res) => res.json({ status: "ok", ts: Date.now() }));
 // capture result. Everything under /v1/territories is public map data (H3 cell
 // polygons + truncated owner references, never raw GPS); the capture-result
 // endpoint is wallet-authenticated and scoped to the signer's own route.
+// `resolveViewer` derives identity from the caller's verified session only
+// (D2) — see territory/http/viewer.ts. It reads no client-supplied identity
+// claim, so there is nothing to spoof; an absent or invalid token simply yields
+// an anonymous viewer, who sees held ground as `claimed` rather than `rival`.
 app.use(
   "/v1",
   createTerritoryRouter({
     repository: new DrizzleTerritoryRepository(getDb()),
     config: territoryConfig,
+    resolveViewer: createSessionViewerResolver(createTerritoryViewerServices()),
     requireAuth: requireWalletAuth(),
   })
 );

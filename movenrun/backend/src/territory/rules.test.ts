@@ -21,6 +21,15 @@ const CELL = "892a1008943ffff";
 const RUNNER = "0x1111111111111111111111111111111111111111";
 const RIVAL = "0x2222222222222222222222222222222222222222";
 
+/** Build a session-shaped viewer (D2). Identity only ever comes from a verified
+ *  session, so tests construct it directly rather than faking a header. */
+function viewer(wallet: string | null, clubId: string | null) {
+  return wallet
+    ? { userId: `user-${wallet.slice(-4)}`, walletAddresses: [wallet.toLowerCase()], clubId, authenticated: true }
+    : { userId: null, walletAddresses: [], clubId, authenticated: false };
+}
+
+
 function actor(overrides: Partial<ActorContext> = {}): ActorContext {
   return { walletAddress: RUNNER, userId: "user-1", clubId: null, degradedQuality: false, ...overrides };
 }
@@ -259,14 +268,15 @@ test("scores never go negative", () => {
 
 test("relationship is computed per viewer, not stored", () => {
   const cell = ownedBy(RUNNER, 30);
-  assert.equal(relationshipFor(cell, { walletAddress: RUNNER, clubId: null }), "mine");
-  assert.equal(relationshipFor(cell, { walletAddress: RIVAL, clubId: null }), "rival");
-  assert.equal(relationshipFor(cell, { walletAddress: null, clubId: null }), "rival");
+  assert.equal(relationshipFor(cell, viewer(RUNNER, null)), "mine");
+  assert.equal(relationshipFor(cell, viewer(RIVAL, null)), "rival");
+  // D2: an anonymous viewer gets `claimed`, not `rival` — see relationshipFor.
+  assert.equal(relationshipFor(cell, viewer(null, null)), "claimed");
 });
 
 test("relationship reports club, contested, protected, restricted and neutral", () => {
   const clubCell = ownedBy(RIVAL, 30, { ownerClubId: "club-a" });
-  assert.equal(relationshipFor(clubCell, { walletAddress: RUNNER, clubId: "club-a" }), "club");
+  assert.equal(relationshipFor(clubCell, viewer(RUNNER, "club-a")), "club");
 
   const cases: [Partial<TerritoryRecord>, string][] = [
     [{ state: "contested" as TerritoryState, ownerWalletAddress: RIVAL }, "contested"],
@@ -277,7 +287,7 @@ test("relationship reports club, contested, protected, restricted and neutral", 
   ];
   for (const [overrides, expected] of cases) {
     assert.equal(
-      relationshipFor(territory(overrides), { walletAddress: RUNNER, clubId: null }),
+      relationshipFor(territory(overrides), viewer(RUNNER, null)),
       expected,
       `expected ${expected}`,
     );
@@ -287,17 +297,17 @@ test("relationship reports club, contested, protected, restricted and neutral", 
 // -------------------------------------------------------- action eligibility
 
 test("action eligibility matches the relationship", () => {
-  assert.deepEqual(actionEligibility(territory(), { walletAddress: RUNNER, clubId: null }), {
+  assert.deepEqual(actionEligibility(territory(), viewer(RUNNER, null)), {
     canCapture: true,
     canReinforce: false,
     canAttack: false,
   });
-  assert.deepEqual(actionEligibility(ownedBy(RUNNER, 30), { walletAddress: RUNNER, clubId: null }), {
+  assert.deepEqual(actionEligibility(ownedBy(RUNNER, 30), viewer(RUNNER, null)), {
     canCapture: false,
     canReinforce: true,
     canAttack: false,
   });
-  assert.deepEqual(actionEligibility(ownedBy(RIVAL, 30), { walletAddress: RUNNER, clubId: null }), {
+  assert.deepEqual(actionEligibility(ownedBy(RIVAL, 30), viewer(RUNNER, null)), {
     canCapture: false,
     canReinforce: false,
     canAttack: true,
@@ -307,10 +317,7 @@ test("action eligibility matches the relationship", () => {
 test("nothing is actionable on protected or restricted ground", () => {
   for (const state of ["protected", "restricted"] as TerritoryState[]) {
     assert.deepEqual(
-      actionEligibility(territory({ state, ownerWalletAddress: RIVAL }), {
-        walletAddress: RUNNER,
-        clubId: null,
-      }),
+      actionEligibility(territory({ state, ownerWalletAddress: RIVAL }), viewer(RUNNER, null)),
       { canCapture: false, canReinforce: false, canAttack: false },
       `${state} should offer no actions`,
     );

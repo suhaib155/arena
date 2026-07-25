@@ -55,7 +55,7 @@ test("territory fills stay translucent so streets and parks remain readable", ()
 });
 
 test("neutral and restricted are the most transparent states", () => {
-  const claimed: TerritoryRelationship[] = ["mine", "club", "rival", "contested"];
+  const claimed: TerritoryRelationship[] = ["mine", "club", "rival", "claimed", "contested"];
   for (const relationship of claimed) {
     assert.ok(
       TERRITORY_STYLES[relationship].fillOpacity >

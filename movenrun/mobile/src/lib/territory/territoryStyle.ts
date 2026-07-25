@@ -18,6 +18,9 @@ export type TerritoryRelationship =
   | "mine"
   | "club"
   | "rival"
+  /** Held by *somebody* — returned to an unauthenticated viewer, for whom
+   *  "someone else's" is not a knowable claim (D2). */
+  | "claimed"
   | "contested"
   | "neutral"
   | "protected"
@@ -70,6 +73,17 @@ export const TERRITORY_STYLES: Record<TerritoryRelationship, TerritoryStyle> = {
     outlineDash: [],
     label: "Rival",
   },
+  /** Muted slate — held, but by whom relative to you is unknown (signed out).
+   *  Deliberately NOT the rival lavender: it must not read as "an opponent's",
+   *  because it may well be your own. Dashed, to read as "sign in to see". */
+  claimed: {
+    fill: "#B8C2CC",
+    outline: "#79868F",
+    fillOpacity: 0.3,
+    outlineWidth: 1.4,
+    outlineDash: [3, 2],
+    label: "Claimed",
+  },
   /** Warm peach — defence has collapsed and the cell is up for grabs.
    *  Dashed outline so it reads as "in play" without relying on hue. */
   contested: {
@@ -114,6 +128,7 @@ export const TERRITORY_LEGEND_ORDER: TerritoryRelationship[] = [
   "mine",
   "club",
   "rival",
+  "claimed",
   "contested",
   "neutral",
   "protected",
