@@ -128,6 +128,8 @@ export interface TerritoryCaptureSession {
   enclosedAreaSquareMeters: number;
   traversedHexCount: number;
   capturedHexCount: number;
+  /** Cells covered by the loop that produced no ownership event. */
+  rejectedHexIds: string[];
   rejectionReasons: string[];
   gridVersion: number;
   resolution: number;

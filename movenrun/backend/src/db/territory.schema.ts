@@ -106,9 +106,17 @@ export const territoryCaptureSessions = pgTable(
       .notNull()
       .default(0),
 
-    /** Counts only. The cell ids themselves live in the ownership events. */
+    /** Counts only. Awarded cell ids live in the ownership events. */
     traversedHexCount: integer("traversed_hex_count").notNull().default(0),
     capturedHexCount: integer("captured_hex_count").notNull().default(0),
+
+    /**
+     * Cells the loop covered that produced no ownership event — restricted,
+     * protected, or lost to a concurrent capture. Stored as ids (which are
+     * public map identifiers, not private data) rather than a bare count, so
+     * the runner can be shown exactly which parts of their loop didn't land.
+     */
+    rejectedHexIds: text("rejected_hex_ids").array(),
 
     rejectionReasons: text("rejection_reasons").array(),
     gridVersion: integer("grid_version").notNull(),

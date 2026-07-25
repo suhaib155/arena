@@ -80,6 +80,10 @@ CREATE TABLE IF NOT EXISTS "territory_capture_sessions" (
 	"enclosed_area_square_meters" double precision DEFAULT 0 NOT NULL,
 	"traversed_hex_count" integer DEFAULT 0 NOT NULL,
 	"captured_hex_count" integer DEFAULT 0 NOT NULL,
+	-- Cells the loop covered that produced no ownership event (restricted,
+	-- protected, or lost to a concurrent capture). Cell ids are public map
+	-- identifiers, not private data.
+	"rejected_hex_ids" text[],
 	"rejection_reasons" text[],
 	"grid_version" integer NOT NULL,
 	"resolution" integer NOT NULL,

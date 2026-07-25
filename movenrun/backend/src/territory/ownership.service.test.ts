@@ -399,6 +399,7 @@ test("the capture evaluation is recorded whether or not it was eligible", async 
     enclosedAreaSquareMeters: 4200,
     traversedHexCount: 6,
     capturedHexCount: 0,
+    rejectedHexIds: [],
     rejectionReasons: ["loopNotClosed", "areaBelowMinimum"],
     gridVersion: GRID,
     resolution: RES,

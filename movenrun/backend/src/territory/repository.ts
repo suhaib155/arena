@@ -97,6 +97,9 @@ export interface TerritoryRepository {
     limit: number,
   ): Promise<TerritoryOwnershipEvent[]>;
 
+  /** Every ownership event produced by one route — the per-run breakdown. */
+  findEventsByRoute(routeId: string, gridVersion: number): Promise<TerritoryOwnershipEvent[]>;
+
   /** Every cell currently held by a wallet, for the portfolio view. */
   findByOwner(walletAddress: string, gridVersion: number): Promise<TerritoryRecord[]>;
 
@@ -248,6 +251,15 @@ export class InMemoryTerritoryRepository implements TerritoryRepository {
       .map((e) => ({ ...e }));
   }
 
+  async findEventsByRoute(
+    routeId: string,
+    gridVersion: number,
+  ): Promise<TerritoryOwnershipEvent[]> {
+    return this.events
+      .filter((e) => e.routeId === routeId && e.gridVersion === gridVersion)
+      .map((e) => ({ ...e }));
+  }
+
   async findByOwner(walletAddress: string, gridVersion: number): Promise<TerritoryRecord[]> {
     const wanted = walletAddress.toLowerCase();
     return [...this.cells.values()]
@@ -276,6 +288,10 @@ export class InMemoryTerritoryRepository implements TerritoryRepository {
     cellId: string,
     gridVersion: number,
     classification: CellClassification,
+    // Accepted and ignored: the in-memory repository has no provenance table.
+    // The Drizzle implementation persists both.
+    _source = "manual",
+    _note?: string,
   ): Promise<void> {
     const key = this.key(cellId, gridVersion);
     this.classifications.set(key, classification);

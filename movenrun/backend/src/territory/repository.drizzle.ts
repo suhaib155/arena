@@ -268,6 +268,7 @@ export class DrizzleTerritoryRepository implements TerritoryRepository {
         enclosedAreaSquareMeters: session.enclosedAreaSquareMeters,
         traversedHexCount: session.traversedHexCount,
         capturedHexCount: session.capturedHexCount,
+        rejectedHexIds: session.rejectedHexIds,
         rejectionReasons: session.rejectionReasons,
         gridVersion: session.gridVersion,
         resolution: session.resolution,
@@ -285,6 +286,7 @@ export class DrizzleTerritoryRepository implements TerritoryRepository {
           enclosedAreaSquareMeters: session.enclosedAreaSquareMeters,
           traversedHexCount: session.traversedHexCount,
           capturedHexCount: session.capturedHexCount,
+          rejectedHexIds: session.rejectedHexIds,
           rejectionReasons: session.rejectionReasons,
           gridVersion: session.gridVersion,
           resolution: session.resolution,
@@ -312,6 +314,7 @@ export class DrizzleTerritoryRepository implements TerritoryRepository {
       enclosedAreaSquareMeters: row.enclosedAreaSquareMeters,
       traversedHexCount: row.traversedHexCount,
       capturedHexCount: row.capturedHexCount,
+      rejectedHexIds: row.rejectedHexIds ?? [],
       rejectionReasons: row.rejectionReasons ?? [],
       gridVersion: row.gridVersion,
       resolution: row.resolution,
@@ -336,6 +339,40 @@ export class DrizzleTerritoryRepository implements TerritoryRepository {
       )
       .orderBy(desc(territoryOwnershipEvents.createdAt))
       .limit(limit);
+
+    return (rows as (typeof territoryOwnershipEvents.$inferSelect)[]).map((row) => ({
+      id: row.id,
+      h3CellId: row.h3CellId,
+      gridVersion: row.gridVersion,
+      routeId: row.routeId,
+      actorUserId: row.actorUserId,
+      actorWalletAddress: row.actorWalletAddress,
+      eventType: row.eventType,
+      previousOwner: row.previousOwner,
+      nextOwner: row.nextOwner,
+      previousState: row.previousState as TerritoryState | null,
+      nextState: row.nextState,
+      controlDelta: row.controlDelta,
+      defenceDelta: row.defenceDelta,
+      evidenceHash: row.evidenceHash,
+      createdAt: row.createdAt,
+    }));
+  }
+
+  async findEventsByRoute(
+    routeId: string,
+    gridVersion: number,
+  ): Promise<TerritoryOwnershipEvent[]> {
+    const rows = await this.db
+      .select()
+      .from(territoryOwnershipEvents)
+      .where(
+        and(
+          eq(territoryOwnershipEvents.routeId, routeId),
+          eq(territoryOwnershipEvents.gridVersion, gridVersion),
+        ),
+      )
+      .orderBy(territoryOwnershipEvents.createdAt);
 
     return (rows as (typeof territoryOwnershipEvents.$inferSelect)[]).map((row) => ({
       id: row.id,

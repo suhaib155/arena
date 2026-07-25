@@ -10,6 +10,7 @@ import { evaluateLoopCapture } from "../territory/capture.js";
 import { getTerritoryConfig } from "../territory/config.js";
 import { DrizzleTerritoryRepository } from "../territory/repository.drizzle.js";
 import { TerritoryOwnershipService } from "../territory/ownership.service.js";
+import { territoryBroadcaster } from "../territory/realtime.js";
 import { getDb } from "../db/client.js";
 import { DrizzleRouteRepository } from "../repositories/route.repository.drizzle.js";
 import { RouteStatus, type GPSRoute } from "@movenrun/shared";
@@ -116,6 +117,9 @@ const worker = new Worker<GpsJob>(
               traversedHexIds: capture.traversedHexIds,
               capturedHexIds: capture.capturedHexIds,
             });
+            // Ownership changes go out on the realtime feed. Cell ids and state
+            // transitions only — never a runner coordinate (see realtime.ts).
+            territoryBroadcaster.broadcastChanges(applied.controlChanges);
             return {
               capturedCellIds: applied.capturedCellIds,
               reinforcedCellIds: applied.reinforcedCellIds,
@@ -147,6 +151,8 @@ const worker = new Worker<GpsJob>(
               outcome.status === "VERIFIED"
                 ? (outcome.territory?.capturedCellIds.length ?? 0)
                 : 0,
+            rejectedHexIds:
+              outcome.status === "VERIFIED" ? (outcome.territory?.rejectedCellIds ?? []) : [],
             rejectionReasons: outcome.capture.captureRejectionReasons,
             gridVersion: outcome.capture.captureGridVersion,
             resolution: outcome.capture.captureResolution,
