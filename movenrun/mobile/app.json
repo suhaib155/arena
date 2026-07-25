@@ -6,10 +6,12 @@
     "orientation": "portrait",
     "scheme": "movenrun",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#F8FAF7",
+    "backgroundColor": "#F4F6FC",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F8FAF7"
+      "backgroundColor": "#0A0F1F"
     },
     "ios": {
       "supportsTablet": true,
@@ -18,7 +20,8 @@
     "android": {
       "package": "io.movenrun.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F8FAF7"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0F1F"
       }
     },
     "web": {
