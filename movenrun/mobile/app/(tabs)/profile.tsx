@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { StatCard } from "@/components/StatCard";
 import { SectionHeader } from "@/components/SectionHeader";
-import { NavRow } from "@/components/NavRow";
+import { ListRow, ListSection } from "@/components/ListSection";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
 import { Hexagon } from "@/components/Hexagon";
@@ -193,13 +193,14 @@ export default function ProfileScreen() {
 
         {/* Current club */}
         <FadeSlideIn delay={STAGGER_MS * 2}>
-          <NavRow
-            icon={selectedClub ? "people" : "people-outline"}
-            tint={selectedClub ? palette.pulseGreen : colors.primary}
+          <TintedNavCard
+            tone={selectedClub ? "mint" : "slate"}
+            kicker="Club"
             title={selectedClub ? selectedClub.name : "Choose your club"}
-            subtitle={
+            value={selectedClub && myRanked ? `#${myRanked.rank}` : undefined}
+            detail={
               selectedClub
-                ? `City rank #${myRanked?.rank ?? "—"} · contribution +${myRanked?.userContribution ?? 0}`
+                ? `City rank · contribution +${myRanked?.userContribution ?? 0}`
                 : "Local preview · represent a club as you move"
             }
             onPress={() => go("/clubs")}
@@ -207,7 +208,7 @@ export default function ProfileScreen() {
         </FadeSlideIn>
 
         {/* Progress — tinted cards carry the identity, so no icon tiles */}
-        <NavGroup title="Progress">
+        <ListSection title="Progress">
           <TintedNavCard
             tone="lilac"
             kicker="Season"
@@ -244,88 +245,80 @@ export default function ProfileScreen() {
             detail="Local progress · no ownership"
             onPress={() => go("/district-mastery")}
           />
-        </NavGroup>
+        </ListSection>
 
         {/* Signal & routes */}
-        <NavGroup title="Signal & routes">
-          <NavRow
-            icon="shield-half-outline"
+        <ListSection title="Signal & routes">
+          <ListRow
             title="Route Signal Passport"
-            subtitle={
+            detail={
               passport.reviewedRouteCount > 0
                 ? `${passport.readinessLabel} · ${passport.reviewedRouteCount} route${passport.reviewedRouteCount === 1 ? "" : "s"}`
                 : "Local readiness preview · no raw GPS"
             }
             onPress={() => go("/route/passport")}
           />
-          <NavRow
-            icon="list-outline"
+          <ListRow
             title="Route Review History"
-            subtitle={
+            detail={
               routeTrustHistory.length > 0
                 ? `${routeTrustHistory.length} route${routeTrustHistory.length === 1 ? "" : "s"} · summaries only`
                 : "No saved routes yet · review only, no raw GPS"
             }
             onPress={() => go("/route/review-history")}
           />
-        </NavGroup>
+        </ListSection>
 
         {/* Territory & clubs */}
-        <NavGroup title="Territory & clubs">
-          <NavRow
-            icon="map-outline"
+        <ListSection title="Territory & clubs">
+          <ListRow
             title="Territory Map"
-            subtitle={`${zones.length} zone${zones.length === 1 ? "" : "s"} · local board · no raw GPS`}
+            detail={`${zones.length} zone${zones.length === 1 ? "" : "s"} · local board · no raw GPS`}
             onPress={() => go("/territory/map")}
           />
-          <NavRow
-            icon="business-outline"
+          <ListRow
             title="City Districts"
-            subtitle={
+            detail={
               city.hasZones
                 ? `${city.controlledDistricts}/${city.activeDistricts} controlled · local preview`
                 : "Local city preview · capture zones to reveal"
             }
             onPress={() => go("/city-districts")}
           />
-          <NavRow
-            icon="flag-outline"
+          <ListRow
             title="Club Territory"
-            subtitle="Local club command layer · preview"
+            detail="Local club command layer · preview"
             onPress={() => go("/club-territory")}
           />
-          <NavRow
-            icon="rocket-outline"
+          <ListRow
             title="Crew Missions"
-            subtitle="Local weekly crew goals · preview"
+            detail="Local weekly crew goals · preview"
             onPress={() => go("/crew-missions")}
           />
-        </NavGroup>
+        </ListSection>
 
         {/* Account & network */}
-        <NavGroup title="Account & network">
-          <NavRow
-            icon="wallet-outline"
+        <ListSection title="Account & network">
+          <ListRow
             title="Account & Wallet"
-            subtitle={identity.signedIn ? `Signed in · ${identity.walletLabel}` : "Local profile · sign in and wallets"}
+            detail={identity.signedIn ? `Signed in · ${identity.walletLabel}` : "Local profile · sign in and wallets"}
             onPress={() => go("/account")}
           />
-          <NavRow
-            icon="cube-outline"
+          <ListRow
             title="Base Sepolia Status"
-            subtitle="Contracts deployed · read-only preview · no wallet needed"
+            detail="Contracts deployed · read-only preview · no wallet needed"
             onPress={() => go("/network/status")}
           />
-        </NavGroup>
+        </ListSection>
 
         {/* Beta & Preview — fictional/technical previews live here */}
-        <NavGroup title="Beta & Preview">
-          <NavRow icon="shapes-outline" tint={palette.deedViolet} title="Deed Preview Showroom" subtitle="Educational preview · no wallet · no minting" onPress={() => go("/deed-showroom")} />
-          <NavRow icon="flag-outline" tint={palette.deedViolet} title="City War Board" subtitle="Fictional season battle · no real users" onPress={() => go("/city-war")} />
-          <NavRow icon="color-wand-outline" tint={palette.deedViolet} title="Rival Ghosts" subtitle="Fictional local pressure · no real users" onPress={() => go("/rivals")} />
-          <NavRow icon="storefront-outline" tint={palette.deedViolet} title="Sponsor Zones" subtitle="Fictional future activations · no ads" onPress={() => go("/sponsor-zones")} />
-          <NavRow icon="sparkles-outline" tint={palette.deedViolet} title="Event Zones" subtitle="Fictional future city activity · no live events" onPress={() => go("/event-zones")} />
-        </NavGroup>
+        <ListSection title="Beta & Preview">
+          <ListRow title="Deed Preview Showroom" detail="Educational preview · no wallet · no minting" onPress={() => go("/deed-showroom")} />
+          <ListRow title="City War Board" detail="Fictional season battle · no real users" onPress={() => go("/city-war")} />
+          <ListRow title="Rival Ghosts" detail="Fictional local pressure · no real users" onPress={() => go("/rivals")} />
+          <ListRow title="Sponsor Zones" detail="Fictional future activations · no ads" onPress={() => go("/sponsor-zones")} />
+          <ListRow title="Event Zones" detail="Fictional future city activity · no live events" onPress={() => go("/event-zones")} />
+        </ListSection>
 
         {/* Recent activity */}
         <SectionHeader title="Recent activity" trailing={history.length ? `${history.length}` : undefined} />
@@ -381,15 +374,6 @@ export default function ProfileScreen() {
         ) : null}
       </ScrollView>
     </Screen>
-  );
-}
-
-function NavGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.group}>
-      <SectionHeader title={title} />
-      <View style={styles.groupList}>{children}</View>
-    </View>
   );
 }
 
