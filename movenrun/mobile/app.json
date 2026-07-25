@@ -13,13 +13,23 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "io.movenrun.app"
+      "bundleIdentifier": "io.movenrun.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["location"]
+      }
     },
     "android": {
       "package": "io.movenrun.app",
       "adaptiveIcon": {
         "backgroundColor": "#F8FAF7"
-      }
+      },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -30,9 +40,15 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "MovenRun uses location during a movement session to draw your route and calculate progress."
+          "locationWhenInUsePermission": "MovenRun uses your precise location during a territory run to draw your route on the map and work out which zones you crossed.",
+          "locationAlwaysAndWhenInUsePermission": "MovenRun keeps recording your route while the app is in the background so a territory run isn't lost when your screen locks. Recording only runs during an active run.",
+          "locationAlwaysPermission": "MovenRun keeps recording your route while the app is in the background so a territory run isn't lost when your screen locks. Recording only runs during an active run.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "extra": {
       "eas": {
