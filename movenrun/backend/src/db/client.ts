@@ -4,10 +4,17 @@ import { getConfig } from "../config.js";
 import * as routeSchema from "./schema.js";
 import * as identitySchema from "./identity.schema.js";
 import * as providerSchema from "./provider.schema.js";
+import * as territorySchema from "./territory.schema.js";
 
 // One combined schema object for the Drizzle client — the route/zone/battle
-// tables plus the identity/wallet tables and the provider-event table.
-const schema = { ...routeSchema, ...identitySchema, ...providerSchema };
+// tables plus the identity/wallet tables, the provider-event table, and the
+// territory ownership tables.
+const schema = {
+  ...routeSchema,
+  ...identitySchema,
+  ...providerSchema,
+  ...territorySchema,
+};
 
 export type Db = NodePgDatabase<typeof schema>;
 

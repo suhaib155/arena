@@ -1,5 +1,6 @@
 import { Worker, Queue } from "bullmq";
 import IORedis from "ioredis";
+import { randomUUID } from "node:crypto";
 import { getConfig } from "../config.js";
 import { GpsService } from "../services/gps.service.js";
 import { HexService } from "../services/hex.service.js";
@@ -7,6 +8,8 @@ import { OracleService } from "../services/oracle.service.js";
 import { processRouteJob, type RouteJobInput } from "../services/route.service.js";
 import { evaluateLoopCapture } from "../territory/capture.js";
 import { getTerritoryConfig } from "../territory/config.js";
+import { DrizzleTerritoryRepository } from "../territory/repository.drizzle.js";
+import { TerritoryOwnershipService } from "../territory/ownership.service.js";
 import { getDb } from "../db/client.js";
 import { DrizzleRouteRepository } from "../repositories/route.repository.drizzle.js";
 import { RouteStatus, type GPSRoute } from "@movenrun/shared";
@@ -23,6 +26,8 @@ const routeRepository = new DrizzleRouteRepository(getDb());
 // Validated at worker startup — an invalid territory configuration must fail
 // here, loudly, rather than silently mis-awarding territory later.
 const territoryConfig = getTerritoryConfig();
+const territoryRepository = new DrizzleTerritoryRepository(getDb());
+const territoryOwnership = new TerritoryOwnershipService(territoryRepository);
 
 type GpsJob = RouteJobInput;
 type JobPoint = GpsJob["points"][number];
@@ -98,8 +103,63 @@ const worker = new Worker<GpsJob>(
               captureResolution: evaluation.captureResolution,
             };
           },
+          // Reached only for a route that is validated, de-duplicated, VERIFIED
+          // and capture-eligible. Every cell is decided and written inside one
+          // locked transaction, so two runners cannot both take the same cell.
+          applyCapture: async ({ routeId: id, walletAddress: wallet, capture }) => {
+            const applied = await territoryOwnership.applyCapture({
+              routeId: id,
+              walletAddress: wallet,
+              evidenceHash: null,
+              gridVersion: capture.captureGridVersion,
+              resolution: capture.captureResolution,
+              traversedHexIds: capture.traversedHexIds,
+              capturedHexIds: capture.capturedHexIds,
+            });
+            return {
+              capturedCellIds: applied.capturedCellIds,
+              reinforcedCellIds: applied.reinforcedCellIds,
+              attackedCellIds: applied.attackedCellIds,
+              contestedCellIds: applied.contestedCellIds,
+              transferredCellIds: applied.transferredCellIds,
+              rejectedCellIds: applied.rejectedCellIds,
+            };
+          },
         }
       );
+
+      // Record what capture evaluation decided — eligible or not. A rejected
+      // capture is exactly the thing a runner most wants explained, and
+      // GET /v1/routes/:routeId/capture-result reads this row.
+      if (outcome.capture) {
+        try {
+          await territoryOwnership.recordCaptureSession({
+            id: randomUUID(),
+            routeId,
+            walletAddress,
+            userId: null,
+            loopClosed: outcome.capture.loopClosed,
+            captureEligible: outcome.capture.captureEligible,
+            closureDistanceMeters: outcome.capture.closureDistanceMeters,
+            enclosedAreaSquareMeters: outcome.capture.enclosedAreaSquareMeters,
+            traversedHexCount: outcome.capture.traversedHexIds.length,
+            capturedHexCount:
+              outcome.status === "VERIFIED"
+                ? (outcome.territory?.capturedCellIds.length ?? 0)
+                : 0,
+            rejectionReasons: outcome.capture.captureRejectionReasons,
+            gridVersion: outcome.capture.captureGridVersion,
+            resolution: outcome.capture.captureResolution,
+            createdAt: new Date(),
+            processedAt: new Date(),
+          });
+        } catch (sessionErr) {
+          // Reporting is not awarding: failing to record the evaluation must
+          // never change what the ownership tables already committed.
+          const message = sessionErr instanceof Error ? sessionErr.message : "Unknown error";
+          console.error(`[GPS Worker] Route ${routeId} capture session not recorded:`, message);
+        }
+      }
 
       if (outcome.status === "REJECTED") {
         console.log(`[GPS Worker] Route ${routeId} rejected:`, outcome.rejectionReasons);
