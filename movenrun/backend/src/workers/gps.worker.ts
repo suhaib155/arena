@@ -5,6 +5,8 @@ import { GpsService } from "../services/gps.service.js";
 import { HexService } from "../services/hex.service.js";
 import { OracleService } from "../services/oracle.service.js";
 import { processRouteJob, type RouteJobInput } from "../services/route.service.js";
+import { evaluateLoopCapture } from "../territory/capture.js";
+import { getTerritoryConfig } from "../territory/config.js";
 import { getDb } from "../db/client.js";
 import { DrizzleRouteRepository } from "../repositories/route.repository.drizzle.js";
 import { RouteStatus, type GPSRoute } from "@movenrun/shared";
@@ -18,6 +20,9 @@ const gpsService = new GpsService();
 const hexService = new HexService();
 const oracleService = new OracleService();
 const routeRepository = new DrizzleRouteRepository(getDb());
+// Validated at worker startup — an invalid territory configuration must fail
+// here, loudly, rather than silently mis-awarding territory later.
+const territoryConfig = getTerritoryConfig();
 
 type GpsJob = RouteJobInput;
 type JobPoint = GpsJob["points"][number];
@@ -69,6 +74,30 @@ const worker = new Worker<GpsJob>(
           getHexIdsForPoints: (pts) => hexService.getHexIdsForPoints(pts),
           signRouteProof: (to, routeHash, distanceMeters, hexId) =>
             oracleService.signRouteProof(to, routeHash, distanceMeters, hexId),
+          // Closed-loop territory capture. processRouteJob only reaches this
+          // after validation and both dedup checks have passed, so a rejected
+          // route can never be evaluated for capture, let alone awarded any.
+          // getHexIdsForPoints above is untouched: it still runs on the LEGACY
+          // resolution-8 grid that the oracle signature and the deployed
+          // contracts depend on. Capture uses the separate versioned territory
+          // grid (v2 @ resolution 9) and never feeds the signed hexId.
+          evaluateCapture: ({ points: pts, startTime: st, endTime: et }) => {
+            const evaluation = evaluateLoopCapture(
+              { points: pts, startTime: st, endTime: et },
+              territoryConfig
+            );
+            return {
+              traversedHexIds: evaluation.traversedHexIds,
+              capturedHexIds: evaluation.capturedHexIds,
+              loopClosed: evaluation.loopClosed,
+              closureDistanceMeters: evaluation.closureDistanceMeters,
+              enclosedAreaSquareMeters: evaluation.enclosedAreaSquareMeters,
+              captureEligible: evaluation.captureEligible,
+              captureRejectionReasons: evaluation.captureRejectionReasons,
+              captureGridVersion: evaluation.captureGridVersion,
+              captureResolution: evaluation.captureResolution,
+            };
+          },
         }
       );
 
@@ -78,6 +107,24 @@ const worker = new Worker<GpsJob>(
         console.log(
           `[GPS Worker] Route ${routeId} verified: ${outcome.distanceMeters}m, hex ${outcome.hexId}`
         );
+        // Counts and reasons only — never a coordinate, an area boundary, or
+        // any other value that could reconstruct where someone ran.
+        if (outcome.capture) {
+          console.log(
+            `[GPS Worker] Route ${routeId} capture: eligible=${outcome.capture.captureEligible} ` +
+              `closed=${outcome.capture.loopClosed} cells=${outcome.capture.capturedHexIds.length} ` +
+              `grid=v${outcome.capture.captureGridVersion}` +
+              (outcome.capture.captureRejectionReasons.length > 0
+                ? ` reasons=${outcome.capture.captureRejectionReasons.join(",")}`
+                : "")
+          );
+        }
+        if (outcome.territoryError) {
+          console.error(
+            `[GPS Worker] Route ${routeId} verified but territory application failed:`,
+            outcome.territoryError
+          );
+        }
       }
       return outcome;
     } catch (err) {

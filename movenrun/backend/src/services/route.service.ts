@@ -39,8 +39,56 @@ export interface AnomalyCheckResult {
   confidence: number;
 }
 
+/**
+ * Server-recomputed closed-loop capture result for one route.
+ *
+ * Every field here is derived by the backend from the submitted points — none
+ * of it is read from the client. There is deliberately no way for a caller to
+ * assert `captureEligible`; see `territory/capture.ts`.
+ */
+export interface RouteCaptureOutcome {
+  traversedHexIds: string[];
+  capturedHexIds: string[];
+  loopClosed: boolean;
+  closureDistanceMeters: number | null;
+  enclosedAreaSquareMeters: number;
+  captureEligible: boolean;
+  captureRejectionReasons: string[];
+  captureGridVersion: number;
+  captureResolution: number;
+}
+
+/** What applying an eligible capture actually changed. */
+export interface TerritoryApplicationResult {
+  capturedCellIds: string[];
+  reinforcedCellIds: string[];
+  attackedCellIds: string[];
+  contestedCellIds: string[];
+  transferredCellIds: string[];
+  rejectedCellIds: string[];
+}
+
 export interface RouteJobDeps {
   repository: RouteRepository;
+  /**
+   * Optional closed-loop capture evaluation. When absent, route processing
+   * behaves exactly as it did before territory existed — validate, dedup,
+   * sign, persist — so the legacy path is unchanged by construction.
+   */
+  evaluateCapture?: (input: {
+    points: RouteJobPoint[];
+    startTime: number;
+    endTime: number;
+  }) => RouteCaptureOutcome;
+  /**
+   * Optional territory application. Only ever called for a route that has
+   * already passed validation, dedup AND capture eligibility.
+   */
+  applyCapture?: (input: {
+    routeId: string;
+    walletAddress: string;
+    capture: RouteCaptureOutcome;
+  }) => Promise<TerritoryApplicationResult>;
   validateRoute: (input: {
     points: RouteJobPoint[];
     startTime: number;
@@ -63,9 +111,37 @@ export interface RouteJobDeps {
   ) => Promise<string>;
 }
 
+/**
+ * Outcome of one route job.
+ *
+ * `capture` and `territory` are additive: every field that existed before
+ * territory capture is unchanged, and both new fields are absent when no
+ * capture dependency was injected. Callers written against the old shape keep
+ * working untouched.
+ */
 export type RouteJobOutcome =
-  | { status: "REJECTED"; rejectionReasons: string[]; routeHash?: string; distanceMeters?: number }
-  | { status: "VERIFIED"; routeHash: string; distanceMeters: number; hexId: string; oracleSig: string };
+  | {
+      status: "REJECTED";
+      rejectionReasons: string[];
+      routeHash?: string;
+      distanceMeters?: number;
+      /** Present when capture was evaluated before the rejection was decided. */
+      capture?: RouteCaptureOutcome;
+    }
+  | {
+      status: "VERIFIED";
+      routeHash: string;
+      distanceMeters: number;
+      hexId: string;
+      oracleSig: string;
+      capture?: RouteCaptureOutcome;
+      /** Present only when an eligible capture was actually applied. */
+      territory?: TerritoryApplicationResult;
+      /** Set when territory application failed after the route was verified.
+       *  The route stays VERIFIED — a territory write failure must not undo a
+       *  valid, already-signed route. */
+      territoryError?: string;
+    };
 
 /** "0" is the documented "not in any zone" sentinel (mirrors oracle.service.ts's uint64 0). */
 const NO_ZONE_HEX_ID = "0";
@@ -138,7 +214,13 @@ export async function processRouteJob(
     return { status: "REJECTED", rejectionReasons, routeHash, distanceMeters };
   }
 
-  // 5. Sign — only reachable once validation passed and no duplicate was found.
+  // 5. Closed-loop territory capture — evaluated only now, once validation and
+  //    both dedup checks have passed, so a route that failed any of them can
+  //    never reach capture. Nothing is awarded here: this step only computes
+  //    what the route enclosed (see territory/capture.ts).
+  const capture = deps.evaluateCapture?.({ points, startTime, endTime });
+
+  // 6. Sign — only reachable once validation passed and no duplicate was found.
   //    A concrete hexId is always signed (0 = not in any zone), per PR #40.
   const primaryHexId = hexIds.length > 0 ? hexIds[0] : NO_ZONE_HEX_ID;
   const oracleSig = await deps.signRouteProof(
@@ -174,12 +256,37 @@ export async function processRouteJob(
         confidence: anomaly.confidence,
         rejectionReasons,
       });
-      return { status: "REJECTED", rejectionReasons, routeHash, distanceMeters };
+      return { status: "REJECTED", rejectionReasons, routeHash, distanceMeters, capture };
     }
     throw err;
   }
 
-  return { status: "VERIFIED", routeHash, distanceMeters, hexId: primaryHexId, oracleSig };
+  const verified: RouteJobOutcome = {
+    status: "VERIFIED",
+    routeHash,
+    distanceMeters,
+    hexId: primaryHexId,
+    oracleSig,
+    capture,
+  };
+
+  // 7. Apply the capture. Reachable only for a route that is validated,
+  //    de-duplicated, persisted as VERIFIED, AND capture-eligible — an
+  //    ineligible loop changes no ownership.
+  if (capture?.captureEligible && deps.applyCapture) {
+    try {
+      verified.territory = await deps.applyCapture({ routeId, walletAddress, capture });
+    } catch (err) {
+      // The route is already VERIFIED and signed on the strength of checks that
+      // all passed. A failure in the territory write is a territory problem, not
+      // a route problem, so it is reported rather than retro-actively rejecting
+      // a valid route. The ownership tables are the source of truth for what was
+      // actually awarded, so nothing is double-counted on a retry.
+      verified.territoryError = err instanceof Error ? err.message : "Unknown territory error";
+    }
+  }
+
+  return verified;
 }
 
 /**

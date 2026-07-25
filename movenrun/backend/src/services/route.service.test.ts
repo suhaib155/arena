@@ -13,8 +13,10 @@ import {
   processRouteJob,
   submitRoute,
   getRouteView,
+  type RouteCaptureOutcome,
   type RouteJobDeps,
   type RouteJobInput,
+  type TerritoryApplicationResult,
 } from "./route.service.js";
 import { OracleService } from "./oracle.service.js";
 import {
@@ -418,4 +420,238 @@ test("getRouteView returns null for an unknown route id (caller maps this to 404
   const repo = new InMemoryRouteRepository();
   const view = await getRouteView("does-not-exist", repo);
   assert.equal(view, null);
+});
+
+// ---------------------------------------------------------------------------
+// Territory capture wiring (PHASE 6).
+//
+// The invariant under test: capture is an ADDITIVE step that can only run for a
+// route which already passed validation and both dedup checks, and territory is
+// only applied when that capture is eligible. The pre-territory behaviour is
+// unchanged when no capture dependency is injected — the tests above, which
+// pass no capture deps at all, are themselves that proof.
+// ---------------------------------------------------------------------------
+
+const ELIGIBLE_CAPTURE: RouteCaptureOutcome = {
+  traversedHexIds: ["892a1008943ffff"],
+  capturedHexIds: ["892a1008943ffff", "892a100894bffff"],
+  loopClosed: true,
+  closureDistanceMeters: 12,
+  enclosedAreaSquareMeters: 62_500,
+  captureEligible: true,
+  captureRejectionReasons: [],
+  captureGridVersion: 2,
+  captureResolution: 9,
+};
+
+const INELIGIBLE_CAPTURE: RouteCaptureOutcome = {
+  ...ELIGIBLE_CAPTURE,
+  capturedHexIds: [],
+  loopClosed: false,
+  captureEligible: false,
+  captureRejectionReasons: ["loopNotClosed"],
+};
+
+const EMPTY_APPLICATION: TerritoryApplicationResult = {
+  capturedCellIds: [],
+  reinforcedCellIds: [],
+  attackedCellIds: [],
+  contestedCellIds: [],
+  transferredCellIds: [],
+  rejectedCellIds: [],
+};
+
+test("a verified route carries its server-computed capture result", async () => {
+  const repo = new InMemoryRouteRepository();
+  const input: RouteJobInput = {
+    routeId: "route-cap-1",
+    walletAddress: WALLET,
+    points: POINTS,
+    startTime: 1000,
+    endTime: 2000,
+  };
+  await submitted(repo, input);
+
+  const outcome = await processRouteJob(
+    input,
+    baseDeps({ repository: repo, evaluateCapture: () => ELIGIBLE_CAPTURE }),
+  );
+
+  assert.equal(outcome.status, "VERIFIED");
+  assert.equal(outcome.capture?.captureEligible, true);
+  assert.equal(outcome.capture?.captureGridVersion, 2);
+  assert.equal(outcome.capture?.captureResolution, 9);
+  // The legacy signed hexId still comes from getHexIdsForPoints (resolution 8),
+  // never from the territory grid.
+  assert.equal(outcome.status === "VERIFIED" && outcome.hexId, "8a2a1072b59ffff");
+});
+
+test("capture is never evaluated for a route that fails validation", async () => {
+  const repo = new InMemoryRouteRepository();
+  const input: RouteJobInput = {
+    routeId: "route-cap-2",
+    walletAddress: WALLET,
+    points: POINTS,
+    startTime: 1000,
+    endTime: 2000,
+  };
+  await submitted(repo, input);
+
+  let captureCalls = 0;
+  const outcome = await processRouteJob(
+    input,
+    baseDeps({
+      repository: repo,
+      validateRoute: () => ({ isAnomaly: true, reasons: ["Implausible speed"], confidence: 0.2 }),
+      evaluateCapture: () => {
+        captureCalls += 1;
+        return ELIGIBLE_CAPTURE;
+      },
+    }),
+  );
+
+  assert.equal(outcome.status, "REJECTED");
+  assert.equal(captureCalls, 0, "a route that failed validation must never reach capture");
+});
+
+test("capture is never evaluated for a duplicate route", async () => {
+  const repo = new InMemoryRouteRepository();
+  const first: RouteJobInput = {
+    routeId: "route-cap-3a",
+    walletAddress: WALLET,
+    points: POINTS,
+    startTime: 1000,
+    endTime: 2000,
+  };
+  const duplicate: RouteJobInput = { ...first, routeId: "route-cap-3b" };
+  await submitted(repo, first);
+  await submitted(repo, duplicate);
+
+  let captureCalls = 0;
+  const deps = baseDeps({
+    repository: repo,
+    evaluateCapture: () => {
+      captureCalls += 1;
+      return ELIGIBLE_CAPTURE;
+    },
+  });
+
+  await processRouteJob(first, deps);
+  assert.equal(captureCalls, 1);
+
+  const outcome = await processRouteJob(duplicate, deps);
+  assert.equal(outcome.status, "REJECTED");
+  assert.match(outcome.rejectionReasons[0], /Duplicate route hash/);
+  assert.equal(captureCalls, 1, "the duplicate must not be evaluated for capture");
+});
+
+test("territory is applied only for an eligible capture", async () => {
+  const repo = new InMemoryRouteRepository();
+  const input: RouteJobInput = {
+    routeId: "route-cap-4",
+    walletAddress: WALLET,
+    points: POINTS,
+    startTime: 1000,
+    endTime: 2000,
+  };
+  await submitted(repo, input);
+
+  let applied = 0;
+  const outcome = await processRouteJob(
+    input,
+    baseDeps({
+      repository: repo,
+      evaluateCapture: () => ELIGIBLE_CAPTURE,
+      applyCapture: async ({ capture }) => {
+        applied += 1;
+        return { ...EMPTY_APPLICATION, capturedCellIds: capture.capturedHexIds };
+      },
+    }),
+  );
+
+  assert.equal(applied, 1);
+  assert.equal(outcome.status, "VERIFIED");
+  assert.deepEqual(
+    outcome.status === "VERIFIED" ? outcome.territory?.capturedCellIds : null,
+    ELIGIBLE_CAPTURE.capturedHexIds,
+  );
+});
+
+test("an ineligible capture changes no ownership", async () => {
+  const repo = new InMemoryRouteRepository();
+  const input: RouteJobInput = {
+    routeId: "route-cap-5",
+    walletAddress: WALLET,
+    points: POINTS,
+    startTime: 1000,
+    endTime: 2000,
+  };
+  await submitted(repo, input);
+
+  let applied = 0;
+  const outcome = await processRouteJob(
+    input,
+    baseDeps({
+      repository: repo,
+      evaluateCapture: () => INELIGIBLE_CAPTURE,
+      applyCapture: async () => {
+        applied += 1;
+        return EMPTY_APPLICATION;
+      },
+    }),
+  );
+
+  assert.equal(applied, 0, "an ineligible loop must never apply territory");
+  assert.equal(outcome.status, "VERIFIED", "the route itself is still a valid run");
+  assert.equal(outcome.capture?.captureEligible, false);
+  assert.equal(outcome.status === "VERIFIED" && outcome.territory, undefined);
+});
+
+test("a territory write failure does not un-verify an already-signed route", async () => {
+  const repo = new InMemoryRouteRepository();
+  const input: RouteJobInput = {
+    routeId: "route-cap-6",
+    walletAddress: WALLET,
+    points: POINTS,
+    startTime: 1000,
+    endTime: 2000,
+  };
+  await submitted(repo, input);
+
+  const outcome = await processRouteJob(
+    input,
+    baseDeps({
+      repository: repo,
+      evaluateCapture: () => ELIGIBLE_CAPTURE,
+      applyCapture: async () => {
+        throw new Error("territory database unavailable");
+      },
+    }),
+  );
+
+  assert.equal(outcome.status, "VERIFIED");
+  assert.equal(
+    outcome.status === "VERIFIED" && outcome.territoryError,
+    "territory database unavailable",
+  );
+  const record = await repo.findById("route-cap-6");
+  assert.equal(record?.status, "VERIFIED", "the route record must stay VERIFIED");
+  assert.ok(record?.oracleSig, "the signature must still be persisted");
+});
+
+test("route processing is unchanged when no capture dependency is injected", async () => {
+  const repo = new InMemoryRouteRepository();
+  const input: RouteJobInput = {
+    routeId: "route-cap-7",
+    walletAddress: WALLET,
+    points: POINTS,
+    startTime: 1000,
+    endTime: 2000,
+  };
+  await submitted(repo, input);
+
+  const outcome = await processRouteJob(input, baseDeps({ repository: repo }));
+  assert.equal(outcome.status, "VERIFIED");
+  assert.equal(outcome.capture, undefined);
+  assert.equal(outcome.status === "VERIFIED" && outcome.territory, undefined);
 });

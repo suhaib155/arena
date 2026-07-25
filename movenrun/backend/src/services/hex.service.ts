@@ -1,7 +1,39 @@
 import * as h3 from "h3-js";
 import { HexActivity, ZoneMintEligibility } from "@movenrun/shared";
 import { H3_RESOLUTION, MIN_ACTIVITY_THRESHOLD } from "@movenrun/shared/src/constants/h3.js";
+import {
+  getLoopClosureDistanceMeters,
+  isClosedLoop,
+  isValidCoordinate,
+  normalizePolygonCoordinates,
+  routeToRing,
+} from "../territory/geometry.js";
+import {
+  cellsInBoundingBox,
+  getCapturedHexIdsForLoop,
+  getNeighboringCells,
+  getTraversedHexIds,
+  h3CellsToGeoJsonFeatureCollection,
+  h3CellToGeoJsonFeature,
+  TERRITORY_H3_RESOLUTION_V2,
+} from "../territory/h3.js";
 
+/**
+ * Hex/zone helpers.
+ *
+ * The original resolution-8 behaviour below (`latLngToHex`, `getHexIdsForPoints`,
+ * `getNeighbors`, `hexToLatLng`, mint eligibility) is unchanged — the deployed
+ * contracts and the oracle route proof depend on it.
+ *
+ * The territory-capture methods added underneath **delegate** to
+ * `src/territory/*` rather than reimplementing anything. That is deliberate:
+ * this file imports the bare `@movenrun/shared` specifier, which puts it
+ * outside the backend's `tsc` include list (see backend/tsconfig.json), so
+ * logic living here cannot be type-checked or unit-tested. The territory
+ * modules import nothing from `@movenrun/shared`, are inside the type-check
+ * scope, and carry the tests. Callers get the methods on `HexService`; the
+ * behaviour lives where it can be verified.
+ */
 export class HexService {
   // Convert lat/lng to H3 hex ID at resolution 8
   latLngToHex(lat: number, lng: number): string {
@@ -66,5 +98,85 @@ export class HexService {
   // Hex center as lat/lng
   hexToLatLng(hexId: string): [number, number] {
     return h3.cellToLatLng(hexId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Territory capture geometry (grid version 2 @ resolution 9).
+  //
+  // Every method below is a thin delegation to src/territory/* — see the class
+  // comment. None of them touch the legacy resolution-8 path above.
+  // ---------------------------------------------------------------------------
+
+  /** Latitude/longitude range check, rejecting NaN and Infinity. */
+  isValidCoordinate(lat: number, lng: number): boolean {
+    return isValidCoordinate(lat, lng);
+  }
+
+  /**
+   * Whether a route's endpoints are within `toleranceMeters` of each other.
+   * Closure alone NEVER grants capture — see territory/capture.ts, which also
+   * requires distance, duration, area, geometry validity and GPS quality.
+   */
+  isClosedLoop(
+    points: Array<{ lat: number; lng: number }>,
+    toleranceMeters: number
+  ): boolean {
+    return isClosedLoop(points, toleranceMeters);
+  }
+
+  /** Straight-line metres from a route's last point back to its first. */
+  getLoopClosureDistanceMeters(
+    points: Array<{ lat: number; lng: number }>
+  ): number | null {
+    return getLoopClosureDistanceMeters(points);
+  }
+
+  /** Distinct territory cells the route passed through, in first-visit order. */
+  getTraversedHexIds(
+    points: Array<{ lat: number; lng: number }>,
+    resolution: number = TERRITORY_H3_RESOLUTION_V2
+  ): string[] {
+    return getTraversedHexIds(points, resolution);
+  }
+
+  /** Territory cells enclosed by a closed route loop. */
+  getCapturedHexIdsForLoop(
+    points: Array<{ lat: number; lng: number }>,
+    resolution: number = TERRITORY_H3_RESOLUTION_V2
+  ): string[] {
+    const ring = routeToRing(points);
+    if (!ring) return [];
+    return getCapturedHexIdsForLoop(ring, resolution);
+  }
+
+  /** One cell as a GeoJSON Polygon feature, in [longitude, latitude] order. */
+  h3CellToGeoJsonFeature(cellId: string, properties: Record<string, unknown> = {}) {
+    return h3CellToGeoJsonFeature(cellId, properties);
+  }
+
+  /** Many cells as a GeoJSON FeatureCollection. */
+  h3CellsToGeoJsonFeatureCollection(
+    cellIds: string[],
+    propertiesFor: (cellId: string) => Record<string, unknown> = () => ({})
+  ) {
+    return h3CellsToGeoJsonFeatureCollection(cellIds, propertiesFor);
+  }
+
+  /** Ring-1 neighbours of a territory cell (excludes the cell itself). */
+  getNeighboringCells(cellId: string): string[] {
+    return getNeighboringCells(cellId);
+  }
+
+  /** Validate + close an arbitrary GeoJSON ring, or null when unusable. */
+  normalizePolygonCoordinates(ring: Array<[number, number]>) {
+    return normalizePolygonCoordinates(ring);
+  }
+
+  /** Territory cells whose centre falls inside a lat/lng bounding box. */
+  cellsInBoundingBox(
+    bounds: { west: number; south: number; east: number; north: number },
+    resolution: number = TERRITORY_H3_RESOLUTION_V2
+  ): string[] {
+    return cellsInBoundingBox(bounds, resolution);
   }
 }
