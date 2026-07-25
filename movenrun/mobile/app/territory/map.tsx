@@ -232,6 +232,9 @@ export default function TerritoryMapScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.quickRow}
             >
+              <QuickLink icon="earth-outline" label="Real map" onPress={() => { tapFeedback(); router.push("/territory/live-map"); }} />
+              <QuickLink icon="briefcase-outline" label="Portfolio" onPress={() => { tapFeedback(); router.push("/territory/portfolio"); }} />
+              <QuickLink icon="shield-half-outline" label="Defence" onPress={() => { tapFeedback(); router.push("/territory/defence"); }} />
               <QuickLink icon="notifications-outline" label="Alerts" onPress={() => { tapFeedback(); router.push("/territory/alerts"); }} />
               <QuickLink icon="business-outline" label="City" onPress={() => { tapFeedback(); router.push("/city-districts"); }} />
               <QuickLink icon="color-wand-outline" label="Rivals" onPress={() => { tapFeedback(); router.push("/rivals"); }} />

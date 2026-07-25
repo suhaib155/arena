@@ -86,6 +86,10 @@ function RootNavigator() {
         <Stack.Screen name="route/proof" />
         <Stack.Screen name="questline" />
         <Stack.Screen name="territory/map" />
+        <Stack.Screen name="territory/live-map" />
+        <Stack.Screen name="territory/[cellId]" />
+        <Stack.Screen name="territory/portfolio" />
+        <Stack.Screen name="territory/defence" />
         <Stack.Screen name="territory/alerts" />
         <Stack.Screen name="collections" />
         <Stack.Screen name="weekly-recap" />

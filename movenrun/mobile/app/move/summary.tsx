@@ -19,6 +19,16 @@ import {
   sessionXp,
 } from "@/services/moveSession";
 import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
+import {
+  calculateClosureDistance,
+  estimateEnclosedAreaSquareMeters,
+} from "@/lib/geo/routeGeoJson";
+import {
+  CAPTURE_PREVIEW_DEFAULTS,
+  describeRejections,
+  formatArea,
+  type CaptureRejectionReason,
+} from "@/lib/territory/capturePreview";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
@@ -76,6 +86,30 @@ export default function MoveSummaryScreen() {
   const lockedMoveDelta = lockedMovePreview(totalXp + xp) - lockedMovePreview(totalXp);
   const pace = formatPace(session.distanceM, session.durationMs);
   const saveable = session.mode === "gps" && isSaveable(session.distanceM, session.durationMs);
+
+  /* Loop geometry, computed on-device for the summary. These are ESTIMATES:
+     the backend recomputes closure, area and cells from the raw route and its
+     answer is the only one that awards territory. `localBlockers` lists the
+     requirements the route visibly failed, so a runner sees why a capture
+     probably won't land rather than waiting for a silent rejection. */
+  const closureDistanceM = calculateClosureDistance(session.points);
+  const enclosedArea = estimateEnclosedAreaSquareMeters(session.points);
+  const loopClosed =
+    closureDistanceM !== null &&
+    closureDistanceM <= CAPTURE_PREVIEW_DEFAULTS.closureToleranceMeters;
+
+  const localBlockers: CaptureRejectionReason[] = [];
+  if (!loopClosed) localBlockers.push("loopNotClosed");
+  if (session.distanceM < CAPTURE_PREVIEW_DEFAULTS.minDistanceMeters) {
+    localBlockers.push("insufficientDistance");
+  }
+  if (session.durationMs < CAPTURE_PREVIEW_DEFAULTS.minDurationSeconds * 1000) {
+    localBlockers.push("insufficientDuration");
+  }
+  if (enclosedArea < CAPTURE_PREVIEW_DEFAULTS.minAreaSquareMeters) {
+    localBlockers.push("areaBelowMinimum");
+  }
+  const captureLooksEligible = localBlockers.length === 0;
 
   /* Territory touched — mock pseudo-H3 zones derived from the in-memory
      route (local simulation; real H3 arrives with the live map). */
@@ -243,6 +277,74 @@ export default function MoveSummaryScreen() {
                   +{lockedMoveDelta}
                 </Text>
               </View>
+            </View>
+          </FadeSlideIn>
+        ) : null}
+
+        {/* Loop capture — server-authoritative, so this reports the route's
+            geometry and never asserts an outcome. */}
+        {session.mode === "gps" ? (
+          <FadeSlideIn delay={STAGGER_MS * 3.5}>
+            <View style={styles.loopCard}>
+              <View style={styles.zoneHead}>
+                <Text style={styles.zoneTitle}>Loop capture</Text>
+                <View style={styles.pendingBadge}>
+                  <Ionicons name="time-outline" size={13} color={colors.textDim} />
+                  <Text style={styles.pendingText}>Pending server verification</Text>
+                </View>
+              </View>
+
+              <View style={styles.loopRow}>
+                <Ionicons
+                  name={loopClosed ? "checkmark-circle" : "ellipse-outline"}
+                  size={16}
+                  color={loopClosed ? palette.pulseGreen : colors.textFaint}
+                />
+                <Text style={styles.loopRowText}>
+                  {loopClosed
+                    ? "Loop closed"
+                    : closureDistanceM === null
+                      ? "Not enough route to measure a loop"
+                      : `Loop open — finished ${Math.round(closureDistanceM)} m from the start`}
+                </Text>
+              </View>
+
+              <View style={styles.loopRow}>
+                <Ionicons
+                  name={
+                    enclosedArea >= CAPTURE_PREVIEW_DEFAULTS.minAreaSquareMeters
+                      ? "checkmark-circle"
+                      : "ellipse-outline"
+                  }
+                  size={16}
+                  color={
+                    enclosedArea >= CAPTURE_PREVIEW_DEFAULTS.minAreaSquareMeters
+                      ? palette.pulseGreen
+                      : colors.textFaint
+                  }
+                />
+                <Text style={styles.loopRowText}>
+                  {enclosedArea > 0
+                    ? `About ${formatArea(enclosedArea)} enclosed`
+                    : "No area enclosed"}
+                </Text>
+              </View>
+
+              {captureLooksEligible ? (
+                <Text style={styles.loopNote}>
+                  This route meets the capture requirements. The server checks GPS
+                  quality and geometry before any territory is awarded.
+                </Text>
+              ) : (
+                <View style={styles.blockerList}>
+                  {describeRejections(localBlockers).map((reason) => (
+                    <View key={reason} style={styles.blockerRow}>
+                      <Ionicons name="alert-circle-outline" size={13} color={palette.moveGold} />
+                      <Text style={styles.blockerText}>{reason}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           </FadeSlideIn>
         ) : null}
@@ -501,6 +603,19 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...shadows.card,
   },
+  loopCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    ...shadows.card,
+  },
+  loopRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  loopRowText: { flex: 1, ...type.caption, fontSize: 12.5, color: colors.text },
+  loopNote: { ...type.caption, fontSize: 11.5, lineHeight: 16, color: colors.textFaint },
+  blockerList: { gap: 5 },
+  blockerRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  blockerText: { flex: 1, ...type.caption, fontSize: 11.5, lineHeight: 16 },
   zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   zoneTitle: { ...type.heading, fontSize: 15 },
   zoneCount: { ...type.mono, fontSize: 12, color: colors.textDim },

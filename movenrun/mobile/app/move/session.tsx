@@ -18,11 +18,18 @@ import {
 } from "@/lib/geo";
 import { createTracker, type TrackerMode } from "@/services/moveTracker";
 import { setLastSession } from "@/services/moveSession";
+import {
+  calculateClosureDistance,
+  estimateEnclosedAreaSquareMeters,
+} from "@/lib/geo/routeGeoJson";
+import {
+  buildLivePreview,
+  CAPTURE_PREVIEW_DEFAULTS,
+  estimateCellCount,
+  formatArea,
+} from "@/lib/territory/capturePreview";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 import type { IoniconName } from "@/types";
-
-/** Distance that fills the capture-preview ring once (territory beta teaser). */
-const ZONE_PREVIEW_M = 500;
 
 type GpsState = "waiting" | "locked" | "weak";
 
@@ -141,8 +148,30 @@ export default function MoveSessionScreen() {
   }, [quit]);
 
   const pace = formatPace(distanceM, elapsedMs);
-  const zoneProgress = Math.min(1, (distanceM % ZONE_PREVIEW_M) / ZONE_PREVIEW_M);
-  const zonesPassed = Math.floor(distanceM / ZONE_PREVIEW_M);
+
+  /* Live capture preview. Everything here is an on-device ESTIMATE — the
+     server recomputes closure, area and cells from the raw route and its
+     answer is the only one that awards territory. The copy in
+     capturePreview.ts is written so no preview state can read as a claim. */
+  const closureDistanceM = calculateClosureDistance(points);
+  const estimatedArea = estimateEnclosedAreaSquareMeters(points);
+  const estimatedCells = estimateCellCount(estimatedArea);
+  const preview = buildLivePreview({
+    closureDistanceMeters: closureDistanceM,
+    estimatedAreaSquareMeters: estimatedArea,
+    cellsCrossed: 0,
+    estimatedCells,
+    closureToleranceMeters: CAPTURE_PREVIEW_DEFAULTS.closureToleranceMeters,
+    nearClosureMeters: CAPTURE_PREVIEW_DEFAULTS.nearClosureMeters,
+    distanceMeters: distanceM,
+    minDistanceMeters: CAPTURE_PREVIEW_DEFAULTS.minDistanceMeters,
+  });
+  /* Progress toward the minimum distance the backend requires — a concrete,
+     honest target rather than an invented one. */
+  const distanceProgress = Math.min(
+    1,
+    distanceM / CAPTURE_PREVIEW_DEFAULTS.minDistanceMeters,
+  );
 
   return (
     <Screen>
@@ -179,19 +208,26 @@ export default function MoveSessionScreen() {
         </View>
       </View>
 
-      {/* Claim-in-progress */}
+      {/* Live capture preview — estimate only, never a claim. */}
       <View style={styles.zoneCard}>
         <View style={styles.zoneHead}>
           <Text style={styles.zoneTitle}>Capture preview</Text>
-          <Text style={styles.zoneTag}>territory beta</Text>
+          <Text style={styles.zoneTag}>estimate</Text>
         </View>
+
+        <Text style={styles.previewHeadline}>{preview.headline}</Text>
+        {preview.detail ? <Text style={styles.zoneNote}>{preview.detail}</Text> : null}
+
         <View style={styles.zoneTrack}>
-          <View style={[styles.zoneFill, { width: `${zoneProgress * 100}%` }]} />
+          <View style={[styles.zoneFill, { width: `${distanceProgress * 100}%` }]} />
         </View>
         <Text style={styles.zoneNote}>
-          {zonesPassed > 0
-            ? `${zonesPassed} zone pass${zonesPassed > 1 ? "es" : ""} this session — capture lands with the hex map.`
-            : `${Math.round(ZONE_PREVIEW_M * zoneProgress)} / ${ZONE_PREVIEW_M} m toward your first zone pass.`}
+          {formatDistance(distanceM)} of {CAPTURE_PREVIEW_DEFAULTS.minDistanceMeters} m minimum
+          {preview.showAreaEstimate ? ` · about ${formatArea(estimatedArea)} enclosed` : ""}
+        </Text>
+
+        <Text style={styles.previewFootnote}>
+          Server verified after you finish — nothing is captured until then.
         </Text>
       </View>
 
@@ -289,5 +325,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.voltMint,
   },
   zoneNote: { ...type.caption, fontSize: 12 },
+  previewHeadline: { ...type.heading, fontSize: 14, lineHeight: 19 },
+  previewFootnote: { ...type.caption, fontSize: 10.5, color: colors.textFaint },
   controls: { paddingVertical: spacing.md, marginTop: "auto" },
 });

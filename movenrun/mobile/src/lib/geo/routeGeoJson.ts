@@ -124,6 +124,35 @@ export function calculateClosureDistance(points: LatLngLike[]): number | null {
 }
 
 /**
+ * Approximate area enclosed by closing the route, in square metres.
+ *
+ * A **client estimate for the live preview only.** The server recomputes this
+ * from the raw evidence and its answer is the one that decides capture, so a
+ * small disagreement here is expected and harmless — this exists so a runner
+ * can see roughly how much ground they are drawing around, not to pre-judge it.
+ *
+ * Uses the same spherical-excess formula as the backend so the two stay in the
+ * same ballpark rather than differing by a projection.
+ */
+export function estimateEnclosedAreaSquareMeters(points: LatLngLike[]): number {
+  const polygon = closeRoutePolygon(points);
+  if (!polygon) return 0;
+  const ring = polygon.geometry.coordinates[0];
+  if (ring.length < 4) return 0;
+
+  const EARTH_RADIUS_M = 6_371_008.8;
+  const DEG_TO_RAD = Math.PI / 180;
+  let total = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [lng1, lat1] = ring[i];
+    const [lng2, lat2] = ring[i + 1];
+    total +=
+      (lng2 - lng1) * DEG_TO_RAD * (2 + Math.sin(lat1 * DEG_TO_RAD) + Math.sin(lat2 * DEG_TO_RAD));
+  }
+  return Math.abs((total * EARTH_RADIUS_M * EARTH_RADIUS_M) / 2);
+}
+
+/**
  * Ramer–Douglas–Peucker simplification, **for rendering only**.
  *
  * `toleranceMeters` is the maximum distance a dropped vertex may be from the
