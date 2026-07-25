@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
+import { LoadingState } from "@/components/LoadingState";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { byRisk, HEALTH_LABEL, zoneStatus } from "@/lib/territory";
@@ -44,7 +45,11 @@ export default function TerritoryDefenceScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      {!hydrated ? null : zones.length === 0 ? (
+      {/* See portfolio.tsx: a blank screen during hydration reads as a broken
+          feature, and is indistinguishable from having nothing to defend. */}
+      {!hydrated ? (
+        <LoadingState message="Loading your defences…" />
+      ) : zones.length === 0 ? (
         <EmptyState
           icon="shield-outline"
           title="Nothing to defend yet"

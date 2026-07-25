@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
+import { LoadingState } from "@/components/LoadingState";
 import { SectionHeader } from "@/components/SectionHeader";
 import { StatCard } from "@/components/StatCard";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
@@ -41,7 +42,12 @@ export default function TerritoryPortfolioScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      {!hydrated ? null : overview.total === 0 ? (
+      {/* Rendering nothing while the store hydrates left a header over a blank
+          screen on a cold start — indistinguishable from the empty state below,
+          and it reads as broken rather than as "one moment". */}
+      {!hydrated ? (
+        <LoadingState message="Loading your territory…" />
+      ) : overview.total === 0 ? (
         <EmptyState
           icon="map-outline"
           title="No territory yet"

@@ -22,22 +22,27 @@ Status: **NOT READY TO MERGE** — see `PRE_MERGE_GATES.md`.
 | iOS | `eas build --profile development --platform ios` |
 | Required env | `EXPO_PUBLIC_MAP_STYLE_URL` (real provider), `EXPO_PUBLIC_API_BASE_URL` |
 | Backend | API (`yarn dev`) **and** GPS worker (`yarn worker:gps`) both running, Redis reachable by both |
-| Database | A **disposable/staging** Postgres with migrations `0000`–`0003` applied. Never production. |
+| Database | A **disposable/staging** Postgres with migrations `0000`–`0004` applied. Never production. |
+| Redis | Reachable by **both** the API and the worker. Realtime now crosses processes over the channel `movenrun:territory:v1` (D1); with Redis down, the map still works over HTTP but the live feed is silent. |
 
-### Known-broken behaviour to expect
+### Defects D1–D5 — fixed in code, now needing device confirmation
 
-Four defects were found by static and runtime audit and are **not yet fixed**.
-Tests that exercise them are expected to fail; they are listed here so a tester
-does not waste time diagnosing them:
+The five defects found by audit are fixed and covered by automated tests. What
+those tests **cannot** cover is the native half: a real Redis between two real
+processes, a real permission dialog, a real GPS radio, a real launcher icon.
+The tests below are therefore no longer "expected to fail" — they are the
+**primary evidence** that each fix works on hardware.
 
-| ID | Affects | Expected failure |
-|---|---|---|
-| **D1** | Realtime (`A-13`, `I-13`) | SSE delivers nothing. Broadcaster lives in the worker process; subscribers live in the API process. |
-| **D2** | Map ownership colour (`A-14`, `I-14`) | Your own zones render as **rival lavender**, not mint. Client sends no identity header. |
-| **D3** | Map at wide zoom (`A-15`) | Owned territory can be **invisible** when zoomed out. Feature cap is applied to candidate cells before the query. |
-| **D4** | Recentre control (`A-16`, `I-16`) | The "Recentre on my location" button does nothing useful. |
+| ID | Affects | Fix | What only a device can confirm |
+|---|---|---|---|
+| **D1** | Realtime (`A-13`, `I-13`) | Worker publishes committed changes to Redis; every API process subscribes and fans out over SSE. | That a capture on one phone appears on a second phone within seconds, that the stream survives 5+ minutes idle (heartbeat), and that it recovers after airplane-mode on/off. |
+| **D2** | Map ownership colour (`A-14`, `I-14`) | Relationship is computed from the caller's **verified session**; the app sends its bearer token. | That a signed-in runner's own cells render **mint**, a rival's **lavender**, and that signing out turns them **slate `Claimed`** — never mint for the wrong person. |
+| **D3** | Map at wide zoom (`A-15`) | The response limit falls on matched territories, not on candidate H3 cells. | That owned territory stays visible while zooming from street level to the widest legal viewport, and that `truncated` only appears when there genuinely is more. |
+| **D4** | Recentre control (`A-16`, `I-16`) | Recentre asks the device for a fix; a pan drops follow; the label is state-derived. | The permission prompt, the follow camera, and each of the three failure messages. |
+| **D5** | Territory awards (`A-11`) | `(route_id, grid_version)` idempotency ledger; claim, writes and completion in one transaction. | That re-queuing a completed job (or killing the worker mid-job and letting BullMQ retry) awards the same territory **once**, with defence unchanged on the second run. |
 
-Record them as **FAIL** with a reference to the defect ID rather than as new bugs.
+Any of these that still fails on device is a **new** finding — record it as one,
+not as the original defect.
 
 ### Device matrix (minimum)
 
@@ -67,10 +72,17 @@ attached counts as not run.
   3. Long-press for the app-info popup and check the icon there too.
 - **Expected result:** A MovenRun-branded icon, correctly inset inside the mask
   with no clipping of any glyph.
-  > ⚠️ **Known gap:** `app.json` declares **no `icon` and no
-  > `adaptiveIcon.foregroundImage`** — only `backgroundColor: "#F8FAF7"`. There
-  > is no `assets/` directory. The build will ship the **default Expo icon**.
-  > This is pre-existing (unchanged by this branch) but is a release blocker.
+  > ⚠️ **Device-review item — raster/background mismatch.** Icon assets now
+  > exist (`assets/icon.png`, `assets/adaptive-icon.png`, both 1024×1024).
+  > `app.json` sets `android.adaptiveIcon.backgroundColor` to the deep-forest
+  > token `#1E4D3A`, but **`adaptive-icon.png` is fully opaque with a
+  > near-black `#0A0F1F` background baked into the raster** (corner pixels
+  > sampled). An opaque foreground covers the declared background entirely, so
+  > the launcher will render a near-black tile, not a forest one, and any
+  > mask inset will cut into that dark square rather than into transparency.
+  > Artwork was **deliberately not regenerated in this pass**; confirm on
+  > device what actually ships and decide whether to re-cut the foreground with
+  > a transparent background before release.
 - **Actual result:**
 - **Pass / Fail:**
 - **Screenshot / recording:**
@@ -83,12 +95,26 @@ attached counts as not run.
   1. Cold-start the app. Record the screen from launch to first interactive frame.
   2. Repeat after force-stopping from system settings.
   3. Repeat with the app backgrounded for 10 minutes, then resumed.
-- **Expected result:** Splash background `#F8FAF7`, then the branded
-  `SplashView` (hexagon + "MovenRun" + "Move → Capture → Defend → Own"), then
-  the app. No white flash, no black frame, no visible jump between the native
-  splash and the JS splash.
-  > ⚠️ **Known gap:** `splash` declares no `image`, so the native splash is a
-  > flat colour only. Pre-existing.
+- **Expected result:** Splash background `#F0E9DE` (Warm Cartography cream),
+  then the branded `SplashView` (hexagon + "MovenRun" + "Move → Capture →
+  Defend → Own"), then the app. No white flash, no black frame, no visible jump
+  between the native splash and the JS splash.
+  > ⚠️ **Device-review item — dark splash raster on a cream field.**
+  > `app.json` sets `splash.backgroundColor: "#F0E9DE"` and
+  > `resizeMode: "contain"`, but **`assets/splash-icon.png` is fully opaque
+  > with a near-black `#0A0F1F` background baked into the raster** (corner
+  > pixels sampled). `contain` letterboxes the image against the declared
+  > colour, so the launch screen will most likely show a **near-black square
+  > centred on a cream field** rather than a logo floating on cream.
+  >
+  > Artwork was **deliberately not regenerated in this pass** — re-cutting the
+  > logo is a design task, not a defect fix, and guessing at it would be worse
+  > than reporting it. What to check on device:
+  >  1. Is the dark box actually visible, and how large is it?
+  >  2. Is there a cream → dark → cream flash between the native splash, the JS
+  >     `SplashView` (now `colors.bg`) and the first app frame?
+  >  3. Decide: re-cut `splash-icon.png` with a **transparent** background, or
+  >     change `splash.backgroundColor` back to `#0A0F1F`. Do not do both.
 - **Actual result:**
 - **Pass / Fail:**
 - **Screenshot / recording:**
@@ -306,11 +332,23 @@ attached counts as not run.
   3. Tap a territory polygon; confirm the selection panel and "Zone details".
   4. Tap empty map; confirm selection clears.
   5. Enable TalkBack and traverse every map control.
-- **Expected result (as designed):** Recentre returns the camera to the user's
-  blue dot. All icon-only controls announce a correct label under TalkBack.
-  > ⚠️ **Expect FAIL — defect D4.** Recentre moves the camera to the *viewport
-  > centre* (a visual no-op) and does nothing at all before the first fetch. Its
-  > TalkBack label "Recentre on my location" is therefore inaccurate.
+- **Expected result (as designed):** Recentre asks the device for a fix and
+  returns the camera to the user's blue dot, then stays locked to it until the
+  map is panned. All icon-only controls announce a correct label under TalkBack.
+  > ✅ **D4 fixed** — recentre now calls the device location
+  > (`lib/territory/deviceLocation.ts`), a pan drops follow, and the label is
+  > derived from the state. **Still requires device confirmation**, because the
+  > permission dialog, the location radio and the follow camera are all native:
+  >  1. First press on a fresh install → the OS permission prompt appears.
+  >  2. Grant → camera moves to the blue dot and the control turns filled.
+  >  3. Pan the map → follow ends, the control returns to its outline icon.
+  >  4. Press again → follow resumes.
+  >  5. Deny the permission → TalkBack reads "Location permission denied…" and
+  >     the banner explains it; the map still shows territory.
+  >  6. Turn the device's location services off entirely → a *different*
+  >     message ("location services are off"), not the permission one.
+  >  7. Indoors / airplane mode → "Location unavailable", and the spinner stops
+  >     within ~10 s rather than spinning forever.
 - **Actual result:**
 - **Pass / Fail:**
 - **Screenshot / recording:**
@@ -430,14 +468,19 @@ attached counts as not run.
 
 - **Steps:** Install, inspect the home-screen icon, Settings icon, and Spotlight result.
 - **Expected result:** MovenRun-branded icon at every size.
-  > ⚠️ **Known gap:** no `icon` is configured — the default Expo icon ships. Pre-existing.
+  > ⚠️ **Device-review item:** `assets/icon.png` exists (1024×1024, opaque,
+  > mid-grey corners). iOS masks the icon itself, so no transparency is needed
+  > here — but confirm the glyph is not clipped at the small Settings and
+  > Spotlight sizes. Artwork was not regenerated in this pass.
 - **Actual result:** / **Pass / Fail:** / **Screenshot:** / **Notes:**
 
 ## I-2 — Splash and transition
 
 - **Steps:** Cold start, recording the screen; repeat after a 10-minute background.
-- **Expected result:** `#F8FAF7` splash → branded `SplashView` → app, with no white or black flash.
-  > ⚠️ **Known gap:** no splash `image` configured. Pre-existing.
+- **Expected result:** `#F0E9DE` splash → branded `SplashView` → app, with no white or black flash.
+  > ⚠️ **Device-review item:** same dark-raster mismatch as A-2 —
+  > `splash-icon.png` carries a baked-in `#0A0F1F` background against a
+  > declared cream `#F0E9DE`. Record the cold start and judge the result.
 - **Actual result:** / **Pass / Fail:** / **Screenshot:** / **Notes:**
 
 ## I-3 — Map loads with a production-intended style

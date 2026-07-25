@@ -136,6 +136,13 @@ eas build --profile development --platform android
 eas build --profile development --platform ios
 ```
 
+The `development` profile is defined in `mobile/eas.json`: `developmentClient:
+true` (so `expo start --dev-client` can attach), `distribution: "internal"` (an
+installable artefact rather than a store submission), and an **APK** on Android
+so it can be side-loaded onto a test handset. The existing `preview` (APK) and
+`production` (AAB) profiles are unchanged, and no profile carries a secret —
+credentials come from the `EXPO_TOKEN` GitHub Actions secret alone.
+
 `npx expo prebuild` also works if you are managing native projects locally. Do
 not run `npx expo run:android` against a project that hasn't prebuilt — the
 MapLibre config plugin needs to have run.
