@@ -7,6 +7,11 @@ import { colors, palette, spacing, type } from "@/theme";
 import { Hexagon } from "@/components/Hexagon";
 import { useGameStore } from "@/store/useGameStore";
 import { installExpoSecureSessionStore } from "@/lib/secureSessionExpo";
+// Registers the background location TaskManager task at module scope. The OS
+// relaunches the app into a fresh JS runtime to deliver a background batch and
+// looks the task up by name immediately, so the definition cannot live inside a
+// component — see src/services/location/locationTask.ts.
+import "@/services/location/locationTask";
 
 // Install the OS-keystore session store before anything can touch auth state.
 // Until this runs, getSecureSessionStore() throws — there is no insecure
