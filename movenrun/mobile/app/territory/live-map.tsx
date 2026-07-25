@@ -9,7 +9,7 @@
  * All the interesting logic lives in `@/lib/territory/*` (debounce, staleness,
  * caching, reconciliation) and is unit-tested offline; this file is the shell.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -43,7 +43,15 @@ import {
   type TerritoryViewState,
   type Viewport,
 } from "@/lib/territory/viewport";
+import {
+  followLabel,
+  followReducer,
+  INITIAL_FOLLOW_STATE,
+  isFollowing,
+  isLocating,
+} from "@/lib/territory/mapFollow";
 import { fetchTerritoryMap, TerritoryApiError } from "@/services/territoryApi";
+import { getCurrentLocation } from "@/services/location/currentLocation";
 import { tapFeedback } from "@/lib/haptics";
 
 const LEGEND: LegendItem[] = TERRITORY_LEGEND_ORDER.map((relationship) => ({
@@ -62,6 +70,10 @@ export default function TerritoryLiveMapScreen() {
   const [state, setState] = useState<TerritoryViewState>(INITIAL_VIEW_STATE);
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [showLegend, setShowLegend] = useState(true);
+  // Recentre / follow (D4). The reducer is pure and unit-tested in
+  // src/lib/territory/mapFollow.ts; this screen only performs its effects.
+  const [follow, dispatchFollow] = useReducer(followReducer, INITIAL_FOLLOW_STATE);
+  const mountedRef = useRef(true);
 
   const config = useMemo(() => resolveMapConfig(), []);
   const mapAvailable = useMemo(() => isRealMapAvailable(), []);
@@ -108,10 +120,36 @@ export default function TerritoryLiveMapScreen() {
     [load],
   );
 
+  /**
+   * Recentre on the *device's* location (D4).
+   *
+   * This used to move the camera to the centre of the last fetched viewport —
+   * i.e. wherever the user had already panned — so the button appeared to do
+   * nothing while its label promised "my location".
+   *
+   * The fix is used to move the camera and is not stored, logged or uploaded.
+   */
+  const onRecenterPressed = useCallback(async () => {
+    tapFeedback();
+    if (isFollowing(follow) || isLocating(follow)) return;
+    dispatchFollow({ type: "recenterPressed" });
+
+    const outcome = await getCurrentLocation();
+    if (!mountedRef.current) return;
+    dispatchFollow({ type: "locationResolved", outcome });
+    // Only a fix moves the camera, and only if the user has not panned away in
+    // the meantime — the reducer drops a late fix after a gesture, and this
+    // mirrors that so the camera and the state can never disagree.
+    if (outcome.kind === "fix") mapRef.current?.recenter(outcome.coordinate);
+  }, [follow]);
+
+  const onUserGesture = useCallback(() => dispatchFollow({ type: "userGesture" }), []);
+
   // Invalidate anything in flight when the screen goes away, so a late response
   // can't call setState on an unmounted screen.
   useEffect(
     () => () => {
+      mountedRef.current = false;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       sequence.cancelAll();
     },
@@ -149,9 +187,10 @@ export default function TerritoryLiveMapScreen() {
         <MovenRunMap
           ref={mapRef}
           territories={territories}
-          followUser={false}
+          followUser={isFollowing(follow)}
           showUserLocation
           onViewportChange={onViewportChange}
+          onUserGesture={onUserGesture}
           onSelectTerritory={setSelectedCellId}
           selectedCellId={selectedCellId}
           loading={state.loading}
@@ -170,16 +209,15 @@ export default function TerritoryLiveMapScreen() {
             }}
           />
           <FloatingMapControl
-            icon="locate-outline"
-            accessibilityLabel="Recentre on my location"
+            icon={isFollowing(follow) ? "locate" : "locate-outline"}
+            // Derived from the state, so the control never claims a capability
+            // it does not have — "Location permission denied" is more useful to
+            // hear than "Recentre on my location" on a button that cannot.
+            accessibilityLabel={followLabel(follow)}
+            active={isFollowing(follow)}
+            busy={isLocating(follow)}
             onPress={() => {
-              tapFeedback();
-              const centre = lastFetchedRef.current;
-              if (!centre) return;
-              mapRef.current?.recenter([
-                (centre.west + centre.east) / 2,
-                (centre.south + centre.north) / 2,
-              ]);
+              void onRecenterPressed();
             }}
           />
         </View>
@@ -196,6 +234,13 @@ export default function TerritoryLiveMapScreen() {
             <Text style={styles.devBannerText}>
               Development map style — set EXPO_PUBLIC_MAP_STYLE_URL for real streets.
             </Text>
+          </View>
+        ) : null}
+
+        {follow.message ? (
+          <View style={styles.followBanner}>
+            <Ionicons name="location-outline" size={13} color={colors.textDim} />
+            <Text style={styles.followBannerText}>{follow.message}</Text>
           </View>
         ) : null}
 
@@ -321,6 +366,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   devBannerText: { flex: 1, ...type.caption, fontSize: 10.5 },
+
+  /** Why the map could not centre on the runner (D4) — permission refused,
+   *  location services off, or no fix. Each needs a different fix from them. */
+  followBanner: {
+    position: "absolute",
+    bottom: spacing.md,
+    left: spacing.md,
+    right: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    ...shadows.card,
+  },
+  followBannerText: { flex: 1, ...type.caption, fontSize: 10.5 },
 
   emptyBanner: {
     position: "absolute",

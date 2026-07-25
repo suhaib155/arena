@@ -91,6 +91,13 @@ export interface MovenRunMapProps {
   initialZoom?: number;
   /** Fired (already debounced by MapLibre) when the visible region settles. */
   onViewportChange?: (viewport: MapViewport) => void;
+  /**
+   * Fired when the *user* moves the map — pan, pinch or rotate — as opposed to
+   * a programmatic camera move (D4). The live map uses this to drop follow
+   * mode: a camera that fights the user's pan is worse than one that never
+   * follows at all.
+   */
+  onUserGesture?: () => void;
   /** Fired with the tapped territory's `cellId`, or null when the tap missed. */
   onSelectTerritory?: (cellId: string | null) => void;
   /** Currently selected cell — drawn with a heavier outline. */
@@ -131,6 +138,7 @@ export const MovenRunMap = forwardRef<MovenRunMapRef, MovenRunMapProps>(function
     initialCenter,
     initialZoom = MAP_DEFAULTS.zoom,
     onViewportChange,
+    onUserGesture,
     onSelectTerritory,
     selectedCellId = null,
     loading = false,
@@ -175,6 +183,18 @@ export const MovenRunMap = forwardRef<MovenRunMapRef, MovenRunMapProps>(function
     [onViewportChange],
   );
 
+  /**
+   * `isUserInteraction` is what separates a pan from the camera move we just
+   * asked for ourselves (D4). Without that check, calling `recenter` would
+   * immediately report a "gesture" and cancel its own follow.
+   */
+  const handleRegionWillChange = useCallback(
+    (feature: { properties: MapLibreTypes.RegionPayload }) => {
+      if (feature?.properties?.isUserInteraction) onUserGesture?.();
+    },
+    [onUserGesture],
+  );
+
   const handleTerritoryPress = useCallback(
     (event: MapLibreTypes.OnPressEvent) => {
       if (!onSelectTerritory) return;
@@ -215,6 +235,7 @@ export const MovenRunMap = forwardRef<MovenRunMapRef, MovenRunMapProps>(function
         pitchEnabled={false}
         rotateEnabled={false}
         regionDidChangeDebounceTime={250}
+        onRegionWillChange={handleRegionWillChange}
         onRegionDidChange={handleRegionDidChange}
         onDidFinishLoadingStyle={() => setStyleLoaded(true)}
         onDidFailLoadingMap={() => setStyleFailed(true)}
