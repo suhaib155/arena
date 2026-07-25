@@ -9,9 +9,9 @@
     "mobile"
   ],
   "scripts": {
-    "build": "yarn workspaces run build",
-    "test": "yarn workspaces run test",
-    "lint": "yarn workspaces run lint",
+    "build": "yarn workspaces foreach --all --exclude movenrun --topological-dev run build",
+    "test": "yarn workspaces foreach --all --exclude movenrun run test",
+    "lint": "yarn workspaces foreach --all --exclude movenrun run lint",
     "verify:contracts": "yarn workspace @movenrun/contracts compile && yarn workspace @movenrun/contracts test",
     "eas-build-pre-install": "corepack enable"
   },

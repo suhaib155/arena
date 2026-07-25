@@ -61,6 +61,13 @@ The territory economy is **already substantially built**. Treat these as assets:
   Sepolia** — see `docs/CONTRACTS_AUDIT.md`).
 - `backend/` — Express API + BullMQ workers + Drizzle ORM (GPS, zones, battles,
   hex/oracle/token services).
+  - `backend/src/territory/` — closed-loop capture, the **versioned H3 grid**
+    (v2 @ resolution 9 for ownership; legacy v1 @ resolution 8 stays frozen for
+    the oracle route proof and the deployed contracts), ownership rules, the
+    territory API, SSE realtime, cell classification and risk-based anti-cheat.
+    Like `identity/`, it imports nothing from the bare `@movenrun/shared`
+    specifier, which is what keeps it inside the backend's `tsc` include list —
+    **keep it that way** or it silently drops out of type-checking.
 - `mobile/` — Expo React Native app (currently the quest **shell**).
   - `mobile/app/` — active Expo Router routes (the shell).
   - `mobile/src/` — active shell components, data, store, theme, helpers.
@@ -75,6 +82,10 @@ The territory economy is **already substantially built**. Treat these as assets:
   addresses, branch divergence, and the safe next integration step.
 - `docs/MOBILE_TO_TERRITORY_PLAN.md` — how the quest shell evolves into the
   territory map loop.
+- `docs/REAL_MAP_TERRITORY_SETUP.md` — **the real map + closed-loop territory
+  capture**: architecture, map-provider setup, environment variables, native
+  build and permissions, background-tracking limits, the territory API, capture
+  validation rules, privacy, anti-cheat, troubleshooting, production checklist.
 - `docs/ARCHITECTURE.md` — contract interaction diagram and oracle flow.
 - `docs/TOKENOMICS.md` — emission schedule and burn sink details.
 - `mobile/README.md` — how to run the app.
@@ -90,6 +101,17 @@ The territory economy is **already substantially built**. Treat these as assets:
   (`mobile/README.md`). Any Expo SDK upgrade is a **separate PR** done where
   `expo install --fix` / `expo-doctor` can run and be device-tested — never an
   unverified bump.
+- **The real map does not run in Expo Go.** `@maplibre/maplibre-react-native` is
+  a native module, so `MovenRunMap` resolves it lazily inside a `try/catch` and
+  renders a documented "native build required" panel instead of taking the
+  bundle down. **Never convert that to a static import** — it would crash the
+  whole app in Expo Go, which is still the supported phone-test path for
+  everything else. Pinned to v10.x: v11 requires React 19 / RN 0.80.
+- **Territory ownership is server authoritative.** The app records and previews;
+  the backend recomputes distance, closure, area, cells and ownership from the
+  raw route. No mobile code may mark a capture confirmed without a server
+  response, and there is deliberately no request shape that lets a client assert
+  `captured: true`.
 - For installable **Android APK** builds, use the **EAS GitHub Actions workflow**
   (`.github/workflows/eas-apk-build.yml`, preview profile). It authenticates with
   the **`EXPO_TOKEN`** GitHub Actions secret only. Never ask for the Expo

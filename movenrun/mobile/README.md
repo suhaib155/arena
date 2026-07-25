@@ -56,6 +56,29 @@ ids completed on the current local day (`getLocalDateKey()`), so:
 - Replaying a quest is idempotent in the store (0 XP, no streak/history change) —
   a defense-in-depth guard even if the UI is bypassed.
 
+## Real map & territory capture — needs a native build
+
+The real-world MapLibre basemap, background route recording, and closed-loop
+territory capture are wired up. **They do not run in Expo Go**, because MapLibre
+is a native module and background location needs native permissions.
+
+- In Expo Go the map screen renders a "Real map needs a native build" panel
+  instead of crashing. Everything else — route recording in the foreground,
+  the local territory board, capture rules — keeps working.
+- To see the real map, build a development client:
+  `eas build --profile development --platform android`.
+- A **production tile provider is required**. The bundled fallback is MapLibre's
+  demo style, which has no street detail, and public OpenStreetMap tile servers
+  must not be used as an app backend.
+- **Territory ownership is server authoritative.** The app records and previews;
+  the backend recomputes distance, closure, area and cells from the raw route
+  and decides. No preview state in the app is ever marked as a confirmed
+  capture.
+
+Full setup — provider keys, environment variables, permissions, background
+limitations, API reference, capture rules, privacy and troubleshooting — is in
+**[`docs/REAL_MAP_TERRITORY_SETUP.md`](../docs/REAL_MAP_TERRITORY_SETUP.md)**.
+
 ## Stack
 
 - Expo SDK 51 / React Native 0.74 / React 18
@@ -63,6 +86,9 @@ ids completed on the current local day (`getLocalDateKey()`), so:
 - TypeScript (strict)
 - Zustand for state, persisted with AsyncStorage
 - `expo-haptics` for tactile feedback; React Native `Share` for the share sheet
+- `@maplibre/maplibre-react-native` for the real basemap (native build only)
+- `expo-location` + `expo-task-manager` for foreground and background route
+  recording
 
 ## Run it
 
