@@ -398,11 +398,12 @@ test("D2 spoof: the resolver reads no identity source other than the bearer toke
 
 test("D2 spoof: the router derives no identity of its own from the request", async () => {
   const code = await executableSource("./router.ts");
-  // The router may read the viewport (`req.query`), the cell id (`req.params`)
-  // and the *verified* signature context (`req.movenrunAuth`) — never an
-  // identity claim. `req.body` is absent entirely: these are GET routes.
+  // The router may read the viewport (`req.query`), the cell id (`req.params`),
+  // the transport-level peer address (`req.ip`, used only as a rate-limit
+  // bucket) and the *verified* signature context (`req.movenrunAuth`) — never
+  // an identity claim. `req.body` is absent entirely: these are GET routes.
   const reads = [...new Set(code.match(/req\.\w+/g) ?? [])].sort();
-  assert.deepEqual(reads, ["req.movenrunAuth", "req.on", "req.params", "req.query"]);
+  assert.deepEqual(reads, ["req.ip", "req.movenrunAuth", "req.on", "req.params", "req.query"]);
   for (const forbidden of ["x-movenrun-address", "req.header", "req.body"]) {
     assert.ok(!code.includes(forbidden), `router.ts must not reference ${forbidden}`);
   }

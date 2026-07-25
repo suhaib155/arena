@@ -490,12 +490,20 @@ system settings separately), or battery optimisation is throttling the app.
 - [ ] Every `TERRITORY_*` value reviewed for your city's density — the defaults
       are conservative starting points, not tuned values.
 - [ ] `CORS_ORIGINS` set explicitly (the backend fails closed without it).
-- [ ] Migrations `0000`–`0003` applied.
+- [ ] Migrations `0000`–`0004` applied.
 - [ ] `worker:gps` running and monitored; Redis reachable from it.
 - [ ] Rate limits reviewed for expected route-submission volume.
 - [ ] A tile-provider quota alert configured.
 - [ ] Native build tested on a real device with the screen locked.
-- [ ] **Realtime fan-out**: still single-instance. Either run one API instance
-      or add the Redis pub/sub hop before scaling out.
+- [ ] **Realtime fan-out**: the worker publishes committed ownership changes to
+      the Redis channel `movenrun:territory:v1` and every API process
+      subscribes (`backend/src/territory/realtimeBridge.ts`), so API replicas
+      may be scaled out. The API's subscriber uses its **own** Redis connection
+      — ioredis puts a connection into subscriber mode, so it must never share
+      the BullMQ one. A Redis outage degrades the live feed only; territory
+      stays correct over HTTP and the app reconciles on its next map fetch.
+      Streams are capped per caller (verified user id, else client IP), and
+      there is no replay buffer: a reconnecting client resynchronises by
+      refetching its viewport, which the `ready` frame states explicitly.
 - [ ] Account-deletion flow decided for territory (release cells; do not delete
       history).

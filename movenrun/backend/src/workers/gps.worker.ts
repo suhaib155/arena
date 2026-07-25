@@ -10,7 +10,7 @@ import { evaluateLoopCapture } from "../territory/capture.js";
 import { getTerritoryConfig } from "../territory/config.js";
 import { DrizzleTerritoryRepository } from "../territory/repository.drizzle.js";
 import { TerritoryOwnershipService } from "../territory/ownership.service.js";
-import { territoryBroadcaster } from "../territory/realtime.js";
+import { bridgeAppliedCapture } from "../territory/realtimeBridge.js";
 import { getDb } from "../db/client.js";
 import { DrizzleRouteRepository } from "../repositories/route.repository.drizzle.js";
 import { RouteStatus, type GPSRoute } from "@movenrun/shared";
@@ -108,18 +108,35 @@ const worker = new Worker<GpsJob>(
           // and capture-eligible. Every cell is decided and written inside one
           // locked transaction, so two runners cannot both take the same cell.
           applyCapture: async ({ routeId: id, walletAddress: wallet, capture }) => {
-            const applied = await territoryOwnership.applyCapture({
-              routeId: id,
-              walletAddress: wallet,
-              evidenceHash: null,
-              gridVersion: capture.captureGridVersion,
-              resolution: capture.captureResolution,
-              traversedHexIds: capture.traversedHexIds,
-              capturedHexIds: capture.capturedHexIds,
-            });
-            // Ownership changes go out on the realtime feed. Cell ids and state
-            // transitions only — never a runner coordinate (see realtime.ts).
-            territoryBroadcaster.broadcastChanges(applied.controlChanges);
+            // D1 — the worker runs in a different process from the API that
+            // holds the SSE connections, so an in-process broadcast here
+            // reached nobody. Changes go out over Redis instead, and every API
+            // process fans them to its own subscribers.
+            //
+            // bridgeAppliedCapture publishes only *after* applyCapture resolves:
+            // a rolled-back transaction throws and nothing is published, so the
+            // feed can never announce ownership the database does not hold.
+            // Payloads carry cell ids and state transitions only — never a
+            // runner coordinate (see realtimeBridge.ts).
+            const applied = await bridgeAppliedCapture(
+              redis,
+              () =>
+                territoryOwnership.applyCapture({
+                  routeId: id,
+                  walletAddress: wallet,
+                  evidenceHash: null,
+                  gridVersion: capture.captureGridVersion,
+                  resolution: capture.captureResolution,
+                  traversedHexIds: capture.traversedHexIds,
+                  capturedHexIds: capture.capturedHexIds,
+                }),
+              {
+                // A Redis outage must degrade the live feed, never fail a job
+                // whose ownership change is already committed to Postgres.
+                onError: (error) =>
+                  console.error("territory realtime: publish failed", error),
+              },
+            );
             return {
               capturedCellIds: applied.capturedCellIds,
               reinforcedCellIds: applied.reinforcedCellIds,

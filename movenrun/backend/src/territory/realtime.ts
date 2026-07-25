@@ -93,40 +93,99 @@ interface Subscriber {
   id: string;
   sink: SseSink;
   gridVersion: number;
+  /** Per-caller bucket key (user id, else client IP). */
+  clientKey: string;
+}
+
+/** Bucket used when the caller cannot be attributed to a user or an IP. */
+export const UNATTRIBUTED_CLIENT_KEY = "unattributed";
+
+export interface SubscribeOptions {
+  /**
+   * Who this connection belongs to — the verified user id where there is one,
+   * otherwise the client IP. Used only for the per-caller connection cap; it is
+   * never broadcast and never logged.
+   */
+  clientKey?: string;
 }
 
 /**
  * In-process SSE broadcaster.
  *
- * Single-instance only: subscribers are held in memory, so a second backend
- * instance would not see this one's events. Fanning out across instances needs
- * a Redis pub/sub hop between `broadcast` and the subscriber loop — the
- * interface here is deliberately shaped so that is a swap of one method, not a
- * redesign. This is called out rather than silently assumed, in the same spirit
- * as the auth nonce cache's single-instance note in middleware/auth.ts.
+ * ## Reach
+ * This class fans out to the sockets held by **this process**. Delivery across
+ * processes — worker → API, and API replica → API replica — is the Redis hop in
+ * realtimeBridge.ts, which calls `broadcast` here with what it receives. That
+ * separation is deliberate: the socket bookkeeping stays synchronous and
+ * testable, and the transport stays swappable.
+ *
+ * ## Why there is no replay buffer
+ * A dropped connection is not resumed from a cursor: on reconnect the client
+ * refetches its viewport from `GET /v1/territories/map`, which is authoritative
+ * anyway. Buffering events per subscriber would add unbounded memory and a
+ * second consistency model for a map the client can simply re-read. Every event
+ * carries the row's `version`, so a late or duplicated delivery is dropped by
+ * the client rather than rolling the map backwards.
  */
 export class TerritoryBroadcaster {
   private subscribers = new Map<string, Subscriber>();
+  private perClient = new Map<string, number>();
   private nextId = 1;
-  /** Bounded so a subscriber leak cannot exhaust memory. */
-  constructor(private readonly maxSubscribers = 5_000) {}
+  /**
+   * @param maxSubscribers process-wide cap, so a subscriber leak cannot
+   *   exhaust memory.
+   * @param maxPerClient per-caller cap. One phone needs one stream; a caller
+   *   opening dozens is either buggy or hostile, and without this cap a single
+   *   IP can take every slot and deny the feed to everybody else.
+   */
+  constructor(
+    private readonly maxSubscribers = 5_000,
+    private readonly maxPerClient = 4,
+  ) {}
 
   get subscriberCount(): number {
     return this.subscribers.size;
   }
 
+  /** How many live connections one caller holds. */
+  countForClient(clientKey: string): number {
+    return this.perClient.get(clientKey) ?? 0;
+  }
+
   /**
-   * Register a subscriber. Returns an unsubscribe function, or null when the
-   * subscriber cap is reached (the caller should respond 503 rather than
-   * accepting a connection it will never serve).
+   * Register a subscriber. Returns an unsubscribe function, or null when either
+   * the process-wide cap or this caller's cap is reached — the caller should
+   * refuse the connection rather than hold one it will never serve.
+   *
+   * The returned function is idempotent: a socket that both errors and closes
+   * must not decrement the per-caller count twice, or a caller could farm
+   * themselves unlimited slots.
    */
-  subscribe(sink: SseSink, gridVersion: number): (() => void) | null {
+  subscribe(sink: SseSink, gridVersion: number, options: SubscribeOptions = {}): (() => void) | null {
     if (this.subscribers.size >= this.maxSubscribers) return null;
+    const clientKey = options.clientKey || UNATTRIBUTED_CLIENT_KEY;
+    if (this.countForClient(clientKey) >= this.maxPerClient) return null;
+
     const id = `sub-${this.nextId++}`;
-    this.subscribers.set(id, { id, sink, gridVersion });
+    this.subscribers.set(id, { id, sink, gridVersion, clientKey });
+    this.perClient.set(clientKey, this.countForClient(clientKey) + 1);
+
+    let released = false;
     return () => {
-      this.subscribers.delete(id);
+      if (released) return;
+      released = true;
+      this.release(id);
     };
+  }
+
+  /** Drop one subscriber and its per-caller reservation. */
+  private release(id: string): void {
+    const subscriber = this.subscribers.get(id);
+    if (!subscriber) return;
+    this.subscribers.delete(id);
+    const remaining = this.countForClient(subscriber.clientKey) - 1;
+    if (remaining > 0) this.perClient.set(subscriber.clientKey, remaining);
+    else this.perClient.delete(subscriber.clientKey);
   }
 
   /** Send one event to every subscriber watching the same grid version. */
@@ -140,8 +199,11 @@ export class TerritoryBroadcaster {
         delivered += 1;
       } catch {
         // A dead socket is dropped rather than retried: the client will
-        // reconnect and reconcile against the next map fetch.
-        this.subscribers.delete(subscriber.id);
+        // reconnect and reconcile against the next map fetch. Released through
+        // `release` so the caller's per-client slot is freed too — otherwise a
+        // client whose sockets keep dying would run out of slots and be locked
+        // off the feed.
+        this.release(subscriber.id);
       }
     }
     return delivered;
@@ -157,13 +219,17 @@ export class TerritoryBroadcaster {
     return delivered;
   }
 
-  /** SSE comment frame — keeps proxies from closing an idle connection. */
+  /**
+   * SSE comment frame — keeps proxies from closing an idle connection, and is
+   * how a dead socket is discovered on a quiet grid. Driven by
+   * `startHeartbeat` in realtimeBridge.ts.
+   */
   heartbeat(): void {
     for (const subscriber of [...this.subscribers.values()]) {
       try {
         subscriber.sink.write(": heartbeat\n\n");
       } catch {
-        this.subscribers.delete(subscriber.id);
+        this.release(subscriber.id);
       }
     }
   }
@@ -178,6 +244,7 @@ export class TerritoryBroadcaster {
       }
     }
     this.subscribers.clear();
+    this.perClient.clear();
   }
 }
 

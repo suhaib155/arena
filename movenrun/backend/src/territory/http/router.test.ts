@@ -41,11 +41,14 @@ interface Captured {
   status: number;
   body: unknown;
   headers: Record<string, string>;
+  /** Raw SSE frames written to the socket (D1). */
+  frames: string[];
+  ended: boolean;
 }
 
 /** Minimal Express-compatible response recorder. */
 function fakeResponse(): Response & { captured: Captured } {
-  const captured: Captured = { status: 200, body: undefined, headers: {} };
+  const captured: Captured = { status: 200, body: undefined, headers: {}, frames: [], ended: false };
   const res = {
     captured,
     status(code: number) {
@@ -60,10 +63,15 @@ function fakeResponse(): Response & { captured: Captured } {
       captured.headers[name.toLowerCase()] = value;
       return this;
     },
-    write() {
+    write(chunk: string) {
+      captured.frames.push(chunk);
       return true;
     },
     end() {
+      captured.ended = true;
+      return this;
+    },
+    on() {
       return this;
     },
     flushHeaders() {},
@@ -367,4 +375,125 @@ test("the stream sets SSE headers", async () => {
   const result = await dispatch(r, "/territories/stream?gridVersion=2");
   assert.equal(result.headers["content-type"], "text/event-stream");
   assert.equal(result.headers["cache-control"], "no-cache, no-transform");
+  // A buffering proxy would defeat the whole point of a stream.
+  assert.equal(result.headers["x-accel-buffering"], "no");
+});
+
+test("D1: the stream states its reconnect contract up front", async () => {
+  const { router: r } = router();
+  const result = await dispatch(r, "/territories/stream?gridVersion=2");
+  const frames = result.frames.join("");
+  // There is no replay buffer, so a reconnecting client must resynchronise by
+  // refetching its viewport rather than assuming it can resume.
+  assert.match(frames, /retry: \d+\n\n/, "a reconnect backoff must be set");
+  assert.match(frames, /event: ready\n/);
+  const ready = JSON.parse(frames.split("event: ready\ndata: ")[1].split("\n\n")[0]);
+  assert.equal(ready.gridVersion, 2);
+  assert.equal(ready.resync, true, "the client must be told to resync, not resume");
+  assert.ok(ready.heartbeatSeconds > 0, "the client must know when to consider the feed dead");
+});
+
+test("D1: one caller cannot open unlimited streams", async () => {
+  const repository = new InMemoryTerritoryRepository();
+  const broadcaster = new TerritoryBroadcaster(100, 2);
+  const r = createTerritoryRouter({
+    repository,
+    config: TERRITORY_DEFAULTS,
+    broadcaster,
+    resolveViewer: () => viewer(RUNNER, null),
+  });
+
+  const first = await dispatch(r, "/territories/stream?gridVersion=2");
+  const second = await dispatch(r, "/territories/stream?gridVersion=2");
+  const third = await dispatch(r, "/territories/stream?gridVersion=2");
+
+  assert.ok(first.frames.join("").includes("event: ready"));
+  assert.ok(second.frames.join("").includes("event: ready"));
+  // The third is refused honestly rather than held open delivering nothing.
+  assert.match(third.frames.join(""), /event: error\n.*capacity/s);
+  assert.equal(third.ended, true, "a refused stream must be closed, not left hanging");
+  assert.equal(broadcaster.subscriberCount, 2);
+});
+
+test("D1: streams are bucketed per caller, so one runner cannot starve another", async () => {
+  const repository = new InMemoryTerritoryRepository();
+  const broadcaster = new TerritoryBroadcaster(100, 1);
+
+  const build = (who: string | null, ip: string) =>
+    createTerritoryRouter({
+      repository,
+      config: TERRITORY_DEFAULTS,
+      broadcaster,
+      resolveViewer: () => viewer(who, null),
+    });
+
+  const runnerRouter = build(RUNNER, "10.0.0.1");
+  await dispatch(runnerRouter, "/territories/stream?gridVersion=2", {
+    ip: "10.0.0.1",
+  } as Partial<Request>);
+  const runnerSecond = await dispatch(runnerRouter, "/territories/stream?gridVersion=2", {
+    ip: "10.0.0.1",
+  } as Partial<Request>);
+  assert.match(runnerSecond.frames.join(""), /capacity/, "the same runner is capped");
+
+  // A different signed-in runner — sharing the same NAT address — is unaffected,
+  // because the bucket key is the verified user id when there is one.
+  const rivalRouter = build(RIVAL, "10.0.0.1");
+  const rivalFirst = await dispatch(rivalRouter, "/territories/stream?gridVersion=2", {
+    ip: "10.0.0.1",
+  } as Partial<Request>);
+  assert.ok(rivalFirst.frames.join("").includes("event: ready"));
+});
+
+test("D1: anonymous callers are bucketed by IP", async () => {
+  const repository = new InMemoryTerritoryRepository();
+  const broadcaster = new TerritoryBroadcaster(100, 1);
+  const r = createTerritoryRouter({
+    repository,
+    config: TERRITORY_DEFAULTS,
+    broadcaster,
+    resolveViewer: () => viewer(null, null),
+  });
+
+  const first = await dispatch(r, "/territories/stream?gridVersion=2", {
+    ip: "203.0.113.7",
+  } as Partial<Request>);
+  const second = await dispatch(r, "/territories/stream?gridVersion=2", {
+    ip: "203.0.113.7",
+  } as Partial<Request>);
+  const other = await dispatch(r, "/territories/stream?gridVersion=2", {
+    ip: "203.0.113.8",
+  } as Partial<Request>);
+
+  assert.ok(first.frames.join("").includes("event: ready"));
+  assert.match(second.frames.join(""), /capacity/);
+  assert.ok(other.frames.join("").includes("event: ready"), "a different IP is a different bucket");
+});
+
+test("D1: a disconnect frees the caller's slot", async () => {
+  const repository = new InMemoryTerritoryRepository();
+  const broadcaster = new TerritoryBroadcaster(100, 1);
+  const r = createTerritoryRouter({
+    repository,
+    config: TERRITORY_DEFAULTS,
+    broadcaster,
+    resolveViewer: () => viewer(RUNNER, null),
+  });
+
+  // Capture the close handler the router registers, then fire it.
+  let onClose: null | (() => void) = null;
+  await dispatch(r, "/territories/stream?gridVersion=2", {
+    on(event: string, handler: () => void) {
+      if (event === "close") onClose = handler;
+      return this;
+    },
+  } as unknown as Partial<Request>);
+
+  assert.equal(broadcaster.subscriberCount, 1);
+  assert.ok(onClose, "the router must register a close handler");
+  (onClose as () => void)();
+  assert.equal(broadcaster.subscriberCount, 0, "a disconnect must release the subscriber");
+
+  const again = await dispatch(r, "/territories/stream?gridVersion=2");
+  assert.ok(again.frames.join("").includes("event: ready"), "the slot must be reusable");
 });

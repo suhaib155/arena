@@ -1,4 +1,5 @@
 import express from "express";
+import IORedis from "ioredis";
 import { getConfig } from "./config.js";
 import gpsRouter from "./routes/gps.js";
 import zonesRouter from "./routes/zones.js";
@@ -15,6 +16,8 @@ import { requireWalletAuth } from "./middleware/auth.js";
 import { getTerritoryConfig } from "./territory/config.js";
 import { createTerritoryRouter } from "./territory/http/router.js";
 import { createSessionViewerResolver } from "./territory/http/viewer.js";
+import { territoryBroadcaster } from "./territory/realtime.js";
+import { startHeartbeat, subscribeToTerritoryChannel } from "./territory/realtimeBridge.js";
 import { DrizzleTerritoryRepository } from "./territory/repository.drizzle.js";
 import { getDb } from "./db/client.js";
 
@@ -82,8 +85,43 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(config.PORT, () => {
+/**
+ * Realtime bridge (D1).
+ *
+ * Captures are applied by the BullMQ worker, in a *different process*, so an
+ * in-process broadcast reached zero SSE subscribers. The worker now publishes
+ * each committed ownership change to Redis and every API process subscribes
+ * here, handing what it receives to its own broadcaster.
+ *
+ * The subscriber needs its own connection: ioredis puts a connection into
+ * subscriber mode, after which it can no longer run ordinary commands, so this
+ * must never share the BullMQ connection.
+ *
+ * Failing to connect degrades the live feed only. Territory itself stays
+ * correct and readable over HTTP, and the app reconciles on its next map fetch,
+ * so this logs and carries on rather than refusing to serve.
+ */
+const realtimeSubscriber = new IORedis(config.REDIS_URL, { maxRetriesPerRequest: null });
+subscribeToTerritoryChannel(realtimeSubscriber, territoryBroadcaster, {
+  onDropped: (reason) => console.warn(`territory realtime: dropped a message (${reason})`),
+}).catch((error) => {
+  console.error("territory realtime: subscription failed, live updates are off", error);
+});
+const stopHeartbeat = startHeartbeat(territoryBroadcaster);
+
+const server = app.listen(config.PORT, () => {
   console.log(`MovenRun API running on port ${config.PORT} (${config.NODE_ENV})`);
 });
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    stopHeartbeat();
+    // Close the streams explicitly: an SSE connection has no natural end, so
+    // without this the server waits for clients that will never disconnect.
+    territoryBroadcaster.closeAll();
+    realtimeSubscriber.quit().catch(() => undefined);
+    server.close(() => process.exit(0));
+  });
+}
 
 export default app;

@@ -34,7 +34,11 @@ import { getTerritoryConfig, type TerritoryConfig } from "../config.js";
 import { cellsInBoundingBox, getNeighboringCells, isCellOnGrid, resolutionForGridVersion } from "../h3.js";
 import type { TerritoryRepository } from "../repository.js";
 import { neutralTerritory } from "../rules.js";
-import { territoryBroadcaster, type TerritoryBroadcaster } from "../realtime.js";
+import {
+  territoryBroadcaster,
+  UNATTRIBUTED_CLIENT_KEY,
+  type TerritoryBroadcaster,
+} from "../realtime.js";
 import { ANONYMOUS_VIEWER, type TerritoryViewer } from "../rules.js";
 import {
   capFeatures,
@@ -149,18 +153,27 @@ export function createTerritoryRouter(deps: TerritoryRouterDeps): Router {
   });
 
   // --------------------------------------------------------------- stream
-  router.get("/territories/stream", (req: Request, res: Response) => {
+  router.get("/territories/stream", async (req: Request, res: Response) => {
     const gridVersion = Number(req.query.gridVersion ?? config.gridVersion);
     if (!Number.isInteger(gridVersion) || resolutionForGridVersion(gridVersion) === null) {
       return res.status(400).json({ error: `Unknown gridVersion: ${req.query.gridVersion}` });
     }
 
+    // Per-caller connection cap (D1). Keyed on the verified user id where there
+    // is one, so a runner on a flaky connection is not throttled by whatever
+    // else shares their carrier NAT; falls back to the client IP for anonymous
+    // callers. Never a client-supplied value — see http/viewer.ts.
+    const viewer = await resolveViewer(req);
+    const clientKey = viewer.userId ?? req.ip ?? UNATTRIBUTED_CLIENT_KEY;
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
+    // Proxies that buffer would defeat the point of a stream.
+    res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders?.();
 
-    const unsubscribe = broadcaster.subscribe(res, gridVersion);
+    const unsubscribe = broadcaster.subscribe(res, gridVersion, { clientKey });
     if (!unsubscribe) {
       // At capacity: refuse honestly rather than holding a connection that will
       // never receive anything.
@@ -169,8 +182,21 @@ export function createTerritoryRouter(deps: TerritoryRouterDeps): Router {
       return;
     }
 
-    res.write(`event: ready\ndata: {"gridVersion":${gridVersion}}\n\n`);
+    // Reconnect contract (D1). There is deliberately no replay buffer, so a
+    // client that reconnects must resynchronise by refetching its viewport —
+    // `resync: true` says so explicitly rather than leaving the client to
+    // assume it can resume from where it left off. `retry:` sets the browser /
+    // EventSource backoff so a restarting API is not stampeded.
+    res.write("retry: 5000\n\n");
+    res.write(
+      `event: ready\ndata: {"gridVersion":${gridVersion},"resync":true,"heartbeatSeconds":25}\n\n`,
+    );
+
+    // Both events fire in practice (a reset socket emits `error` then `close`),
+    // and `unsubscribe` is idempotent, so this cannot double-release the
+    // caller's slot.
     req.on("close", unsubscribe);
+    res.on?.("error", unsubscribe);
     return undefined;
   });
 
