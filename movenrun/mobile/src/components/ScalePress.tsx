@@ -3,6 +3,7 @@ import {
   Animated,
   Pressable,
   type AccessibilityRole,
+  type AccessibilityState,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
@@ -20,6 +21,8 @@ interface ScalePressProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
   accessibilityRole?: AccessibilityRole;
+  /** Merged over the disabled state, so selection/expansion can be announced. */
+  accessibilityState?: AccessibilityState;
 }
 
 /**
@@ -35,6 +38,7 @@ export function ScalePress({
   accessibilityLabel,
   accessibilityHint,
   accessibilityRole,
+  accessibilityState,
 }: ScalePressProps) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -48,7 +52,11 @@ export function ScalePress({
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
-      accessibilityState={disabled ? { disabled: true } : undefined}
+      accessibilityState={
+        disabled || accessibilityState
+          ? { ...accessibilityState, ...(disabled ? { disabled: true } : null) }
+          : undefined
+      }
       onPressIn={() => !disabled && springTo(to)}
       onPressOut={() => springTo(1)}
     >

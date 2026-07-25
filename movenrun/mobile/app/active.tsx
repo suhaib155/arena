@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { categoryColor, colors, radius, shadows, spacing, type } from "@/theme";
+import { useResponsive } from "@/hooks/useResponsive";
 import { questService } from "@/services/questService";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 
@@ -17,6 +18,8 @@ function mmss(totalSeconds: number): string {
 export default function ActiveQuestScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const r = useResponsive();
+  const ringSize = r.vh(0.3, 150, 240);
   const quest = questService.getQuestById(id ?? "");
   const duration = quest?.durationSeconds ?? 0;
 
@@ -90,8 +93,17 @@ export default function ActiveQuestScreen() {
       </View>
 
       <View style={styles.center}>
-        <View style={[styles.ring, { borderColor: tint }]}>
-          <Text style={styles.timer}>{mmss(remaining)}</Text>
+        {/* Ring scales with the viewport so it never crowds out the controls
+            below it on a short screen. */}
+        <View
+          style={[
+            styles.ring,
+            { borderColor: tint, width: ringSize, height: ringSize, borderRadius: ringSize / 2 },
+          ]}
+        >
+          <Text style={[styles.timer, { fontSize: r.fs(56, 34) }]} numberOfLines={1}>
+            {mmss(remaining)}
+          </Text>
           <Text style={styles.status}>{paused ? "Paused" : "Keep moving"}</Text>
         </View>
 
@@ -138,9 +150,6 @@ const styles = StyleSheet.create({
   questName: { ...type.heading, fontSize: 16 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.xl },
   ring: {
-    width: 240,
-    height: 240,
-    borderRadius: 120,
     borderWidth: 6,
     alignItems: "center",
     justifyContent: "center",

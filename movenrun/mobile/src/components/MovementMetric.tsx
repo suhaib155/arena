@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { colors, spacing, type } from "@/theme";
+import { useResponsive } from "@/hooks/useResponsive";
 
 interface MovementMetricProps {
   value: string;
@@ -17,9 +18,22 @@ interface MovementMetricProps {
  */
 export function MovementMetric({ value, label, size = "tile", tint }: MovementMetricProps) {
   const hero = size === "hero";
+  const r = useResponsive();
+  /* The hero numeral is the tallest element on the tracking screen, so it is
+     sized from the viewport — a fixed size overflows short phones. */
+  const heroSize = hero ? { fontSize: r.fs(68, 40), lineHeight: r.fs(72, 44) } : null;
   return (
     <View style={hero ? styles.heroWrap : styles.tile} accessibilityLabel={`${label}: ${value}`}>
-      <Text style={[hero ? styles.heroValue : styles.tileValue, tint ? { color: tint } : null]}>
+      <Text
+        style={[
+          hero ? styles.heroValue : styles.tileValue,
+          heroSize,
+          tint ? { color: tint } : null,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit={hero}
+        minimumFontScale={0.6}
+      >
         {value}
       </Text>
       <Text style={hero ? styles.heroLabel : styles.tileLabel}>{label}</Text>
@@ -28,18 +42,20 @@ export function MovementMetric({ value, label, size = "tile", tint }: MovementMe
 }
 
 const styles = StyleSheet.create({
-  heroWrap: { alignItems: "center", gap: 2 },
+  heroWrap: { alignItems: "center", gap: spacing.xs },
   heroValue: {
     ...type.display,
-    fontSize: 52,
-    letterSpacing: -1.5,
+    fontSize: 68,
+    lineHeight: 72,
+    letterSpacing: -3,
     fontVariant: ["tabular-nums"],
   },
-  heroLabel: { ...type.kicker, color: colors.textDim },
+  heroLabel: { ...type.kicker, color: colors.textFaint },
   tile: { flex: 1, alignItems: "center", gap: 2, paddingVertical: spacing.xs },
   tileValue: {
     ...type.title,
-    fontSize: 22,
+    fontSize: 24,
+    letterSpacing: -0.8,
     fontVariant: ["tabular-nums"],
   },
   tileLabel: { ...type.caption, fontSize: 11 },

@@ -3,9 +3,10 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { colors, glow, radius, shadows, spacing, type } from "@/theme";
+import { colors, glow, gradients, palette, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
+import { Gradient } from "./Gradient";
 import { tapFeedback } from "@/lib/haptics";
 
 /**
@@ -95,7 +96,6 @@ function TabButton({
   active: boolean;
   onPress: () => void;
 }) {
-  const color = active ? colors.primary : colors.textFaint;
   return (
     <ScalePress
       to={0.9}
@@ -103,9 +103,13 @@ function TabButton({
       style={styles.tab}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
     >
-      <Ionicons name={icon} size={22} color={color} />
-      <Text style={[styles.tabLabel, { color, fontWeight: active ? "700" : "600" }]}>{label}</Text>
+      {/* The active destination is a filled disc, so selection reads from
+          shape as well as colour. */}
+      <View style={[styles.tabDisc, active ? styles.tabDiscActive : null]}>
+        <Ionicons name={icon} size={20} color={active ? palette.forest : colors.onInkDim} />
+      </View>
     </ScalePress>
   );
 }
@@ -120,7 +124,8 @@ function MoveButton({ onPress }: { onPress: () => void }) {
         accessibilityRole="button"
         accessibilityLabel="Move — start a movement session"
       >
-        <Ionicons name="play" size={26} color={colors.surface} />
+        <Gradient colors={gradients.aurora} steps={10} radius={30} />
+        <Ionicons name="play" size={26} color={colors.onInk} />
       </ScalePress>
       <Text style={styles.moveLabel}>Move</Text>
     </View>
@@ -140,38 +145,45 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 64,
+    height: 66,
     paddingHorizontal: spacing.sm,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    backgroundColor: colors.ink,
     ...shadows.float,
   },
   tab: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
     paddingVertical: spacing.sm,
+    minHeight: 48,
   },
-  tabLabel: { ...type.caption, fontSize: 10.5 },
+  tabDisc: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabDiscActive: { backgroundColor: colors.onInk },
   moveSlot: { width: 72, alignItems: "center", justifyContent: "center" },
   moveButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginTop: -22,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginTop: -24,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 4,
-    borderColor: colors.bg,
-    ...glow(colors.primary),
+    borderColor: colors.ink,
+    ...glow(palette.forestSoft),
   },
   moveLabel: {
     ...type.caption,
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: "700",
-    color: colors.primary,
+    color: colors.onInkDim,
     marginTop: 2,
   },
 });

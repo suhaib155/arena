@@ -122,13 +122,15 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  /* Matches the native splash (app.json) so handover to JS is seamless rather
+     than a flash from dark to light. */
   splash: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.bg,
+    backgroundColor: colors.ink,
     gap: spacing.md,
   },
-  splashText: { ...type.title, fontSize: 24 },
-  splashLoop: { ...type.mono, fontSize: 12, color: colors.textFaint },
+  splashText: { ...type.title, fontSize: 24, color: colors.onInk },
+  splashLoop: { ...type.mono, fontSize: 12, color: colors.onInkDim },
 });
