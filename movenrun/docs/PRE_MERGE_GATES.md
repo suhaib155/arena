@@ -45,8 +45,9 @@ rollout gates also remain open.
 | ☑ | `yarn install --immutable` passes | **B** | exit 0 |
 | ☑ | Backend TypeScript check passes | **B** | exit 0 |
 | ☑ | Mobile TypeScript check passes | **B** | exit 0 |
+| ☑ | `npx expo config --type public` resolves | **B** | exit 0 — all three asset paths resolve, `#F0E9DE` splash / `#1E4D3A` adaptive / `contain` / `light` as declared |
 | ☑ | Backend tests pass | **B** | 583/583, exit 0 (with a live Redis; 579/583 + 4 skipped without one) |
-| ☑ | Mobile tests pass | **B** | 353/353, exit 0 |
+| ☑ | Mobile tests pass | **B** | 367/367, exit 0 |
 | ☑ | Workspace lint passes | **B** | exit 0 |
 | ☐ | **Contract verification passes** | **B** | ✗ **Could not run** — `binaries.soliditylang.org` blocked (HTTP 403 via proxy), Hardhat `HH502`. Must be run in a network-enabled CI job before merge. |
 | ☐ | `node scripts/verify-package-manager.mjs` passes in CI | **H** | ✗ Still exit 1 in this sandbox only, because Corepack had to source Yarn from the npm registry (`repo.yarnpkg.com` is proxy-blocked), yielding `4.9.1-git.20250411.hash-1908ee79f` against an expected `4.9.1`. Environmental, not a code change. Must be confirmed green in real CI. |
@@ -106,8 +107,8 @@ permission dialog, a GPS radio, or two processes on real infrastructure.
 | ☐ | A restricted cell is rejected | **B** | Seed a `water` classification, then run through it |
 | ☐ | Pause and Finish remain reachable at max font / small screen | **B** | A-21 / I-19 |
 | ☐ | Profile ring renders correctly | **H** | A-20 / I-18 — **product decision needed**: the circle is a static decorative border, not a progress ring; there is no SVG library in the project |
-| ☐ | App icon + adaptive icon render correctly | **H** | A-1 / I-1 — assets now exist, but `adaptive-icon.png` is **opaque with a baked-in `#0A0F1F` background** against a declared `#1E4D3A`, so the launcher will show a near-black tile. Artwork deliberately not regenerated in this pass. |
-| ☐ | Splash transition is clean | **H** | A-2 / I-2 — **`splash-icon.png` is opaque with a baked-in near-black `#0A0F1F` background** while `splash.backgroundColor` is the cream `#F0E9DE` and `resizeMode` is `contain`, so the launch screen will most likely show a dark square on a cream field. Raised from **M** to **H**: this is the first frame every user sees. Fix is either a transparent re-cut of the raster **or** reverting `backgroundColor` — not both. |
+| ☐ | App icon + adaptive icon render correctly | **H** | A-1 / I-1 — the baked background is **gone**: `adaptive-icon.png` is a transparent cut-out (corners alpha 0, mark at 49.9% of the foreground, max radius 56% diameter — inside Android's guaranteed centre 66%), so the declared `#1E4D3A` shows. `icon.png` is unchanged and stays full-bleed opaque for iOS. Device confirmation of the three mask shapes still outstanding. |
+| ☐ | Splash transition is clean | **H** | A-2 / I-2 — the baked background is **gone**: `splash-icon.png` is a transparent cut-out (corners alpha 0, 82.9% clear, mark at the centre 55%), so `contain` letterboxes it against the declared cream `#F0E9DE`. Native splash, JS `SplashView` and the app canvas all use the same token, so there is no dark-to-light handover left in the configuration. Device confirmation of the cold start still outstanding. |
 | ☐ | Realtime reaches a second device | **B** | A-13 / I-13 — the D1 fix is proven across two Redis connections in tests; two handsets and a deployed worker are what proves it in practice. |
 | ☐ | Own territory renders as `mine`, signed out renders as `Claimed` | **B** | A-14 / I-14 — the D2 fix, on a real session. |
 | ☐ | Recentre, follow, and all three location failure messages | **H** | A-16 / I-16 — the D4 fix. The permission dialog is native and cannot be tested any other way. |
@@ -120,6 +121,7 @@ permission dialog, a GPS radio, or two processes on real infrastructure.
 
 | | Gate | Sev | Evidence |
 |---|---|---|---|
+| ☑ | Brand rasters carry no baked background | **H** | `brandAssets.test.ts` decodes each PNG and asserts an alpha channel, four transparent corners, a clear 6% border ring, no edge-to-edge opaque row or column, and the Android safe-zone radius. Verified to fail on the previous opaque rasters. |
 | ☑ | No map-provider secret committed | **B** | Enforced by test in `mapConfigCore.test.ts`; no token or key in the diff |
 | ☑ | No public OpenStreetMap tile server used as a backend | **B** | Enforced by the same test |
 | ☑ | No raw GPS in territory API responses | **B** | `views.test.ts` sweeps every response shape for coordinate keys, route ids, evidence hashes and full addresses |
@@ -156,22 +158,19 @@ in alongside D1. What is left before this can be considered for merge:
 
 1. **Physical-device validation.** Nothing in §5 has been performed. This is the
    single largest outstanding item and no automated result substitutes for it.
-2. **Splash / adaptive-icon rasters.** Both carry a baked-in near-black
-   background against light declared colours. A design decision, deliberately
-   not made in this pass — see A-1 / A-2.
-3. Human sign-off on the **unauthenticated map endpoints** (§6) and the
+2. Human sign-off on the **unauthenticated map endpoints** (§6) and the
    **privacy review**, including retention and account deletion.
-4. **Map-endpoint CPU cost** — still ~122 ms for the widest legal viewport,
+3. **Map-endpoint CPU cost** — still ~122 ms for the widest legal viewport,
    unauthenticated. Accept or mitigate.
-5. **Review the SSE cap numbers** (4 per caller, 5 000 per process, 25 s
+4. **Review the SSE cap numbers** (4 per caller, 5 000 per process, 25 s
    heartbeat) against expected concurrency.
-6. Contract verification and `verify-package-manager` confirmed green in real
+5. Contract verification and `verify-package-manager` confirmed green in real
    CI (both blocked by this sandbox's network policy, not by the code).
-7. Rollout / rollback plan, including Redis reachability from both processes.
-8. Profile-ring product decision.
-9. FK / `contested`-owner / dead-constraint schema decisions, plus a retention
+6. Rollout / rollback plan, including Redis reachability from both processes.
+7. Profile-ring product decision.
+8. FK / `contested`-owner / dead-constraint schema decisions, plus a retention
    decision for `territory_route_applications`.
-10. `yarn build` script and the `shared` tsconfig gap.
+9. `yarn build` script and the `shared` tsconfig gap.
 
 ---
 

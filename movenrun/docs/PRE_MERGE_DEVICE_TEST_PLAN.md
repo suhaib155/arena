@@ -72,17 +72,16 @@ attached counts as not run.
   3. Long-press for the app-info popup and check the icon there too.
 - **Expected result:** A MovenRun-branded icon, correctly inset inside the mask
   with no clipping of any glyph.
-  > ⚠️ **Device-review item — raster/background mismatch.** Icon assets now
-  > exist (`assets/icon.png`, `assets/adaptive-icon.png`, both 1024×1024).
-  > `app.json` sets `android.adaptiveIcon.backgroundColor` to the deep-forest
-  > token `#1E4D3A`, but **`adaptive-icon.png` is fully opaque with a
-  > near-black `#0A0F1F` background baked into the raster** (corner pixels
-  > sampled). An opaque foreground covers the declared background entirely, so
-  > the launcher will render a near-black tile, not a forest one, and any
-  > mask inset will cut into that dark square rather than into transparency.
-  > Artwork was **deliberately not regenerated in this pass**; confirm on
-  > device what actually ships and decide whether to re-cut the foreground with
-  > a transparent background before release.
+  > ✅ **Baked background removed.** `adaptive-icon.png` (1024×1024) is now a
+  > transparent cut-out of the mark: all four corners are alpha 0, 85.8% of
+  > the canvas is fully clear, and the mark spans 49.9% of the foreground
+  > (max radius 286 px = 56% diameter, inside Android's guaranteed centre
+  > 66%). The declared `#1E4D3A` therefore actually shows. Asserted by
+  > `src/lib/__tests__/brandAssets.test.ts`.
+  >
+  > **Confirm on device:** the tile reads deep forest (not near-black) under
+  > circular, squircle and rounded-square masks; no glyph is clipped at any
+  > mask; and the icon is legible at the smallest launcher and app-info sizes.
 - **Actual result:**
 - **Pass / Fail:**
 - **Screenshot / recording:**
@@ -99,22 +98,17 @@ attached counts as not run.
   then the branded `SplashView` (hexagon + "MovenRun" + "Move → Capture →
   Defend → Own"), then the app. No white flash, no black frame, no visible jump
   between the native splash and the JS splash.
-  > ⚠️ **Device-review item — dark splash raster on a cream field.**
-  > `app.json` sets `splash.backgroundColor: "#F0E9DE"` and
-  > `resizeMode: "contain"`, but **`assets/splash-icon.png` is fully opaque
-  > with a near-black `#0A0F1F` background baked into the raster** (corner
-  > pixels sampled). `contain` letterboxes the image against the declared
-  > colour, so the launch screen will most likely show a **near-black square
-  > centred on a cream field** rather than a logo floating on cream.
+  > ✅ **Baked background removed.** `assets/splash-icon.png` (1024×1024) is
+  > now a transparent cut-out of the mark: all four corners are alpha 0, 82.9%
+  > of the canvas is fully clear, and the mark occupies the centre 55%. With
+  > `resizeMode: "contain"` the mark now floats on `#F0E9DE` instead of
+  > sitting in a dark box. The mark itself is unchanged — same shapes, same
+  > colours, same composition, cut from the committed artwork rather than
+  > redrawn. Asserted by `src/lib/__tests__/brandAssets.test.ts`.
   >
-  > Artwork was **deliberately not regenerated in this pass** — re-cutting the
-  > logo is a design task, not a defect fix, and guessing at it would be worse
-  > than reporting it. What to check on device:
-  >  1. Is the dark box actually visible, and how large is it?
-  >  2. Is there a cream → dark → cream flash between the native splash, the JS
-  >     `SplashView` (now `colors.bg`) and the first app frame?
-  >  3. Decide: re-cut `splash-icon.png` with a **transparent** background, or
-  >     change `splash.backgroundColor` back to `#0A0F1F`. Do not do both.
+  > **Confirm on device:** no dark rectangle behind the mark; and no colour
+  > flash across native splash (`#F0E9DE`) → JS `SplashView` (`colors.bg`,
+  > the same token) → first app frame. Record the cold start either way.
 - **Actual result:**
 - **Pass / Fail:**
 - **Screenshot / recording:**
@@ -468,19 +462,21 @@ attached counts as not run.
 
 - **Steps:** Install, inspect the home-screen icon, Settings icon, and Spotlight result.
 - **Expected result:** MovenRun-branded icon at every size.
-  > ⚠️ **Device-review item:** `assets/icon.png` exists (1024×1024, opaque,
-  > mid-grey corners). iOS masks the icon itself, so no transparency is needed
-  > here — but confirm the glyph is not clipped at the small Settings and
-  > Spotlight sizes. Artwork was not regenerated in this pass.
+  > ℹ️ `assets/icon.png` is unchanged and deliberately stays a **full-bleed
+  > opaque** 1024×1024 square — iOS applies its own mask and does not accept a
+  > transparent store icon. Inspected for a crop seam, stray edge fill and
+  > unsafe mark placement; none found (largest row/column mean step is 1–2
+  > levels, i.e. the artwork's own gradient). Confirm the glyph is not clipped
+  > at the small Settings and Spotlight sizes.
 - **Actual result:** / **Pass / Fail:** / **Screenshot:** / **Notes:**
 
 ## I-2 — Splash and transition
 
 - **Steps:** Cold start, recording the screen; repeat after a 10-minute background.
 - **Expected result:** `#F0E9DE` splash → branded `SplashView` → app, with no white or black flash.
-  > ⚠️ **Device-review item:** same dark-raster mismatch as A-2 —
-  > `splash-icon.png` carries a baked-in `#0A0F1F` background against a
-  > declared cream `#F0E9DE`. Record the cold start and judge the result.
+  > ✅ Same fix as A-2 — `splash-icon.png` is a transparent cut-out, so the
+  > declared cream is what shows. Record the cold start and confirm there is
+  > no dark box and no colour flash.
 - **Actual result:** / **Pass / Fail:** / **Screenshot:** / **Notes:**
 
 ## I-3 — Map loads with a production-intended style
