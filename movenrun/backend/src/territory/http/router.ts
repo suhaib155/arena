@@ -37,7 +37,9 @@ import {
   validateMapViewport,
 } from "./validation.js";
 import {
+  dedupeTerritories,
   describeCaptureRequirements,
+  sortTerritoriesForViewer,
   toDetailResponse,
   toMapResponse,
   toPublicEvent,
@@ -95,23 +97,35 @@ export function createTerritoryRouter(deps: TerritoryRouterDeps): Router {
     }
     const { west, south, east, north, gridVersion } = validated.value;
     const resolution = resolutionForGridVersion(gridVersion) ?? config.resolution;
-
-    // Only the cells actually inside the viewport are ever queried — the table
-    // is never scanned, and the candidate set is bounded by the viewport cap.
-    const candidates = cellsInBoundingBox({ west, south, east, north }, resolution);
-    const capped = capFeatures(candidates, config);
-
-    const records = await repository.findCells(capped.items, gridVersion, resolution);
     const viewer = resolveViewer(req);
 
-    // Untouched cells exist only as defaults; returning every one of them would
-    // be megabytes of "nothing here". Only cells someone has actually acted on
-    // are sent, plus their neutral state is the client's default.
-    const territories = [...records.values()].filter(
-      (territory) => territory.version > 0 || territory.state !== "neutral",
-    );
+    // D3 — the order of these four steps is the whole fix.
+    //
+    // This used to cap the *candidate cell list* and then look those up, which
+    // meant a wide viewport (≈10 000 candidates against a 2 000 cap) could
+    // return zero features while genuinely owned territory sat at candidate
+    // index 5 000. The limit now falls on matched rows, never on candidates.
 
-    const response = toMapResponse(territories, viewer, {
+    // 1. Every cell the viewport covers. Bounded by the viewport-area cap that
+    //    validateMapViewport already enforced, so this list is never unbounded.
+    const candidates = cellsInBoundingBox({ west, south, east, north }, resolution);
+
+    // 2. Only rows that actually exist. Chunked inside the repository — the
+    //    candidate list is far too long for a single IN clause. Untouched cells
+    //    are absent by construction here, rather than being fabricated as
+    //    neutral defaults and filtered out afterwards.
+    const persisted = await repository.findPersistedCells(candidates, gridVersion);
+
+    // 3. Deduplicate, then order deterministically: mine, club, contested,
+    //    rival, protected, neutral, restricted — and cell id as a stable
+    //    tiebreak, so re-requesting the same viewport returns the same set.
+    const ordered = sortTerritoriesForViewer(dedupeTerritories(persisted), viewer);
+
+    // 4. Only now apply the response limit, and report truncation against the
+    //    number of matched territories — not against the candidate count.
+    const capped = capFeatures(ordered, config);
+
+    const response = toMapResponse(capped.items, viewer, {
       gridVersion,
       resolution,
       total: capped.total,

@@ -136,6 +136,19 @@ export interface TerritoryRepository {
   /** Cheap read of a previously completed application, or null. */
   findCompletedApplication<T>(key: TerritoryApplicationKey): Promise<T | null>;
 
+  /**
+   * Rows that **actually exist** for these candidate cells (D3).
+   *
+   * Unlike `findCells`, this never fabricates neutral defaults — it returns
+   * only persisted territory. That is what lets the map endpoint apply its
+   * response limit to *matches* rather than to the candidate cell list, so
+   * owned territory cannot fall off the end of a wide viewport.
+   *
+   * Implementations must chunk the lookup internally: a wide viewport produces
+   * ~10 000 candidate ids, which is far past what belongs in one `IN` list.
+   */
+  findPersistedCells(cellIds: string[], gridVersion: number): Promise<TerritoryRecord[]>;
+
   /** Upsert the capture-evaluation record for a route. */
   saveCaptureSession(session: TerritoryCaptureSession): Promise<void>;
 
@@ -286,6 +299,16 @@ export class InMemoryTerritoryRepository implements TerritoryRepository {
       return { applied, conflicted, records };
     };
     return run();
+  }
+
+  async findPersistedCells(
+    cellIds: string[],
+    gridVersion: number,
+  ): Promise<TerritoryRecord[]> {
+    const wanted = new Set(cellIds);
+    return [...this.cells.values()]
+      .filter((t) => t.gridVersion === gridVersion && wanted.has(t.h3CellId))
+      .map((t) => ({ ...t }));
   }
 
   private applicationKey(key: TerritoryApplicationKey): string {

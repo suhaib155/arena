@@ -274,6 +274,37 @@ export class DrizzleTerritoryRepository implements TerritoryRepository {
     return { applied, conflicted, records };
   }
 
+  /**
+   * Candidate cells are chunked into `IN` lists of this size (D3).
+   *
+   * A viewport at the configured maximum produces ~10 000 candidate ids. One
+   * `IN` list that long is a parameter-count problem and a planner problem;
+   * chunking keeps each statement small and lets Postgres use
+   * `territories_grid_cell_idx` for every chunk.
+   */
+  private static readonly CELL_LOOKUP_CHUNK = 900;
+
+  async findPersistedCells(
+    cellIds: string[],
+    gridVersion: number,
+  ): Promise<TerritoryRecord[]> {
+    if (cellIds.length === 0) return [];
+    const chunkSize = DrizzleTerritoryRepository.CELL_LOOKUP_CHUNK;
+    const out: TerritoryRecord[] = [];
+
+    for (let offset = 0; offset < cellIds.length; offset += chunkSize) {
+      const chunk = cellIds.slice(offset, offset + chunkSize);
+      const rows = (await this.db
+        .select()
+        .from(territories)
+        .where(
+          and(eq(territories.gridVersion, gridVersion), inArray(territories.h3CellId, chunk)),
+        )) as TerritoryRow[];
+      for (const row of rows) out.push(toRecord(row));
+    }
+    return out;
+  }
+
   async findCompletedApplication<T>(key: TerritoryApplicationKey): Promise<T | null> {
     const rows = await this.db
       .select()

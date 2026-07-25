@@ -78,6 +78,61 @@ export function toMapFeature(territory: TerritoryRecord, viewer: Viewer): CellFe
   return h3CellToGeoJsonFeature(territory.h3CellId, properties);
 }
 
+/**
+ * Ordering priority when a viewport holds more territory than the response
+ * limit allows (D3).
+ *
+ * The limit has to fall on *something*, so it should fall on what the runner
+ * cares about least. Their own ground comes first, then their club's, then
+ * anything actively in play, then rivals. Untouched and unplayable ground is
+ * last because it carries the least information.
+ */
+const RELATIONSHIP_PRIORITY: Record<TerritoryRelationship, number> = {
+  mine: 0,
+  club: 1,
+  contested: 2,
+  rival: 3,
+  protected: 4,
+  neutral: 5,
+  restricted: 6,
+};
+
+/**
+ * Sort persisted territories for a viewer: by relationship priority, then by
+ * cell id.
+ *
+ * Cell id is the tiebreak rather than `updatedAt` deliberately — it is stable,
+ * so paging or re-requesting the same viewport returns the same features in the
+ * same order. `updatedAt` would reshuffle the response every time anything
+ * changed, which makes a truncated map flicker.
+ *
+ * Pure and total: never mutates its input.
+ */
+export function sortTerritoriesForViewer(
+  territories: TerritoryRecord[],
+  viewer: Viewer,
+): TerritoryRecord[] {
+  return [...territories].sort((a, b) => {
+    const priority =
+      RELATIONSHIP_PRIORITY[relationshipFor(a, viewer)] -
+      RELATIONSHIP_PRIORITY[relationshipFor(b, viewer)];
+    if (priority !== 0) return priority;
+    return a.h3CellId < b.h3CellId ? -1 : a.h3CellId > b.h3CellId ? 1 : 0;
+  });
+}
+
+/** Drop duplicate cell ids, keeping the first occurrence. */
+export function dedupeTerritories(territories: TerritoryRecord[]): TerritoryRecord[] {
+  const seen = new Set<string>();
+  const out: TerritoryRecord[] = [];
+  for (const territory of territories) {
+    if (seen.has(territory.h3CellId)) continue;
+    seen.add(territory.h3CellId);
+    out.push(territory);
+  }
+  return out;
+}
+
 export interface TerritoryMapResponse {
   type: "FeatureCollection";
   features: CellFeature[];
