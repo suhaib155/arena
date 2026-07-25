@@ -5,28 +5,38 @@ interface RoutePathProps {
   /** 0..1 progress along the route. */
   progress: number;
   label?: string;
+  /** Invert the trail for placement on a deep ink surface. */
+  onInk?: boolean;
 }
 
 /**
  * XP progress styled as a glowing route: a dashed trail, a Pulse Green fill,
  * and a runner dot at the head — the same motif as the website's journey line.
  */
-export function RoutePath({ progress, label }: RoutePathProps) {
+export function RoutePath({ progress, label, onInk = false }: RoutePathProps) {
   const pct = Math.max(0, Math.min(1, progress));
   return (
     <View style={styles.wrap}>
-      <View style={styles.track}>
+      <View style={[styles.track, onInk ? styles.trackInk : null]}>
         <View style={styles.dashes}>
           {Array.from({ length: 14 }).map((_, i) => (
-            <View key={i} style={styles.dash} />
+            <View key={i} style={[styles.dash, onInk ? styles.dashInk : null]} />
           ))}
         </View>
         <View style={[styles.fill, { width: `${pct * 100}%` }]} />
-        <View style={[styles.runner, { left: `${pct * 100}%` }]}>
+        <View
+          style={[
+            styles.runner,
+            onInk ? { borderColor: palette.deepInk } : null,
+            { left: `${pct * 100}%` },
+          ]}
+        >
           <View style={styles.runnerCore} />
         </View>
       </View>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        <Text style={[styles.label, onInk ? { color: colors.onInkDim } : null]}>{label}</Text>
+      ) : null}
     </View>
   );
 }
@@ -45,12 +55,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-evenly",
   },
+  trackInk: { backgroundColor: "#FFFFFF1F" },
   dash: {
     width: 6,
     height: 2,
     borderRadius: 1,
     backgroundColor: palette.dustGray,
   },
+  dashInk: { backgroundColor: "#FFFFFF4D" },
   fill: {
     position: "absolute",
     left: 0,

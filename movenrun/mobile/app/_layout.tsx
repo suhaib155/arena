@@ -131,6 +131,10 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  /* Matches the native splash background in app.json (Warm Cartography cream,
+     `palette.morningWhite`) so the native → JS handover is a single continuous
+     surface. If either side changes, change both: a mismatch is a visible
+     launch flash. */
   splash: {
     flex: 1,
     alignItems: "center",
@@ -138,6 +142,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     gap: spacing.md,
   },
-  splashText: { ...type.title, fontSize: 24 },
-  splashLoop: { ...type.mono, fontSize: 12, color: colors.textFaint },
+  splashText: { ...type.title, fontSize: 24, color: colors.text },
+  splashLoop: { ...type.mono, fontSize: 12, color: colors.textDim },
 });

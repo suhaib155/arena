@@ -10,10 +10,12 @@ import { ZoneCard } from "@/components/ZoneCard";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
 import { StatCard } from "@/components/StatCard";
-import { NavRow } from "@/components/NavRow";
 import { MissionCard } from "@/components/MissionCard";
 import { NotificationBell } from "@/components/NotificationBell";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { Gradient } from "@/components/Gradient";
+import { TintedNavCard } from "@/components/TintedNavCard";
+import { colors, gradients, palette, radius, shadows, spacing, type, type TintName } from "@/theme";
+import { alpha } from "@/lib/gradient";
 import { useGameStore } from "@/store/useGameStore";
 import { zoneStatus } from "@/lib/territory";
 import { getClubById, CLUBS } from "@/data/clubs";
@@ -61,6 +63,25 @@ const UP_NEXT_ROUTE: Record<UpNextId, string> = {
   questline: "/questline",
   city: "/city-districts",
   collections: "/collections",
+};
+
+/** A stable tint + micro-label per destination, so the list reads as a set. */
+const UP_NEXT_TONE: Record<UpNextId, TintName> = {
+  objectives: "lilac",
+  "weekly-recap": "mint",
+  club: "sky",
+  questline: "sand",
+  city: "slate",
+  collections: "peach",
+};
+
+const UP_NEXT_KICKER: Record<UpNextId, string> = {
+  objectives: "Season",
+  "weekly-recap": "This week",
+  club: "Club",
+  questline: "Questline",
+  city: "City",
+  collections: "Badges",
 };
 
 export default function TodayScreen() {
@@ -237,6 +258,12 @@ export default function TodayScreen() {
         {/* Territory hero — the visual centre; one primary movement CTA */}
         <FadeSlideIn>
           <View style={styles.hero}>
+            {/* Deep ink surface: anchors the screen and makes the primary
+                movement CTA the brightest thing on it. */}
+            <Gradient colors={gradients.ink} radius={radius.xl} />
+            <View style={styles.heroGlazeMask}>
+              <View style={styles.heroGlaze} />
+            </View>
             {zones.length > 0 ? (
               <>
                 <Text style={styles.heroKicker}>Your territory</Text>
@@ -250,13 +277,13 @@ export default function TodayScreen() {
                   <HeroStat
                     value={atRisk.length}
                     label="need defence"
-                    tint={atRisk.length > 0 ? palette.heatCoral : colors.textDim}
+                    tint={atRisk.length > 0 ? palette.heatCoral : colors.onInkDim}
                   />
                   <View style={styles.heroDivider} />
                   <HeroStat
                     value={`L${level.level}`}
                     label={`${level.xpIntoLevel}/${level.xpForLevel} XP`}
-                    tint={palette.baseBlue}
+                    tint={palette.skyBlue}
                   />
                 </View>
               </>
@@ -271,7 +298,7 @@ export default function TodayScreen() {
                 </View>
               </>
             )}
-            <RoutePath progress={level.progress} />
+            <RoutePath progress={level.progress} onInk />
             <Button label={hero.ctaLabel} icon="play" onPress={startMove} style={styles.heroCta} />
             {zones.length > 0 ? (
               <Button
@@ -295,8 +322,8 @@ export default function TodayScreen() {
         {/* Two performance widgets — varied hierarchy, not a wall of cards */}
         <FadeSlideIn delay={STAGGER_MS}>
           <View style={styles.statsRow}>
-            <StatCard icon="flame" value={streak} label="day streak" tint={palette.heatCoral} />
-            <StatCard icon="flash" value={`+${xpToday}`} label="XP today" tint={palette.moveGold} />
+            <StatCard icon="flame" value={streak} unit="d" label="Day streak" tone="peach" />
+            <StatCard icon="flash" value={`+${xpToday}`} unit="xp" label="Earned today" tone="sand" />
           </View>
         </FadeSlideIn>
 
@@ -316,11 +343,12 @@ export default function TodayScreen() {
               <SectionHeader title="Up next" />
               <View style={styles.upNextList}>
                 {upNext.map((item) => (
-                  <NavRow
+                  <TintedNavCard
                     key={item.id}
-                    icon={item.icon as never}
+                    tone={UP_NEXT_TONE[item.id]}
+                    kicker={UP_NEXT_KICKER[item.id]}
                     title={item.title}
-                    subtitle={item.subtitle}
+                    detail={item.subtitle}
                     onPress={() => {
                       tapFeedback();
                       router.push(UP_NEXT_ROUTE[item.id]);
@@ -428,13 +456,29 @@ const styles = StyleSheet.create({
   greeting: { ...type.body, fontSize: 15, color: colors.textDim },
   headline: { ...type.display, fontSize: 34, lineHeight: 36, letterSpacing: -1 },
   hero: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.ink,
     borderRadius: radius.xl,
     padding: spacing.xl,
     gap: spacing.md,
-    ...shadows.float,
+    ...shadows.hero,
   },
-  heroKicker: { ...type.kicker, color: colors.primary },
+  /** Rounded mask so the bloom cannot spill past the card's corners. */
+  heroGlazeMask: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: radius.xl,
+    overflow: "hidden",
+  },
+  /** Violet bloom in the top-right corner of the ink surface. */
+  heroGlaze: {
+    position: "absolute",
+    top: -140,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: alpha(palette.deedViolet, 0.22),
+  },
+  heroKicker: { ...type.kicker, color: palette.voltMint },
   heroStatsRow: { flexDirection: "row", alignItems: "center" },
   heroStat: { flex: 1, alignItems: "center", gap: 2 },
   heroStatValue: {
@@ -443,18 +487,18 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     fontVariant: ["tabular-nums"],
   },
-  heroStatLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
+  heroStatLabel: { ...type.caption, fontSize: 10.5, textAlign: "center", color: colors.onInkDim },
   heroDivider: {
     width: 1,
     alignSelf: "stretch",
     marginVertical: 4,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: "#FFFFFF24",
   },
   heroLevelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
-  heroLevel: { ...type.title, fontSize: 20 },
-  heroXp: { ...type.mono, fontSize: 12.5 },
+  heroLevel: { ...type.title, fontSize: 22, color: colors.onInk },
+  heroXp: { ...type.mono, fontSize: 12.5, color: colors.onInkDim },
   heroCta: { marginTop: spacing.xs },
-  heroNote: { ...type.caption, fontSize: 12, textAlign: "center", color: colors.textFaint },
+  heroNote: { ...type.caption, fontSize: 12, textAlign: "center", color: colors.onInkDim },
   statsRow: { flexDirection: "row", gap: spacing.md },
   upNextWrap: { gap: spacing.md },
   upNextList: { gap: spacing.sm },

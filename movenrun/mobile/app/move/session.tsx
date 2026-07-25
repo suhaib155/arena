@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -7,6 +7,7 @@ import { RouteCanvas } from "@/components/RouteCanvas";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
+import { useResponsive } from "@/hooks/useResponsive";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
 import {
   acceptPoint,
@@ -37,6 +38,7 @@ export default function MoveSessionScreen() {
   const router = useRouter();
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const mode: TrackerMode = modeParam === "demo" ? "demo" : "gps";
+  const r = useResponsive();
 
   const [points, setPoints] = useState<TrackPoint[]>([]);
   const [distanceM, setDistanceM] = useState(0);
@@ -188,50 +190,62 @@ export default function MoveSessionScreen() {
         <GpsChip mode={mode} state={gpsState} />
       </View>
 
-      {/* Live map/route dominates the top of the screen */}
-      <RouteCanvas points={points} height={248} live />
+      {/* Readouts scroll; the controls below never do. On a short screen (or at
+          a large system font scale) the metrics can exceed the viewport, and a
+          pinned-by-margin control bar would simply be pushed off the bottom. */}
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Live map/route dominates the top of the screen */}
+        <RouteCanvas points={points} height={r.vh(0.28, 150, 248)} live />
 
-      {mode === "demo" ? (
-        <View style={styles.demoBanner}>
-          <Ionicons name="flask-outline" size={14} color={colors.textDim} />
-          <Text style={styles.demoText}>Demo route — not real GPS. Won't be saved.</Text>
+        {mode === "demo" ? (
+          <View style={styles.demoBanner}>
+            <Ionicons name="flask-outline" size={14} color={colors.textDim} />
+            <Text style={styles.demoText}>Demo route — not real GPS. Won't be saved.</Text>
+          </View>
+        ) : null}
+
+        {/* Dominant distance metric + supporting time/pace */}
+        <View style={styles.metrics}>
+          <MovementMetric value={formatDistance(distanceM)} label="distance" size="hero" />
+          <View style={styles.metricRow}>
+            <MovementMetric value={formatDuration(elapsedMs)} label="time" />
+            <View style={styles.metricDivider} />
+            <MovementMetric value={pace ?? "—"} label="pace /km" />
+          </View>
         </View>
-      ) : null}
 
-      {/* Dominant distance metric + supporting time/pace */}
-      <View style={styles.metrics}>
-        <MovementMetric value={formatDistance(distanceM)} label="distance" size="hero" />
-        <View style={styles.metricRow}>
-          <MovementMetric value={formatDuration(elapsedMs)} label="time" />
-          <View style={styles.metricDivider} />
-          <MovementMetric value={pace ?? "—"} label="pace /km" />
+        {/* Live capture preview — estimate only, never a claim. Lives inside
+            the ScrollView so a long readout can never push the controls off a
+            short screen. */}
+        <View style={styles.zoneCard}>
+          <View style={styles.zoneHead}>
+            <Text style={styles.zoneTitle}>Capture preview</Text>
+            <Text style={styles.zoneTag}>estimate</Text>
+          </View>
+
+          <Text style={styles.previewHeadline}>{preview.headline}</Text>
+          {preview.detail ? <Text style={styles.zoneNote}>{preview.detail}</Text> : null}
+
+          <View style={styles.zoneTrack}>
+            <View style={[styles.zoneFill, { width: `${distanceProgress * 100}%` }]} />
+          </View>
+          <Text style={styles.zoneNote}>
+            {formatDistance(distanceM)} of {CAPTURE_PREVIEW_DEFAULTS.minDistanceMeters} m minimum
+            {preview.showAreaEstimate ? ` · about ${formatArea(estimatedArea)} enclosed` : ""}
+          </Text>
+
+          <Text style={styles.previewFootnote}>
+            Server verified after you finish — nothing is captured until then.
+          </Text>
         </View>
-      </View>
+      </ScrollView>
 
-      {/* Live capture preview — estimate only, never a claim. */}
-      <View style={styles.zoneCard}>
-        <View style={styles.zoneHead}>
-          <Text style={styles.zoneTitle}>Capture preview</Text>
-          <Text style={styles.zoneTag}>estimate</Text>
-        </View>
-
-        <Text style={styles.previewHeadline}>{preview.headline}</Text>
-        {preview.detail ? <Text style={styles.zoneNote}>{preview.detail}</Text> : null}
-
-        <View style={styles.zoneTrack}>
-          <View style={[styles.zoneFill, { width: `${distanceProgress * 100}%` }]} />
-        </View>
-        <Text style={styles.zoneNote}>
-          {formatDistance(distanceM)} of {CAPTURE_PREVIEW_DEFAULTS.minDistanceMeters} m minimum
-          {preview.showAreaEstimate ? ` · about ${formatArea(estimatedArea)} enclosed` : ""}
-        </Text>
-
-        <Text style={styles.previewFootnote}>
-          Server verified after you finish — nothing is captured until then.
-        </Text>
-      </View>
-
-      {/* Large, unmistakable controls; Finish is separated + confirmed */}
+      {/* Large, unmistakable controls; Finish is separated + confirmed. Kept
+          outside the ScrollView so they are always reachable mid-session. */}
       <View style={styles.controls}>
         <MovementControlBar paused={paused} onPauseResume={togglePause} onFinish={confirmFinish} />
       </View>
@@ -285,6 +299,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   demoText: { ...type.caption, fontSize: 11.5, fontWeight: "600" },
+  body: { flex: 1 },
+  bodyContent: { paddingBottom: spacing.md },
   metrics: { marginTop: spacing.lg, gap: spacing.md },
   metricRow: { flexDirection: "row", alignItems: "center" },
   metricDivider: {
@@ -327,5 +343,7 @@ const styles = StyleSheet.create({
   zoneNote: { ...type.caption, fontSize: 12 },
   previewHeadline: { ...type.heading, fontSize: 14, lineHeight: 19 },
   previewFootnote: { ...type.caption, fontSize: 10.5, color: colors.textFaint },
-  controls: { paddingVertical: spacing.md, marginTop: "auto" },
+  /* No `marginTop: "auto"` — the bar sits after a flexing ScrollView, so it is
+     pinned by layout order and cannot be pushed off a short screen. */
+  controls: { paddingVertical: spacing.md },
 });
