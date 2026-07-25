@@ -27,6 +27,7 @@ import {
   boolean,
   timestamp,
   doublePrecision,
+  jsonb,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -198,6 +199,51 @@ export const territoryControlChanges = pgTable(
   (t) => ({
     cellIdx: index("territory_control_changes_cell_idx").on(t.gridVersion, t.h3CellId),
     createdAtIdx: index("territory_control_changes_created_at_idx").on(t.createdAt),
+  }),
+);
+
+/**
+ * Idempotency ledger for territory application (D5).
+ *
+ * A BullMQ job can be retried — on a transient DB error, a worker restart, or a
+ * manual re-queue. Without this table each retry re-ran the ownership rules and
+ * handed out another reinforcement for the same run, silently inflating defence
+ * and control from a single real route.
+ *
+ * `(route_id, grid_version)` is UNIQUE and is the idempotency key. The row is
+ * inserted, the ownership writes are made, and the row is completed with the
+ * serialised result **inside one transaction**, so:
+ *
+ *   - a retry after a completed attempt reads `result` back and mutates nothing;
+ *   - a retry after a rolled-back attempt finds no row at all (the claim rolled
+ *     back with everything else) and is safely re-runnable;
+ *   - two concurrent attempts serialise on the row lock, so exactly one applies
+ *     and the other replays the winner's stored result.
+ *
+ * `result` holds only cell ids and counts — never a coordinate.
+ */
+export const territoryRouteApplications = pgTable(
+  "territory_route_applications",
+  {
+    id: text("id").primaryKey(),
+    routeId: text("route_id").notNull(),
+    gridVersion: integer("grid_version").notNull(),
+    /** "in_progress" while the claiming transaction runs, "completed" after. */
+    state: text("state").$type<"in_progress" | "completed">().notNull().default("in_progress"),
+    /** Serialised ApplyCaptureResult. Null until the attempt completes. */
+    result: jsonb("result"),
+    /** How many times this key has been claimed — retry observability. */
+    attempts: integer("attempts").notNull().default(1),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    completedAt: timestamp("completed_at"),
+  },
+  (t) => ({
+    // The idempotency key itself. This is what makes a retry a replay.
+    routeGridUnique: uniqueIndex("territory_route_applications_key").on(
+      t.routeId,
+      t.gridVersion,
+    ),
+    stateIdx: index("territory_route_applications_state_idx").on(t.state),
   }),
 );
 

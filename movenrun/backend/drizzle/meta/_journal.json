@@ -29,6 +29,13 @@
       "when": 1784486400000,
       "tag": "0003_territory_ownership",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784572800000,
+      "tag": "0004_territory_idempotency",
+      "breakpoints": true
     }
   ]
 }

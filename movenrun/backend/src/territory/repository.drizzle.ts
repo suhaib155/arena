@@ -27,10 +27,14 @@ import {
   territoryCellClassifications,
   territoryControlChanges,
   territoryOwnershipEvents,
+  territoryRouteApplications,
 } from "../db/territory.schema.js";
 import { neutralTerritory } from "./rules.js";
 import type {
+  IdempotentApplicationOptions,
+  IdempotentApplicationResult,
   OwnershipTransactionResult,
+  TerritoryApplicationKey,
   TerritoryRepository,
   TerritoryWrite,
 } from "./repository.js";
@@ -127,12 +131,28 @@ export class DrizzleTerritoryRepository implements TerritoryRepository {
   async applyOwnershipTransaction(
     writes: TerritoryWrite[],
   ): Promise<OwnershipTransactionResult> {
+    if (writes.length === 0) {
+      return { applied: [], conflicted: [], records: new Map() };
+    }
+    return this.db.transaction((tx: any) => this.applyWritesInTx(tx, writes));
+  }
+
+  /**
+   * The ownership writes themselves, against an already-open transaction.
+   *
+   * Extracted so `applyOwnershipTransactionIdempotent` can run the claim, the
+   * writes and the result-store inside ONE transaction rather than three — a
+   * crash between them would otherwise leave territory applied with no ledger
+   * entry, which is exactly the state a retry would double-apply.
+   */
+  private async applyWritesInTx(
+    tx: any,
+    writes: TerritoryWrite[],
+  ): Promise<OwnershipTransactionResult> {
     const applied: string[] = [];
     const conflicted: string[] = [];
     const records = new Map<string, TerritoryRecord>();
-    if (writes.length === 0) return { applied, conflicted, records };
-
-    await this.db.transaction(async (tx: any) => {
+    {
       // Lock every affected row up front, in a deterministic order, so two
       // transactions touching overlapping cell sets can never deadlock by
       // acquiring the same locks in opposite orders.
@@ -249,9 +269,118 @@ export class DrizzleTerritoryRepository implements TerritoryRepository {
           });
         }
       }
-    });
+    }
 
     return { applied, conflicted, records };
+  }
+
+  async findCompletedApplication<T>(key: TerritoryApplicationKey): Promise<T | null> {
+    const rows = await this.db
+      .select()
+      .from(territoryRouteApplications)
+      .where(
+        and(
+          eq(territoryRouteApplications.routeId, key.routeId),
+          eq(territoryRouteApplications.gridVersion, key.gridVersion),
+          eq(territoryRouteApplications.state, "completed"),
+        ),
+      )
+      .limit(1);
+    const row = (rows as (typeof territoryRouteApplications.$inferSelect)[])[0];
+    return row ? (row.result as T) : null;
+  }
+
+  /**
+   * Apply writes exactly once per (routeId, gridVersion) — the D5 fix.
+   *
+   * Everything below happens in ONE transaction:
+   *
+   *   1. Claim the key with `INSERT ... ON CONFLICT DO NOTHING`.
+   *   2. If the insert returned nothing, someone else holds the key. Re-read it
+   *      `FOR UPDATE`: that blocks until the holder commits or rolls back.
+   *        - holder committed  -> the row reads `completed`; replay its result.
+   *        - holder rolled back -> the row is gone (the claim rolled back with
+   *          it); insert our own claim and proceed.
+   *        - row is `in_progress` and unlocked -> a previous attempt died
+   *          without committing either way; take it over and bump `attempts`.
+   *   3. Apply the ownership writes.
+   *   4. Complete the claim with the serialised result.
+   *
+   * Because the claim and the writes share a transaction, a rollback discards
+   * both, so a failed attempt is always safely retryable and never leaves
+   * territory applied without a ledger entry.
+   */
+  async applyOwnershipTransactionIdempotent<T>(
+    writes: TerritoryWrite[],
+    options: IdempotentApplicationOptions<T>,
+  ): Promise<IdempotentApplicationResult<T>> {
+    const { key, buildResult } = options;
+
+    return this.db.transaction(async (tx: any) => {
+      const claimId = `${key.gridVersion}:${key.routeId}`;
+      const now = new Date();
+
+      const claimed = (await tx
+        .insert(territoryRouteApplications)
+        .values({
+          id: claimId,
+          routeId: key.routeId,
+          gridVersion: key.gridVersion,
+          state: "in_progress" as const,
+          attempts: 1,
+          createdAt: now,
+        })
+        .onConflictDoNothing({
+          target: [territoryRouteApplications.routeId, territoryRouteApplications.gridVersion],
+        })
+        .returning()) as (typeof territoryRouteApplications.$inferSelect)[];
+
+      if (claimed.length === 0) {
+        // Someone holds the key. This SELECT blocks until they finish.
+        const held = (await tx
+          .select()
+          .from(territoryRouteApplications)
+          .where(
+            and(
+              eq(territoryRouteApplications.routeId, key.routeId),
+              eq(territoryRouteApplications.gridVersion, key.gridVersion),
+            ),
+          )
+          .for("update")) as (typeof territoryRouteApplications.$inferSelect)[];
+
+        const row = held[0];
+        if (row?.state === "completed") {
+          // The authoritative replay path: mutate nothing.
+          return { replayed: true, result: row.result as T, transaction: null };
+        }
+        if (row) {
+          // An earlier attempt claimed the key and then died without committing
+          // a result. Its writes rolled back with it, so taking the claim over
+          // is safe — and is the only way the route ever gets processed.
+          await tx
+            .update(territoryRouteApplications)
+            .set({ attempts: row.attempts + 1 })
+            .where(eq(territoryRouteApplications.id, row.id));
+        }
+        // No row at all means the holder rolled back between our INSERT and
+        // this SELECT; fall through and do the work ourselves.
+      }
+
+      const transaction = await this.applyWritesInTx(tx, writes);
+      const result = buildResult(transaction);
+
+      await tx
+        .update(territoryRouteApplications)
+        .set({ state: "completed" as const, result: result as object, completedAt: new Date() })
+        .where(
+          and(
+            eq(territoryRouteApplications.routeId, key.routeId),
+            eq(territoryRouteApplications.gridVersion, key.gridVersion),
+          ),
+        );
+
+      return { replayed: false, result, transaction };
+    });
   }
 
   async saveCaptureSession(session: TerritoryCaptureSession): Promise<void> {

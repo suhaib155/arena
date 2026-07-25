@@ -29,6 +29,7 @@ import {
 } from "./rules.js";
 import type {
   OwnershipTransactionResult,
+  TerritoryApplicationKey,
   TerritoryRepository,
   TerritoryWrite,
 } from "./repository.js";
@@ -109,7 +110,20 @@ export class TerritoryOwnershipService {
    */
   async applyCapture(input: ApplyCaptureInput): Promise<ApplyCaptureResult> {
     const cellIds = [...new Set(input.capturedHexIds)];
+    // Nothing to apply: deterministic and mutation-free, so idempotent by
+    // construction — no ledger entry needed.
     if (cellIds.length === 0) return { ...EMPTY_RESULT };
+
+    const key: TerritoryApplicationKey = {
+      routeId: input.routeId,
+      gridVersion: input.gridVersion,
+    };
+
+    // Fast path: a completed application replays without computing anything.
+    // This is an optimisation only — `applyOwnershipTransactionIdempotent`
+    // re-checks inside its transaction, which is where the race is actually won.
+    const alreadyApplied = await this.repository.findCompletedApplication<ApplyCaptureResult>(key);
+    if (alreadyApplied) return alreadyApplied;
 
     const traversed = new Set(input.traversedHexIds);
     const actor: ActorContext = {
@@ -150,11 +164,21 @@ export class TerritoryOwnershipService {
     }
 
     if (writes.length === 0) {
+      // Every candidate was rejected (restricted, protected, wrong grid). No
+      // mutation, and the rejection is recomputed identically on a retry.
       return { ...EMPTY_RESULT, rejectedCellIds };
     }
 
-    const transaction = await this.repository.applyOwnershipTransaction(writes);
-    return this.summarise(transaction, outcomes, writes, rejectedCellIds, input.gridVersion);
+    // The claim, the ownership writes and the stored result commit together.
+    // A retry after this replays `result`; a retry after a rollback finds no
+    // claim and re-runs; a concurrent retry blocks on the claim row and then
+    // replays the winner. See repository.drizzle.ts for the transaction.
+    const applied = await this.repository.applyOwnershipTransactionIdempotent(writes, {
+      key,
+      buildResult: (transaction) =>
+        this.summarise(transaction, outcomes, writes, rejectedCellIds, input.gridVersion),
+    });
+    return applied.result;
   }
 
   /** Persist what capture evaluation decided, eligible or not. */
