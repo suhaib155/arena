@@ -25,22 +25,25 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useGameStore } from "@/store/useGameStore";
 import { isBackendConfigured } from "@/services/identityApi";
 import { authErrorMessage } from "@/lib/emailAuth";
+import { isAuthBusy } from "@/lib/authLifecycle";
 import { walletTypeLabel } from "@/lib/walletPresentation";
 import { buildDeviceLabel } from "@/lib/deviceLabel";
 
 export default function AccountScreen() {
   const router = useRouter();
   const status = useAuthStore((s) => s.status);
+  const operation = useAuthStore((s) => s.operation);
   const user = useAuthStore((s) => s.user);
   const wallets = useAuthStore((s) => s.wallets);
-  const errorCode = useAuthStore((s) => s.errorCode);
+  const authErrorCode = useAuthStore((s) => s.authErrorCode);
+  const restoreErrorCode = useAuthStore((s) => s.restoreErrorCode);
   const beginEmailOtp = useAuthStore((s) => s.beginEmailOtp);
   const completeEmailOtp = useAuthStore((s) => s.completeEmailOtp);
   const retryRestore = useAuthStore((s) => s.retryRestore);
   const markSignedIn = useGameStore((s) => s.markSignedIn);
 
   const backendConfigured = isBackendConfigured();
-  const busy = status === "authenticating";
+  const busy = isAuthBusy(operation);
   const activeWallet = wallets.find((w) => w.isActive) ?? null;
 
   /* Signing in later (from Account rather than first run) keeps local progress
@@ -113,25 +116,28 @@ export default function AccountScreen() {
             <SectionHeader title="Continue with email" />
             <EmailOtpForm
               busy={busy}
-              errorCode={errorCode}
+              errorCode={authErrorCode}
               helperText="New here? We create your account automatically. Returning? Use the same email."
-              onSendCode={async (email) => {
-                await beginEmailOtp(email);
-                return useAuthStore.getState().status !== "error";
-              }}
-              onVerifyCode={async (email, code) => {
-                await completeEmailOtp(email, code, buildDeviceLabel(Platform.OS));
-              }}
+              onSendCode={beginEmailOtp}
+              onVerifyCode={(email, code) =>
+                completeEmailOtp(email, code, buildDeviceLabel(Platform.OS))
+              }
             />
-            {status === "error" ? (
-              <Button
-                label="Retry"
-                variant="secondary"
-                icon="refresh-outline"
-                onPress={() => {
-                  void retryRestore();
-                }}
-              />
+            {/* Restore Retry is scoped to a failed session RESTORE. Sign-in
+                errors stay in the form above, where the user can fix them. */}
+            {restoreErrorCode ? (
+              <View style={styles.restoreBox} accessibilityLiveRegion="polite">
+                <Text style={styles.caption}>{authErrorMessage(restoreErrorCode)}</Text>
+                <Button
+                  label="Retry"
+                  variant="secondary"
+                  icon="refresh-outline"
+                  disabled={busy}
+                  onPress={() => {
+                    void retryRestore();
+                  }}
+                />
+              </View>
             ) : null}
           </View>
         ) : (
@@ -163,4 +169,5 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   statusTitle: { ...type.heading, fontSize: 15, flex: 1 },
   spaced: { marginTop: spacing.sm },
+  restoreBox: { gap: spacing.md, paddingTop: spacing.xs },
 });

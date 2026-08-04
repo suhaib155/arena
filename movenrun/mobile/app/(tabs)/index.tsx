@@ -37,7 +37,12 @@ import {
   type MissionAction,
   type UpNextId,
 } from "@/lib/homeMission";
-import { buildFirstMission, isFirstMission, type FirstMissionAction } from "@/lib/firstMission";
+import {
+  buildFirstMission,
+  composeHome,
+  isFirstMission,
+  type FirstMissionAction,
+} from "@/lib/firstMission";
 
 function greeting(date = new Date()): string {
   const h = date.getHours();
@@ -214,6 +219,16 @@ export default function TodayScreen() {
     citySubtitle: `${cityDistricts.controlledDistricts}/${cityDistricts.activeDistricts} controlled · ${cityDistricts.nextAction.label}`,
   });
 
+  /* ONE rule decides what Home shows, so the "exactly one primary movement
+     CTA" invariant is enforced in a pure function rather than by several
+     independent conditionals in this file. */
+  const composition = composeHome({
+    firstMissionActive,
+    hero,
+    mission,
+    upNextCount: upNext.length,
+  });
+
   const alertsUnread = alertsSummary.urgent + alertsSummary.caution > 0;
 
   const startMove = () => {
@@ -252,10 +267,44 @@ export default function TodayScreen() {
 
         <Text style={styles.headline}>{editorialHeadline}</Text>
 
-        {/* Territory hero — the visual centre; one primary movement CTA */}
+        {/* Territory hero — the visual centre; ONE primary movement CTA.
+            For a brand-new user this same hero becomes the first mission, so
+            the screen never presents two competing "start moving" buttons. */}
         <FadeSlideIn>
           <View style={styles.hero}>
-            {zones.length > 0 ? (
+            {composition.showFirstMissionHero ? (
+              <>
+                <Text style={styles.heroKicker}>Start here</Text>
+                <Text style={styles.firstMissionTitle}>{firstMission.title}</Text>
+                <Text style={styles.firstMissionBody}>{firstMission.body}</Text>
+                <View style={styles.firstMissionSteps}>
+                  {firstMission.steps.map((stepText, i) => (
+                    <View key={stepText} style={styles.firstMissionStep}>
+                      <Text style={styles.firstMissionStepNum}>{i + 1}</Text>
+                      <Text style={styles.firstMissionStepText}>{stepText}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Button
+                  label={firstMission.primaryLabel}
+                  icon="play"
+                  onPress={() => {
+                    tapFeedback();
+                    router.push(FIRST_MISSION_ROUTE[firstMission.primaryAction]);
+                  }}
+                  style={styles.heroCta}
+                />
+                <Button
+                  label={firstMission.secondaryLabel}
+                  icon="map-outline"
+                  variant="ghost"
+                  onPress={() => {
+                    tapFeedback();
+                    router.push(FIRST_MISSION_ROUTE[firstMission.secondaryAction]);
+                  }}
+                />
+              </>
+            ) : zones.length > 0 ? (
               <>
                 <Text style={styles.heroKicker}>Your territory</Text>
                 <View style={styles.heroStatsRow}>
@@ -289,24 +338,28 @@ export default function TodayScreen() {
                 </View>
               </>
             )}
-            <RoutePath progress={level.progress} />
-            <Button label={hero.ctaLabel} icon="play" onPress={startMove} style={styles.heroCta} />
-            {zones.length > 0 ? (
-              <Button
-                label="View Map"
-                icon="map-outline"
-                variant="secondary"
-                onPress={() => {
-                  tapFeedback();
-                  router.push("/territory/map");
-                }}
-              />
-            ) : (
-              <Text style={styles.heroNote}>
-                Foreground GPS session — your route, distance, and pace, all on-device. Capture your
-                first zone as you move.
-              </Text>
-            )}
+            {composition.showNormalHeroCta ? (
+              <>
+                <RoutePath progress={level.progress} />
+                <Button label={hero.ctaLabel} icon="play" onPress={startMove} style={styles.heroCta} />
+                {zones.length > 0 ? (
+                  <Button
+                    label="View Map"
+                    icon="map-outline"
+                    variant="secondary"
+                    onPress={() => {
+                      tapFeedback();
+                      router.push("/territory/map");
+                    }}
+                  />
+                ) : (
+                  <Text style={styles.heroNote}>
+                    Foreground GPS session — your route, distance, and pace, all on-device. Capture
+                    your first zone as you move.
+                  </Text>
+                )}
+              </>
+            ) : null}
           </View>
         </FadeSlideIn>
 
@@ -318,44 +371,9 @@ export default function TodayScreen() {
           </View>
         </FadeSlideIn>
 
-        {/* Brand-new user: one plain-language first mission instead of the
-            normal mission card. The tabs stay unlocked and nothing is
-            overlaid — this is a card, not a forced tour. */}
-        {firstMissionActive ? (
-          <FadeSlideIn delay={STAGGER_MS}>
-            <View style={styles.firstMission}>
-              <Text style={styles.firstMissionKicker}>Start here</Text>
-              <Text style={styles.firstMissionTitle}>{firstMission.title}</Text>
-              <Text style={styles.firstMissionBody}>{firstMission.body}</Text>
-              <View style={styles.firstMissionSteps}>
-                {firstMission.steps.map((stepText, i) => (
-                  <View key={stepText} style={styles.firstMissionStep}>
-                    <Text style={styles.firstMissionStepNum}>{i + 1}</Text>
-                    <Text style={styles.firstMissionStepText}>{stepText}</Text>
-                  </View>
-                ))}
-              </View>
-              <Button
-                label={firstMission.primaryLabel}
-                icon="play"
-                onPress={() => {
-                  tapFeedback();
-                  router.push(FIRST_MISSION_ROUTE[firstMission.primaryAction]);
-                }}
-              />
-              <Button
-                label={firstMission.secondaryLabel}
-                icon="map-outline"
-                variant="secondary"
-                onPress={() => {
-                  tapFeedback();
-                  router.push(FIRST_MISSION_ROUTE[firstMission.secondaryAction]);
-                }}
-              />
-            </View>
-          </FadeSlideIn>
-        ) : (
-          /* The single prioritized mission */
+        {/* The single prioritized mission — normal Home only. For a new user the
+            hero above already IS the mission, so nothing is repeated here. */}
+        {composition.showMissionCard ? (
           <FadeSlideIn delay={STAGGER_MS}>
             <MissionCard
               mission={mission}
@@ -363,10 +381,10 @@ export default function TodayScreen() {
               onPress={missionShowsButton ? goMission : startMove}
             />
           </FadeSlideIn>
-        )}
+        ) : null}
 
         {/* Up Next — capped at three prioritized secondary destinations */}
-        {!firstMissionActive && upNext.length > 0 ? (
+        {composition.showUpNext ? (
           <FadeSlideIn delay={STAGGER_MS}>
             <View style={styles.upNextWrap}>
               <SectionHeader title="Up next" />
@@ -512,14 +530,6 @@ const styles = StyleSheet.create({
   heroCta: { marginTop: spacing.xs },
   heroNote: { ...type.caption, fontSize: 12, textAlign: "center", color: colors.textFaint },
   statsRow: { flexDirection: "row", gap: spacing.md },
-  firstMission: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: spacing.md,
-    ...shadows.card,
-  },
-  firstMissionKicker: { ...type.kicker, color: colors.primary },
   firstMissionTitle: { ...type.title, fontSize: 20 },
   firstMissionBody: { ...type.body, fontSize: 14.5, lineHeight: 21, color: colors.textDim },
   firstMissionSteps: { gap: spacing.sm, paddingVertical: spacing.xs },

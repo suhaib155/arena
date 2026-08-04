@@ -16,7 +16,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
@@ -39,6 +39,9 @@ import {
   isLastIntroStep,
   nextIntroStep,
   previousIntroStep,
+  resolveIntroExit,
+  toIntroSource,
+  type IntroExit,
   type IntroStep,
 } from "@/lib/introFlow";
 
@@ -46,6 +49,11 @@ const STEP_TINTS = [palette.pulseGreen, palette.baseBlue, palette.deedViolet];
 
 export default function IntroScreen() {
   const router = useRouter();
+  /* Explicit intent, not navigation history: startup opens the intro in
+     first-run mode, Profile opens it as a replay. `canGoBack()` would have
+     conflated the two whenever the stack happened to be non-empty. */
+  const params = useLocalSearchParams<{ source?: string }>();
+  const source = toIntroSource(params.source);
   const completeIntro = useGameStore((s) => s.completeIntro);
   const [step, setStep] = useState<IntroStep>(FIRST_INTRO_STEP);
   const reducedMotion = useReducedMotion();
@@ -64,22 +72,33 @@ export default function IntroScreen() {
   const isLast = isLastIntroStep(step);
   const tint = STEP_TINTS[step] ?? palette.pulseGreen;
 
-  const finish = () => {
+  /* One exit per play, whichever control triggered it. The guard is what makes
+     a double tap produce exactly one completion and one navigation. */
+  const exit = (action: "skip" | "finish") => {
     if (!exitGuard.tryAcquire()) return;
+    const resolved: IntroExit = resolveIntroExit(source, action);
+    if (resolved === "return") {
+      // Replay: persisted first-run state is not touched at all.
+      tapFeedback();
+      if (router.canGoBack()) router.back();
+      else router.replace("/(tabs)");
+      return;
+    }
     successFeedback();
-    // Idempotent: replaying the intro from Profile leaves a `ready` user ready.
+    // Idempotent for an already-ready user; authoritative for a first run.
     completeIntro();
-    // Replay (pushed from Profile) pops back without leaking this screen into
-    // history; first run (arrived via replace) enters the first mission.
-    if (router.canGoBack()) router.back();
-    else router.replace("/move");
+    router.replace(resolved === "complete-move" ? "/move" : "/(tabs)");
   };
+
+  // Skip means "let me into the app" — it must not start a movement session.
+  const skip = () => exit("skip");
 
   // Next updates logical state synchronously — no scroll, no momentum, no
   // animation callback is involved in the transition.
   const goNext = () => {
     if (isLast) {
-      finish();
+      // The final CTA is labelled "Start my first move", so it does that.
+      exit("finish");
       return;
     }
     tapFeedback();
@@ -102,7 +121,7 @@ export default function IntroScreen() {
         </View>
         <Pressable
           hitSlop={12}
-          onPress={finish}
+          onPress={skip}
           accessibilityRole="button"
           accessibilityLabel="Skip the introduction"
           style={styles.skipBtn}

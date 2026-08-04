@@ -1,32 +1,44 @@
 /**
  * Auth + session-restoration lifecycle — pure types and classification.
  *
- * The store used to start at `signedOut`, which made "we haven't looked yet"
- * indistinguishable from "the server confirmed this user is signed out". That
- * is a fail-open shape: a slow or unreachable backend looked exactly like a
- * real sign-out and would have thrown a returning user back to the account
- * screen. The statuses below keep those cases apart, and the restore outcome
- * is a discriminated union instead of a boolean, so a transient network
- * failure can never be mistaken for a rejected session.
+ * Four *different* facts used to share one `status` field: whether there is a
+ * session, whether a request is in flight, why a sign-in attempt failed, and
+ * why a session could not be restored. Overloading one enum that way is what
+ * froze the OTP form (a successful "send code" left `status: "authenticating"`,
+ * so the code input stayed disabled) and what made an invalid OTP offer a
+ * session-restore Retry. They are separated here:
  *
- * Platform-free on purpose: no fetch, no storage, no React.
+ *  - {@link AuthStatus}    — is there a session? (session truth)
+ *  - {@link AuthOperation} — is an auth request in flight right now?
+ *  - `authErrorCode`       — why the last sign-in *attempt* failed
+ *  - `restoreErrorCode`    — why the last *restore* failed
+ *
+ * The store owns the last two as separate fields. Platform-free on purpose: no
+ * fetch, no storage, no React.
  */
 
+/**
+ * Session truth only. Deliberately has no "authenticating" and no "error"
+ * member — an in-flight request is an {@link AuthOperation}, and a failure is
+ * an error code, neither of which changes whether a session exists.
+ *
+ * `unknown` means exactly that: it is the initial value AND the value after a
+ * restore that could not reach the server. It is never rendered as signed-out.
+ */
 export type AuthStatus =
-  /** Nothing has been checked yet (initial state — never render signed-out UI). */
+  /** Not determined: nothing checked yet, or the check could not complete. */
   | "unknown"
   /** A stored session is being restored right now. */
   | "restoring"
-  /** Confirmed signed out: there is no stored session, or the server rejected it. */
+  /** Confirmed: no session — nothing stored, or the server rejected it. */
   | "signedOut"
-  /** A user-initiated authentication is in flight. */
-  | "authenticating"
   /** The server confirmed this session. */
-  | "signedIn"
-  /** Recoverable service failure — stored credentials are intact and untouched. */
-  | "error";
+  | "signedIn";
 
-/** Outcome of the identity client's bounded refresh attempt. */
+/** The single auth request that may be in flight. Only one at a time. */
+export type AuthOperation = "idle" | "sendingOtp" | "verifyingOtp";
+
+/** Outcome of the identity client's bounded, single-flight refresh attempt. */
 export type RefreshOutcome =
   | { kind: "refreshed" }
   /** Nothing stored to refresh. */
@@ -40,10 +52,12 @@ export type RefreshOutcome =
 export type RestoreKind = "restored" | "no-session" | "rejected" | "unavailable";
 
 /**
- * Map a restore outcome onto the auth status.
+ * Map a restore outcome onto session truth.
  *
- * `unavailable` is the important one: it becomes `error` (recoverable), never
- * `signedOut`, because the stored session may still be perfectly valid.
+ * `unavailable` is the important one: it stays `unknown`, never `signedOut`,
+ * because the stored session may still be perfectly valid — the app simply
+ * could not ask. The accompanying `restoreErrorCode` is what makes the state
+ * *resolved* (and offers Retry) rather than "still deciding".
  */
 export function restoreKindToAuthStatus(kind: RestoreKind): AuthStatus {
   switch (kind) {
@@ -53,7 +67,7 @@ export function restoreKindToAuthStatus(kind: RestoreKind): AuthStatus {
     case "rejected":
       return "signedOut";
     case "unavailable":
-      return "error";
+      return "unknown";
   }
 }
 
@@ -68,4 +82,9 @@ export function isRecoverableRestore(kind: RestoreKind): boolean {
  */
 export function restoreErrorCode(kind: RestoreKind): string | null {
   return kind === "unavailable" ? "service_unavailable" : null;
+}
+
+/** Whether an auth request is in flight (used to gate conflicting actions). */
+export function isAuthBusy(operation: AuthOperation): boolean {
+  return operation !== "idle";
 }

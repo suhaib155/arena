@@ -136,6 +136,18 @@ export type SessionRestoreResult =
 export class IdentityApiClient {
   private readonly baseUrl: string;
   private readonly store: SecureSessionStore;
+  /**
+   * The refresh currently in flight, shared by every caller that needs one.
+   *
+   * This is a security control, not an optimisation. The server rotates the
+   * refresh token on every use and treats a second presentation of the same
+   * token as a replay — it revokes the WHOLE session family and signs the user
+   * out everywhere (see backend SessionService.refresh). Two concurrent
+   * protected requests hitting 401 together (which `restoreSession` does by
+   * design: `me()` and `listWallets()` run in parallel) would otherwise present
+   * the same refresh token twice and destroy a perfectly valid session.
+   */
+  private refreshInFlight: Promise<RefreshOutcome> | null = null;
 
   constructor(opts: { baseUrl?: string; store?: SecureSessionStore } = {}) {
     this.baseUrl = opts.baseUrl ?? resolveBaseUrl();
@@ -162,7 +174,9 @@ export class IdentityApiClient {
       // One transparent refresh attempt, then retry the original call. The
       // attempt is bounded: `retryOn401: false` makes the recursion depth 1,
       // and there is no polling or backoff loop anywhere in this client.
-      const outcome = await this.tryRefresh();
+      // Concurrent 401s all await the SAME refresh (see refreshOnce), so the
+      // rotating refresh token is never presented twice.
+      const outcome = await this.refreshOnce();
       if (outcome.kind === "refreshed") return this.request<T>(path, { ...init, retryOn401: false });
       // A transient refresh failure must not be reported as "unauthenticated":
       // that would let a network blip look like a revoked session.
@@ -190,14 +204,47 @@ export class IdentityApiClient {
   }
 
   /**
-   * The single bounded refresh attempt, with a typed outcome.
+   * Single-flight wrapper around {@link performRefresh}.
+   *
+   * The first caller starts the refresh; every caller that arrives while it is
+   * running receives the SAME promise and therefore the same outcome. The slot
+   * is cleared once the operation settles — and only if it still holds that
+   * operation — so a later, genuinely independent expiry starts a fresh
+   * refresh. Nothing here polls, sleeps, or backs off.
+   *
+   * `performRefresh` never rejects (every failure is a typed outcome), so the
+   * shared promise cannot leave an unhandled rejection behind for the callers
+   * that merely awaited it.
+   */
+  private refreshOnce(): Promise<RefreshOutcome> {
+    const existing = this.refreshInFlight;
+    if (existing) return existing;
+
+    const operation = this.performRefresh().then(
+      (outcome) => {
+        if (this.refreshInFlight === operation) this.refreshInFlight = null;
+        return outcome;
+      },
+      (err: unknown) => {
+        if (this.refreshInFlight === operation) this.refreshInFlight = null;
+        throw err;
+      },
+    );
+
+    this.refreshInFlight = operation;
+    return operation;
+  }
+
+  /**
+   * The single bounded refresh attempt, with a typed outcome. Call it through
+   * {@link refreshOnce}, never directly.
    *
    * The distinction matters for security: a server rejection means the
    * credentials are dead and must be cleared, while a network/backend failure
    * means we simply don't know — so the stored credentials are left untouched
    * and the caller surfaces a retryable state instead of signing the user out.
    */
-  private async tryRefresh(): Promise<RefreshOutcome> {
+  private async performRefresh(): Promise<RefreshOutcome> {
     const tokens = await this.store.load();
     if (!tokens) return { kind: "no-session" };
     let res: Response;
@@ -217,7 +264,7 @@ export class IdentityApiClient {
     }
     if (!res.ok) {
       // The server rejected the refresh token: fail closed and clear.
-      await this.store.clear();
+      await this.discardCredentials();
       return { kind: "rejected" };
     }
     let data: { session: SessionEnvelope };
@@ -226,14 +273,54 @@ export class IdentityApiClient {
     } catch {
       return { kind: "unavailable" };
     }
-    await this.persistSession(data.session);
+    try {
+      await this.persistSession(data.session);
+    } catch {
+      /* The server rotated successfully but the new credentials could not be
+         written to the keystore. The OLD refresh token is now `rotated`
+         server-side, so presenting it again would be treated as a replay and
+         would revoke the entire session family. Drop it and re-authenticate —
+         this is the safe direction, and it never reports a persist that did
+         not happen. */
+      await this.discardCredentials();
+      return { kind: "rejected" };
+    }
     return { kind: "refreshed" };
   }
 
   /**
+   * Delete stored credentials when they are known to be dead.
+   *
+   * A delete failure is tolerated here *by design and only here*: the tokens
+   * have already been invalidated server-side, so leaving them on the device
+   * grants nothing, and turning a defensive cleanup into a rejected promise
+   * would be the difference between "you are signed out" and a bootstrap that
+   * never completes. Callers still receive `rejected`, so the app never
+   * believes a dead session is alive.
+   */
+  private async discardCredentials(): Promise<void> {
+    try {
+      await this.store.clear();
+    } catch {
+      /* Intentionally tolerated — see above. The outcome returned to the
+         caller is unchanged, so this cannot be mistaken for success. */
+    }
+  }
+
+  /**
    * Restore a stored session at startup. Performs at most the client's normal
-   * bounded refresh (inside `me()`), never polls, and never retries on its own
-   * — a user-initiated Retry calls this again.
+   * bounded refresh, never polls, and never retries on its own — a
+   * user-initiated Retry calls this again.
+   *
+   * `me()` and `listWallets()` run in parallel deliberately (one round trip
+   * instead of two on a cold start). That is safe ONLY because a 401 on both
+   * funnels into {@link refreshOnce}: exactly one refresh request is sent and
+   * both calls retry with the token it produced. Without that, the parallel
+   * pair would present the rotating refresh token twice and the server would
+   * revoke the whole family as a replay.
+   *
+   * This method never rejects: every failure is a typed outcome, so a caller
+   * awaiting it can never be left hanging or throw into a bootstrap.
    */
   async restoreSession(): Promise<SessionRestoreResult> {
     const tokens = await this.store.load();
@@ -256,7 +343,7 @@ export class IdentityApiClient {
         if (err.status === 401 || err.code === "unauthenticated") {
           // The refresh path already cleared the credentials; make sure the
           // device holds nothing dead even if the 401 came from elsewhere.
-          await this.store.clear();
+          await this.discardCredentials();
           return { kind: "rejected" };
         }
       }

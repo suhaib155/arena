@@ -59,10 +59,11 @@ function StartupErrorView({
   );
 }
 
-/** The concrete route each startup destination maps to. */
-const STARTUP_HREF: Partial<Record<StartupRoute, "/welcome" | "/opening" | "/(tabs)">> = {
+/** The concrete route each startup destination maps to. The intro carries an
+ *  explicit `source` so Skip/finish behave as first run, never as a replay. */
+const STARTUP_HREF: Partial<Record<StartupRoute, "/welcome" | "/opening?source=first-run" | "/(tabs)">> = {
   account: "/welcome",
-  intro: "/opening",
+  intro: "/opening?source=first-run",
   app: "/(tabs)",
 };
 

@@ -14,11 +14,14 @@ import {
   INTRO_STEP_COUNT,
   introPositionLabel,
   introProgress,
+  exitCompletesIntro,
   introStepAnnouncement,
   isLastIntroStep,
   LAST_INTRO_STEP,
   nextIntroStep,
   previousIntroStep,
+  resolveIntroExit,
+  toIntroSource,
   toIntroStep,
   type IntroStep,
 } from "../introFlow";
@@ -104,4 +107,47 @@ test("a double press on the final CTA collapses into one completion", () => {
   assert.equal(guard.tryAcquire(), false);
   now += 1200;
   assert.equal(guard.tryAcquire(), true, "a later, deliberate replay is allowed again");
+});
+
+// ---- exits: Skip, final CTA, replay ----------------------------------------
+
+test("first-run Skip completes the intro and goes to Home, not to Move", () => {
+  const exit = resolveIntroExit("first-run", "skip");
+  assert.equal(exit, "complete-home", "Skip means 'let me into the app'");
+  assert.equal(exitCompletesIntro(exit), true, "and it still finishes first run");
+});
+
+test("the first-run final CTA starts the first move, matching its label", () => {
+  const exit = resolveIntroExit("first-run", "finish");
+  assert.equal(exit, "complete-move");
+  assert.equal(exitCompletesIntro(exit), true);
+  // The label promises exactly this action.
+  assert.equal(INTRO_STEPS[LAST_INTRO_STEP].ctaLabel, "Start my first move");
+});
+
+test("a replay returns to its caller and never rewrites first-run state", () => {
+  for (const action of ["skip", "finish"] as const) {
+    const exit = resolveIntroExit("replay", action);
+    assert.equal(exit, "return", action);
+    assert.equal(exitCompletesIntro(exit), false, "a replay writes nothing");
+  }
+});
+
+test("the intro source comes from an explicit parameter and normalises safely", () => {
+  assert.equal(toIntroSource("replay"), "replay");
+  assert.equal(toIntroSource("first-run"), "first-run");
+  // Anything unrecognised falls back to first run — the only mode that can
+  // safely complete onboarding, so a mislabelled link cannot strand a user.
+  for (const value of [undefined, null, "", "REPLAY", "nonsense", 7, {}]) {
+    assert.equal(toIntroSource(value), "first-run", String(value));
+  }
+});
+
+test("every (source, action) pair resolves to a known exit", () => {
+  const known = new Set(["complete-home", "complete-move", "return"]);
+  for (const source of ["first-run", "replay"] as const) {
+    for (const action of ["skip", "finish"] as const) {
+      assert.ok(known.has(resolveIntroExit(source, action)), `${source}/${action}`);
+    }
+  }
 });

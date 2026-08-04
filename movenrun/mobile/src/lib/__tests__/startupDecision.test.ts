@@ -27,12 +27,23 @@ function input(patch: Partial<StartupInput> = {}): StartupInput {
   return {
     hydrated: true,
     authStatus: "signedOut",
+    // A concrete status implies the restore attempt finished.
+    restoreResolved: patch.authStatus !== "unknown" && patch.authStatus !== "restoring",
+    restoreErrorCode: null,
     firstRun: { ...FRESH_FIRST_RUN },
     backendConfigured: true,
     serviceErrorAcknowledged: false,
     ...patch,
   };
 }
+
+/** The shape produced by a transient restore failure: session truth is not
+ *  known, the attempt has resolved, and a public code earns a Retry. */
+const UNAVAILABLE = {
+  authStatus: "unknown" as const,
+  restoreResolved: true,
+  restoreErrorCode: "service_unavailable" as string | null,
+};
 
 // ---- still deciding ---------------------------------------------------------
 
@@ -45,7 +56,7 @@ test("hydration incomplete → splash, regardless of anything else", () => {
 
 test("session restoration incomplete → splash (no signed-out flash)", () => {
   for (const authStatus of ["unknown", "restoring"] as const) {
-    const d = decideStartup(input({ authStatus }));
+    const d = decideStartup(input({ authStatus, restoreResolved: false }));
     assert.equal(d.route, "splash", authStatus);
     assert.equal(d.status, "restoring-session");
   }
@@ -86,11 +97,11 @@ test("signed in but intro incomplete → the intro", () => {
 // ---- failure semantics ------------------------------------------------------
 
 test("a transient restore failure is recoverable, never a false signed-out truth", () => {
-  assert.equal(restoreKindToAuthStatus("unavailable"), "error");
+  assert.equal(restoreKindToAuthStatus("unavailable"), "unknown", "never a false signed-out");
   assert.ok(isRecoverableRestore("unavailable"));
   assert.equal(restoreErrorCode("unavailable"), "service_unavailable");
 
-  const d = decideStartup(input({ authStatus: "error", firstRun: READY_SIGNED_IN }));
+  const d = decideStartup(input({ ...UNAVAILABLE, firstRun: READY_SIGNED_IN }));
   assert.equal(d.route, "service-error");
   assert.equal(d.status, "recoverable-error");
   assert.equal(d.errorCode, "service_unavailable", "a stable public code, not a raw message");
@@ -106,9 +117,9 @@ test("only a stable public code is ever produced (never raw error text)", () => 
 
 test("a backend failure never blocks a user who has no session to restore", () => {
   // Local-beta user: the account service being down is irrelevant to them.
-  assert.equal(decideStartup(input({ authStatus: "error", firstRun: READY_LOCAL })).route, "app");
+  assert.equal(decideStartup(input({ ...UNAVAILABLE, firstRun: READY_LOCAL })).route, "app");
   // Undecided user: they can still choose the local beta on the account screen.
-  assert.equal(decideStartup(input({ authStatus: "error" })).route, "account");
+  assert.equal(decideStartup(input({ ...UNAVAILABLE })).route, "account");
 });
 
 test("backend URL absent → account choice with the local-beta fallback, never an error wall", () => {
@@ -118,14 +129,14 @@ test("backend URL absent → account choice with the local-beta fallback, never 
   // Even if the auth store somehow reported an error, an unconfigured build
   // must not strand the user in a retry screen that cannot succeed.
   assert.equal(
-    decideStartup(input({ backendConfigured: false, authStatus: "error", firstRun: READY_SIGNED_IN })).route,
+    decideStartup(input({ ...UNAVAILABLE, backendConfigured: false, firstRun: READY_SIGNED_IN })).route,
     "app",
   );
 });
 
 test("acknowledging the service error continues into the local experience", () => {
   const d = decideStartup(
-    input({ authStatus: "error", firstRun: READY_SIGNED_IN, serviceErrorAcknowledged: true }),
+    input({ ...UNAVAILABLE, firstRun: READY_SIGNED_IN, serviceErrorAcknowledged: true }),
   );
   assert.equal(d.route, "app", "the user chose to continue; credentials are still stored");
 });
@@ -133,28 +144,34 @@ test("acknowledging the service error continues into the local experience", () =
 // ---- totality ---------------------------------------------------------------
 
 test("the decision is total: every combination yields a known route", () => {
-  const statuses = ["unknown", "restoring", "signedOut", "authenticating", "signedIn", "error"] as const;
+  const statuses = ["unknown", "restoring", "signedOut", "signedIn"] as const;
   const firstRuns = [{ ...FRESH_FIRST_RUN }, signInFirstRun({ ...FRESH_FIRST_RUN }), READY_LOCAL, READY_SIGNED_IN];
   const known = new Set(["splash", "account", "intro", "app", "service-error"]);
   let seen = 0;
   for (const hydrated of [true, false]) {
     for (const authStatus of statuses) {
-      for (const firstRun of firstRuns) {
-        for (const backendConfigured of [true, false]) {
-          for (const serviceErrorAcknowledged of [true, false]) {
-            const d = decideStartup({
-              hydrated,
-              authStatus,
-              firstRun,
-              backendConfigured,
-              serviceErrorAcknowledged,
-            });
-            assert.ok(known.has(d.route), `${authStatus}/${firstRun.stage}`);
-            seen += 1;
+      for (const restoreResolved of [true, false]) {
+        for (const restoreErrorCode of [null, "service_unavailable"]) {
+          for (const firstRun of firstRuns) {
+            for (const backendConfigured of [true, false]) {
+              for (const serviceErrorAcknowledged of [true, false]) {
+                const d = decideStartup({
+                  hydrated,
+                  authStatus,
+                  restoreResolved,
+                  restoreErrorCode,
+                  firstRun,
+                  backendConfigured,
+                  serviceErrorAcknowledged,
+                });
+                assert.ok(known.has(d.route), `${authStatus}/${firstRun.stage}`);
+                seen += 1;
+              }
+            }
           }
         }
       }
     }
   }
-  assert.equal(seen, 2 * statuses.length * firstRuns.length * 2 * 2);
+  assert.equal(seen, 2 * statuses.length * 2 * 2 * firstRuns.length * 2 * 2);
 });

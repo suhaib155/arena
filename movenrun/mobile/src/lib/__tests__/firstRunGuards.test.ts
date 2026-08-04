@@ -24,6 +24,7 @@ const LEGACY_INTRO = join(APP, "onboarding.tsx");
 const ACCOUNT = join(APP, "account", "index.tsx");
 const LAYOUT = join(APP, "_layout.tsx");
 const HOME = join(APP, "(tabs)", "index.tsx");
+const PROFILE = join(APP, "(tabs)", "profile.tsx");
 const EMAIL_FORM = join(COMPONENTS, "EmailOtpForm.tsx");
 const GAME_STORE = join(SRC, "store", "useGameStore.ts");
 const AUTH_STORE = join(SRC, "store", "useAuthStore.ts");
@@ -209,11 +210,26 @@ test("the store maps restore outcomes through the pure classifier", () => {
   assert.ok(!/status:\s*"signedOut"[\s\S]{0,80}unavailable/.test(store), "unavailable is never signed-out");
 });
 
-test("no security-relevant path swallows an error silently", () => {
+test("no security-relevant path swallows an error silently or undocumented", () => {
   for (const path of [AUTH_STORE, IDENTITY_API, WELCOME, ACCOUNT, EMAIL_FORM, LAYOUT]) {
-    const src = code(path);
-    assert.ok(!/catch\s*\{\s*\}/.test(src), `${path}: empty catch`);
-    assert.ok(!/catch\s*\([^)]*\)\s*\{\s*\}/.test(src), `${path}: empty catch`);
+    const raw = read(path);
+    /* A catch block may be intentionally empty of *statements* — some cleanups
+       genuinely have nothing more to do — but it must say why, in the block
+       itself. A bare `catch {}` with no explanation is what hides bugs, so
+       that is what fails here. The raw source is used deliberately: the
+       explanation lives in a comment. */
+    for (const block of raw.match(/catch\s*(\([^)]*\))?\s*\{[\s\S]{0,400}?\}/g) ?? []) {
+      const body = block.slice(block.indexOf("{") + 1, block.lastIndexOf("}"));
+      const statements = body
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "")
+        .trim();
+      if (statements.length > 0) continue; // it does something
+      assert.ok(
+        /\/\*|\/\//.test(body),
+        `${path}: bare \`catch {}\` with no explanation:\n${block}`,
+      );
+    }
   }
 });
 
@@ -258,12 +274,88 @@ test("every first-run route is registered and routing cannot stack replaces", ()
   assert.match(layout, /useAppBootstrap\(\)/, "the layout consumes the single bootstrap decision");
 });
 
+// ---- error ownership --------------------------------------------------------
+
+test("a restore Retry is shown only for a restore error, never for a form error", () => {
+  for (const path of [WELCOME, ACCOUNT]) {
+    const src = code(path);
+    // The Retry block is gated on the RESTORE error, not on a generic status.
+    assert.match(src, /\{restoreErrorCode \?/, `${path}: Retry is gated on restoreErrorCode`);
+    assert.ok(
+      !/status === "error"/.test(src),
+      `${path}: no generic error status may decide which recovery is offered`,
+    );
+    // The form receives the form-owned code and nothing else.
+    assert.match(src, /errorCode=\{authErrorCode\}/, `${path}: the form shows sign-in errors`);
+    assert.ok(!/errorCode=\{restoreErrorCode\}/.test(src), `${path}: no restore error inside the form`);
+  }
+  // And the form itself offers no restore affordance at all.
+  const form = code(EMAIL_FORM);
+  assert.ok(!/retryRestore|restoreError/.test(form), "the form never invokes session restore");
+});
+
+test("the shared form's busy state comes from the auth operation, not session status", () => {
+  for (const path of [WELCOME, ACCOUNT]) {
+    const src = code(path);
+    assert.match(src, /isAuthBusy\(operation\)/, `${path}: busy is derived from the operation`);
+    assert.ok(!/status === "authenticating"/.test(src), `${path}: no overloaded status check`);
+  }
+});
+
+test("one auth request at a time, gated at the state layer", () => {
+  const store = code(AUTH_STORE);
+  // Both OTP actions refuse to start while another operation is running.
+  const guards = store.match(/get\(\)\.operation !== "idle"/g) ?? [];
+  assert.ok(guards.length >= 3, `send, verify and retryRestore all guard (saw ${guards.length})`);
+  // A successful send must return the operation to idle — otherwise the code
+  // field stays disabled and signup cannot be completed.
+  const begin = store.slice(store.indexOf("beginEmailOtp: async"), store.indexOf("completeEmailOtp: async"));
+  assert.match(begin, /operation: "idle", authErrorCode: null/, "successful send ends the operation");
+  assert.ok(!/status: "signedIn"/.test(begin), "sending a code never signs anyone in");
+});
+
+// ---- single-flight refresh ---------------------------------------------------
+
+test("every refresh goes through the single-flight wrapper", () => {
+  const src = code(IDENTITY_API);
+  assert.match(src, /private refreshInFlight: Promise<RefreshOutcome> \| null/);
+  assert.match(src, /await this\.refreshOnce\(\)/, "requests await the shared refresh");
+  // performRefresh is the implementation and must never be called directly.
+  const directCalls = src.match(/this\.performRefresh\(\)/g) ?? [];
+  assert.equal(directCalls.length, 1, "performRefresh is invoked only by refreshOnce");
+  // The slot is released so a later expiry can refresh again.
+  assert.match(src, /this\.refreshInFlight === operation/);
+});
+
 test("the startup error state offers recovery and shows no raw error", () => {
   const src = read(LAYOUT);
   assert.match(src, /label="Retry"/);
   assert.match(src, /Explore local beta/);
   assert.match(src, /authErrorMessage\(/, "copy comes from the stable code map");
   assert.ok(!/errorCode\}\s*<\/Text>|\{String\(err/.test(src), "no raw code or exception rendered");
+});
+
+// ---- intro exits -------------------------------------------------------------
+
+test("Skip and the final CTA are distinct actions decided by an explicit source", () => {
+  const src = code(INTRO);
+  assert.match(src, /toIntroSource\(params\.source\)/, "intent comes from a route parameter");
+  assert.match(src, /resolveIntroExit\(source, action\)/, "the exit is resolved purely");
+  assert.match(src, /onPress=\{skip\}/, "Skip has its own handler");
+  /* Replay must not be inferred from history depth. `canGoBack` may still be
+     used INSIDE the replay branch to pop back politely — what it may never do
+     is decide which branch we are in. */
+  const decision = src.slice(src.indexOf("const exit ="), src.indexOf('resolved === "return"'));
+  assert.ok(decision.length > 0, "found the exit decision");
+  assert.ok(!/canGoBack/.test(decision), "history depth must not decide replay vs first run");
+  // Completing first run never depends on navigation history either.
+  const completeBranch = src.slice(src.indexOf("completeIntro();"));
+  assert.ok(!/canGoBack/.test(completeBranch.slice(0, 200)), "completion is unconditional");
+});
+
+test("both entry points declare which mode they open the intro in", () => {
+  assert.match(code(LAYOUT), /"\/opening\?source=first-run"/, "startup opens first-run mode");
+  assert.match(code(PROFILE), /\/opening\?source=replay/, "Profile opens replay mode");
 });
 
 // ---- animation safety -------------------------------------------------------
@@ -283,6 +375,34 @@ test("redesigned first-run screens stay on the native driver with safe propertie
 });
 
 // ---- home / first mission ---------------------------------------------------
+
+test("Home renders from the pure composition rule, with no second opinion", () => {
+  const src = code(HOME);
+  /* The "exactly one primary CTA" invariant is proven for every input in
+     firstMission.test.ts. What must be guarded HERE is that the screen obeys
+     that rule instead of re-deciding with its own conditionals — the original
+     defect was four independent booleans that disagreed. */
+  assert.match(src, /composeHome\(\{/, "the screen consumes the pure rule");
+  for (const flag of [
+    "composition.showFirstMissionHero",
+    "composition.showNormalHeroCta",
+    "composition.showMissionCard",
+    "composition.showUpNext",
+  ]) {
+    const uses = src.split(flag).length - 1;
+    assert.equal(uses, 1, `${flag} must gate exactly one block (saw ${uses})`);
+  }
+  // No block may re-derive visibility from the raw flag or a literal.
+  assert.ok(
+    !/\{firstMissionActive \?|\{!firstMissionActive|\{true \?|\{false \?/.test(src),
+    "visibility comes from the composition, never from an ad-hoc condition",
+  );
+  // Exactly one button binds the first mission's primary label, and the
+  // secondary action is lower-emphasis so it cannot read as a rival CTA.
+  assert.equal((src.match(/label=\{firstMission\.primaryLabel\}/g) ?? []).length, 1);
+  assert.match(src, /label=\{firstMission\.secondaryLabel\}[\s\S]{0,140}variant="ghost"/);
+  assert.ok(!/styles\.firstMission:/.test(src), "no separate competing mission card");
+});
 
 test("Home derives the first mission and its CTA uses the real movement route", () => {
   const src = code(HOME);

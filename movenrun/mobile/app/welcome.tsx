@@ -10,7 +10,7 @@
  * must not be advertised as a control), any wallet address, any user id, any
  * token, any backend host name, and any permission prompt.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -22,12 +22,15 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useGameStore } from "@/store/useGameStore";
 import { isBackendConfigured } from "@/services/identityApi";
 import { authErrorMessage } from "@/lib/emailAuth";
+import { isAuthBusy } from "@/lib/authLifecycle";
 import { buildDeviceLabel } from "@/lib/deviceLabel";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
 
 export default function WelcomeScreen() {
   const status = useAuthStore((s) => s.status);
-  const errorCode = useAuthStore((s) => s.errorCode);
+  const operation = useAuthStore((s) => s.operation);
+  const authErrorCode = useAuthStore((s) => s.authErrorCode);
+  const restoreErrorCode = useAuthStore((s) => s.restoreErrorCode);
   const beginEmailOtp = useAuthStore((s) => s.beginEmailOtp);
   const completeEmailOtp = useAuthStore((s) => s.completeEmailOtp);
   const retryRestore = useAuthStore((s) => s.retryRestore);
@@ -36,7 +39,13 @@ export default function WelcomeScreen() {
   const firstRunStage = useGameStore((s) => s.firstRun.stage);
 
   const backendConfigured = isBackendConfigured();
-  const busy = status === "authenticating";
+  const busy = isAuthBusy(operation);
+  /* Conflicting actions are gated only for the brief moment a request is in
+     flight, so choosing the local beta can never leave an unseen verification
+     landing afterwards and changing first-run state behind the user's back.
+     No cancellation infrastructure, no polling — just a short, honest lock. */
+  const [formBusy, setFormBusy] = useState(false);
+  const locked = busy || formBusy;
 
   /* The SERVER decides when someone is signed in. First-run state only follows
      that confirmation — never an optimistic local guess. Advancing the stage
@@ -49,6 +58,7 @@ export default function WelcomeScreen() {
   }, [status, firstRunStage, markSignedIn]);
 
   const onLocalBeta = () => {
+    if (locked) return; // never start a second transition mid-request
     tapFeedback();
     chooseLocalBeta();
   };
@@ -73,26 +83,32 @@ export default function WelcomeScreen() {
           <View style={styles.card}>
             <EmailOtpForm
               busy={busy}
-              errorCode={errorCode}
+              errorCode={authErrorCode}
               helperText="New here? We create your account automatically. Returning? Use the same email."
-              onSendCode={async (email) => {
-                await beginEmailOtp(email);
-                return useAuthStore.getState().status !== "error";
-              }}
-              onVerifyCode={async (email, code) => {
-                await completeEmailOtp(email, code, buildDeviceLabel(Platform.OS));
-              }}
+              onBusyChange={setFormBusy}
+              onSendCode={beginEmailOtp}
+              onVerifyCode={(email, code) =>
+                completeEmailOtp(email, code, buildDeviceLabel(Platform.OS))
+              }
             />
-            {status === "error" ? (
-              <Button
-                label="Retry"
-                variant="secondary"
-                icon="refresh-outline"
-                onPress={() => {
-                  tapFeedback();
-                  void retryRestore();
-                }}
-              />
+            {/* A restore Retry belongs ONLY to a failed session restoration.
+                A wrong or expired code is a form error and is corrected inside
+                the form — offering "Retry" for it would run the wrong
+                operation entirely. */}
+            {restoreErrorCode ? (
+              <View style={styles.restoreBox} accessibilityLiveRegion="polite">
+                <Text style={styles.statusBody}>{authErrorMessage(restoreErrorCode)}</Text>
+                <Button
+                  label="Retry"
+                  variant="secondary"
+                  icon="refresh-outline"
+                  disabled={locked}
+                  onPress={() => {
+                    tapFeedback();
+                    void retryRestore();
+                  }}
+                />
+              </View>
             ) : null}
           </View>
         ) : (
@@ -111,6 +127,7 @@ export default function WelcomeScreen() {
           label="Explore local beta"
           variant="secondary"
           icon="walk-outline"
+          disabled={locked}
           onPress={onLocalBeta}
         />
 
@@ -153,6 +170,7 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   statusTitle: { ...type.heading, fontSize: 15, flex: 1 },
   statusBody: { ...type.body, fontSize: 13.5, lineHeight: 19, color: colors.textDim },
+  restoreBox: { gap: spacing.md, paddingTop: spacing.xs },
   footer: { gap: spacing.xs, paddingTop: spacing.sm },
   footerHeading: { ...type.kicker, color: colors.textDim, paddingTop: spacing.xs },
   footerText: { ...type.caption, fontSize: 12, lineHeight: 17, color: colors.textFaint },

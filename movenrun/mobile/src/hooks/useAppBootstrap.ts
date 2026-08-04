@@ -20,6 +20,8 @@ export function useAppBootstrap(): StartupDecision {
   const hydrated = useGameStore((s) => s._hydrated);
   const firstRun = useGameStore((s) => s.firstRun);
   const authStatus = useAuthStore((s) => s.status);
+  const lastRestore = useAuthStore((s) => s.lastRestore);
+  const restoreErrorCode = useAuthStore((s) => s.restoreErrorCode);
   const serviceErrorAcknowledged = useAuthStore((s) => s.restoreErrorAcknowledged);
   const initialize = useAuthStore((s) => s.initialize);
 
@@ -32,6 +34,8 @@ export function useAppBootstrap(): StartupDecision {
   return decideStartup({
     hydrated,
     authStatus,
+    restoreResolved: lastRestore !== null,
+    restoreErrorCode,
     firstRun,
     backendConfigured: isBackendConfigured(),
     serviceErrorAcknowledged,

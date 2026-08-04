@@ -38,6 +38,12 @@ export interface StartupInput {
   /** Persisted gameplay state has finished loading from AsyncStorage. */
   hydrated: boolean;
   authStatus: AuthStatus;
+  /** The restore attempt has finished (whatever its outcome). Distinguishes
+   *  "not determined yet" from "tried and could not reach the service" — both
+   *  of which leave `authStatus` at `unknown`. */
+  restoreResolved: boolean;
+  /** Stable public code from a recoverable restore failure, else null. */
+  restoreErrorCode: string | null;
   firstRun: FirstRunState;
   /** `EXPO_PUBLIC_API_URL` is configured in this build. */
   backendConfigured: boolean;
@@ -84,19 +90,26 @@ export function decideStartup(input: StartupInput): StartupDecision {
     return { status: "hydrating", route: "splash", errorCode: null };
   }
 
-  if (input.authStatus === "unknown" || input.authStatus === "restoring") {
+  if (input.authStatus === "restoring") {
+    return { status: "restoring-session", route: "splash", errorCode: null };
+  }
+
+  // `unknown` before the attempt finishes means we are still deciding; the
+  // same `unknown` AFTER it finishes means the service could not be reached,
+  // which is a resolved (retryable) state, not an endless splash.
+  if (input.authStatus === "unknown" && !input.restoreResolved) {
     return { status: "restoring-session", route: "splash", errorCode: null };
   }
 
   if (
-    input.authStatus === "error" &&
+    input.restoreErrorCode !== null &&
     input.backendConfigured &&
     input.firstRun.mode === "signed_in" &&
     !input.serviceErrorAcknowledged
   ) {
     // A session is stored and may still be valid — surface a retryable state
     // instead of silently demoting the user to signed-out.
-    return { status: "recoverable-error", route: "service-error", errorCode: "service_unavailable" };
+    return { status: "recoverable-error", route: "service-error", errorCode: input.restoreErrorCode };
   }
 
   return { status: "ready", route: routeForStage(input.firstRun), errorCode: null };

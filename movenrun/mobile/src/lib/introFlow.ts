@@ -93,6 +93,49 @@ export const INTRO_STEPS: readonly IntroStepContent[] = Object.freeze([
   },
 ]);
 
+/* ── How the intro was opened, and what each exit therefore means ── */
+
+/**
+ * Why the intro is on screen. Passed as an explicit route parameter rather
+ * than inferred from `router.canGoBack()`: navigation history is not intent,
+ * and the two cases need genuinely different exits.
+ */
+export type IntroSource = "first-run" | "replay";
+
+/** What an exit should do. Never depends on history depth. */
+export type IntroExit =
+  /** Mark first run complete and enter the app (Home). */
+  | "complete-home"
+  /** Mark first run complete and start the first movement session. */
+  | "complete-move"
+  /** Return to whoever pushed the intro; persisted state is untouched. */
+  | "return";
+
+/** Normalise an unknown/absent route parameter. Anything unrecognised is
+ *  treated as first run, which is the only mode that can safely *complete*
+ *  onboarding — a mislabelled replay would otherwise strand the user. */
+export function toIntroSource(value: unknown): IntroSource {
+  return value === "replay" ? "replay" : "first-run";
+}
+
+/**
+ * Resolve what an exit does.
+ *
+ * Skip means "let me into the app", not "start a workout": in first run it
+ * completes the intro and lands on Home. The final CTA is labelled
+ * "Start my first move", so it does exactly that. A replay changes nothing and
+ * simply returns to its caller.
+ */
+export function resolveIntroExit(source: IntroSource, action: "skip" | "finish"): IntroExit {
+  if (source === "replay") return "return";
+  return action === "skip" ? "complete-home" : "complete-move";
+}
+
+/** Whether this exit should write first-run completion. */
+export function exitCompletesIntro(exit: IntroExit): boolean {
+  return exit !== "return";
+}
+
 /** Screen-reader announcement when the step changes. */
 export function introStepAnnouncement(step: IntroStep): string {
   const content = INTRO_STEPS[step];

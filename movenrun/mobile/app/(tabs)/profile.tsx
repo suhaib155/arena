@@ -356,7 +356,7 @@ export default function ProfileScreen() {
           onPress={() => {
             if (!replayGuard.tryAcquire()) return;
             tapFeedback();
-            router.push("/opening");
+            router.push("/opening?source=replay");
           }}
           style={styles.replayLink}
         >
