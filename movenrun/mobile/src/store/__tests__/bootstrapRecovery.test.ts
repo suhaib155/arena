@@ -54,11 +54,12 @@ test("a SecureStore read failure resolves to a recoverable state, never a stuck 
 
   await state().retryRestore();
 
-  // The secure-store core fails closed on a read: "no session" is a definite
-  // answer, so the app resolves rather than hanging.
   assert.notEqual(state().status, "restoring", "never left mid-restore");
   assert.notEqual(state().lastRestore, null, "the attempt resolved");
   assert.equal(state().operation, "idle");
+  // And it is honest about which failure it was.
+  assert.equal(state().status, "unknown", "an unreadable keystore is not a sign-out");
+  assert.equal(state().restoreErrorCode, "secure_storage_unavailable");
 });
 
 test("an unexpected throw inside restoration is recoverable and clears nothing", async () => {
@@ -160,4 +161,75 @@ test("retryRestore refuses to race an in-flight auth request", async () => {
 
   assert.equal(calls, 0, "no restore is started underneath a verification");
   useAuthStore.setState({ operation: "idle" });
+});
+
+// ---- restore single-flight ---------------------------------------------------
+
+test("three concurrent Retry taps share ONE restore", async () => {
+  const store = createSecureSessionStore(createTestSecureBackend());
+  await store.save(TOKENS());
+  let meCalls = 0;
+  globalThis.fetch = (async (input: string) => {
+    const url = String(input);
+    if (url.endsWith("/identity/me")) {
+      meCalls += 1;
+      // Yield so the other two calls definitely arrive while this is in flight.
+      await new Promise((r) => setImmediate(r));
+      return json(200, { user: { id: "usr_1", status: "active", createdAt: FUTURE() }, session: {}, identities: [] });
+    }
+    if (url.endsWith("/identity/wallets")) return json(200, { wallets: [] });
+    return json(404, {});
+  }) as typeof fetch;
+  reset(new IdentityApiClient({ baseUrl: "https://identity.test", store }));
+
+  await Promise.all([state().retryRestore(), state().retryRestore(), state().retryRestore()]);
+
+  assert.equal(meCalls, 1, "three taps, one restore — no duplicate account reads");
+  assert.equal(state().status, "signedIn");
+});
+
+test("a Retry after the previous flight settled starts exactly one new flight", async () => {
+  const store = createSecureSessionStore(createTestSecureBackend());
+  await store.save(TOKENS());
+  let meCalls = 0;
+  globalThis.fetch = (async (input: string) => {
+    const url = String(input);
+    if (url.endsWith("/identity/me")) {
+      meCalls += 1;
+      return json(200, { user: { id: "usr_1", status: "active", createdAt: FUTURE() }, session: {}, identities: [] });
+    }
+    if (url.endsWith("/identity/wallets")) return json(200, { wallets: [] });
+    return json(404, {});
+  }) as typeof fetch;
+  reset(new IdentityApiClient({ baseUrl: "https://identity.test", store }));
+
+  await state().retryRestore();
+  assert.equal(meCalls, 1);
+  await state().retryRestore();
+  assert.equal(meCalls, 2, "the slot was released, so a later Retry genuinely retries");
+});
+
+test("outcomes cannot race: concurrent callers share one result", async () => {
+  const store = createSecureSessionStore(createTestSecureBackend());
+  await store.save(TOKENS());
+  let attempt = 0;
+  globalThis.fetch = (async (input: string) => {
+    const url = String(input);
+    if (url.endsWith("/identity/me")) {
+      attempt += 1;
+      /* A second CONCURRENT restore would take this failing branch and could
+         otherwise overwrite the first one's success out of order. */
+      if (attempt > 1) throw new TypeError("Network request failed");
+      await new Promise((r) => setImmediate(r));
+      return json(200, { user: { id: "usr_1", status: "active", createdAt: FUTURE() }, session: {}, identities: [] });
+    }
+    if (url.endsWith("/identity/wallets")) return json(200, { wallets: [] });
+    return json(404, {});
+  }) as typeof fetch;
+  reset(new IdentityApiClient({ baseUrl: "https://identity.test", store }));
+
+  await Promise.all([state().retryRestore(), state().retryRestore()]);
+
+  assert.equal(state().status, "signedIn", "the single shared outcome won");
+  assert.equal(state().restoreErrorCode, null, "no failure raced in on top of it");
 });

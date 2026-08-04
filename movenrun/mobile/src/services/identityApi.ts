@@ -13,10 +13,11 @@
  */
 import {
   getSecureSessionStore,
+  isSecureSessionStorageError,
   type SecureSessionStore,
   type SecureSessionTokens,
 } from "../lib/secureSession";
-import type { RefreshOutcome, RestoreKind } from "../lib/authLifecycle";
+import type { RefreshOutcome, RestoreKind, UnavailableCode } from "../lib/authLifecycle";
 
 export interface PublicUser {
   id: string;
@@ -131,7 +132,11 @@ export type SessionRestoreResult =
       identities: PublicIdentity[];
       wallets: PublicWallet[];
     }
-  | { kind: Exclude<RestoreKind, "restored"> };
+  | { kind: "no-session" }
+  | { kind: "rejected" }
+  /** Carries WHY, so the UI can distinguish an unreachable backend from an
+   *  unreadable keystore. Neither says anything about session existence. */
+  | { kind: "unavailable"; code: UnavailableCode };
 
 export class IdentityApiClient {
   private readonly baseUrl: string;
@@ -160,7 +165,11 @@ export class IdentityApiClient {
   ): Promise<T> {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (init.auth) {
-      const tokens = await this.store.load();
+      /* A keystore that cannot be READ is not the same as an empty keystore.
+         Treating it as 401 would let a transient read failure be classified as
+         a rejected session — and rejected sessions get deleted. It becomes a
+         recoverable client error instead, and never reaches the 401 path. */
+      const tokens = await this.loadTokens();
       if (!tokens) throw new IdentityApiError(401, "unauthenticated");
       headers.authorization = `Bearer ${tokens.accessToken}`;
     }
@@ -180,7 +189,7 @@ export class IdentityApiClient {
       if (outcome.kind === "refreshed") return this.request<T>(path, { ...init, retryOn401: false });
       // A transient refresh failure must not be reported as "unauthenticated":
       // that would let a network blip look like a revoked session.
-      if (outcome.kind === "unavailable") throw new IdentityApiError(0, "service_unavailable");
+      if (outcome.kind === "unavailable") throw new IdentityApiError(0, outcome.code);
     }
 
     if (!res.ok) {
@@ -188,6 +197,22 @@ export class IdentityApiClient {
       throw new IdentityApiError(res.status, body?.error?.code ?? "request_failed");
     }
     return (await res.json()) as T;
+  }
+
+  /**
+   * Read stored credentials, converting an unreadable keystore into a typed,
+   * recoverable client error. `null` therefore means one thing only: there is
+   * genuinely no valid stored session.
+   */
+  private async loadTokens(): Promise<SecureSessionTokens | null> {
+    try {
+      return await this.store.load();
+    } catch (err) {
+      if (isSecureSessionStorageError(err) && err.code === "read_unavailable") {
+        throw new IdentityApiError(0, "secure_storage_unavailable");
+      }
+      throw err;
+    }
   }
 
   /**
@@ -245,7 +270,13 @@ export class IdentityApiClient {
    * and the caller surfaces a retryable state instead of signing the user out.
    */
   private async performRefresh(): Promise<RefreshOutcome> {
-    const tokens = await this.store.load();
+    let tokens: SecureSessionTokens | null;
+    try {
+      tokens = await this.loadTokens();
+    } catch {
+      // Unreadable keystore: nothing is known and nothing may be deleted.
+      return { kind: "unavailable", code: "secure_storage_unavailable" };
+    }
     if (!tokens) return { kind: "no-session" };
     let res: Response;
     try {
@@ -256,11 +287,11 @@ export class IdentityApiClient {
       });
     } catch {
       // Transport failure — credentials deliberately NOT cleared.
-      return { kind: "unavailable" };
+      return { kind: "unavailable", code: "service_unavailable" };
     }
     if (res.status >= 500) {
       // The backend is unhealthy; it has not judged these credentials.
-      return { kind: "unavailable" };
+      return { kind: "unavailable", code: "service_unavailable" };
     }
     if (!res.ok) {
       // The server rejected the refresh token: fail closed and clear.
@@ -271,7 +302,7 @@ export class IdentityApiClient {
     try {
       data = (await res.json()) as { session: SessionEnvelope };
     } catch {
-      return { kind: "unavailable" };
+      return { kind: "unavailable", code: "service_unavailable" };
     }
     try {
       await this.persistSession(data.session);
@@ -323,7 +354,14 @@ export class IdentityApiClient {
    * awaiting it can never be left hanging or throw into a bootstrap.
    */
   async restoreSession(): Promise<SessionRestoreResult> {
-    const tokens = await this.store.load();
+    let tokens: SecureSessionTokens | null;
+    try {
+      tokens = await this.loadTokens();
+    } catch {
+      /* The keystore could not be read. That is NOT "no session": nothing is
+         deleted, nothing is claimed, and the caller offers a Retry. */
+      return { kind: "unavailable", code: "secure_storage_unavailable" };
+    }
     // No stored (or no *valid*, unexpired) session material: confirmed signed
     // out. The secure store already deleted anything malformed or expired.
     if (!tokens) return { kind: "no-session" };
@@ -337,8 +375,12 @@ export class IdentityApiClient {
       };
     } catch (err) {
       if (err instanceof IdentityApiError) {
+        if (err.code === "secure_storage_unavailable") {
+          // A read failure mid-flight: still not evidence about the session.
+          return { kind: "unavailable", code: "secure_storage_unavailable" };
+        }
         if (err.code === "service_unavailable" || err.status >= 500 || err.status === 0) {
-          return { kind: "unavailable" };
+          return { kind: "unavailable", code: "service_unavailable" };
         }
         if (err.status === 401 || err.code === "unauthenticated") {
           // The refresh path already cleared the credentials; make sure the
@@ -349,7 +391,7 @@ export class IdentityApiClient {
       }
       // Anything else is unclassifiable, so fail *safe* rather than closed:
       // never discard credentials we haven't been told are invalid.
-      return { kind: "unavailable" };
+      return { kind: "unavailable", code: "service_unavailable" };
     }
   }
 
@@ -367,12 +409,22 @@ export class IdentityApiClient {
     await this.request<{ challengeId: string }>("/identity/auth/email/begin", { method: "POST", body: { email } });
   }
 
+  /**
+   * Verify a one-time code. Resolves ONLY when the server confirmed the login
+   * AND the session was persisted — those two together are the authentication
+   * commit point. A persist failure surfaces as a typed public code so the app
+   * never claims a sign-in whose credentials were not stored.
+   */
   async completeEmailOtp(email: string, code: string, deviceLabel?: string): Promise<LoginResult> {
     const result = await this.request<LoginResult>("/identity/auth/email/complete", {
       method: "POST",
       body: deviceLabel === undefined ? { email, code } : { email, code, deviceLabel },
     });
-    await this.persistSession(result.session);
+    try {
+      await this.persistSession(result.session);
+    } catch {
+      throw new IdentityApiError(0, "secure_storage_unavailable");
+    }
     return result;
   }
 

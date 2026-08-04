@@ -18,6 +18,7 @@ import {
   createIdentityApiClient,
   IdentityApiClient,
   IdentityApiError,
+  type LoginResult,
   type PublicIdentity,
   type PublicSessionSummary,
   type PublicUser,
@@ -124,6 +125,68 @@ const SIGNED_OUT_STATE = {
 };
 
 /**
+ * Monotonic session generation.
+ *
+ * Bumped whenever the authenticated identity changes (a login commits, a
+ * restore resolves, a sign-out lands). Background work captures the generation
+ * it started under and refuses to apply its result once the store has moved on
+ * — so a slow account-sync response cannot resurrect a signed-out user, and a
+ * first user's data can never land on top of a second user's session.
+ */
+let sessionGeneration = 0;
+
+function beginSessionGeneration(): number {
+  sessionGeneration += 1;
+  return sessionGeneration;
+}
+
+/**
+ * Post-login account synchronisation — enrichment, NOT authentication.
+ *
+ * By the time this runs the user is already signed in: the server confirmed the
+ * login and the tokens are in the keystore. These reads only replace the seeded
+ * public state with the server's full view, so a transient failure here must
+ * never bounce the user back to code entry — and must never discard a session
+ * the device legitimately holds.
+ *
+ * It never throws, and it applies nothing once its session generation has been
+ * superseded.
+ */
+async function syncAccountState(
+  client: IdentityApiClient,
+  generation: number,
+  set: (partial: Partial<AuthState>) => void,
+  get: () => AuthState,
+): Promise<void> {
+  const stillCurrent = () => sessionGeneration === generation && get().status === "signedIn";
+  try {
+    // Both reads share the client's single-flight refresh, so they cannot
+    // rotate the refresh token twice.
+    const [me, wallets] = await Promise.all([client.me(), client.listWallets()]);
+    if (!stillCurrent()) return; // superseded — discard, never resurrect
+    set({
+      user: me.user,
+      identities: me.identities,
+      wallets: wallets.wallets,
+      accountErrorCode: null,
+    });
+  } catch (err) {
+    if (!stillCurrent()) return;
+    if (isAuthLost(err)) {
+      /* The server says this session is gone. The client has already cleared
+         the credentials, so runtime state falls closed too — this is the one
+         enrichment failure that IS authoritative. */
+      beginSessionGeneration();
+      set({ ...SIGNED_OUT_STATE, lastRestore: "rejected", accountErrorCode: codeOf(err) });
+      return;
+    }
+    /* Transient: the sign-in stands, the secure session stands, and the seeded
+       account state stays. Only a stable sync code is surfaced. */
+    set({ accountErrorCode: "account_sync_unavailable" });
+  }
+}
+
+/**
  * Apply a restore outcome to the store. The mapping is the whole point:
  *  - restored  → signed in with server-derived state;
  *  - no-session / rejected → confirmed signed out (the client has already
@@ -138,6 +201,7 @@ async function runRestore(
   const outcome = await client.restoreSession();
   const status = restoreKindToAuthStatus(outcome.kind);
   if (outcome.kind === "restored") {
+    beginSessionGeneration();
     set({
       status,
       operation: "idle",
@@ -146,6 +210,7 @@ async function runRestore(
       identities: outcome.identities,
       wallets: outcome.wallets,
       restoreErrorCode: null,
+      accountErrorCode: null,
     });
     return;
   }
@@ -158,32 +223,56 @@ async function runRestore(
       status,
       operation: "idle",
       lastRestore: outcome.kind,
-      restoreErrorCode: restoreErrorCode(outcome.kind),
+      // Carries WHY: an unreachable backend and an unreadable keystore get
+      // different (still stable, still public) copy.
+      restoreErrorCode: restoreErrorCode(outcome.kind, outcome.code),
     });
     return;
   }
+  beginSessionGeneration();
   set({ ...SIGNED_OUT_STATE, lastRestore: outcome.kind, restoreErrorCode: null });
 }
 
 /**
- * The initialization currently in flight, shared by every caller.
+ * Restore lifecycle — three separate facts, never overlapping booleans:
  *
- * A plain `bootstrapped = true` flag set *before* the async work was a trap:
- * if restoration ever rejected, the app stayed in `restoring` forever and the
- * flag suppressed every future attempt — an unrecoverable splash. An explicit
- * promise fixes both halves: concurrent callers share one initialization, and
- * the slot is released when a run ends without a definite answer, so Retry can
- * genuinely retry. A run that resolved the session keeps the slot (idempotent).
+ *  - `initialized`     : automatic startup initialization has already run for
+ *                        this app process, so the bootstrap effect is a no-op.
+ *  - `restoreInFlight` : a restore is running RIGHT NOW, whoever started it.
+ *  - `operation`       : an OTP send/verify is running (store state, above).
+ *
+ * One boolean used to stand in for the first two, which is how two rapid Retry
+ * taps could start two concurrent `restoreSession()` calls: single-flight
+ * refresh stopped the token being rotated twice, but the duplicate restores
+ * still raced their outcomes into the store in arbitrary order.
  */
-let initInFlight: Promise<void> | null = null;
+let initialized = false;
+let restoreInFlight: Promise<void> | null = null;
 
 /**
- * Forget any completed initialization so the next `initialize()` runs again.
- * Used ONLY by tests, which drive several independent bootstrap scenarios
- * through one module instance; app code never calls it.
+ * Run `work` as the one active restore. Callers arriving while a restore is
+ * running share it — and therefore share its outcome — so two results can never
+ * be applied out of order. The slot is released when the flight settles, and
+ * only if it still holds that flight, so a later explicit Retry starts a new one.
+ */
+function restoreSingleFlight(work: () => Promise<void>): Promise<void> {
+  const existing = restoreInFlight;
+  if (existing) return existing;
+  const run = work().finally(() => {
+    if (restoreInFlight === run) restoreInFlight = null;
+  });
+  restoreInFlight = run;
+  return run;
+}
+
+/**
+ * Forget the process-level restore lifecycle so the next `initialize()` runs
+ * again. Used ONLY by tests, which drive several independent bootstrap
+ * scenarios through one module instance; app code never calls it.
  */
 export function resetAuthBootstrapForTests(): void {
-  initInFlight = null;
+  initialized = false;
+  restoreInFlight = null;
 }
 
 /**
@@ -212,14 +301,16 @@ async function guardedRestore(
   }
 }
 
-/** Build the client (once) and restore. Never rejects. */
-async function bootstrap(
+/**
+ * Resolve THE identity client, or record why it is impossible. Never throws.
+ * Shared by bootstrap and Retry so client construction stays centralised.
+ */
+function resolveClient(
   set: (partial: Partial<AuthState>) => void,
   get: () => AuthState,
-): Promise<void> {
-  // ONE construction point for the identity client. Construction itself can
-  // throw (the secure-store registry refuses to hand out an uninstalled
-  // store), so it is guarded too.
+): IdentityApiClient | null {
+  // Construction itself can throw (the secure-store registry refuses to hand
+  // out an uninstalled store), so it is guarded too.
   let client: IdentityApiClient | null;
   try {
     client = get().client ?? createIdentityApiClient();
@@ -228,13 +319,14 @@ async function bootstrap(
       status: "unknown",
       operation: "idle",
       lastRestore: "unavailable",
-      restoreErrorCode: "service_unavailable",
+      restoreErrorCode: "secure_storage_unavailable",
     });
-    return;
+    return null;
   }
   if (!client) {
     // No backend is configured: nothing can be restored and nothing can be
     // signed into. That is a *confirmed* signed-out state, not an unknown one.
+    beginSessionGeneration();
     set({
       client: null,
       status: "signedOut",
@@ -242,8 +334,18 @@ async function bootstrap(
       lastRestore: "no-session",
       restoreErrorCode: null,
     });
-    return;
+    return null;
   }
+  return client;
+}
+
+/** Build the client (once) and restore. Never rejects. */
+async function bootstrap(
+  set: (partial: Partial<AuthState>) => void,
+  get: () => AuthState,
+): Promise<void> {
+  const client = resolveClient(set, get);
+  if (!client) return;
   set({ client, status: "restoring", restoreErrorCode: null, restoreErrorAcknowledged: false });
   await guardedRestore(client, set);
 }
@@ -268,43 +370,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setClient: (client) => set({ client }),
 
   initialize: async () => {
-    // Concurrent callers (a remount, fast refresh, a second screen) share the
-    // SAME initialization instead of racing two restores against one another.
-    if (initInFlight) return initInFlight;
-    const run = bootstrap(set, get).finally(() => {
-      /* Release the slot only while the session is still undetermined, so a
-         recoverable failure stays retryable. Once a restore has produced a
-         definite answer the slot is kept and initialize() is a no-op. */
-      if (initInFlight === run && get().lastRestore === null) initInFlight = null;
+    /* Automatic startup initialization runs once per process. Concurrent
+       callers (a remount, fast refresh, a second screen) share the SAME
+       restore; an explicit Retry is the path back after a recoverable
+       failure, so this does not need to re-arm itself. */
+    if (initialized) return;
+    return restoreSingleFlight(async () => {
+      try {
+        await bootstrap(set, get);
+      } finally {
+        initialized = true;
+      }
     });
-    initInFlight = run;
-    return run;
   },
 
   retryRestore: async () => {
     if (get().operation !== "idle") return; // never race an in-flight auth request
-    let client: IdentityApiClient | null;
-    try {
-      client = get().client ?? createIdentityApiClient();
-    } catch {
-      return set({
-        status: "unknown",
-        operation: "idle",
-        lastRestore: "unavailable",
-        restoreErrorCode: "service_unavailable",
-      });
-    }
-    if (!client) {
-      return set({
-        client: null,
-        status: "signedOut",
-        operation: "idle",
-        lastRestore: "no-session",
-        restoreErrorCode: null,
-      });
-    }
-    set({ client, status: "restoring", restoreErrorCode: null, restoreErrorAcknowledged: false });
-    await guardedRestore(client, set);
+    // Repeated Retry taps share the one active restore.
+    return restoreSingleFlight(async () => {
+      const client = resolveClient(set, get);
+      if (!client) return;
+      set({ client, status: "restoring", restoreErrorCode: null, restoreErrorAcknowledged: false });
+      await guardedRestore(client, set);
+    });
   },
 
   acknowledgeRestoreError: () => set({ restoreErrorAcknowledged: true }),
@@ -340,30 +428,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     if (get().operation !== "idle" || get().status === "signedIn") return false;
     set({ operation: "verifyingOtp", authErrorCode: null });
+
+    let result: LoginResult;
     try {
-      const result = await client.completeEmailOtp(email, code, deviceLabel);
-      // Server-confirmed only. These two reads share the client's single-flight
-      // refresh, so they can never rotate the refresh token twice.
-      const [me, wallets] = await Promise.all([client.me(), client.listWallets()]);
-      set({
-        status: "signedIn",
-        operation: "idle",
-        user: result.user,
-        identities: me.identities,
-        wallets: wallets.wallets,
-        authErrorCode: null,
-        restoreErrorCode: null,
-        lastRestore: "restored",
-      });
-      return true;
+      // Resolves only when the server confirmed the login AND the session was
+      // persisted; the client turns a failed persist into a typed code.
+      result = await client.completeEmailOtp(email, code, deviceLabel);
     } catch (err) {
       /* Back to idle with a form-owned error, so the code field stays editable
          and the user can correct it. `status` is deliberately NOT rewritten: a
          wrong code says nothing about whether a stored session exists, and
-         these actions already refuse to run while signed in. */
+         these actions already refuse to run while signed in. No partial
+         identity state is set, because nothing was committed. */
       set({ operation: "idle", authErrorCode: codeOf(err) });
       return false;
     }
+
+    /* ── AUTHENTICATION COMMIT POINT ──────────────────────────────────────
+       The server confirmed the login and the tokens are in the keystore. The
+       device now holds a valid authenticated session, so the UI must say so
+       BEFORE any optional read. Waiting for /identity/me and /identity/wallets
+       first meant a transient read failure left the app claiming sign-in had
+       failed while valid credentials sat on the device — and the one-time code
+       was already spent, so the user could not even retry. */
+    const generation = beginSessionGeneration();
+    set({
+      status: "signedIn",
+      operation: "idle",
+      // `result.user` is the server's authoritative answer for who signed in.
+      user: result.user,
+      // Identities arrive with the sync below; the login response carries none.
+      identities: [],
+      // Seed from the login response so the wallet section is never empty-by-
+      // accident; the sync replaces it with the server's full list.
+      wallets: result.embeddedWallet ? [result.embeddedWallet] : [],
+      authErrorCode: null,
+      restoreErrorCode: null,
+      accountErrorCode: null,
+      lastRestore: "restored",
+    });
+
+    // Enrichment only — it can refine or (on an authoritative 401) close the
+    // session, but it can never turn this successful sign-in into a failure.
+    await syncAccountState(client, generation, set, get);
+    return true;
   },
 
   refresh: async () => {
@@ -451,6 +559,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     const client = get().client;
+    // Supersede any in-flight enrichment so a late response cannot resurrect
+    // the user or their wallets after this sign-out lands.
+    beginSessionGeneration();
     try {
       await client?.signOut();
       set({ ...SIGNED_OUT_STATE, accountErrorCode: null });
@@ -463,6 +574,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOutEverywhere: async () => {
     const client = get().client;
+    beginSessionGeneration();
     try {
       await client?.signOutEverywhere();
       set({ ...SIGNED_OUT_STATE, accountErrorCode: null });

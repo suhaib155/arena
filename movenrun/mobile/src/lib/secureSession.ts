@@ -10,9 +10,12 @@
  *  - Session credentials are NEVER written to AsyncStorage or persisted
  *    Zustand, never logged, never sent to analytics/crash reporting.
  *  - Storage keys are namespaced and versioned (SESSION_STORAGE_KEY).
- *  - Fail closed: a read failure yields "no session" (deny → re-auth); a
- *    write/clear failure propagates so callers never believe a persist/clear
- *    happened when it didn't. There is NO fallback to insecure storage.
+ *  - Fail closed: a read failure grants NO access, and a write/clear failure
+ *    propagates so callers never believe a persist/clear happened when it
+ *    didn't. There is NO fallback to insecure storage. Every such failure is
+ *    reported as a typed {@link SecureSessionStorageError} — "unreadable" is
+ *    deliberately distinguishable from "absent", because only the second is
+ *    evidence that a session does not exist.
  *  - Malformed or expired stored data is deleted, not returned.
  *  - The registry throws until an adapter is installed — an uninstalled store
  *    can never silently degrade to something insecure.
@@ -20,6 +23,41 @@
  *    no profile, wallet state, permissions, audit data, or any secret beyond
  *    the session credentials themselves. The server stays authoritative.
  */
+
+/** Why a secure-storage operation could not complete. */
+export type SecureSessionStorageErrorCode =
+  /** The keystore could not be READ. This is NOT evidence of "no session". */
+  | "read_unavailable"
+  /** The keystore could not be written — a persist did not happen. */
+  | "write_failed"
+  /** An explicit credential delete did not happen. */
+  | "clear_failed";
+
+/**
+ * A typed storage failure.
+ *
+ * The distinction this class exists to make: "there is no credential" and "the
+ * keystore could not be read" are different facts. Collapsing the second into
+ * `null` let a transient keystore hiccup surface as an unauthenticated request,
+ * which the restore path then classified as a REJECTED session — and rejected
+ * sessions get deleted. A failure to read must never be able to destroy a valid
+ * credential.
+ *
+ * It carries no token material and no platform exception text, so it is safe to
+ * let it travel up to the classification layer.
+ */
+export class SecureSessionStorageError extends Error {
+  readonly code: SecureSessionStorageErrorCode;
+  constructor(code: SecureSessionStorageErrorCode) {
+    super(`secure session storage ${code}`);
+    this.name = "SecureSessionStorageError";
+    this.code = code;
+  }
+}
+
+export function isSecureSessionStorageError(err: unknown): err is SecureSessionStorageError {
+  return err instanceof SecureSessionStorageError;
+}
 
 export interface SecureSessionTokens {
   accessToken: string;
@@ -67,9 +105,13 @@ export function createSecureSessionStore(
 ): SecureSessionStore {
   return {
     async save(tokens) {
-      // Propagates backend failures: a failed write must never be mistaken
+      // Propagates as a TYPED failure: a failed write must never be mistaken
       // for a persisted session.
-      await backend.setItem(SESSION_STORAGE_KEY, JSON.stringify(tokens));
+      try {
+        await backend.setItem(SESSION_STORAGE_KEY, JSON.stringify(tokens));
+      } catch {
+        throw new SecureSessionStorageError("write_failed");
+      }
     },
 
     async load() {
@@ -77,9 +119,12 @@ export function createSecureSessionStore(
       try {
         raw = await backend.getItem(SESSION_STORAGE_KEY);
       } catch {
-        // Storage unavailable → fail closed as "no session" (deny; the user
-        // re-authenticates). Never guess, never fall back to insecure storage.
-        return null;
+        /* Still fail closed — no access is granted and there is no fallback to
+           insecure storage — but the caller is told WHY. Returning `null` here
+           used to make an unreadable keystore indistinguishable from an empty
+           one, so a transient read failure could be classified as a rejected
+           session and delete valid credentials. */
+        throw new SecureSessionStorageError("read_unavailable");
       }
       if (raw === null) return null;
 
@@ -103,9 +148,13 @@ export function createSecureSessionStore(
     },
 
     async clear() {
-      // Propagates backend failures: callers must know credentials may remain
+      // Propagates as a TYPED failure: callers must know credentials may remain
       // on the device (fail closed — never report a clear that didn't happen).
-      await backend.deleteItem(SESSION_STORAGE_KEY);
+      try {
+        await backend.deleteItem(SESSION_STORAGE_KEY);
+      } catch {
+        throw new SecureSessionStorageError("clear_failed");
+      }
     },
   };
 }

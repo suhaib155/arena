@@ -38,6 +38,13 @@ export type AuthStatus =
 /** The single auth request that may be in flight. Only one at a time. */
 export type AuthOperation = "idle" | "sendingOtp" | "verifyingOtp";
 
+/**
+ * Why something could not be determined. Both are recoverable and neither is
+ * evidence about whether a session exists — they only say the app could not
+ * ask, and they map to different user-facing copy.
+ */
+export type UnavailableCode = "service_unavailable" | "secure_storage_unavailable";
+
 /** Outcome of the identity client's bounded, single-flight refresh attempt. */
 export type RefreshOutcome =
   | { kind: "refreshed" }
@@ -45,8 +52,8 @@ export type RefreshOutcome =
   | { kind: "no-session" }
   /** The server answered: these credentials are dead (they have been cleared). */
   | { kind: "rejected" }
-  /** Network/backend problem — credentials deliberately left in place. */
-  | { kind: "unavailable" };
+  /** Network/backend/keystore problem — credentials deliberately left alone. */
+  | { kind: "unavailable"; code: UnavailableCode };
 
 /** Result of restoring a stored session at startup. */
 export type RestoreKind = "restored" | "no-session" | "rejected" | "unavailable";
@@ -77,11 +84,15 @@ export function isRecoverableRestore(kind: RestoreKind): boolean {
 }
 
 /**
- * Stable public error code for a failed restore. Raw exception text and raw
- * backend messages never reach the UI — screens map these codes to fixed copy.
+ * Stable public error code for a failed restore. Raw exception text, raw
+ * backend messages and platform/keystore exceptions never reach the UI —
+ * screens map these codes to fixed copy.
  */
-export function restoreErrorCode(kind: RestoreKind): string | null {
-  return kind === "unavailable" ? "service_unavailable" : null;
+export function restoreErrorCode(
+  kind: RestoreKind,
+  code: UnavailableCode = "service_unavailable",
+): string | null {
+  return kind === "unavailable" ? code : null;
 }
 
 /** Whether an auth request is in flight (used to gate conflicting actions). */

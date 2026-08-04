@@ -71,16 +71,21 @@ test("an expired session is deleted on load", async () => {
   assert.equal(backend.map.has(SESSION_STORAGE_KEY), false, "expired session removed");
 });
 
-test("storage unavailable on read fails closed as no-session (never a guess, never a fallback)", async () => {
+test("storage unavailable on read fails closed AND says so (never a guess, never a fallback)", async () => {
   const backend = createTestSecureBackend({ failGet: true });
   const store = createSecureSessionStore(backend);
-  assert.equal(await store.load(), null);
+  /* Still fail closed — no credential is returned, so no access is granted and
+     there is no fallback to insecure storage. But the caller is told the read
+     failed rather than being handed a `null` that means "no session": that
+     ambiguity let a transient keystore failure be classified as a rejected
+     session, which deletes valid credentials. */
+  await assert.rejects(store.load(), /read_unavailable/);
 });
 
 test("a write failure propagates — a failed persist is never silent", async () => {
   const backend = createTestSecureBackend({ failSet: true });
   const store = createSecureSessionStore(backend);
-  await assert.rejects(store.save(TOKENS), /write failure/);
+  await assert.rejects(store.save(TOKENS), /write_failed/);
 });
 
 test("a clear failure propagates — a failed credential wipe is never silent", async () => {
@@ -88,7 +93,7 @@ test("a clear failure propagates — a failed credential wipe is never silent", 
   const store = createSecureSessionStore(backend);
   await store.save(TOKENS);
   backend.options.failDelete = true;
-  await assert.rejects(store.clear(), /delete failure/);
+  await assert.rejects(store.clear(), /clear_failed/);
 });
 
 test("restart restore: a NEW store instance over the same backend restores only valid structured data", async () => {
