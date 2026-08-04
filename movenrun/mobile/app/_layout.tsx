@@ -1,11 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Stack, useRootNavigationState, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { colors, palette, spacing, type } from "@/theme";
+import { colors, palette, radius, spacing, type } from "@/theme";
 import { Hexagon } from "@/components/Hexagon";
-import { useGameStore } from "@/store/useGameStore";
+import { Button } from "@/components/Button";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useAppBootstrap } from "@/hooks/useAppBootstrap";
+import { authErrorMessage } from "@/lib/emailAuth";
+import { isDecidingStartup, type StartupRoute } from "@/lib/startupDecision";
 import { installExpoSecureSessionStore } from "@/lib/secureSessionExpo";
 
 // Install the OS-keystore session store before anything can touch auth state.
@@ -25,31 +29,82 @@ function SplashView() {
 }
 
 /**
- * Sends first-time users to onboarding once persisted state has hydrated and the
- * navigator is mounted. Returns whether we're still deciding, so the layout can
- * keep the splash up and avoid flashing the home screen.
+ * Recoverable startup failure: a session is stored but the service could not be
+ * reached. The user is NOT signed out and nothing is cleared — they retry, or
+ * continue in the local beta. No raw error text, no token, no host name.
  */
-function useStartupRedirect(): boolean {
+function StartupErrorView({
+  errorCode,
+  onRetry,
+  onLocalBeta,
+}: {
+  errorCode: string | null;
+  onRetry: () => void;
+  onLocalBeta: () => void;
+}) {
+  return (
+    <View style={styles.splash}>
+      <Hexagon size={40} color={palette.baseBlue} coreColor={colors.surface} />
+      <Text style={styles.errorTitle} accessibilityRole="header">
+        Can&apos;t reach MovenRun
+      </Text>
+      <Text style={styles.errorBody}>
+        {authErrorMessage(errorCode) ?? "We couldn't reach MovenRun. Please try again."}
+      </Text>
+      <View style={styles.errorActions}>
+        <Button label="Retry" icon="refresh-outline" onPress={onRetry} />
+        <Button label="Explore local beta" variant="secondary" onPress={onLocalBeta} />
+      </View>
+    </View>
+  );
+}
+
+/** The concrete route each startup destination maps to. */
+const STARTUP_HREF: Partial<Record<StartupRoute, "/welcome" | "/opening" | "/(tabs)">> = {
+  account: "/welcome",
+  intro: "/opening",
+  app: "/(tabs)",
+};
+
+/**
+ * Apply the bootstrap decision exactly once per destination.
+ *
+ * `replace` is issued only when the target actually changes, so a re-render (or
+ * a store update while the same decision holds) can never stack navigations or
+ * race a screen's own forward navigation.
+ *
+ * Returns whether a first-run destination is decided but not yet on screen, so
+ * the caller can keep the branded cover up — the tab UI must never flash behind
+ * account choice or the intro.
+ */
+function useStartupRouting(route: StartupRoute): boolean {
   const router = useRouter();
   const navState = useRootNavigationState();
-  const hydrated = useGameStore((s) => s._hydrated);
-  const hasSeenOpeningIntro = useGameStore((s) => s.hasSeenOpeningIntro);
-  const hasOnboarded = useGameStore((s) => s.hasOnboarded);
-
-  const ready = Boolean(navState?.key) && hydrated;
+  const navigatorReady = Boolean(navState?.key);
+  const [applied, setApplied] = useState<StartupRoute | null>(null);
 
   useEffect(() => {
-    if (!ready) return;
-    // Cinematic opening intro first, then quest onboarding, then the app.
-    if (!hasSeenOpeningIntro) router.replace("/opening");
-    else if (!hasOnboarded) router.replace("/onboarding");
-  }, [ready, hasSeenOpeningIntro, hasOnboarded, router]);
+    if (!navigatorReady) return;
+    if (route === "splash" || route === "service-error") return;
+    if (applied === route) return;
+    // "app" is the default route, so it needs no replace on a cold start; when
+    // the app is *leaving* a first-run screen, that screen navigates itself.
+    // Replacing here too would double-navigate.
+    const href = STARTUP_HREF[route];
+    if (href && href !== "/(tabs)") router.replace(href);
+    setApplied(route);
+  }, [navigatorReady, route, router, applied]);
 
-  return !ready;
+  return (route === "account" || route === "intro") && applied !== route;
 }
 
 function RootNavigator() {
-  const deciding = useStartupRedirect();
+  const decision = useAppBootstrap();
+  const retryRestore = useAuthStore((s) => s.retryRestore);
+  const acknowledgeRestoreError = useAuthStore((s) => s.acknowledgeRestoreError);
+  const navigationPending = useStartupRouting(decision.route);
+
+  const deciding = isDecidingStartup(decision) || navigationPending;
 
   return (
     <>
@@ -61,6 +116,7 @@ function RootNavigator() {
         }}
       >
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="welcome" options={{ animation: "fade" }} />
         <Stack.Screen name="opening" options={{ animation: "fade" }} />
         <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
         <Stack.Screen name="quest/[id]" />
@@ -103,9 +159,22 @@ function RootNavigator() {
           options={{ gestureEnabled: false, animation: "fade" }}
         />
       </Stack>
+      {/* First-run and startup states cover the navigator completely, so the
+          tab UI can never show through behind them. */}
       {deciding ? (
         <View style={StyleSheet.absoluteFill}>
           <SplashView />
+        </View>
+      ) : null}
+      {decision.route === "service-error" ? (
+        <View style={StyleSheet.absoluteFill}>
+          <StartupErrorView
+            errorCode={decision.errorCode}
+            onRetry={() => {
+              void retryRestore();
+            }}
+            onLocalBeta={acknowledgeRestoreError}
+          />
         </View>
       ) : null}
     </>
@@ -131,4 +200,20 @@ const styles = StyleSheet.create({
   },
   splashText: { ...type.title, fontSize: 24 },
   splashLoop: { ...type.mono, fontSize: 12, color: colors.textFaint },
+  errorTitle: { ...type.title, fontSize: 22, textAlign: "center" },
+  errorBody: {
+    ...type.body,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    color: colors.textDim,
+    paddingHorizontal: spacing.xl,
+  },
+  errorActions: {
+    alignSelf: "stretch",
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    gap: spacing.sm,
+    borderRadius: radius.lg,
+  },
 });

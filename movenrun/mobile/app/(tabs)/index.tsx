@@ -37,6 +37,7 @@ import {
   type MissionAction,
   type UpNextId,
 } from "@/lib/homeMission";
+import { buildFirstMission, isFirstMission, type FirstMissionAction } from "@/lib/firstMission";
 
 function greeting(date = new Date()): string {
   const h = date.getHours();
@@ -52,6 +53,13 @@ const MISSION_ROUTE: Record<MissionAction, string> = {
   territory: "/territory/map",
   objective: "/questline",
   weekly: "/season-objectives",
+};
+
+/** The first mission uses the same movement/territory routes as everything
+ *  else — it never invents a destination of its own. */
+const FIRST_MISSION_ROUTE: Record<FirstMissionAction, string> = {
+  move: "/move",
+  territory: "/territory/map",
 };
 
 const UP_NEXT_ROUTE: Record<UpNextId, string> = {
@@ -175,6 +183,16 @@ export default function TodayScreen() {
   const hero = resolveHeroState(missionInput);
   const mission = selectHomeMission(missionInput);
   const missionShowsButton = missionHasOwnCta(mission, hero);
+
+  /* First mission: derived from authoritative local state, never a persisted
+     "completed" flag. Any real activity (a session, a saved route, a zone)
+     exits it and Home returns to its normal composition. */
+  const firstMissionActive = isFirstMission({
+    historyCount: history.length,
+    routeTrustCount: routeTrustHistory.length,
+    zonesOwned: zones.length,
+  });
+  const firstMission = buildFirstMission();
 
   const upNext = buildUpNext({
     missionKind: mission.kind,
@@ -300,17 +318,55 @@ export default function TodayScreen() {
           </View>
         </FadeSlideIn>
 
-        {/* The single prioritized mission */}
-        <FadeSlideIn delay={STAGGER_MS}>
-          <MissionCard
-            mission={mission}
-            showButton={missionShowsButton}
-            onPress={missionShowsButton ? goMission : startMove}
-          />
-        </FadeSlideIn>
+        {/* Brand-new user: one plain-language first mission instead of the
+            normal mission card. The tabs stay unlocked and nothing is
+            overlaid — this is a card, not a forced tour. */}
+        {firstMissionActive ? (
+          <FadeSlideIn delay={STAGGER_MS}>
+            <View style={styles.firstMission}>
+              <Text style={styles.firstMissionKicker}>Start here</Text>
+              <Text style={styles.firstMissionTitle}>{firstMission.title}</Text>
+              <Text style={styles.firstMissionBody}>{firstMission.body}</Text>
+              <View style={styles.firstMissionSteps}>
+                {firstMission.steps.map((stepText, i) => (
+                  <View key={stepText} style={styles.firstMissionStep}>
+                    <Text style={styles.firstMissionStepNum}>{i + 1}</Text>
+                    <Text style={styles.firstMissionStepText}>{stepText}</Text>
+                  </View>
+                ))}
+              </View>
+              <Button
+                label={firstMission.primaryLabel}
+                icon="play"
+                onPress={() => {
+                  tapFeedback();
+                  router.push(FIRST_MISSION_ROUTE[firstMission.primaryAction]);
+                }}
+              />
+              <Button
+                label={firstMission.secondaryLabel}
+                icon="map-outline"
+                variant="secondary"
+                onPress={() => {
+                  tapFeedback();
+                  router.push(FIRST_MISSION_ROUTE[firstMission.secondaryAction]);
+                }}
+              />
+            </View>
+          </FadeSlideIn>
+        ) : (
+          /* The single prioritized mission */
+          <FadeSlideIn delay={STAGGER_MS}>
+            <MissionCard
+              mission={mission}
+              showButton={missionShowsButton}
+              onPress={missionShowsButton ? goMission : startMove}
+            />
+          </FadeSlideIn>
+        )}
 
         {/* Up Next — capped at three prioritized secondary destinations */}
-        {upNext.length > 0 ? (
+        {!firstMissionActive && upNext.length > 0 ? (
           <FadeSlideIn delay={STAGGER_MS}>
             <View style={styles.upNextWrap}>
               <SectionHeader title="Up next" />
@@ -456,6 +512,26 @@ const styles = StyleSheet.create({
   heroCta: { marginTop: spacing.xs },
   heroNote: { ...type.caption, fontSize: 12, textAlign: "center", color: colors.textFaint },
   statsRow: { flexDirection: "row", gap: spacing.md },
+  firstMission: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+    ...shadows.card,
+  },
+  firstMissionKicker: { ...type.kicker, color: colors.primary },
+  firstMissionTitle: { ...type.title, fontSize: 20 },
+  firstMissionBody: { ...type.body, fontSize: 14.5, lineHeight: 21, color: colors.textDim },
+  firstMissionSteps: { gap: spacing.sm, paddingVertical: spacing.xs },
+  firstMissionStep: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  firstMissionStepNum: {
+    ...type.mono,
+    fontSize: 12,
+    color: colors.primary,
+    minWidth: 18,
+    textAlign: "center",
+  },
+  firstMissionStepText: { ...type.body, fontSize: 13.5, color: colors.text, flex: 1 },
   upNextWrap: { gap: spacing.md },
   upNextList: { gap: spacing.sm },
   sectionGap: { height: spacing.md },

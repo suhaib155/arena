@@ -20,6 +20,9 @@ interface ScalePressProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
   accessibilityRole?: AccessibilityRole;
+  /** An action is in flight — announced as busy, and (like disabled) the press
+   *  is refused. Announcing without blocking would invite a double submit. */
+  busy?: boolean;
 }
 
 /**
@@ -35,21 +38,25 @@ export function ScalePress({
   accessibilityLabel,
   accessibilityHint,
   accessibilityRole,
+  busy,
 }: ScalePressProps) {
   const scale = useRef(new Animated.Value(1)).current;
+  const inactive = Boolean(disabled || busy);
 
   const springTo = (value: number) =>
     Animated.spring(scale, { toValue: value, ...motion.spring }).start();
 
   return (
     <Pressable
+      // The press animation is decorative and runs on the native driver — it
+      // never gates or delays this handler.
       onPress={onPress}
-      disabled={disabled}
+      disabled={inactive}
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
-      accessibilityState={disabled ? { disabled: true } : undefined}
-      onPressIn={() => !disabled && springTo(to)}
+      accessibilityState={inactive ? { disabled: Boolean(disabled), busy: Boolean(busy) } : undefined}
+      onPressIn={() => !inactive && springTo(to)}
       onPressOut={() => springTo(1)}
     >
       <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>

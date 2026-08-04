@@ -7,9 +7,15 @@
  * tokens live exclusively in the secure store (see lib/secureSession.ts). The
  * server remains authoritative — every action refetches from the API rather
  * than mutating optimistic local truth for security-relevant fields.
+ *
+ * The status starts at `unknown`, not `signedOut`: until `initialize()` has
+ * asked the secure store and the server, "signed out" would be a claim the app
+ * has no basis for. `initialize()` is also the ONE place the identity client is
+ * constructed — screens read `client` from here and never build their own.
  */
 import { create } from "zustand";
 import {
+  createIdentityApiClient,
   IdentityApiClient,
   IdentityApiError,
   type PublicIdentity,
@@ -17,12 +23,24 @@ import {
   type PublicUser,
   type PublicWallet,
 } from "../services/identityApi";
+import {
+  restoreErrorCode,
+  restoreKindToAuthStatus,
+  type AuthStatus,
+  type RestoreKind,
+} from "../lib/authLifecycle";
 
-export type AuthStatus = "signedOut" | "authenticating" | "signedIn" | "error";
+export type { AuthStatus } from "../lib/authLifecycle";
 export type SessionsStatus = "idle" | "loading" | "refreshing" | "ready" | "error";
 
 interface AuthState {
   status: AuthStatus;
+  /** How the last session restore ended. Null until `initialize()` has run. */
+  lastRestore: RestoreKind | null;
+  /** The user chose to continue without the account service after a recoverable
+   *  restore failure. Transient, never persisted, never set automatically —
+   *  stored credentials are left intact and the next launch retries. */
+  restoreErrorAcknowledged: boolean;
   user: PublicUser | null;
   identities: PublicIdentity[];
   wallets: PublicWallet[];
@@ -40,6 +58,13 @@ interface AuthState {
   pendingSessionAction: string | null;
 
   setClient: (client: IdentityApiClient) => void;
+  /** App-level bootstrap: construct the client once, then restore any stored
+   *  session. Safe to call repeatedly — subsequent calls are no-ops. */
+  initialize: () => Promise<void>;
+  /** User-initiated retry after a recoverable service failure. */
+  retryRestore: () => Promise<void>;
+  /** User chose to continue into the local experience despite that failure. */
+  acknowledgeRestoreError: () => void;
   beginEmailOtp: (email: string) => Promise<void>;
   completeEmailOtp: (email: string, code: string, deviceLabel?: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -69,7 +94,7 @@ function isAuthLost(err: unknown): boolean {
 }
 
 const SIGNED_OUT_STATE = {
-  status: "signedOut" as const,
+  status: "signedOut" as AuthStatus,
   user: null,
   identities: [],
   wallets: [],
@@ -79,8 +104,47 @@ const SIGNED_OUT_STATE = {
   pendingSessionAction: null,
 };
 
+/**
+ * Apply a restore outcome to the store. The mapping is the whole point:
+ *  - restored  → signed in with server-derived state;
+ *  - no-session / rejected → confirmed signed out (the client has already
+ *    cleared any dead credentials);
+ *  - unavailable → `error` with a stable public code, credentials untouched,
+ *    so the user gets a Retry instead of a false sign-out.
+ */
+async function runRestore(
+  client: IdentityApiClient,
+  set: (partial: Partial<AuthState>) => void,
+): Promise<void> {
+  const outcome = await client.restoreSession();
+  const status = restoreKindToAuthStatus(outcome.kind);
+  if (outcome.kind === "restored") {
+    set({
+      status,
+      lastRestore: outcome.kind,
+      user: outcome.user,
+      identities: outcome.identities,
+      wallets: outcome.wallets,
+      errorCode: null,
+    });
+    return;
+  }
+  if (outcome.kind === "unavailable") {
+    // Keep whatever non-secret state we already had; do not claim signed-out.
+    set({ status, lastRestore: outcome.kind, errorCode: restoreErrorCode(outcome.kind) });
+    return;
+  }
+  set({ ...SIGNED_OUT_STATE, lastRestore: outcome.kind, errorCode: null });
+}
+
+/** Bootstrap runs once per app process; a second call must not build a second
+ *  client or fire a second restore. */
+let bootstrapped = false;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  status: "signedOut",
+  status: "unknown",
+  lastRestore: null,
+  restoreErrorAcknowledged: false,
   user: null,
   identities: [],
   wallets: [],
@@ -92,6 +156,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   pendingSessionAction: null,
 
   setClient: (client) => set({ client }),
+
+  initialize: async () => {
+    if (bootstrapped) return;
+    bootstrapped = true;
+    // ONE construction point for the identity client. When no backend URL is
+    // configured this legitimately stays null and the app runs local-beta only.
+    const client = get().client ?? createIdentityApiClient();
+    if (!client) {
+      // Nothing can be restored and nothing can be signed into: that is a
+      // *confirmed* signed-out state, not an unknown one.
+      set({ client: null, status: "signedOut", lastRestore: "no-session", errorCode: null });
+      return;
+    }
+    set({ client, status: "restoring", errorCode: null, restoreErrorAcknowledged: false });
+    await runRestore(client, set);
+  },
+
+  retryRestore: async () => {
+    const client = get().client ?? createIdentityApiClient();
+    if (!client) {
+      return set({ status: "signedOut", lastRestore: "no-session", errorCode: null });
+    }
+    set({ client, status: "restoring", errorCode: null, restoreErrorAcknowledged: false });
+    await runRestore(client, set);
+  },
+
+  acknowledgeRestoreError: () => set({ restoreErrorAcknowledged: true }),
 
   beginEmailOtp: async (email) => {
     const client = get().client;
@@ -128,12 +219,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refresh: async () => {
     const client = get().client;
     if (!client) return;
-    try {
-      const [me, wallets] = await Promise.all([client.me(), client.listWallets()]);
-      set({ status: "signedIn", user: me.user, identities: me.identities, wallets: wallets.wallets });
-    } catch (err) {
-      set({ status: "signedOut", errorCode: codeOf(err) });
-    }
+    // Goes through the same typed restore path, so a transient backend failure
+    // here can't silently demote a signed-in user to signed out either.
+    await runRestore(client, set);
   },
 
   setActiveWallet: async (walletId) => {

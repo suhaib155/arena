@@ -16,6 +16,7 @@ import {
   type SecureSessionStore,
   type SecureSessionTokens,
 } from "../lib/secureSession";
+import type { RefreshOutcome, RestoreKind } from "../lib/authLifecycle";
 
 export interface PublicUser {
   id: string;
@@ -85,13 +86,52 @@ export class IdentityApiError extends Error {
   }
 }
 
-function resolveBaseUrl(): string {
+/**
+ * THE base-URL parse — every caller goes through this one function, so a build
+ * can never disagree with itself about where the backend lives.
+ * Returns null when `EXPO_PUBLIC_API_URL` is unset (a legitimate configuration:
+ * local-beta-only builds have no backend).
+ */
+export function readApiBaseUrl(): string | null {
   const url = process.env.EXPO_PUBLIC_API_URL;
-  if (!url) {
-    throw new IdentityApiError(0, "api_base_url_unset");
-  }
+  if (!url) return null;
   return url.replace(/\/+$/, "");
 }
+
+/** Whether this build has an account service at all. */
+export function isBackendConfigured(): boolean {
+  return readApiBaseUrl() !== null;
+}
+
+function resolveBaseUrl(): string {
+  const url = readApiBaseUrl();
+  if (url === null) {
+    throw new IdentityApiError(0, "api_base_url_unset");
+  }
+  return url;
+}
+
+/**
+ * Build the app's identity client, or null when no backend is configured.
+ * Called exactly once, from the app-level bootstrap — screens consume the
+ * client held by the auth store instead of constructing their own.
+ */
+export function createIdentityApiClient(): IdentityApiClient | null {
+  const baseUrl = readApiBaseUrl();
+  if (baseUrl === null) return null;
+  return new IdentityApiClient({ baseUrl });
+}
+
+/** Result of restoring a stored session. `restored` carries only non-secret,
+ *  server-derived state — never the tokens themselves. */
+export type SessionRestoreResult =
+  | {
+      kind: Extract<RestoreKind, "restored">;
+      user: PublicUser;
+      identities: PublicIdentity[];
+      wallets: PublicWallet[];
+    }
+  | { kind: Exclude<RestoreKind, "restored"> };
 
 export class IdentityApiClient {
   private readonly baseUrl: string;
@@ -112,16 +152,21 @@ export class IdentityApiClient {
       if (!tokens) throw new IdentityApiError(401, "unauthenticated");
       headers.authorization = `Bearer ${tokens.accessToken}`;
     }
-    const res = await fetch(this.baseUrl + path, {
+    const res = await this.send(this.baseUrl + path, {
       method: init.method ?? "GET",
       headers,
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
 
     if (res.status === 401 && init.auth && init.retryOn401 !== false) {
-      // One transparent refresh attempt, then retry the original call.
-      const refreshed = await this.tryRefresh();
-      if (refreshed) return this.request<T>(path, { ...init, retryOn401: false });
+      // One transparent refresh attempt, then retry the original call. The
+      // attempt is bounded: `retryOn401: false` makes the recursion depth 1,
+      // and there is no polling or backoff loop anywhere in this client.
+      const outcome = await this.tryRefresh();
+      if (outcome.kind === "refreshed") return this.request<T>(path, { ...init, retryOn401: false });
+      // A transient refresh failure must not be reported as "unauthenticated":
+      // that would let a network blip look like a revoked session.
+      if (outcome.kind === "unavailable") throw new IdentityApiError(0, "service_unavailable");
     }
 
     if (!res.ok) {
@@ -131,24 +176,93 @@ export class IdentityApiClient {
     return (await res.json()) as T;
   }
 
-  private async tryRefresh(): Promise<boolean> {
-    const tokens = await this.store.load();
-    if (!tokens) return false;
+  /**
+   * Perform one HTTP call, converting a transport failure into a typed
+   * `service_unavailable` error. Raw exception text never escapes this client,
+   * and a network problem is never allowed to masquerade as an auth answer.
+   */
+  private async send(url: string, init: RequestInit): Promise<Response> {
     try {
-      const res = await fetch(this.baseUrl + "/identity/auth/refresh", {
+      return await fetch(url, init);
+    } catch {
+      throw new IdentityApiError(0, "service_unavailable");
+    }
+  }
+
+  /**
+   * The single bounded refresh attempt, with a typed outcome.
+   *
+   * The distinction matters for security: a server rejection means the
+   * credentials are dead and must be cleared, while a network/backend failure
+   * means we simply don't know — so the stored credentials are left untouched
+   * and the caller surfaces a retryable state instead of signing the user out.
+   */
+  private async tryRefresh(): Promise<RefreshOutcome> {
+    const tokens = await this.store.load();
+    if (!tokens) return { kind: "no-session" };
+    let res: Response;
+    try {
+      res = await this.send(this.baseUrl + "/identity/auth/refresh", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ refreshToken: tokens.refreshToken }),
       });
-      if (!res.ok) {
-        await this.store.clear();
-        return false;
-      }
-      const data = (await res.json()) as { session: SessionEnvelope };
-      await this.persistSession(data.session);
-      return true;
     } catch {
-      return false;
+      // Transport failure — credentials deliberately NOT cleared.
+      return { kind: "unavailable" };
+    }
+    if (res.status >= 500) {
+      // The backend is unhealthy; it has not judged these credentials.
+      return { kind: "unavailable" };
+    }
+    if (!res.ok) {
+      // The server rejected the refresh token: fail closed and clear.
+      await this.store.clear();
+      return { kind: "rejected" };
+    }
+    let data: { session: SessionEnvelope };
+    try {
+      data = (await res.json()) as { session: SessionEnvelope };
+    } catch {
+      return { kind: "unavailable" };
+    }
+    await this.persistSession(data.session);
+    return { kind: "refreshed" };
+  }
+
+  /**
+   * Restore a stored session at startup. Performs at most the client's normal
+   * bounded refresh (inside `me()`), never polls, and never retries on its own
+   * — a user-initiated Retry calls this again.
+   */
+  async restoreSession(): Promise<SessionRestoreResult> {
+    const tokens = await this.store.load();
+    // No stored (or no *valid*, unexpired) session material: confirmed signed
+    // out. The secure store already deleted anything malformed or expired.
+    if (!tokens) return { kind: "no-session" };
+    try {
+      const [me, wallets] = await Promise.all([this.me(), this.listWallets()]);
+      return {
+        kind: "restored",
+        user: me.user,
+        identities: me.identities,
+        wallets: wallets.wallets,
+      };
+    } catch (err) {
+      if (err instanceof IdentityApiError) {
+        if (err.code === "service_unavailable" || err.status >= 500 || err.status === 0) {
+          return { kind: "unavailable" };
+        }
+        if (err.status === 401 || err.code === "unauthenticated") {
+          // The refresh path already cleared the credentials; make sure the
+          // device holds nothing dead even if the 401 came from elsewhere.
+          await this.store.clear();
+          return { kind: "rejected" };
+        }
+      }
+      // Anything else is unclassifiable, so fail *safe* rather than closed:
+      // never discard credentials we haven't been told are invalid.
+      return { kind: "unavailable" };
     }
   }
 

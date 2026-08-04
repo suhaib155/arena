@@ -21,7 +21,7 @@ import { zoneStatus } from "@/lib/territory";
 import { getClubById, CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
 import { computePassport } from "@/lib/routePassport";
-import { createTapGuard } from "@/lib/openingAnimation";
+import { createTapGuard } from "@/lib/tapGuard";
 import { buildCollections } from "@/lib/zoneCollections";
 import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
@@ -42,7 +42,8 @@ function timeAgo(iso: string): string {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  // Rapid taps on "Replay opening intro" must push exactly one OpeningScreen.
+  // Rapid taps on "How MovenRun works" must push exactly one intro screen.
+  // Replaying is read-only: it never changes persisted first-run state.
   const replayGuard = useRef(createTapGuard(1200)).current;
 
   const totalXp = useGameStore((s) => s.totalXp);
@@ -351,7 +352,7 @@ export default function ProfileScreen() {
         <Pressable
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Replay opening intro"
+          accessibilityLabel="Replay the MovenRun introduction"
           onPress={() => {
             if (!replayGuard.tryAcquire()) return;
             tapFeedback();
@@ -359,7 +360,7 @@ export default function ProfileScreen() {
           }}
           style={styles.replayLink}
         >
-          <Text style={styles.replayText}>Replay opening intro</Text>
+          <Text style={styles.replayText}>How MovenRun works</Text>
         </Pressable>
 
         {history.length > 0 ? (

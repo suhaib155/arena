@@ -1,43 +1,32 @@
 /**
- * Account hub — sign-in entry (Email / Google / Base) with pending/error/
- * recovery states, and, once signed in, a summary distinguishing the MovenRun
- * identity from the automatically-created wallet, with links to wallet and
- * security management.
+ * Account hub — sign in, or see the state of an existing MovenRun account.
  *
- * The screen is a production-quality SHELL: it drives the real API client when
- * a backend URL is configured, and otherwise shows an honest "backend not
- * configured" state instead of any fake login. No wallet is generated locally
- * and no seed phrase / private key is ever requested.
+ * The email/one-time-code form is the shared {@link EmailOtpForm}; this screen
+ * never re-implements it and never builds its own API client (the app-level
+ * bootstrap constructs the single client into the auth store). When no backend
+ * is configured it says so plainly instead of faking a login.
+ *
+ * Privacy rules enforced here: no internal user id, no raw session id, no
+ * token, and no wallet address is rendered — the account summary describes
+ * wallet *state* in words. Address-level detail lives on the dedicated wallet
+ * screen, which the user opens deliberately.
  */
-import { useMemo, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect } from "react";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { EmailOtpForm } from "@/components/EmailOtpForm";
 import { SectionHeader } from "@/components/SectionHeader";
 import { Badge } from "@/components/Badge";
 import { colors, radius, shadows, spacing, type } from "@/theme";
 import { useAuthStore } from "@/store/useAuthStore";
-import { IdentityApiClient } from "@/services/identityApi";
-import { shortAddress, walletTypeLabel } from "@/lib/walletPresentation";
+import { useGameStore } from "@/store/useGameStore";
+import { isBackendConfigured } from "@/services/identityApi";
+import { authErrorMessage } from "@/lib/emailAuth";
+import { walletTypeLabel } from "@/lib/walletPresentation";
 import { buildDeviceLabel } from "@/lib/deviceLabel";
-
-function friendlyError(code: string | null): string | null {
-  if (!code) return null;
-  switch (code) {
-    case "api_base_url_unset":
-    case "client_unavailable":
-      return "The MovenRun backend isn't configured in this build yet.";
-    case "verification_failed":
-      return "That code didn't match. Check it and try again.";
-    case "too_many_attempts":
-      return "Too many attempts. Please wait a moment and retry.";
-    case "provider_not_configured":
-      return "This sign-in method isn't available yet.";
-    default:
-      return "Something went wrong. Please try again.";
-  }
-}
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -47,39 +36,19 @@ export default function AccountScreen() {
   const errorCode = useAuthStore((s) => s.errorCode);
   const beginEmailOtp = useAuthStore((s) => s.beginEmailOtp);
   const completeEmailOtp = useAuthStore((s) => s.completeEmailOtp);
-  const setClient = useAuthStore((s) => s.setClient);
-  const existingClient = useAuthStore((s) => s.client);
+  const retryRestore = useAuthStore((s) => s.retryRestore);
+  const markSignedIn = useGameStore((s) => s.markSignedIn);
 
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
-
-  // Build the API client lazily; if no backend URL is set it stays null and the
-  // UI shows the honest "not configured" path rather than a fake success.
-  const client = useMemo(() => {
-    if (existingClient) return existingClient;
-    try {
-      const c = new IdentityApiClient();
-      setClient(c);
-      return c;
-    } catch {
-      return null;
-    }
-  }, [existingClient, setClient]);
-
+  const backendConfigured = isBackendConfigured();
   const busy = status === "authenticating";
   const activeWallet = wallets.find((w) => w.isActive) ?? null;
-  const errorText = friendlyError(errorCode);
 
-  const onContinueEmail = async () => {
-    if (!client) {
-      // Surface the not-configured state through the store's error path.
-      await beginEmailOtp(email); // sets error when client is unavailable
-      return;
-    }
-    await beginEmailOtp(email);
-    if (useAuthStore.getState().status !== "error") setCodeSent(true);
-  };
+  /* Signing in later (from Account rather than first run) keeps local progress
+     and records the confirmed mode. `markSignedIn` never demotes a user who has
+     already finished first run. */
+  useEffect(() => {
+    if (status === "signedIn") markSignedIn();
+  }, [status, markSignedIn]);
 
   if (status === "signedIn" && user) {
     return (
@@ -91,12 +60,9 @@ export default function AccountScreen() {
 
           <View style={styles.card}>
             <SectionHeader title="MovenRun identity" />
-            <Text style={styles.mono} accessibilityLabel={`MovenRun user id ${user.id}`}>
-              {user.id}
-            </Text>
-            <Text style={styles.caption}>
-              This is your permanent identity. Your wallets and sign-in methods link to it — switching
-              wallets never moves your rewards or ownership.
+            <Text style={styles.body}>
+              You&apos;re signed in. This is your permanent MovenRun identity — your wallets and
+              sign-in methods link to it, so switching wallets never moves your progress.
             </Text>
           </View>
 
@@ -104,14 +70,16 @@ export default function AccountScreen() {
             <SectionHeader title="Active wallet" trailing="Base Sepolia · testnet" />
             {activeWallet ? (
               <>
-                <View style={styles.rowBetween}>
-                  <Badge label={walletTypeLabel(activeWallet.walletType)} color={colors.primary} />
-                  <Text style={styles.mono}>{shortAddress(activeWallet.address)}</Text>
-                </View>
-                <Text style={styles.caption}>You control this wallet. MovenRun never holds its keys.</Text>
+                <Badge label={walletTypeLabel(activeWallet.walletType)} color={colors.primary} />
+                <Text style={styles.caption}>
+                  You control this wallet and MovenRun never holds its keys. Open Manage wallets to
+                  see its address.
+                </Text>
               </>
             ) : (
-              <Text style={styles.caption}>Your wallet is being set up. Check the Wallets screen for status.</Text>
+              <Text style={styles.caption}>
+                Your wallet is being set up. Check the Wallets screen for status.
+              </Text>
             )}
           </View>
 
@@ -135,71 +103,46 @@ export default function AccountScreen() {
           Sign in to MovenRun
         </Text>
         <Text style={styles.caption}>
-          One account, many ways in. We&apos;ll create your wallet automatically — no seed phrases, ever.
+          Continue with email to create or restore your account. Your wallet is prepared
+          automatically when the service is available — no seed phrase, ever. Your local progress
+          stays exactly as it is.
         </Text>
 
-        <View style={styles.card}>
-          <SectionHeader title="Continue with Email" />
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={colors.textFaint}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-            accessibilityLabel="Email address"
-            editable={!busy}
-          />
-          {codeSent ? (
-            <>
-              <TextInput
-                style={styles.input}
-                value={code}
-                onChangeText={setCode}
-                placeholder="6-digit code"
-                placeholderTextColor={colors.textFaint}
-                keyboardType="number-pad"
-                accessibilityLabel="One-time code"
-                editable={!busy}
-              />
-              <Button
-                label="Verify code"
-                onPress={() => completeEmailOtp(email, code, buildDeviceLabel(Platform.OS))}
-                loading={busy}
-                disabled={busy || code.length < 4}
-              />
-            </>
-          ) : (
-            <Button
-              label="Send code"
-              onPress={onContinueEmail}
-              loading={busy}
-              disabled={busy || email.length < 3}
+        {backendConfigured ? (
+          <View style={styles.card}>
+            <SectionHeader title="Continue with email" />
+            <EmailOtpForm
+              busy={busy}
+              errorCode={errorCode}
+              helperText="New here? We create your account automatically. Returning? Use the same email."
+              onSendCode={async (email) => {
+                await beginEmailOtp(email);
+                return useAuthStore.getState().status !== "error";
+              }}
+              onVerifyCode={async (email, code) => {
+                await completeEmailOtp(email, code, buildDeviceLabel(Platform.OS));
+              }}
             />
-          )}
-        </View>
-
-        <View style={styles.card}>
-          <SectionHeader title="Or continue with" />
-          <Button label="Continue with Google" icon="logo-google" variant="secondary" onPress={() => {}} disabled />
-          <Button
-            label="Continue with Base"
-            icon="cube-outline"
-            variant="secondary"
-            onPress={() => {}}
-            disabled
-            style={styles.spaced}
-          />
-          <Text style={styles.caption}>Google and Base sign-in arrive in a later build.</Text>
-        </View>
-
-        {errorText ? (
-          <View style={styles.errorBox} accessibilityLiveRegion="polite">
-            <Text style={styles.errorText}>{errorText}</Text>
+            {status === "error" ? (
+              <Button
+                label="Retry"
+                variant="secondary"
+                icon="refresh-outline"
+                onPress={() => {
+                  void retryRestore();
+                }}
+              />
+            ) : null}
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.card} accessibilityLiveRegion="polite">
+            <View style={styles.statusRow}>
+              <Ionicons name="cloud-offline-outline" size={18} color={colors.textDim} />
+              <Text style={styles.statusTitle}>Accounts aren&apos;t available in this build</Text>
+            </View>
+            <Text style={styles.caption}>{authErrorMessage("api_base_url_unset")}</Text>
+          </View>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -208,6 +151,7 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   content: { gap: spacing.lg, paddingVertical: spacing.lg, paddingBottom: spacing.xxl },
   h1: { ...type.title, fontSize: 26 },
+  body: { ...type.body, fontSize: 14, lineHeight: 20 },
   caption: { ...type.caption, color: colors.textDim },
   card: {
     backgroundColor: colors.surface,
@@ -216,21 +160,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...shadows.card,
   },
-  input: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    ...type.body,
-    color: colors.text,
-  },
-  mono: { ...type.mono, fontSize: 13, color: colors.text },
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  statusTitle: { ...type.heading, fontSize: 15, flex: 1 },
   spaced: { marginTop: spacing.sm },
-  errorBox: {
-    backgroundColor: `${colors.danger}14`,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-  },
-  errorText: { ...type.caption, color: colors.danger },
 });
