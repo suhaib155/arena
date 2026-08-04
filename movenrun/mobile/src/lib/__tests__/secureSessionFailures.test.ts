@@ -97,9 +97,12 @@ test("a delete failure still destroys the credential, via a non-secret tombstone
   const record = backend.map.get(SESSION_STORAGE_KEY);
   assert.ok(record, "something is still stored (the delete genuinely failed)");
   assert.ok(!/access-1|refresh-1/.test(record!), "but it contains no token material");
-  // And it can never be loaded as a session again.
+  // It can never be parsed as a session again...
+  assert.equal(JSON.parse(record!).accessToken, undefined, "not a session record");
   backend.options.failDelete = false;
   assert.equal(await store.load(), null, "the tombstone is not a credential");
+  // ...and the next successful read cleans it up rather than leaving litter.
+  assert.equal(backend.map.has(SESSION_STORAGE_KEY), false, "tombstone removed on load");
 });
 
 test("only a total storage failure reports clear_failed — never silently", async () => {
@@ -313,7 +316,11 @@ test("a spent credential whose delete failed is NOT replayed after a restart", a
   await client.restoreSession();
   backend.options.failDelete = false;
 
-  // "Restart": a fresh store and client over the same durable backend.
+  const refreshesBeforeRestart = srv.refreshCalls;
+
+  // "Restart": the first store/client are discarded; a freshly constructed
+  // store and client run over the SAME durable backend, through production
+  // load() — this is the cross-launch path the original bug lived on.
   const restarted = createSecureSessionStore(backend);
   assert.equal(await restarted.load(), null, "the spent credential is not loadable");
 
@@ -323,8 +330,35 @@ test("a spent credential whose delete failed is NOT replayed after a restart", a
   }).restoreSession();
 
   assert.equal(outcome.kind, "no-session", "a confirmed signed-out start, not a replay");
+  assert.equal(srv.refreshCalls, refreshesBeforeRestart, "the restart called refresh zero times");
   assert.equal(srv.replayResponses, 0, "the spent token was never presented again");
   assert.equal(srv.familyRevoked, false, "the user's other devices survive");
+});
+
+test("sign-out-everywhere leaves nothing re-presentable either, even when the delete fails", async () => {
+  const backend = createTestSecureBackend();
+  const store = createSecureSessionStore(backend);
+  await store.save(TOKENS());
+  const { state: srv, fetchImpl } = rotatingServer();
+  globalThis.fetch = (async (input: string, init?: RequestInit) => {
+    if (String(input).endsWith("/session/revoke-all")) return json(200, { revoked: 3 });
+    return fetchImpl(input as never, init as never);
+  }) as typeof fetch;
+
+  backend.options.failDelete = true;
+  await new IdentityApiClient({ baseUrl: "https://identity.test", store }).signOutEverywhere();
+  backend.options.failDelete = false;
+
+  const restarted = createSecureSessionStore(backend);
+  assert.equal(await restarted.load(), null, "the revoked credential is not loadable");
+  const outcome = await new IdentityApiClient({
+    baseUrl: "https://identity.test",
+    store: restarted,
+  }).restoreSession();
+  assert.equal(outcome.kind, "no-session", "a clean signed-out start after restart");
+  assert.equal(srv.refreshCalls, 0, "the refresh endpoint is never called");
+  assert.equal(srv.replayResponses, 0);
+  assert.equal(srv.familyRevoked, false);
 });
 
 test("sign-out leaves nothing re-presentable either, even when the delete fails", async () => {
@@ -343,6 +377,12 @@ test("sign-out leaves nothing re-presentable either, even when the delete fails"
 
   const restarted = createSecureSessionStore(backend);
   assert.equal(await restarted.load(), null, "the revoked credential is not loadable");
+  const outcome = await new IdentityApiClient({
+    baseUrl: "https://identity.test",
+    store: restarted,
+  }).restoreSession();
+  assert.equal(outcome.kind, "no-session", "a clean signed-out start after restart");
+  assert.equal(srv.refreshCalls, 0, "the refresh endpoint is never called");
   assert.equal(srv.replayResponses, 0);
   assert.equal(srv.familyRevoked, false);
 });
