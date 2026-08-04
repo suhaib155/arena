@@ -131,8 +131,10 @@ export function resolveReadiness(input: ReadinessInput): Readiness {
     return {
       kind: "permission-required",
       title: "Allow location to start",
+      // Shown BEFORE the OS prompt (the prompt only appears once the user
+      // presses the primary action), so the rationale is never a surprise.
       message:
-        "Location is used only while a session is running, foreground only, and stays on your device.",
+        "MovenRun uses your location only during an active foreground movement session to calculate distance and territory activity. It stays on your device.",
       primaryLabel: "Allow Location",
       canStartGps: false,
       offerDemo: true,

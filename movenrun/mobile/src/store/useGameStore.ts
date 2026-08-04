@@ -6,6 +6,15 @@ import type { RouteTrustRecord } from "@/lib/routeTrust";
 import { applyDefend, applyFortify, fortifiedToday } from "@/lib/territory";
 import { getLevelInfo } from "@/lib/leveling";
 import { getLocalDateKey, daysBetween } from "@/lib/date";
+import {
+  chooseLocalBeta as chooseLocalBetaFirstRun,
+  completeIntro as completeIntroFirstRun,
+  FRESH_FIRST_RUN,
+  migrateFirstRun,
+  signInFirstRun,
+  type FirstRunState,
+  type LegacyFirstRunFlags,
+} from "@/lib/firstRun";
 
 const EMPTY_IDS: readonly string[] = [];
 
@@ -74,11 +83,11 @@ interface GameState {
    *  can't be derived from other state. Cleared on reset. */
   viewedRoutePassport: boolean;
   viewedRouteProof: boolean;
-  /** Whether the cinematic first-run opening intro has been seen. Cleared on
-   *  reset (so QA/replay can see it again). Local only. */
-  hasSeenOpeningIntro: boolean;
-  /** Whether the user has seen the onboarding flow. */
-  hasOnboarded: boolean;
+  /** The ONE source of truth for first-run completion (see lib/firstRun.ts).
+   *  Replaces the old `hasSeenOpeningIntro` / `hasOnboarded` pair, which could
+   *  disagree with each other. Survives "Reset progress" — resetting gameplay
+   *  never sends an established user back through signup. */
+  firstRun: FirstRunState;
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
   _hydrated: boolean;
 
@@ -105,9 +114,14 @@ interface GameState {
   /** Mark an onboarding screen as viewed (local questline progress only). */
   markViewedPassport: () => void;
   markViewedProof: () => void;
-  /** Mark the cinematic opening intro as seen. */
-  markOpeningSeen: () => void;
-  completeOnboarding: () => void;
+  /** First run: the user chose "Explore local beta" on the account screen. */
+  chooseLocalBeta: () => void;
+  /** First run: the SERVER confirmed an authentication. Never called
+   *  optimistically — only after a completed sign-in. */
+  markSignedIn: () => void;
+  /** First run: the intro's final CTA. Idempotent, so replaying the intro
+   *  from Profile cannot regress a `ready` user. */
+  completeIntro: () => void;
   reset: () => void;
 }
 
@@ -129,8 +143,7 @@ export const useGameStore = create<GameState>()(
       routeTrustHistory: [],
       viewedRoutePassport: false,
       viewedRouteProof: false,
-      hasSeenOpeningIntro: false,
-      hasOnboarded: false,
+      firstRun: { ...FRESH_FIRST_RUN },
       _hydrated: false,
 
       completeQuest: (quest) => {
@@ -277,13 +290,20 @@ export const useGameStore = create<GameState>()(
 
       markViewedPassport: () => set({ viewedRoutePassport: true }),
       markViewedProof: () => set({ viewedRouteProof: true }),
-      markOpeningSeen: () => set({ hasSeenOpeningIntro: true }),
 
-      completeOnboarding: () => set({ hasOnboarded: true }),
+      chooseLocalBeta: () => set((s) => ({ firstRun: chooseLocalBetaFirstRun(s.firstRun) })),
+      markSignedIn: () => set((s) => ({ firstRun: signInFirstRun(s.firstRun) })),
+      completeIntro: () => set((s) => ({ firstRun: completeIntroFirstRun(s.firstRun) })),
 
       // Resets progress AND the local club selection. Club choice is still
       // local beta state (clubs sync later), so a progress reset returns the
-      // user to the "choose your club" state. Onboarding is preserved.
+      // user to the "choose your club" state.
+      //
+      // `firstRun` is deliberately ABSENT from this patch: resetting progress
+      // must not sign the user out and must not push an established user back
+      // through account choice or the intro (see lib/firstRun.ts,
+      // firstRunAfterProgressReset). Only an explicitly labelled full-app
+      // reset may touch it.
       reset: () =>
         set({
           totalXp: 0,
@@ -301,23 +321,24 @@ export const useGameStore = create<GameState>()(
           routeTrustHistory: [],
           viewedRoutePassport: false,
           viewedRouteProof: false,
-          hasSeenOpeningIntro: false,
         }),
     }),
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 9,
+      version: 10,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
       // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
       // fields and shipped with defense 0; pre-clubs state (v4) lacks
       // `selectedClubId`; pre-trust state (v5) lacks the route-trust summary;
       // pre-history state (v6) lacks `routeTrustHistory`; pre-questline state
       // (v7) lacks the onboarding view flags; pre-intro state (v8) lacks
-      // `hasSeenOpeningIntro`. Backfill everything so upgrades never crash and
-      // v3 zones arrive healthy instead of decayed.
+      // `hasSeenOpeningIntro`; pre-first-run state (v9) carries the two legacy
+      // onboarding booleans instead of `firstRun`. Backfill everything so
+      // upgrades never crash and v3 zones arrive healthy instead of decayed.
       migrate: (persisted, _version) => {
-        const state = (persisted ?? {}) as Partial<GameState>;
+        const legacy = (persisted ?? {}) as LegacyFirstRunFlags;
+        const state = (persisted ?? {}) as Partial<GameState> & LegacyFirstRunFlags;
         if (!Array.isArray(state.completedQuestIds)) {
           state.completedQuestIds = [];
         }
@@ -354,12 +375,20 @@ export const useGameStore = create<GameState>()(
         if (typeof state.viewedRouteProof !== "boolean") {
           state.viewedRouteProof = false;
         }
-        // Existing users already know the app, so skip the opening intro for
-        // them; only genuinely fresh installs (no persisted state, so migrate
-        // never runs) keep the `false` default and see it.
-        if (typeof state.hasSeenOpeningIntro !== "boolean") {
-          state.hasSeenOpeningIntro = true;
-        }
+        // One source of truth for first run. An established user (old
+        // onboarding completed, or any pre-v9 install that had already been
+        // through the cinematic) is carried straight to `ready`/`intro` and is
+        // never forced through the new account screen. The two legacy booleans
+        // are read here and then dropped — they are no longer part of
+        // `GameState`, so nothing can read them at runtime, and they vanish
+        // from storage on the next write.
+        state.firstRun = migrateFirstRun(state.firstRun, {
+          hasSeenOpeningIntro:
+            typeof legacy.hasSeenOpeningIntro === "boolean" ? legacy.hasSeenOpeningIntro : true,
+          hasOnboarded: legacy.hasOnboarded,
+        });
+        delete state.hasSeenOpeningIntro;
+        delete state.hasOnboarded;
         return state as GameState;
       },
       // Don't persist the transient hydration flag.

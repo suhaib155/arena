@@ -14,8 +14,23 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  /** Override the spoken label when the visible text isn't self-explanatory. */
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
+/**
+ * The shared button.
+ *
+ * Accessibility is owned here so every caller gets it for free: a `button`
+ * role, a spoken label (the visible text unless overridden), and an accurate
+ * disabled/busy state. While `loading`, the button announces itself as busy and
+ * refuses presses — the spinner replaces the label visually, so without this a
+ * screen reader would still offer a tappable, unlabelled control.
+ *
+ * The press animation lives in {@link ScalePress} and never gates the press
+ * handler; real double-submit protection belongs to the action/state layer.
+ */
 export function Button({
   label,
   onPress,
@@ -24,8 +39,11 @@ export function Button({
   disabled,
   loading,
   style,
+  accessibilityLabel,
+  accessibilityHint,
 }: ButtonProps) {
-  const isDisabled = disabled || loading;
+  const isDisabled = Boolean(disabled);
+  const isBusy = Boolean(loading);
   const textColor =
     variant === "primary" ? colors.surface : variant === "ghost" ? colors.textDim : colors.text;
 
@@ -35,7 +53,16 @@ export function Button({
     <ScalePress
       onPress={onPress}
       disabled={isDisabled}
-      style={[styles.base, variantStyle, isDisabled ? styles.disabled : {}, style ?? {}]}
+      busy={isBusy}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityHint={accessibilityHint}
+      style={[
+        styles.base,
+        variantStyle,
+        isDisabled || isBusy ? styles.disabled : {},
+        style ?? {},
+      ]}
     >
       {loading ? (
         <ActivityIndicator color={textColor} />
@@ -58,6 +85,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.xl,
     borderRadius: radius.lg,
+    // Minimum practical touch target, preserved at large font sizes.
+    minHeight: 48,
   },
   label: {
     fontSize: 16,

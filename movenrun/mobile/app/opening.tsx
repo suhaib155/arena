@@ -1,119 +1,116 @@
+/**
+ * The canonical MovenRun introduction — one route, one implementation.
+ *
+ * This replaces the old cinematic panel screen AND the separate three-slide
+ * onboarding pager. The pager advanced by calling `ScrollView.scrollTo()` and
+ * then *learning* its index from `onMomentumScrollEnd`, which meant the logical
+ * step trailed the visible page whenever a fling was cancelled or animation was
+ * reduced — the "Next does nothing" bug that pushed users onto Skip.
+ *
+ * Here the step is plain React state, changed synchronously by the pure
+ * functions in `lib/introFlow.ts`. There is no scroll view, no momentum
+ * handler, no layout-width division. The fade between steps is decorative only:
+ * it runs after the state has already changed and cannot advance anything.
+ *
+ * Nothing on this screen touches permissions, the backend, or a wallet.
+ */
 import { useEffect, useRef, useState } from "react";
-import { Animated, type DimensionValue, Easing, Pressable, StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn } from "@/components/FadeSlideIn";
 import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import type { IoniconName } from "@/types";
 import { useGameStore } from "@/store/useGameStore";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
-import { createTapGuard, SCAN_BAND_WIDTH, scanTranslateRange } from "@/lib/openingAnimation";
+import { createTapGuard } from "@/lib/tapGuard";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import {
+  canGoBack as canStepBack,
+  FIRST_INTRO_STEP,
+  INTRO_STEPS,
+  INTRO_STEP_COUNT,
+  introPositionLabel,
+  introProgress,
+  introStepAnnouncement,
+  isLastIntroStep,
+  nextIntroStep,
+  previousIntroStep,
+  resolveIntroExit,
+  toIntroSource,
+  type IntroExit,
+  type IntroStep,
+} from "@/lib/introFlow";
 
-interface Panel {
-  title: string;
-  subtitle: string;
-  accent: string;
-  badges?: string[];
-}
+const STEP_TINTS = [palette.pulseGreen, palette.baseBlue, palette.deedViolet];
 
-const PANELS: Panel[] = [
-  {
-    title: "Move. Capture. Defend.",
-    subtitle: "Turn your runs into a local territory game.",
-    accent: palette.baseBlue,
-  },
-  {
-    title: "Build your territory.",
-    subtitle: "Capture zones, defend them, and strengthen your local map.",
-    accent: palette.pulseGreen,
-  },
-  {
-    title: "Local beta. No wallet needed.",
-    subtitle: "Everything here is preview-only while the world is being built.",
-    accent: palette.deedViolet,
-    badges: ["Local preview", "No wallet", "No raw GPS shared"],
-  },
-];
-
-/** Decorative hex cluster (no geography) for the cinematic board. */
-const HEXES: { left: DimensionValue; top: DimensionValue; size: number; teal: boolean }[] = [
-  { left: "50%", top: "46%", size: 46, teal: true },
-  { left: "30%", top: "34%", size: 32, teal: false },
-  { left: "70%", top: "36%", size: 32, teal: true },
-  { left: "34%", top: "66%", size: 30, teal: false },
-  { left: "66%", top: "66%", size: 30, teal: true },
-  { left: "50%", top: "78%", size: 26, teal: false },
-];
-
-/**
- * Cinematic first-run opening intro — local, lightweight (Views + Animated
- * only; no video/Lottie/SVG/remote assets). Shown once on first launch, then
- * routes into onboarding/Today. No backend, wallet, chain, GPS, or permissions.
- */
-export default function OpeningScreen() {
+export default function IntroScreen() {
   const router = useRouter();
-  const markOpeningSeen = useGameStore((s) => s.markOpeningSeen);
-  const hasOnboarded = useGameStore((s) => s.hasOnboarded);
-  const [step, setStep] = useState(0);
+  /* Explicit intent, not navigation history: startup opens the intro in
+     first-run mode, Profile opens it as a replay. `canGoBack()` would have
+     conflated the two whenever the stack happened to be non-empty. */
+  const params = useLocalSearchParams<{ source?: string }>();
+  const source = toIntroSource(params.source);
+  const completeIntro = useGameStore((s) => s.completeIntro);
+  const [step, setStep] = useState<IntroStep>(FIRST_INTRO_STEP);
+  const reducedMotion = useReducedMotion();
 
-  const pulse = useRef(new Animated.Value(0)).current;
-  const scan = useRef(new Animated.Value(0)).current;
-  // The scan band travels in PIXELS via translateX (the native animated module
-  // does not support layout styles like `left`), so the board must be measured
-  // before the scan loop starts.
-  const [boardWidth, setBoardWidth] = useState(0);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
-  useEffect(() => {
-    if (boardWidth <= 0) return; // wait for a real measurement
-    scan.setValue(0); // reset so every (re)play starts from the left edge
-    const scanLoop = Animated.loop(
-      Animated.timing(scan, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    );
-    scanLoop.start();
-    return () => scanLoop.stop();
-  }, [scan, boardWidth]);
-
-  const panel = PANELS[step];
-  const isLast = step === PANELS.length - 1;
-
-  // One exit per play: Skip / "Enter MovenRun" double-taps and races collapse
-  // into a single navigation instead of stacking replace() calls.
+  /* One exit per play: a double tap on the final CTA (or Skip) collapses into
+     a single completion and a single navigation. This lives in state, not in
+     the press animation. */
   const exitGuard = useRef(createTapGuard(1200)).current;
-  const finish = () => {
+
+  // Announce every step change so a screen-reader user is told where they are.
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(introStepAnnouncement(step));
+  }, [step]);
+
+  const content = INTRO_STEPS[step];
+  const isLast = isLastIntroStep(step);
+  const tint = STEP_TINTS[step] ?? palette.pulseGreen;
+
+  /* One exit per play, whichever control triggered it. The guard is what makes
+     a double tap produce exactly one completion and one navigation. */
+  const exit = (action: "skip" | "finish") => {
     if (!exitGuard.tryAcquire()) return;
+    const resolved: IntroExit = resolveIntroExit(source, action);
+    if (resolved === "return") {
+      // Replay: persisted first-run state is not touched at all.
+      tapFeedback();
+      if (router.canGoBack()) router.back();
+      else router.replace("/(tabs)");
+      return;
+    }
     successFeedback();
-    markOpeningSeen();
-    // Replay (pushed from Profile) pops back without leaking this screen into
-    // history; first run (arrived via replace) keeps the original replace flow.
-    if (router.canGoBack()) router.back();
-    else router.replace(hasOnboarded ? "/(tabs)" : "/onboarding");
+    // Idempotent for an already-ready user; authoritative for a first run.
+    completeIntro();
+    router.replace(resolved === "complete-move" ? "/move" : "/(tabs)");
   };
-  const next = () => {
+
+  // Skip means "let me into the app" — it must not start a movement session.
+  const skip = () => exit("skip");
+
+  // Next updates logical state synchronously — no scroll, no momentum, no
+  // animation callback is involved in the transition.
+  const goNext = () => {
     if (isLast) {
-      finish();
+      // The final CTA is labelled "Start my first move", so it does that.
+      exit("finish");
       return;
     }
     tapFeedback();
-    setStep((s) => s + 1);
+    setStep((s) => nextIntroStep(s));
   };
 
-  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.85] });
-  const glowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
-  const scanRange = scanTranslateRange(boardWidth);
-  const scanX = scanRange ? scan.interpolate(scanRange) : null;
+  const goBack = () => {
+    tapFeedback();
+    setStep((s) => previousIntroStep(s));
+  };
+
+  const progress = introProgress(step);
 
   return (
     <Screen>
@@ -122,82 +119,74 @@ export default function OpeningScreen() {
           <Hexagon size={18} color="#C9EEDE" coreColor={palette.pulseGreen} />
           <Text style={styles.brand}>MovenRun</Text>
         </View>
-        <Pressable hitSlop={10} onPress={finish}>
+        <Pressable
+          hitSlop={12}
+          onPress={skip}
+          accessibilityRole="button"
+          accessibilityLabel="Skip the introduction"
+          style={styles.skipBtn}
+        >
           <Text style={styles.skip}>Skip</Text>
         </Pressable>
       </View>
 
-      {/* Cinematic territory board */}
-      <View style={styles.board} onLayout={(e) => setBoardWidth(e.nativeEvent.layout.width)}>
-        <View style={[styles.road, { top: "40%" }]} />
-        <View style={[styles.road, { top: "62%" }]} />
-        <View style={[styles.roadV, { left: "38%" }]} />
-        <View style={[styles.roadV, { left: "64%" }]} />
-
-        {/* glowing route scan — moved with translateX only: the native
-            animated module cannot drive layout styles such as `left`. */}
-        {scanX ? (
-          <Animated.View
-            style={[styles.scanLine, { backgroundColor: `${panel.accent}66`, transform: [{ translateX: scanX }] }]}
+      {/* Progress: an explicit "n of 3" plus a bar derived from the same state */}
+      <View style={styles.progressWrap}>
+        <View style={styles.progressTrack}>
+          <View
+            style={[styles.progressFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: tint }]}
           />
-        ) : null}
+        </View>
+        <Text style={styles.position} accessibilityLabel={`Step ${introPositionLabel(step)}`}>
+          {introPositionLabel(step)}
+        </Text>
+      </View>
 
-        {/* Static positioning lives on the plain wrapper; the Animated.View
-            carries only native-driver-safe styles (opacity/transform). */}
-        {HEXES.map((h, i) => (
-          <View key={i} style={[styles.hex, { left: h.left, top: h.top }]}>
-            <Animated.View
-              style={
-                i === 0
-                  ? { opacity: glowOpacity, transform: [{ translateX: -h.size / 2 }, { translateY: -h.size / 2 }, { scale: glowScale }] }
-                  : { transform: [{ translateX: -h.size / 2 }, { translateY: -h.size / 2 }] }
-              }
-            >
-              <Hexagon
-                size={h.size}
-                color={h.teal ? "#CFF6E6" : "#D4E2FE"}
-                coreColor={h.teal ? palette.pulseGreen : palette.baseBlue}
-              />
-            </Animated.View>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Keyed on the step so the decorative fade replays; the fade runs
+            AFTER state has changed and never drives it. Reduced motion swaps
+            it for a plain view. */}
+        <StepBody key={reducedMotion ? `static-${step}` : `motion-${step}`} animated={!reducedMotion}>
+          <View style={[styles.iconCircle, { backgroundColor: `${tint}1A` }]}>
+            <Ionicons name={content.icon as IoniconName} size={52} color={tint} />
           </View>
-        ))}
-      </View>
+          <Text style={styles.title} accessibilityRole="header">
+            {content.title}
+          </Text>
+          <Text style={styles.text}>{content.body}</Text>
+        </StepBody>
+      </ScrollView>
 
-      {/* Panel copy */}
-      <View style={styles.copy}>
-        <FadeSlideIn key={`t-${step}`}>
-          <Text style={styles.title}>{panel.title}</Text>
-        </FadeSlideIn>
-        <FadeSlideIn key={`s-${step}`} delay={60}>
-          <Text style={styles.subtitle}>{panel.subtitle}</Text>
-        </FadeSlideIn>
-        {panel.badges ? (
-          <FadeSlideIn key={`b-${step}`} delay={120}>
-            <View style={styles.badgeRow}>
-              {panel.badges.map((b) => (
-                <View key={b} style={styles.badge}>
-                  <Ionicons name="shield-checkmark-outline" size={12} color={palette.deedViolet} />
-                  <Text style={styles.badgeText}>{b}</Text>
-                </View>
-              ))}
-            </View>
-          </FadeSlideIn>
-        ) : null}
-      </View>
-
-      {/* Footer: dots + CTA */}
       <View style={styles.footer}>
-        <View style={styles.dots}>
-          {PANELS.map((_, i) => (
-            <View
-              key={i}
-              style={[styles.dot, i === step ? { backgroundColor: colors.primary, width: 18 } : null]}
-            />
+        <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {Array.from({ length: INTRO_STEP_COUNT }, (_, i) => (
+            <View key={i} style={[styles.dot, i === step ? { backgroundColor: tint, width: 18 } : null]} />
           ))}
         </View>
-        <Button label={isLast ? "Enter MovenRun" : "Next"} icon={isLast ? "arrow-forward" : undefined} onPress={next} />
+        <Button
+          label={content.ctaLabel}
+          icon={isLast ? "play" : "arrow-forward"}
+          onPress={goNext}
+        />
+        {canStepBack(step) ? (
+          <Button label="Back" variant="ghost" icon="arrow-back" onPress={goBack} />
+        ) : null}
       </View>
     </Screen>
+  );
+}
+
+/** Decorative wrapper: fade-in when motion is allowed, plain view otherwise. */
+function StepBody({ animated, children }: { animated: boolean; children: React.ReactNode }) {
+  if (!animated) return <View style={styles.step}>{children}</View>;
+  return (
+    <FadeSlideIn>
+      <View style={styles.step}>{children}</View>
+    </FadeSlideIn>
   );
 }
 
@@ -206,44 +195,51 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   brand: { ...type.heading, fontSize: 16 },
-  skip: { ...type.caption, fontSize: 13, fontWeight: "700", color: colors.textDim },
+  // ~44x44 minimum touch target for the text-only Skip control.
+  skipBtn: { minWidth: 44, minHeight: 44, alignItems: "flex-end", justifyContent: "center" },
+  skip: { ...type.caption, fontSize: 15, fontWeight: "700", color: colors.textDim },
 
-  board: {
-    height: 300,
-    marginTop: spacing.lg,
-    marginHorizontal: spacing.lg,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceAlt,
-    overflow: "hidden",
-    ...shadows.float,
-  },
-  road: { position: "absolute", left: 0, right: 0, height: 6, backgroundColor: "#E2E8EC" },
-  roadV: { position: "absolute", top: 0, bottom: 0, width: 6, backgroundColor: "#E6EBEF" },
-  // Static left: 0 anchor — all motion is translateX (native-driver safe).
-  scanLine: { position: "absolute", top: 0, bottom: 0, left: 0, width: SCAN_BAND_WIDTH },
-  hex: { position: "absolute" },
-
-  copy: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, gap: spacing.sm, flex: 1 },
-  title: { ...type.display, fontSize: 30, lineHeight: 36 },
-  subtitle: { ...type.body, fontSize: 15, lineHeight: 21, color: colors.textDim },
-  badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
-  badge: {
+  progressWrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: `${palette.deedViolet}12`,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
+    gap: spacing.md,
+    paddingTop: spacing.lg,
   },
-  badgeText: { fontSize: 12, fontWeight: "700", color: palette.deedViolet },
+  progressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
+    overflow: "hidden",
+  },
+  progressFill: { height: 6, borderRadius: radius.pill },
+  position: { ...type.mono, fontSize: 12, color: colors.textDim },
 
-  footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.lg },
-  dots: { flexDirection: "row", justifyContent: "center", gap: 7 },
+  body: { flex: 1 },
+  bodyContent: { flexGrow: 1, justifyContent: "center", paddingVertical: spacing.lg },
+  step: { alignItems: "center", gap: spacing.lg },
+  iconCircle: {
+    width: 116,
+    height: 116,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.card,
+  },
+  title: { ...type.display, fontSize: 26, lineHeight: 32, textAlign: "center" },
+  text: {
+    ...type.body,
+    fontSize: 15.5,
+    lineHeight: 23,
+    textAlign: "center",
+    color: colors.textDim,
+  },
+
+  footer: { paddingBottom: spacing.md, gap: spacing.sm },
+  dots: { flexDirection: "row", justifyContent: "center", gap: 7, paddingBottom: spacing.sm },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.border },
 });
