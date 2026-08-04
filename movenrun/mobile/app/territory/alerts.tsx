@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getLocalDateKey } from "@/lib/date";
 import {
@@ -71,7 +71,7 @@ export default function TerritoryAlertsScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Alerts</Text>
@@ -119,7 +119,7 @@ export default function TerritoryAlertsScreen() {
               <Ionicons name="leaf-outline" size={28} color={palette.pulseGreen} />
               <Text style={styles.calmText}>Your territory is calm.</Text>
               <Pressable
-                style={styles.calmBtn}
+                style={pressFade(styles.calmBtn)}
                 onPress={() => {
                   tapFeedback();
                   router.push("/territory/map");
@@ -172,7 +172,7 @@ function AlertRow({ alert, onPress }: { alert: TerritoryAlert; onPress: () => vo
           </View>
         </View>
         <Text style={styles.alertDesc}>{alert.description}</Text>
-        <Pressable hitSlop={8} onPress={onPress} style={styles.ctaBtn}>
+        <Pressable hitSlop={8} onPress={onPress} style={pressFade(styles.ctaBtn)}>
           <Text style={[styles.ctaText, { color: sev.text }]}>{alert.ctaLabel}</Text>
           <Ionicons name="chevron-forward" size={13} color={sev.text} />
         </Pressable>
@@ -248,13 +248,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  alertIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  alertIcon: { ...iconTile(38) },
   alertBody: { flex: 1, gap: 4 },
   alertTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   alertTitle: { ...type.heading, fontSize: 14.5, flex: 1 },

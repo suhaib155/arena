@@ -8,7 +8,7 @@ import { Hexagon } from "@/components/Hexagon";
 import { MovementMetric } from "@/components/MovementMetric";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { buildWeeklyRecap, type MomentumTone } from "@/lib/weeklyRecap";
@@ -67,7 +67,7 @@ export default function WeeklyRecapScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Weekly Recap</Text>
@@ -384,15 +384,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
+  emptyIcon: { ...avatar(56), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
   emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },
@@ -406,14 +398,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  objectivesCtaIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  objectivesCtaIcon: { ...iconTile(34), backgroundColor: colors.primaryDim },
   objectivesCtaBody: { flex: 1, gap: 2 },
   objectivesCtaName: { ...type.heading, fontSize: 15 },
   objectivesCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

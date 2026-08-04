@@ -7,7 +7,7 @@ import { RouteCanvas } from "@/components/RouteCanvas";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import {
   acceptPoint,
   distanceMeters,
@@ -147,7 +147,7 @@ export default function MoveSessionScreen() {
   return (
     <Screen>
       <View style={styles.topBar}>
-        <Pressable onPress={quit} hitSlop={12} style={styles.quitBtn}>
+        <Pressable onPress={quit} hitSlop={12} style={pressFade(styles.quitBtn)}>
           <Ionicons name="close" size={24} color={colors.textDim} />
         </Pressable>
         <View style={styles.statusWrap}>

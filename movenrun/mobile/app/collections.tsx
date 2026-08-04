@@ -7,7 +7,7 @@ import { Button } from "@/components/Button";
 import { ProgressHero } from "@/components/ProgressHero";
 import { CompletedSummary } from "@/components/CompletedSummary";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { zoneStatus } from "@/lib/territory";
 import { buildCollections, type Badge } from "@/lib/zoneCollections";
@@ -57,7 +57,7 @@ export default function CollectionsScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Collections</Text>
@@ -220,7 +220,7 @@ export default function CollectionsScreen() {
                   tapFeedback();
                   setLockedExpanded((v) => !v);
                 }}
-                style={styles.lockedHeader}
+                style={pressFade(styles.lockedHeader)}
                 accessibilityRole="button"
                 accessibilityLabel={`${view.lockedBadges.length} locked`}
                 accessibilityHint={lockedExpanded ? "Collapse locked" : "Expand locked"}
@@ -327,15 +327,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
+  emptyIcon: { ...avatar(56), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
   emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },
@@ -350,13 +342,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadows.card,
   },
-  nearestIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  nearestIcon: { ...iconTile(42) },
   nearestBody: { flex: 1, gap: 3 },
   nearestKicker: { ...type.kicker, fontSize: 10.5, color: palette.baseBlue },
   nearestTitle: { ...type.heading, fontSize: 15.5 },
@@ -409,13 +395,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     ...shadows.card,
   },
-  groupIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  groupIcon: { ...iconTile(32) },
   groupName: { ...type.heading, fontSize: 14, flex: 1 },
   groupCount: { ...type.mono, fontSize: 12.5, color: colors.textDim },
 
@@ -442,14 +422,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 48,
   },
-  lockedIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  lockedIcon: { ...iconTile(24), backgroundColor: colors.border },
   lockedTitle: { ...type.heading, fontSize: 14.5, flex: 1, color: colors.textDim },
   lockedRow: {
     flexDirection: "row",

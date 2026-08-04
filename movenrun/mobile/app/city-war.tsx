@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -140,7 +140,7 @@ export default function CityWarScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>City War Board</Text>
@@ -236,7 +236,7 @@ export default function CityWarScreen() {
                 <Pressable
                   hitSlop={8}
                   onPress={() => go(board.priorityAction.action)}
-                  style={styles.priorityCta}
+                  style={pressFade(styles.priorityCta)}
                 >
                   <Text style={styles.priorityCtaText}>{board.priorityAction.ctaLabel}</Text>
                 </Pressable>
@@ -414,7 +414,7 @@ function BattleRow({ battle, onPress }: { battle: DistrictBattle; onPress: () =>
       </View>
       <View style={styles.battleFooter}>
         <Text style={styles.battleRec} numberOfLines={1}>{battle.recommendation}</Text>
-        <Pressable hitSlop={8} onPress={onPress} style={styles.battleCta}>
+        <Pressable hitSlop={8} onPress={onPress} style={pressFade(styles.battleCta)}>
           <Text style={[styles.battleCtaText, { color: tint }]}>{battle.ctaLabel}</Text>
           <Ionicons name="chevron-forward" size={13} color={tint} />
         </Pressable>

@@ -8,7 +8,7 @@ import { Hexagon } from "@/components/Hexagon";
 import { ProgressHero } from "@/components/ProgressHero";
 import { StatusPill } from "@/components/StatusPill";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -179,7 +179,7 @@ export default function DeedShowroomScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Deeds</Text>
@@ -265,7 +265,7 @@ export default function DeedShowroomScreen() {
                       tapFeedback();
                       setLockedExpanded((v) => !v);
                     }}
-                    style={styles.lockedHeader}
+                    style={pressFade(styles.lockedHeader)}
                     accessibilityRole="button"
                     accessibilityLabel={`${view.lockedCards.length} locked previews`}
                     accessibilityHint={lockedExpanded ? "Collapse locked" : "Expand locked"}
@@ -394,7 +394,7 @@ function FeaturedDeedCard({ card, onPress }: { card: DeedPreviewCard; onPress: (
 
       <Pressable
         hitSlop={8}
-        style={styles.featuredCta}
+        style={pressFade(styles.featuredCta)}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={card.ctaLabel}
@@ -409,7 +409,7 @@ function FeaturedDeedCard({ card, onPress }: { card: DeedPreviewCard; onPress: (
 function DeedRow({ card, onPress }: { card: DeedPreviewCard; onPress: () => void }) {
   return (
     <Pressable
-      style={styles.deedRow}
+      style={pressFade(styles.deedRow)}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${card.typeLabel}, ${card.label}, ${deedStatusLabel(card)}`}
@@ -539,14 +539,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 48,
   },
-  lockedIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  lockedIcon: { ...iconTile(24), backgroundColor: colors.border },
   lockedTitle: { ...type.heading, fontSize: 14.5, flex: 1, color: colors.textDim },
   lockedRow: {
     flexDirection: "row",

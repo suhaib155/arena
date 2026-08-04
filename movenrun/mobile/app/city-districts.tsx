@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, selectionRing, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import {
   buildCityDistricts,
@@ -43,7 +43,7 @@ export default function CityDistrictsScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>City Districts</Text>
@@ -353,7 +353,7 @@ function DistrictCard({
       style={[
         styles.card,
         ...(locked ? [styles.cardLocked] : []),
-        ...(selected ? [styles.cardSelected] : []),
+        selectionRing(selected),
       ]}
       onPress={onPress}
     >
@@ -472,15 +472,8 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   cardLocked: { backgroundColor: colors.surfaceAlt, ...shadows.card, shadowOpacity: 0.04 },
-  cardSelected: { borderWidth: 2, borderColor: palette.baseBlue },
   cardTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cardIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  cardIcon: { ...iconTile(28) },
   cardStatusChip: { borderRadius: radius.pill, paddingVertical: 2, paddingHorizontal: spacing.sm },
   cardStatusText: { fontSize: 10, fontWeight: "800" },
   cardName: { ...type.heading, fontSize: 14.5 },
@@ -501,13 +494,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   selectedHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  selectedIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  selectedIcon: { ...iconTile(38) },
   selectedTitleBox: { flex: 1, gap: 2 },
   selectedName: { ...type.heading, fontSize: 16 },
   selectedStatus: { ...type.caption, fontSize: 12, fontWeight: "800" },

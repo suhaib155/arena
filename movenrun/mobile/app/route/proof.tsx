@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { formatPace } from "@/lib/geo";
 import { useGameStore } from "@/store/useGameStore";
 import { computePassport } from "@/lib/routePassport";
@@ -160,7 +160,7 @@ export default function RouteProofScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Route Proof</Text>
@@ -323,15 +323,7 @@ const styles = StyleSheet.create({
     marginLeft: -13,
     marginTop: -13,
   },
-  markerRing: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.card,
-  },
+  markerRing: { ...avatar(26), backgroundColor: "#FFFFFF", ...shadows.card },
   markerDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: palette.baseBlue },
   heroTag: {
     position: "absolute",

@@ -7,7 +7,7 @@ import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { StatusPill } from "@/components/StatusPill";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import {
   BASE_SEPOLIA_STATUS,
   CATEGORY_META,
@@ -68,7 +68,7 @@ export default function NetworkStatusScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Network</Text>
@@ -121,7 +121,7 @@ export default function NetworkStatusScreen() {
                 tapFeedback();
                 setDetailsOpen((v) => !v);
               }}
-              style={styles.detailsHeader}
+              style={pressFade(styles.detailsHeader)}
               accessibilityRole="button"
               accessibilityLabel="Technical details"
               accessibilityHint={detailsOpen ? "Collapse technical details" : "Expand technical details"}
@@ -318,13 +318,7 @@ const styles = StyleSheet.create({
   rowList: { gap: spacing.sm },
 
   connRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 44 },
-  connIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  connIcon: { ...iconTile(34) },
   connLabel: { ...type.body, fontSize: 13.5, color: colors.textDim, flex: 1 },
   connValue: { ...type.heading, fontSize: 13.5, maxWidth: "52%", textAlign: "right" },
 
@@ -339,14 +333,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 48,
   },
-  detailsIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  detailsIcon: { ...iconTile(24), backgroundColor: colors.border },
   detailsTitle: { ...type.heading, fontSize: 14.5, flex: 1, color: colors.textDim },
   detailsBody: { gap: spacing.sm },
 
@@ -379,13 +366,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   rowTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  rowIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  rowIcon: { ...iconTile(38) },
   rowBody: { flex: 1, gap: 3 },
   rowTitleLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rowName: { ...type.heading, fontSize: 15, flexShrink: 1 },

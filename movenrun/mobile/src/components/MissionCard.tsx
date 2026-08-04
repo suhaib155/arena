@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import type { HomeMission, MissionTone } from "@/lib/homeMission";
 import { Button } from "./Button";
@@ -83,13 +83,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   head: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  iconTile: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconTile: { ...iconTile(42) },
   headText: { flex: 1, gap: 2 },
   kicker: { ...type.kicker, fontSize: 10.5 },
   title: { ...type.heading, fontSize: 16.5 },
