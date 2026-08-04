@@ -10,7 +10,7 @@ import { FloatingMapControl } from "@/components/FloatingMapControl";
 import { MapLegend, type LegendItem } from "@/components/MapLegend";
 import { ZoneSheet } from "@/components/ZoneSheet";
 import { healthVisual } from "@/components/ZoneCard";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { HEALTH_LABEL } from "@/lib/territory";
 import { buildTerritoryOverview, type MapCell } from "@/lib/territoryMap";
@@ -72,7 +72,7 @@ export default function TerritoryMapScreen() {
   return (
     <Screen edgeTop>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Territory</Text>
@@ -312,15 +312,7 @@ const styles = StyleSheet.create({
   legendWrap: { position: "absolute", left: 0, right: 0, bottom: spacing.md, alignItems: "center" },
 
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.xl },
-  emptyIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
+  emptyIcon: { ...avatar(60), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 17 },
   emptyText: { ...type.body, fontSize: 13.5, textAlign: "center", color: colors.textDim },
   emptyCta: { marginTop: spacing.md, alignSelf: "stretch" },

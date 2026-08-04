@@ -12,7 +12,7 @@ import { Platform, type TextStyle, type ViewStyle } from "react-native";
  *  screens; reach for the palette when a token is brand-specific (hex zone
  *  states, Locked MOVE gold, Deed violet, …). */
 export const palette = {
-  morningWhite: "#F8FAF7",
+  morningWhite: "#EFF3F1",
   cloudCard: "#FFFFFF",
   mistPanel: "#F1F6F3",
   paleSky: "#EAF6FF",
@@ -95,24 +95,43 @@ export const radius = {
   pill: 999,
 } as const;
 
+/* ── Shape & interaction rules ────────────────────────────────────────────
+ * Defined in `lib/shape.ts` (platform-free, so the rules are unit-testable)
+ * and re-exported here so screens keep importing everything from `@/theme`. */
+export {
+  avatar,
+  ICON_TILE_RATIO,
+  iconTile,
+  MIN_TOUCH_TARGET,
+  pressFade,
+  PRESSED_OPACITY,
+  tileRadius,
+} from "./lib/shape";
+import { selectionRing as selectionRingRaw } from "./lib/shape";
+
+/** Selection outline in the brand colour. See `lib/shape.ts`. */
+export function selectionRing(selected: boolean, color: string = colors.primary): ViewStyle {
+  return selectionRingRaw(selected, color);
+}
+
 /** Soft layered shadows (iOS) with matched Android elevation. Spread onto a
  *  view style: `{ ...shadows.card }`. */
 export const shadows = {
   /** Resting glass card. */
   card: {
-    shadowColor: "#101828",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
+    shadowColor: "#0B1B33",
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   } satisfies ViewStyle,
   /** Floating elements: tab bar, hero card, footers. */
   float: {
-    shadowColor: "#101828",
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 6,
+    shadowColor: "#0B1B33",
+    shadowOpacity: 0.13,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 10,
   } satisfies ViewStyle,
 } as const;
 
@@ -140,6 +159,7 @@ export const type = {
   /** Hero numerals and wordmark moments. (Sora target) */
   display: {
     fontSize: 30,
+    lineHeight: 36,
     fontWeight: "800",
     letterSpacing: -0.8,
     color: colors.text,
@@ -147,6 +167,7 @@ export const type = {
   /** Screen titles. (Sora target) */
   title: {
     fontSize: 22,
+    lineHeight: 28,
     fontWeight: "800",
     letterSpacing: -0.4,
     color: colors.text,
@@ -154,6 +175,7 @@ export const type = {
   /** Card titles / section headings. */
   heading: {
     fontSize: 17,
+    lineHeight: 23,
     fontWeight: "700",
     letterSpacing: -0.2,
     color: colors.text,
@@ -167,6 +189,7 @@ export const type = {
   /** Supporting captions and labels. */
   caption: {
     fontSize: 12.5,
+    lineHeight: 17,
     color: colors.textDim,
   } satisfies TextStyle,
   /** Tiny uppercase kickers. */

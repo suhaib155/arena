@@ -10,7 +10,7 @@ import { Hexagon } from "@/components/Hexagon";
 import { MovementMetric } from "@/components/MovementMetric";
 import { ResultCallout } from "@/components/ResultCallout";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { formatDuration, formatPace } from "@/lib/geo";
 import {
   clearLastSession,
@@ -381,7 +381,7 @@ export default function MoveSummaryScreen() {
         {trust && session.mode === "gps" ? (
           <FadeSlideIn delay={STAGGER_MS * 6}>
             <Pressable
-              style={styles.proofRow}
+              style={pressFade(styles.proofRow)}
               onPress={() => {
                 tapFeedback();
                 router.push({
@@ -481,13 +481,7 @@ const styles = StyleSheet.create({
   },
   pendingText: { ...type.caption, fontSize: 11, fontWeight: "600", color: colors.textDim },
   rewardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  rewardIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  rewardIcon: { ...iconTile(38) },
   rewardLabel: { ...type.heading, fontSize: 15, flex: 1 },
   rewardLabelWrap: { flex: 1, gap: 1 },
   rewardLabelPlain: { ...type.heading, fontSize: 15 },

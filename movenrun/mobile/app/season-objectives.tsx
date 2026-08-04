@@ -8,7 +8,7 @@ import { ProgressHero } from "@/components/ProgressHero";
 import { CompletedSummary } from "@/components/CompletedSummary";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -125,7 +125,7 @@ export default function SeasonObjectivesScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Season Objectives</Text>
@@ -338,15 +338,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
+  emptyIcon: { ...avatar(56), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
   emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },
@@ -361,13 +353,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   currentHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  currentIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  currentIcon: { ...iconTile(42) },
   currentHeadText: { flex: 1, gap: 2 },
   currentKicker: { ...type.kicker, fontSize: 10.5, color: colors.textFaint },
   currentTitle: { ...type.heading, fontSize: 16 },
@@ -389,13 +375,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
     ...shadows.card,
   },
-  categoryIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  categoryIcon: { ...iconTile(34) },
   categoryBody: { flex: 1, gap: 1 },
   categoryName: { ...type.heading, fontSize: 14 },
   categorySupport: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

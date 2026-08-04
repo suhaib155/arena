@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
 import { Button } from "./Button";
 import { ScalePress } from "./ScalePress";
 
@@ -141,14 +141,7 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   status: { ...type.caption, fontSize: 12.5, fontWeight: "700" },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  closeBtn: { ...avatar(32), backgroundColor: colors.surfaceAlt },
   activity: { ...type.caption, fontSize: 12.5, color: colors.textDim },
   expanded: { gap: spacing.md },
   meter: { gap: 5 },

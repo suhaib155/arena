@@ -12,7 +12,7 @@ import { RoutePath } from "@/components/RoutePath";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { getLevelInfo } from "@/lib/leveling";
@@ -358,7 +358,7 @@ export default function ProfileScreen() {
             tapFeedback();
             router.push("/opening?source=replay");
           }}
-          style={styles.replayLink}
+          style={pressFade(styles.replayLink)}
         >
           <Text style={styles.replayText}>How MovenRun works</Text>
         </Pressable>
@@ -391,24 +391,8 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     ...shadows.float,
   },
-  avatarRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    borderWidth: 3,
-    borderColor: palette.baseBlue,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  avatarRing: { ...avatar(88), borderWidth: 3, borderColor: palette.baseBlue, marginBottom: spacing.sm },
+  avatar: { ...avatar(72), backgroundColor: colors.primaryDim },
   name: { ...type.title, fontSize: 24 },
   subtitle: { ...type.caption, fontSize: 14 },
   pillRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", justifyContent: "center", marginTop: spacing.xs },

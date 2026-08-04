@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 
@@ -62,13 +62,7 @@ const styles = StyleSheet.create({
     minHeight: 60,
     ...shadows.card,
   },
-  iconTile: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconTile: { ...iconTile(38) },
   body: { flex: 1, gap: 2 },
   titleRow: {
     flexDirection: "row",
