@@ -92,7 +92,14 @@ test("a clear failure propagates — a failed credential wipe is never silent", 
   const backend = createTestSecureBackend();
   const store = createSecureSessionStore(backend);
   await store.save(TOKENS);
+  /* A delete failure alone no longer ends the story: the record is overwritten
+     with a non-secret tombstone so the credential still cannot be loaded (a
+     SPENT credential left readable would be re-presented on the next launch and
+     the server would revoke the whole session family). Only when neither the
+     delete NOR the overwrite is possible does clear() report failure — and then
+     it does so loudly, never silently. */
   backend.options.failDelete = true;
+  backend.options.failSet = true;
   await assert.rejects(store.clear(), /clear_failed/);
 });
 

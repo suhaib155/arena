@@ -84,6 +84,21 @@ export interface SecureKeyValueBackend {
  *  documented migration (ADR-0012 "Upgrade behavior"). */
 export const SESSION_STORAGE_KEY = "movenrun.session.v1";
 
+/**
+ * Non-secret marker written when a credential must be destroyed but the
+ * backend's delete failed.
+ *
+ * Leaving the record intact in that case is not merely untidy: the credential
+ * being cleared is a SPENT one, so the next launch would load it and present it
+ * to the refresh endpoint — which the server treats as a replay and answers by
+ * revoking the entire session family, signing the user out on every device.
+ * `load()` accepts only a record consisting of exactly the four token fields,
+ * so overwriting with this marker makes the credential unloadable (and the
+ * marker itself is then cleaned up on the next read). It contains no token
+ * material and no user data.
+ */
+const CLEARED_TOMBSTONE = JSON.stringify({ cleared: true });
+
 function isValidTokens(value: unknown): value is SecureSessionTokens {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -147,12 +162,28 @@ export function createSecureSessionStore(
       return parsed;
     },
 
+    /**
+     * Destroy the stored credential.
+     *
+     * Deleting is the normal path. If the backend refuses to delete, the record
+     * is overwritten with a non-secret tombstone so the credential still cannot
+     * be loaded again — see {@link CLEARED_TOMBSTONE} for why leaving a spent
+     * credential readable is dangerous rather than merely untidy. Only when
+     * BOTH the delete and the overwrite fail does this report failure, so a
+     * caller never believes a clear happened when the credential is still
+     * usable.
+     */
     async clear() {
-      // Propagates as a TYPED failure: callers must know credentials may remain
-      // on the device (fail closed — never report a clear that didn't happen).
       try {
         await backend.deleteItem(SESSION_STORAGE_KEY);
+        return;
       } catch {
+        // Fall through to the tombstone attempt below.
+      }
+      try {
+        await backend.setItem(SESSION_STORAGE_KEY, CLEARED_TOMBSTONE);
+      } catch {
+        // Nothing worked: fail closed and TELL the caller (typed, never silent).
         throw new SecureSessionStorageError("clear_failed");
       }
     },

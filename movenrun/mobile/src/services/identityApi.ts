@@ -320,21 +320,28 @@ export class IdentityApiClient {
   }
 
   /**
-   * Delete stored credentials when they are known to be dead.
+   * Destroy stored credentials that are known to be dead (the server rejected
+   * them, or a rotation left them spent).
    *
-   * A delete failure is tolerated here *by design and only here*: the tokens
-   * have already been invalidated server-side, so leaving them on the device
-   * grants nothing, and turning a defensive cleanup into a rejected promise
-   * would be the difference between "you are signed out" and a bootstrap that
-   * never completes. Callers still receive `rejected`, so the app never
-   * believes a dead session is alive.
+   * `clear()` already guarantees the credential becomes unloadable whenever the
+   * keystore can perform EITHER a delete or a write — a failed delete is
+   * neutralised with a tombstone, precisely so a spent refresh token can never
+   * be re-presented after a restart and cost the user their other devices.
+   *
+   * What is tolerated here, and only here, is the residual case where neither
+   * is possible: a keystore that can be read but can neither be written nor
+   * deleted. No client-side mitigation exists for that — durably remembering
+   * anything requires a write, which is the operation that failed — and the
+   * outcome returned to the caller is `rejected` regardless, so the app never
+   * believes a dead session is alive. Turning it into a rejected promise would
+   * only trade a correct sign-out for a bootstrap that never completes.
    */
   private async discardCredentials(): Promise<void> {
     try {
       await this.store.clear();
     } catch {
-      /* Intentionally tolerated — see above. The outcome returned to the
-         caller is unchanged, so this cannot be mistaken for success. */
+      /* Total storage failure — see above. Deliberately tolerated: the returned
+         outcome is unchanged, so this can never be mistaken for success. */
     }
   }
 

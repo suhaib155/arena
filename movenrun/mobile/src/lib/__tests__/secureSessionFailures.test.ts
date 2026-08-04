@@ -76,19 +76,38 @@ test("a keystore READ failure is a typed error, never a silent 'no session'", as
   );
 });
 
-test("write and clear failures are typed too — a persist is never assumed", async () => {
+test("a write failure is typed — a persist is never assumed", async () => {
   const backend = createTestSecureBackend();
   const store = createSecureSessionStore(backend);
-
   backend.options.failSet = true;
   await assert.rejects(
     () => store.save(TOKENS()),
     (err: unknown) => isSecureSessionStorageError(err) && err.code === "write_failed",
   );
+});
 
-  backend.options.failSet = false;
+test("a delete failure still destroys the credential, via a non-secret tombstone", async () => {
+  const backend = createTestSecureBackend();
+  const store = createSecureSessionStore(backend);
+  await store.save(TOKENS());
+
+  backend.options.failDelete = true;
+  await store.clear(); // reports success: the credential IS gone, see below
+
+  const record = backend.map.get(SESSION_STORAGE_KEY);
+  assert.ok(record, "something is still stored (the delete genuinely failed)");
+  assert.ok(!/access-1|refresh-1/.test(record!), "but it contains no token material");
+  // And it can never be loaded as a session again.
+  backend.options.failDelete = false;
+  assert.equal(await store.load(), null, "the tombstone is not a credential");
+});
+
+test("only a total storage failure reports clear_failed — never silently", async () => {
+  const backend = createTestSecureBackend();
+  const store = createSecureSessionStore(backend);
   await store.save(TOKENS());
   backend.options.failDelete = true;
+  backend.options.failSet = true; // neither delete nor overwrite is possible
   await assert.rejects(
     () => store.clear(),
     (err: unknown) => isSecureSessionStorageError(err) && err.code === "clear_failed",
@@ -236,4 +255,94 @@ test("the storage codes map to stable, non-technical copy", () => {
     assert.ok(!message!.includes(code), "the raw code is never shown");
     assert.ok(!/keystore|SecureStore|Error|stack|null/i.test(message!), `${code}: no technical detail`);
   }
+});
+
+// ---- spent credentials must never be re-presented ---------------------------
+
+/** A server that rotates refresh tokens and revokes the family on reuse —
+ *  exactly what backend SessionService.refresh does. */
+function rotatingServer() {
+  const spent = new Set<string>();
+  const s = { refreshCalls: 0, replayResponses: 0, familyRevoked: false };
+  const fetchImpl = (async (input: string, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/identity/auth/refresh")) {
+      s.refreshCalls += 1;
+      const presented = JSON.parse(String(init?.body ?? "{}")).refreshToken as string;
+      if (spent.has(presented) || s.familyRevoked) {
+        s.familyRevoked = true;
+        s.replayResponses += 1;
+        return json(401, { error: { code: "refresh_reuse_detected" } });
+      }
+      spent.add(presented);
+      return json(200, {
+        session: {
+          id: "s2",
+          assuranceLevel: "aal1",
+          issuedAt: FUTURE(),
+          expiresAt: FUTURE(),
+          accessToken: "access-v2",
+          accessTokenExpiresAt: FUTURE(),
+          refreshToken: "refresh-v2",
+          refreshTokenExpiresAt: FUTURE(),
+        },
+      });
+    }
+    return json(401, { error: { code: "unauthenticated" } });
+  }) as typeof fetch;
+  return { state: s, fetchImpl };
+}
+
+test("a spent credential whose delete failed is NOT replayed after a restart", async () => {
+  /* The failure this locks out: the server rejects a refresh (or rotation
+     succeeds but the new tokens cannot be written), the local delete then
+     fails, and the SPENT refresh token stays on disk. The next launch loads it
+     and presents it — which the server treats as a replay and answers by
+     revoking the whole session family, signing the user out on every device.
+     Our own cleanup failure must never cost the user their other devices. */
+  const backend = createTestSecureBackend();
+  const store = createSecureSessionStore(backend);
+  await store.save(TOKENS());
+
+  const { state: srv, fetchImpl } = rotatingServer();
+  globalThis.fetch = fetchImpl;
+
+  // Rotation succeeds server-side, then the local delete refuses.
+  backend.options.failDelete = true;
+  const client = new IdentityApiClient({ baseUrl: "https://identity.test", store });
+  await client.restoreSession();
+  backend.options.failDelete = false;
+
+  // "Restart": a fresh store and client over the same durable backend.
+  const restarted = createSecureSessionStore(backend);
+  assert.equal(await restarted.load(), null, "the spent credential is not loadable");
+
+  const outcome = await new IdentityApiClient({
+    baseUrl: "https://identity.test",
+    store: restarted,
+  }).restoreSession();
+
+  assert.equal(outcome.kind, "no-session", "a confirmed signed-out start, not a replay");
+  assert.equal(srv.replayResponses, 0, "the spent token was never presented again");
+  assert.equal(srv.familyRevoked, false, "the user's other devices survive");
+});
+
+test("sign-out leaves nothing re-presentable either, even when the delete fails", async () => {
+  const backend = createTestSecureBackend();
+  const store = createSecureSessionStore(backend);
+  await store.save(TOKENS());
+  const { state: srv, fetchImpl } = rotatingServer();
+  globalThis.fetch = (async (input: string, init?: RequestInit) => {
+    if (String(input).endsWith("/session/revoke")) return json(200, { revoked: true });
+    return fetchImpl(input as never, init as never);
+  }) as typeof fetch;
+
+  backend.options.failDelete = true;
+  await new IdentityApiClient({ baseUrl: "https://identity.test", store }).signOut();
+  backend.options.failDelete = false;
+
+  const restarted = createSecureSessionStore(backend);
+  assert.equal(await restarted.load(), null, "the revoked credential is not loadable");
+  assert.equal(srv.replayResponses, 0);
+  assert.equal(srv.familyRevoked, false);
 });
