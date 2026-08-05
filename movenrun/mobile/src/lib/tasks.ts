@@ -1,0 +1,231 @@
+/**
+ * The task board — the one thing MovenRun asks you to do today.
+ *
+ * Home used to stack a hero, a mission card, an "up next" list, a daily quest
+ * and a warmup quest list, each built by its own module with its own vocabulary
+ * ("mission", "objective", "questline step", "quest"). Five names for one idea:
+ * *something the player should do*. The screen had to reconcile them, so the
+ * reconciliation logic lived in the screen — which is exactly where it could
+ * not be tested.
+ *
+ * There is now one noun. A {@link Task} is anything the app asks of you, and
+ * {@link buildTodayBoard} is the single function that decides which tasks are
+ * on today's board, which are already done, and which one gets the spotlight.
+ *
+ * Pure: no store, no React, no I/O. The screen passes plain state in and
+ * renders what comes back.
+ */
+import type { IoniconName } from "@/types";
+
+/** What kind of movement a task represents. Drives icon and accent only. */
+export type TaskKind = "resume" | "defend" | "move" | "quest" | "capture" | "club";
+
+/** Done or not. There is no third state — a task you cannot do yet is simply
+ *  not on the board. */
+export type TaskState = "todo" | "done";
+
+/** Where a task goes when tapped. Semantic, so this module never names a
+ *  route; the screen owns that mapping. */
+export type TaskAction = "move" | "territory" | "quest" | "clubs";
+
+/** Colour intent. Semantic, never decorative — see the tone map in the screen. */
+export type TaskTone = "primary" | "danger" | "gold" | "green";
+
+export interface Task {
+  id: TaskKind;
+  kind: TaskKind;
+  /** Imperative and second person: "Move for 10 minutes", not "Movement". */
+  title: string;
+  /** One supporting line. Never a second sentence. */
+  detail: string;
+  /** Button text when this task is in the spotlight. Lives on the task rather
+   *  than in a lookup beside the button, so wording can never drift from the
+   *  title it belongs to. */
+  cta: string;
+  state: TaskState;
+  action: TaskAction;
+  tone: TaskTone;
+  icon: IoniconName;
+  /** XP awarded on completion, or 0 when the task isn't XP-bearing. */
+  reward: number;
+}
+
+export interface TodayBoardInput {
+  /** A movement session can be picked back up. */
+  hasRecoverableMovement: boolean;
+  /** A session was completed today (local day). */
+  movedToday: boolean;
+  /** Owned zones currently needing defence. */
+  atRiskZoneCount: number;
+  /** Zones captured so far. */
+  zonesOwned: number;
+  /** Title of today's quest. */
+  dailyQuestTitle: string;
+  /** XP today's quest awards. */
+  dailyQuestXp: number;
+  /** Today's quest was already completed this local day. */
+  dailyQuestDone: boolean;
+  /** The player has picked a club. */
+  hasClub: boolean;
+}
+
+export interface TodayBoard {
+  /**
+   * The single task in the spotlight — the highest-priority thing still to do,
+   * and the owner of the screen's one primary button.
+   *
+   * `null` means every task on the board is done. The screen shows its "all
+   * clear" state rather than inventing a task to fill the space.
+   */
+  focus: Task | null;
+  /** The rest of the board, in priority order. Never contains {@link focus}. */
+  tasks: Task[];
+  doneCount: number;
+  totalCount: number;
+  /** "2 of 5 done" — pre-formatted so the screen does no arithmetic. */
+  progressLabel: string;
+  /** 0..1, for the progress bar. 1 when the board is empty (nothing owed). */
+  progress: number;
+  allDone: boolean;
+}
+
+/** Hard cap on board size. A checklist you can't see the end of is a backlog. */
+export const TASK_CAP = 5;
+
+/**
+ * Build today's board.
+ *
+ * Tasks come in three flavours, and the difference is the whole design:
+ *
+ *  - **Daily** (`move`, `quest`) are always on the board and reset each day.
+ *    They are what makes it a *daily* checklist rather than a to-do pile.
+ *  - **Conditional** (`resume`, `defend`) appear only while the condition
+ *    holds, and are the highest priority when they do — an interrupted session
+ *    or losable ground outranks routine.
+ *  - **Milestone** (`capture`, `club`) appear only until they're achieved, then
+ *    leave the board for good. Showing a permanently-ticked "capture your first
+ *    zone" forever would pad the count and cheapen the progress line.
+ *
+ * The order below IS the priority order, and it is the only place it is stated.
+ */
+export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
+  const board: Task[] = [];
+
+  // Conditional — an interrupted session is the most perishable thing here.
+  if (input.hasRecoverableMovement) {
+    board.push({
+      id: "resume",
+      kind: "resume",
+      title: "Finish your move",
+      detail: "You have a session in progress.",
+      cta: "Resume move",
+      state: "todo",
+      action: "move",
+      tone: "primary",
+      icon: "play-circle-outline",
+      reward: 0,
+    });
+  }
+
+  // Conditional — ground you already own is at stake.
+  if (input.atRiskZoneCount > 0) {
+    const many = input.atRiskZoneCount > 1;
+    board.push({
+      id: "defend",
+      kind: "defend",
+      title: many ? `Defend ${input.atRiskZoneCount} zones` : "Defend your zone",
+      detail: "Move through your territory to refresh its defence.",
+      cta: "View territory",
+      state: "todo",
+      action: "territory",
+      tone: "danger",
+      icon: "shield-half-outline",
+      reward: 0,
+    });
+  }
+
+  // Daily — the core of the product, so it is on the board every single day.
+  board.push({
+    id: "move",
+    kind: "move",
+    title: input.zonesOwned === 0 && !input.movedToday ? "Make your first move" : "Move today",
+    detail: input.movedToday
+      ? "Session logged. Move again any time."
+      : "Any distance counts. Your route is tracked on-device.",
+    cta: input.movedToday ? "Move again" : "Start move",
+    state: input.movedToday ? "done" : "todo",
+    action: "move",
+    tone: "primary",
+    icon: "walk-outline",
+    reward: 0,
+  });
+
+  // Daily — the streak-safe warmup, so there is always something achievable
+  // indoors on a day movement isn't possible.
+  board.push({
+    id: "quest",
+    kind: "quest",
+    title: input.dailyQuestTitle,
+    detail: input.dailyQuestDone ? "Completed today." : "Today's warmup quest.",
+    cta: input.dailyQuestDone ? "View quest" : "Start quest",
+    state: input.dailyQuestDone ? "done" : "todo",
+    action: "quest",
+    tone: "gold",
+    icon: "flash-outline",
+    reward: input.dailyQuestXp,
+  });
+
+  // Milestone — drops off the board once the first zone is captured.
+  if (input.zonesOwned === 0) {
+    board.push({
+      id: "capture",
+      kind: "capture",
+      title: "Capture your first zone",
+      detail: "Move through new ground to claim it.",
+      cta: "Start move",
+      state: "todo",
+      action: "move",
+      tone: "green",
+      icon: "flag-outline",
+      reward: 0,
+    });
+  }
+
+  // Milestone — drops off the board once a club is chosen.
+  if (!input.hasClub) {
+    board.push({
+      id: "club",
+      kind: "club",
+      title: "Pick a club",
+      detail: "Your movement adds to their city score.",
+      cta: "Browse clubs",
+      state: "todo",
+      action: "clubs",
+      tone: "green",
+      icon: "people-outline",
+      reward: 0,
+    });
+  }
+
+  const capped = board.slice(0, TASK_CAP);
+  const doneCount = capped.filter((t) => t.state === "done").length;
+  const totalCount = capped.length;
+
+  /* The spotlight is simply the first task still to do. Pulling it OUT of the
+     list — rather than flagging it in place — is what stops Home from ever
+     rendering the same task twice, once as a hero and once as a row. That was
+     the original duplicate-CTA bug, and this makes it unrepresentable. */
+  const focusIndex = capped.findIndex((t) => t.state === "todo");
+  const focus = focusIndex === -1 ? null : capped[focusIndex];
+  const tasks = focusIndex === -1 ? capped : capped.filter((_, i) => i !== focusIndex);
+
+  return {
+    focus,
+    tasks,
+    doneCount,
+    totalCount,
+    progressLabel: `${doneCount} of ${totalCount} done`,
+    progress: totalCount === 0 ? 1 : doneCount / totalCount,
+    allDone: focus === null,
+  };
+}

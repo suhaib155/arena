@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.sm,
   },
   offlineText: { ...type.caption, fontSize: 11.5, color: colors.textDim, flex: 1 },

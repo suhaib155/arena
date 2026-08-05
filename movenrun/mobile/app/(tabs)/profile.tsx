@@ -207,6 +207,12 @@ export default function ProfileScreen() {
         {/* Progress */}
         <NavGroup title="Progress">
           <NavRow
+            icon="flash-outline"
+            title="Warmup Quests"
+            subtitle="Short indoor sessions · keeps your streak alive"
+            onPress={() => go("/quests")}
+          />
+          <NavRow
             icon="ribbon-outline"
             title="Season Objectives"
             subtitle={`${seasonObjectives.completed}/${seasonObjectives.total} complete · local preview`}
