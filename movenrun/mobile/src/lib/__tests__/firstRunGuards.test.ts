@@ -374,40 +374,46 @@ test("redesigned first-run screens stay on the native driver with safe propertie
   }
 });
 
-// ---- home / first mission ---------------------------------------------------
+// ---- home / the task board --------------------------------------------------
 
-test("Home renders from the pure composition rule, with no second opinion", () => {
+test("Home decides nothing — it renders one board and no second opinion", () => {
   const src = code(HOME);
-  /* The "exactly one primary CTA" invariant is proven for every input in
-     firstMission.test.ts. What must be guarded HERE is that the screen obeys
-     that rule instead of re-deciding with its own conditionals — the original
-     defect was four independent booleans that disagreed. */
-  assert.match(src, /composeHome\(\{/, "the screen consumes the pure rule");
-  for (const flag of [
-    "composition.showFirstMissionHero",
-    "composition.showNormalHeroCta",
-    "composition.showMissionCard",
-    "composition.showUpNext",
-  ]) {
-    const uses = src.split(flag).length - 1;
-    assert.equal(uses, 1, `${flag} must gate exactly one block (saw ${uses})`);
-  }
-  // No block may re-derive visibility from the raw flag or a literal.
-  assert.ok(
-    !/\{firstMissionActive \?|\{!firstMissionActive|\{true \?|\{false \?/.test(src),
-    "visibility comes from the composition, never from an ad-hoc condition",
+  /* The board's rules ("one spotlight task", "never rendered twice", priority
+     order) are proven for every input in tasks.test.ts. What must be guarded
+     HERE is that the screen obeys the board instead of re-deciding with its
+     own conditionals — the original defect was four independent booleans on
+     this screen that disagreed with each other. */
+  assert.match(src, /buildTodayBoard\(\{/, "the screen consumes the pure rule");
+  assert.equal(
+    (src.match(/buildTodayBoard\(/g) ?? []).length,
+    1,
+    "one board per render, not one per section",
   );
-  // Exactly one button binds the first mission's primary label, and the
-  // secondary action is lower-emphasis so it cannot read as a rival CTA.
-  assert.equal((src.match(/label=\{firstMission\.primaryLabel\}/g) ?? []).length, 1);
-  assert.match(src, /label=\{firstMission\.secondaryLabel\}[\s\S]{0,140}variant="ghost"/);
-  assert.ok(!/styles\.firstMission:/.test(src), "no separate competing mission card");
+  // No section may re-derive what to show from raw state or a literal.
+  assert.ok(
+    !/\{true \?|\{false \?|zones\.length === 0 \?|history\.length > 0 \?/.test(src),
+    "visibility comes from the board, never from an ad-hoc condition",
+  );
+  // The spotlight owns the only primary button, and it lives in TaskHero — so
+  // the screen itself renders no button at all and cannot grow a rival CTA.
+  assert.ok(!/<Button\b/.test(src), "Home renders no button of its own");
+  assert.ok(!/variant="primary"/.test(src), "the only primary action is the board's");
 });
 
-test("Home derives the first mission and its CTA uses the real movement route", () => {
+test("Home derives its state and keeps movement on the real route", () => {
   const src = code(HOME);
-  assert.match(src, /isFirstMission\(/, "derived, not a persisted flag");
-  assert.ok(!/firstMissionComplete/.test(src), "no redundant completion boolean");
-  assert.match(src, /FIRST_MISSION_ROUTE:\s*Record<FirstMissionAction, string>\s*=\s*\{\s*move:\s*"\/move"/);
-  assert.ok(!/router\.replace\("\/move"\)/.test(src), "Home pushes to Move, keeping the tab stack intact");
+  // Every board input is computed from authoritative store state, so a reset
+  // cannot leave a stale "you already did this" flag behind.
+  assert.ok(
+    !/firstMissionComplete|onboardingComplete|hasSeenHome/.test(src),
+    "no redundant completion boolean",
+  );
+  assert.match(src, /case "move":\s*\n?\s*return router\.push\("\/move"\)/);
+  assert.ok(
+    !/router\.replace\("\/move"\)/.test(src),
+    "Home pushes to Move, keeping the tab stack intact",
+  );
+  // One switch maps semantic actions to routes; screens elsewhere don't get to
+  // invent a different destination for the same task.
+  assert.equal((src.match(/const go = \(/g) ?? []).length, 1);
 });

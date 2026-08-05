@@ -114,6 +114,55 @@ test("no screen hand-rolls a square icon container any more", () => {
   assert.deepEqual(offenders, [], "use iconTile(size) or avatar(size) instead");
 });
 
+// ---- card surfaces ----------------------------------------------------------
+
+/** Style blocks, brace-aware so a nested `{ width, height }` doesn't end one. */
+function styleBlocks(src: string): [string, string][] {
+  const out: [string, string][] = [];
+  for (const m of src.matchAll(/(\w+):\s*\{/g)) {
+    let depth = 1;
+    const start = m.index! + m[0].length;
+    for (let i = start; i < src.length; i++) {
+      if (src[i] === "{") depth++;
+      else if (src[i] === "}" && --depth === 0) {
+        out.push([m[1], src.slice(start, i)]);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+test("anything that floats above the page uses a card radius", () => {
+  // A shadow is the app saying "this is a card". Cards had drifted across four
+  // different radii, which is why the same list row looked softer on one screen
+  // than the next. Shadowless things — inputs, inset panels, tiny badges — are
+  // their own families and are deliberately not covered by this rule.
+  const CARD_RADII = ["radius.lg", "radius.xl", "radius.pill"];
+  const offenders: string[] = [];
+  for (const file of SCREENS) {
+    for (const [name, body] of styleBlocks(read(file))) {
+      if (!/\.\.\.shadows\.(card|float)/.test(body)) continue;
+      const radius = body.match(/borderRadius:\s*([\w.]+)/)?.[1];
+      if (radius && !CARD_RADII.includes(radius)) {
+        offenders.push(`${file.replace(process.cwd(), "")}: ${name} (${radius})`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], `use ${CARD_RADII.join(" / ")}, or drop the shadow`);
+});
+
+test("the Card primitive is the only place card geometry is defined", () => {
+  const card = read(join(SRC, "components", "Card.tsx"));
+  // Three variants, no more: standard, hero, flat. A fourth is how a design
+  // system starts meaning nothing.
+  for (const variant of ["standard", "hero", "flat"]) {
+    assert.ok(card.includes(`${variant}: {`), `Card lost its ${variant} variant`);
+  }
+  assert.ok(!/shadows\.float/.test(read(join(SRC, "components", "TaskRow.tsx"))),
+    "rows are standard cards — only the spotlight floats");
+});
+
 // ---- selection --------------------------------------------------------------
 
 test("a selection outline never changes an element's size", () => {

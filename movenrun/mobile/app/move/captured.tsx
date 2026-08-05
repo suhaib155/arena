@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 2,
     borderColor: palette.pulseGreen,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     paddingVertical: 7,
     paddingHorizontal: spacing.md,
     ...shadows.card,
