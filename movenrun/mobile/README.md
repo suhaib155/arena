@@ -1,13 +1,30 @@
-# MovenRun — Mobile (MVP)
+# MovenRun — Mobile
 
-An AI movement-quest app (MVP slice). First-launch onboarding, pick a daily
-movement quest, run a timer, finish it, earn XP toward levels and a daily
-streak, then share your win.
+The MovenRun app: account-first onboarding, real GPS movement sessions, on-device
+territory capture and defence, clubs and city districts, progression, and
+clearly-labelled previews of the ownership layer that is still being built.
 
-> **MVP scope:** quests come from a local mock service (`src/services/questService.ts`,
-> backed by `src/data/quests.ts`). No AI API calls, no auth, no wallet/blockchain,
-> no Supabase/backend. Progress (XP, level, streak, history, onboarding) is stored
-> locally on-device via AsyncStorage.
+> **What is real vs. previewed — read this first.**
+>
+> **Real:** foreground GPS tracking (`expo-location`) during an explicit session;
+> distance, duration, and route drawn on-device; XP, levels, streaks, and history
+> persisted locally (AsyncStorage); email-OTP sign-in against the MovenRun
+> identity API with tokens held in `expo-secure-store`; a local-only beta path
+> for playing without an account.
+>
+> **Simulated on-device:** territory. Routes are quantized onto a local ~300 m
+> hex lattice (`src/lib/zones.ts`) — *not* real H3 yet — and capture / defend /
+> fortify / decay run as deterministic local math (`src/lib/territory.ts`).
+> Clubs, rivals, districts, city wars, sponsor zones, and event zones are seeded
+> local previews with no server and no location inference.
+>
+> **Preview only, never functional:** Locked MOVE (`src/lib/lockedMove.ts`) is a
+> figure derived from XP, always labelled as in-app progress and not a payout.
+> Zone Deeds are an educational showroom. The network screen shows public Base
+> Sepolia addresses read-only.
+>
+> **Not in the app at all:** wallet signing, token transfers, on-chain writes, RPC
+> calls, background location, raw-GPS upload, and AI provider keys.
 
 ## Design system — Daylight Cartography
 
@@ -21,9 +38,10 @@ white cards with layered shadows, hex-zone identity, and the territory accents
   the `type` scale, and `motion` timing. Never hardcode hex values in screens.
 - Motion uses core `Animated` only (`ScalePress`, `FadeSlideIn`,
   `CountUpText`) — no animation libraries.
-- The hex motif (`Hexagon`, `TerritoryPreview`) is plain Views — no SVG/map
-  dependency yet. The territory card is explicitly a **non-functional preview**
-  ("Territory map coming next").
+- The hex motif (`Hexagon`, `TerritoryPreview`, `RouteCanvas`) is plain Views —
+  no SVG or native map dependency. The Home territory card is explicitly a
+  **non-functional preview** ("Territory map coming next"); the browsable map
+  lives at `app/territory/map.tsx` and renders the local zone lattice.
 - **Locked MOVE is a display preview only** (`src/lib/lockedMove.ts`): a value
   derived from XP, always labeled "preview · in-app progress, not a payout".
   No balance is stored and no earning is implied.
@@ -33,17 +51,24 @@ white cards with layered shadows, hex-zone identity, and the territory accents
   `@expo-google-fonts/plus-jakarta-sans`, `@expo-google-fonts/space-grotesk`
   and set `fontFamily` in `src/theme.ts` once the build is device-verified.
 
-## Quest data: always go through `questService`
+## Data seams
 
-All quest access goes through **`src/services/questService.ts`** — screens never
-import the raw quest arrays. This is the single seam where a future
-**server-side, AI-generated** quest source will plug in (an alternate
-`QuestService` implementation, prefetched at session start). Rules:
+Screens never import raw data arrays. Each data family goes through one module,
+so a local mock can be swapped for a server source without touching a screen.
 
-- Do **not** bypass `questService` when adding a new quest source.
-- Future AI quests must be generated **server-side**; never ship AI provider keys
-  in the mobile app.
-- The current implementation is **mock/local only** and synchronous.
+- **`src/services/questService.ts`** — all quest access. Mock/local and
+  synchronous today; a server-side implementation would plug in behind the same
+  interface, prefetched at session start (`@/hooks/useSessionStart`). Do not
+  bypass it when adding a quest source.
+- **`src/services/identityApi.ts`** — the only caller of the identity/wallet API.
+  The server is authoritative; the client only attaches the bearer token, refreshes
+  once on a 401, and surfaces the server's stable error codes. It never generates
+  a wallet and never accepts a seed phrase or private key.
+- **`src/services/moveTracker.ts`** — GPS (`expo-location` foreground watch) and
+  the labelled demo tracker behind one interface.
+- **`src/lib/*View.ts` / `src/lib/*.ts`** — pure selectors and rules (territory
+  decay, clubs, collections, deeds, network, recap, objectives). They take plain
+  data and return plain data, which is what makes them testable offline.
 
 ## Completed-today (anti-farming)
 
@@ -62,7 +87,10 @@ ids completed on the current local day (`getLocalDateKey()`), so:
 - Expo Router v3 (file-based routing in `app/`)
 - TypeScript (strict)
 - Zustand for state, persisted with AsyncStorage
+- `expo-secure-store` for auth tokens — secrets never touch AsyncStorage
+- `expo-location` for foreground-only movement tracking
 - `expo-haptics` for tactile feedback; React Native `Share` for the share sheet
+- No map, SVG, animation, or analytics libraries — motion is core `Animated`
 
 ## Run it
 
@@ -75,18 +103,26 @@ yarn workspace @movenrun/mobile start
 # then press "i" (iOS sim), "a" (Android emulator), or scan the QR with Expo Go
 ```
 
-Type-check:
+Type-check and test:
 
 ```bash
 yarn workspace @movenrun/mobile lint   # tsc --noEmit
+yarn workspace @movenrun/mobile test   # offline node tests for the pure modules
 ```
 
-CI runs this type-check automatically on every PR and on pushes to `main`
-(`.github/workflows/mobile-checks.yml`).
+CI runs both automatically on every PR and on pushes to `main`
+(`.github/workflows/mobile-checks.yml`). The tests need no device, no network,
+and no native modules — that is why the rules they cover live in pure modules
+under `src/lib/`.
 
-> First launch shows the onboarding flow. To see it again, use **Reset progress**
-> on the Profile tab (which clears stats) or clear the app's storage — note that
-> Reset intentionally keeps you past onboarding.
+Signing in requires the identity API. Point the app at it with the
+`EXPO_PUBLIC_API_URL` environment variable; when it is unset, auth calls fail
+fast with a clear message instead of hitting a wrong host. Without a backend,
+use the **explore the local beta** path on the welcome screen.
+
+> First launch shows account choice, then the intro. To see first run again, use
+> **Reset progress** on the Profile tab (which clears stats) or clear the app's
+> storage — note that Reset intentionally keeps you past first run.
 
 ## Test on your Android phone (GitHub Codespaces + Expo tunnel)
 
@@ -156,34 +192,29 @@ required**. The build runs from a manual GitHub Actions workflow
 (`EXPO_TOKEN`, already configured in repo Settings ▸ Secrets and variables ▸
 Actions). **Never commit Expo tokens, passwords, or `.env` files.**
 
-Do the three steps in order.
+### Step A — EAS project linking (already done)
+EAS needs a real project id in `app.json` (`extra.eas.projectId`), and the
+workflow **fails fast** on the `FILL_ME_IN` placeholder. This repository is
+already linked, so there is nothing to do here.
 
-### Step A — Link the EAS project once (required first)
-EAS needs a real project id. `app.json` ships with a placeholder
-(`extra.eas.projectId: "FILL_ME_IN"`), and the workflow **fails fast** until it's
-replaced. Link it once from your machine:
+If you ever need to re-link the project to a different Expo account:
 
 ```bash
-cd movenrun/mobile          # Windows example: cd E:\MovenRun\arena\movenrun\mobile
+cd movenrun/mobile
 npx eas-cli@latest login    # or: eas login
 npx eas-cli@latest init     # or: eas init
 ```
 
-`eas init` creates/links the project under your Expo account and writes the real
-`extra.eas.projectId` into `app.json`. **Commit that one-line `app.json` change**
-(a small commit/PR). It's a one-time step. Only the `projectId` is committed —
-never your token/password.
+`eas init` writes the real `extra.eas.projectId` into `app.json`. Commit that
+one-line change. Only the `projectId` is committed — never your token or
+password.
 
 > Why isn't this automated in CI? Linking creates/owns a project under *your*
 > Expo account and the id must live in `app.json`. The workflow intentionally
 > does **not** auto-create projects or mutate committed config — it just checks
 > that the project is linked and fails with instructions if not.
 
-### Step B — Merge the workflow to `main`
-Merge this PR so `.github/workflows/eas-apk-build.yml` is on `main` (manual
-`workflow_dispatch` workflows are launched from the default branch).
-
-### Step C — Run the build (produces the APK)
+### Step B — Run the build (produces the APK)
 1. Go to the **GitHub repo** → **Actions** tab.
 2. Select the **EAS APK Build** workflow.
 3. Click **Run workflow** (on `main`).
@@ -218,43 +249,100 @@ cleanly on EAS.
 
 ## Screens & flow
 
+**First run** — account first, then the intro, then the app.
+
 ```
-onboarding     First-launch intro carousel (3 slides) → Get started
-(tabs)/index   Home — daily quest + list, level/XP, streak, "moved today" state
-(tabs)/profile Profile — level, XP bar, streak, completed count, recent activity
-quest/[id]     Quest detail — description, steps, reward → Start
-active         Active quest — countdown timer, pause/resume, finish (haptics)
-result         XP result — animated, level-up, streak, share card → Share / Done
+welcome            Account choice: continue with email, or explore the local beta
+opening            The canonical three-step introduction
+account/index      Account hub — email one-time-code sign in, account state
+account/security   Linked sign-in methods, sessions and devices
+account/wallets    Linked wallets (embedded vs. external), read-only
+onboarding         Compatibility redirect for old deep links only
 ```
 
-Navigation: onboarding gates first launch (redirect happens after persisted
-state hydrates, behind a branded splash). Tabs for Home/Profile; the quest flow
-(`detail → active → result`) is a stack. Finishing pops back to Home.
+Startup routing is decided by pure functions (`lib/firstRun.ts`,
+`lib/startupDecision.ts`) after persisted state hydrates, behind a branded
+splash — so the decision is testable off-device and a storage failure never
+silently signs a user out.
+
+**Core loop** — move, then see what the movement did.
+
+```
+(tabs)/index       Home — mission, territory alerts, recap, questline, zones
+move/index         Move — readiness (permission, signal), start a session
+move/session       Live session — GPS or clearly-labelled demo route, on-device
+move/summary       Session summary — distance, time, trust review, save or discard
+move/captured      What the route captured — zones touched this session
+territory/map      Local territory overview — every captured zone and its state
+territory/alerts   Zones that need defending, derived from local decay
+zone/[id]          Zone detail — control, defense, defend / fortify
+route/passport     Route Signal Passport — GPS-quality trend over time
+route/proof        Shareable route proof — scalars only, no path, no coordinates
+route/review-history  Past route-trust reviews
+```
+
+**Progression, social and previews.**
+
+```
+(tabs)/clubs       Clubs — local club catalogue, ranking, your club
+(tabs)/profile     Profile — level, XP, streak, identity/status, settings
+quest/[id]         Quest detail → active → result (XP, level-up, streak)
+questline          The guided local-beta questline
+collections        Zone collections and badges
+season-objectives  Weekly local objectives
+weekly-recap       Read-only recap of recent movement and territory
+district-mastery   Long-term local district progress
+city-districts     Local district previews
+city-war           Local city-war board
+club-territory     Your club's local territory picture
+crew-missions      Local crew missions
+rivals             Local rival ghosts (no real players, no location inference)
+event-zones        Event zone previews
+sponsor-zones      Sponsor zone previews
+deed-showroom      Zone Deed showroom — educational preview, nothing mintable
+network/status     Base Sepolia contract status — read-only public addresses
+```
+
+Everything in the third group is derived from local state by pure selectors and
+labelled in the UI as a local preview.
 
 ## Project layout
 
 ```
-app/                 Expo Router routes (incl. onboarding + root hydration gate)
-src/components/       Reusable UI — Button, QuestCard, Badge, XPBar, StatCard,
-                     Screen, SectionHeader, EmptyState, ShareCard
-src/services/        questService — the quest access seam (mock today)
-src/data/quests.ts   Mock quest catalogue (raw data only)
-src/hooks/           useSessionStart — daily quest + completed-today session state
-src/store/           Zustand game store (XP / streak / history / onboarding /
-                     completed-today, persisted; selectors + hooks)
-src/lib/             Leveling, date, and haptics helpers
-src/theme.ts         Design tokens
-_legacy/             Earlier GPS/blockchain mobile scaffold, parked out of the build
-                     (see _legacy/README.md — do not delete without approval)
+app/                  Expo Router routes (see "Screens & flow" above)
+src/components/       Reusable UI — Button, Badge, XPBar, StatCard, Screen,
+                      ZoneCard, ZoneSheet, RouteCanvas, MovenTabBar, ShareCard…
+src/services/         questService (quest seam), identityApi (auth/wallet API),
+                      moveTracker (GPS + demo), moveSession (in-memory hand-off)
+src/data/             Seed data only — quests, clubs, contractStatus mirror
+src/hooks/            useAppBootstrap, useSessionStart, useReducedMotion
+src/store/            Zustand stores — useGameStore (XP / streak / zones /
+                      history, persisted) and useAuthStore (session lifecycle)
+src/lib/              Pure rules and selectors: territory decay, zone lattice,
+                      geo, route trust, first-run/startup decisions, secure
+                      session core, and the *View presentation modules
+src/lib/__tests__/    Offline node tests for those pure modules
+src/theme.ts          Design tokens
+_legacy/              Earlier GPS/blockchain mobile scaffold, parked out of the
+                      build (see _legacy/README.md — do not delete without approval)
 ```
 
 ## Known limitations
 
-- Quests are mock data; there is no AI generation or backend sync yet.
-- Progress is local-only (AsyncStorage) and not synced across devices.
-- The timer is a simple countdown — it does not use device motion/GPS sensors.
-- The share card is a **mock**: it shares a text blurb (the on-screen card is not
-  yet captured as an image).
+- **Territory is not real H3 yet.** Zones come from a local ~300 m lattice
+  (`src/lib/zones.ts`); proper `h3-js` indexing at the resolution defined in
+  `shared/` lands with the live territory map.
+- **Nothing syncs except identity.** Progress, zones, clubs, and collections are
+  on-device (AsyncStorage) and do not move between devices. Only authentication
+  talks to a server.
+- **Clubs, rivals, districts, city wars, sponsor and event zones are seeded local
+  previews** — no other players, no server, no location inference.
+- **The ownership layer is a preview.** No wallet signing, no minting, no
+  transfers, no RPC calls. Locked MOVE is an XP-derived display figure.
+- **Tracking is foreground-only.** Leaving the app or locking the screen stops
+  the session; there is no background location or task manager.
+- The share card shares a text blurb — the on-screen card is not yet captured as
+  an image.
 - App icon/splash use Expo defaults (no custom art committed yet).
 - The app targets **Expo SDK 51**. Phone testing uses the **SDK 51** Expo Go
   (Android) — see "Test on your Android phone" above. iPhone-via-App-Store Expo

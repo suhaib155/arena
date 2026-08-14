@@ -5,7 +5,8 @@
 ```
 Mobile App (Expo)
     │
-    ├── Privy (wallet / signing)
+    ├── Auth / embedded-wallet provider (NOT SELECTED — see docs/adr/0011)
+    │   The app is provider-neutral today and performs no signing.
     │
     └── Backend API (Express)
             │

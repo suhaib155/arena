@@ -18,8 +18,6 @@ const envSchema = z.object({
   ZONE_CHALLENGE_ADDRESS: z.string().startsWith("0x").optional(),
   SEASON_CONTROLLER_ADDRESS: z.string().startsWith("0x").optional(),
 
-  ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional(),
-
   H3_RESOLUTION: z.coerce.number().default(8),
 
   // Wallet-signature auth (see middleware/auth.ts) — how long a signed request

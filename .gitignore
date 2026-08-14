@@ -1,0 +1,35 @@
+# Repository-root ignores. The workspace-specific rules live in
+# movenrun/.gitignore and movenrun/contracts/.gitignore.
+
+# Secrets — never commit these, anywhere.
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+.cache/
+*.tsbuildinfo
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs and local test output
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/

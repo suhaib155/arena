@@ -21,17 +21,30 @@ and Base-native city wars / gasless badges.
 > GPS verification, (2) real tile/city density (Phase 1), and (3) genuine
 > sponsor/land demand.
 
-## The quest APK is NOT the final product
-The app currently in `mobile/` (Expo SDK 51, RN 0.74, Expo Router v3, TS,
-Zustand + AsyncStorage) is a **mobile shell**: local mock quests, a
-`start → active timer → finish → XP result` flow, XP/levels/streak, and a working
-**EAS APK build pipeline**. It exists to prove out build/release and on-device
-state — **not** to be the product. We evolve it toward the territory loop; we do
-not invest in it as a generic quest/step app.
+## The app today: Free Map Beta (Phase 1) — the economy is NOT live
+The app in `mobile/` (Expo SDK 51, RN 0.74, Expo Router v3, TS, Zustand +
+AsyncStorage, `expo-secure-store`, `expo-location`) implements the **Move →
+Capture** half of the loop for real, and previews the rest:
+
+- **Real:** account-first first run (email OTP against the identity API, plus a
+  local-beta path), foreground GPS sessions with trust/signal review, XP levels
+  and streaks, and an **EAS APK build pipeline**.
+- **Simulated on-device:** territory. Routes quantize onto a local ~300 m hex
+  lattice (`mobile/src/lib/zones.ts`) — **not real H3 yet** — with capture/
+  defend/fortify/decay in `mobile/src/lib/territory.ts`. Clubs, rivals,
+  districts, city wars, sponsor/event zones are seeded local previews.
+- **Preview only:** Locked MOVE (XP-derived display figure), the Zone Deed
+  showroom, and a read-only Base Sepolia contract status screen.
+- **Absent by design:** wallet signing, minting, transfers, chain writes, RPC
+  calls from the app, background location, raw-GPS upload.
+
+Rules that keep this honest and must not be weakened: demo routes never award
+progress or save territory; anything simulated is labelled in the UI, not just in
+comments; gameplay rules live in pure modules under `mobile/src/lib/` so they are
+testable offline.
 
 Quest data goes through `mobile/src/services/questService.ts` (mock data in
-`mobile/src/data/quests.ts`) — that service seam is the place to later swap in a
-GPS/territory data source. Each quest awards XP at most once per local day.
+`mobile/src/data/quests.ts`). Each quest awards XP at most once per local day.
 
 ### Do NOT (unless a roadmap phase explicitly calls for it):
 - Add **AI quest features / AI APIs / AI provider keys** — they don't serve the
@@ -60,24 +73,29 @@ The territory economy is **already substantially built**. Treat these as assets:
 - `contracts/` — Hardhat + Solidity smart contracts (**deployed to Base
   Sepolia** — see `docs/CONTRACTS_AUDIT.md`).
 - `backend/` — Express API + BullMQ workers + Drizzle ORM (GPS, zones, battles,
-  hex/oracle/token services).
-- `mobile/` — Expo React Native app (currently the quest **shell**).
-  - `mobile/app/` — active Expo Router routes (the shell).
-  - `mobile/src/` — active shell components, data, store, theme, helpers.
+  hex/oracle/token services) plus the identity/wallet foundation and a
+  **read-only** Base client.
+- `mobile/` — Expo React Native app (the Free Map Beta).
+  - `mobile/app/` — active Expo Router routes.
+  - `mobile/src/` — components, services, stores, theme, and the pure rule
+    modules in `src/lib/` (with offline tests in `src/lib/__tests__/`).
   - `mobile/_legacy/` — **parked** GPS/blockchain mobile scaffold (maps, H3
     overlay, GPS tracking, wallet, zone/battle UI). Reference for the territory
     build; **do not delete or edit in place**.
+- `website/` — static landing page + documentation portal (no build step).
 
 ## Reference docs
-- `docs/ROADMAP.md` — **canonical product scope**: the territory economy, current
-  shell vs. real direction, and Phases 1–3. Read before scope decisions.
+- `docs/ROADMAP.md` — **canonical product scope**: the territory economy, the
+  current Free Map Beta state, and Phases 1–3. Read before scope decisions.
 - `docs/CONTRACTS_AUDIT.md` — on-chain assets: contracts, deployed Base Sepolia
   addresses, branch divergence, and the safe next integration step.
-- `docs/MOBILE_TO_TERRITORY_PLAN.md` — how the quest shell evolves into the
+- `docs/MOBILE_TO_TERRITORY_PLAN.md` — how the app evolves into the full
   territory map loop.
 - `docs/ARCHITECTURE.md` — contract interaction diagram and oracle flow.
 - `docs/TOKENOMICS.md` — emission schedule and burn sink details.
-- `mobile/README.md` — how to run the app.
+- `docs/IDENTITY_WALLET_FOUNDATION.md` + `docs/adr/` — identity/wallet design.
+- `mobile/README.md` — what the app actually is, how to run and build it.
+- Repo-level: `README.md`, `CONTRIBUTING.md`, `SECURITY.md` at the repo root.
 
 ## Working agreement
 - Always work through **feature branches and pull requests** (never commit

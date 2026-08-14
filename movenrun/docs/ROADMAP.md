@@ -25,25 +25,39 @@ the product.
 
 ---
 
-## A. Current state — APK-running mobile shell
+## A. Current state — Free Map Beta (Phase 1, in progress)
 
 What actually ships and runs today:
 
 - A **running Android APK** (Expo SDK 51, React Native 0.74, Expo Router v3,
-  TypeScript, Zustand + AsyncStorage).
-- **Local mock quests** — a daily quest + browsable list, served through a
-  service seam (`mobile/src/services/questService.ts`, backed by
-  `mobile/src/data/quests.ts`).
-- A **start → active timer → finish → XP result** flow.
-- **XP, levels, and a daily streak**, persisted on-device, with
-  once-per-local-day anti-farming.
-- A **profile/streak** screen.
-- An **EAS APK build pipeline** (GitHub Actions, preview profile, authenticated
-  via the `EXPO_TOKEN` secret).
+  TypeScript, Zustand + AsyncStorage), built by an **EAS pipeline** (GitHub
+  Actions, preview profile, authenticated via the `EXPO_TOKEN` secret).
+- **Account-first first run** — email one-time-code sign-in against the identity
+  API, tokens in `expo-secure-store`, plus an explicit **local-beta path** for
+  playing without an account. Startup routing is decided by pure, tested
+  functions (`mobile/src/lib/firstRun.ts`, `startupDecision.ts`).
+- **Real GPS movement sessions** — foreground-only `expo-location` tracking with
+  readiness/permission handling, live route drawing, signal-quality and
+  route-trust review, and a labelled demo fallback that never awards progress.
+- **On-device territory** — routes quantized onto a local ~300 m hex lattice
+  (`mobile/src/lib/zones.ts`, **not real H3 yet**), with capture, defend,
+  fortify, and deterministic decay (`territory.ts`), a territory overview map,
+  alerts, and zone detail.
+- **Progression and social previews** — XP, levels, streaks, quests (still via
+  `questService`, once-per-local-day anti-farming), questline, collections,
+  season objectives, weekly recap, district mastery, clubs, rivals, city war,
+  crew missions, sponsor/event zones. All seeded locally and labelled as previews.
+- **Ownership previews** — a Zone Deed showroom (educational only, nothing
+  mintable) and a **read-only** Base Sepolia contract status screen that shows
+  public addresses without any RPC call or wallet.
+- **Backend foundation** — identity/wallet API (sessions, refresh, wallet
+  linking, provider-neutral provisioning, HMAC webhooks, audit) and a read-only
+  Base client. See `docs/IDENTITY_WALLET_FOUNDATION.md`.
 
-**Status:** this is a *shell*. It validates that we can build, sign, and install
-an APK and that the on-device state/XP plumbing works. It does **not** implement
-the territory economy. Treat it as the scaffold we evolve, not the destination.
+**Status:** the **Move → Capture** half of the loop is real on-device; the
+economy is not. Nothing mints, signs, transfers, or pays out, and everything
+simulated is labelled as such in the UI. Remaining Phase 1 work is real H3
+indexing and enough density data to judge the capture loop.
 
 ---
 
@@ -80,14 +94,17 @@ reason.
 
 Goal: prove the **Move → Capture** half of the loop with zero real-money risk.
 
-- **GPS route tracking** — capture real walk/run/cycle routes on device.
-- **H3 / common-tile capture simulation** — convert a route into the H3 hexes it
-  passed through; let free users "capture" common tiles.
-- **XP and Locked MOVE as offchain / in-app credits only** — stored locally or in
-  a mock backend.
-- **No liquid rewards. No real token emissions. No real earning/claims.**
-- **No mainnet, no wallet requirement** for the basic capture loop.
-- **Local or mock backend first** — do not wire real infrastructure yet.
+- ✅ **GPS route tracking** — real foreground walk/run/cycle routes on device,
+  with readiness handling and a labelled demo fallback.
+- 🔄 **Common-tile capture simulation** — routes convert to tiles and free users
+  capture them, but on a **local ~300 m lattice**, not real H3. Swapping in
+  `h3-js` at the `shared/` resolution is the remaining piece.
+- ✅ **XP and Locked MOVE as in-app credits only** — stored on-device; Locked
+  MOVE is an XP-derived display preview with no ledger.
+- ✅ **No liquid rewards. No real token emissions. No real earning/claims.**
+- ✅ **No mainnet, no wallet requirement** for the basic capture loop.
+- 🔄 **Local-first backend** — gameplay is entirely local; the only server
+  dependency is the identity/wallet API for sign-in.
 
 Exit criteria: routes reliably map to tiles, capture feels good, density data
 starts accumulating.

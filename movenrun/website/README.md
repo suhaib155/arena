@@ -98,7 +98,7 @@ functional without it.
 ## Navigation
 
 - **≥1101px** — full pill navigation (How it works · Experience · Wellbeing ·
-  Community · Web3 · Roadmap) plus the “Follow the launch” CTA.
+  Community · Web3 · Roadmap · Docs) plus the “Follow on X” CTA.
 - **≤1100px** — pill hides; a keyboard-operable `<details>/<summary>`
   hamburger menu appears with all links and a prominent CTA.
 - **≤720px** — the desktop CTA hides; the mobile menu and the sticky bottom
@@ -106,9 +106,13 @@ functional without it.
 - **≤480px** — single-column footer; the menu dropdown stays within the
   viewport (`min(340px, 100vw - 32px)`).
 
-“Follow the launch” points at the GitHub repository until an official
-waitlist or download page exists. All external links use
-`target="_blank" rel="noopener noreferrer"`; there are no `href="#"` dead links.
+> **Open item:** the “Follow on X” CTA currently points at `https://x.com/`
+> (the site root) because no official MovenRun profile exists yet and no handle
+> is invented. It is a placeholder, not a real destination — replace every
+> occurrence with the real profile URL as soon as one exists, or remove the CTA.
+
+All external links use `target="_blank" rel="noopener noreferrer"`; there are no
+`href="#"` dead links.
 
 ## Footer
 

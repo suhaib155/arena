@@ -4,8 +4,9 @@
  * Routes are quantized onto a local hexagonal lattice (~300 m cells, axial
  * coordinates with cube rounding) so a session deterministically touches the
  * same zone ids at the same place. This is intentionally NOT real H3: the
- * proper `h3-js` indexing (res 9, matching `shared/`) lands with the live
- * territory map. Everything here is local, cosmetic, and reversible.
+ * proper `h3-js` indexing (resolution 8, matching `shared/src/constants/h3.ts`)
+ * lands with the live territory map. Everything here is local, cosmetic, and
+ * reversible.
  */
 import type { TrackPoint } from "./geo";
 import type { Zone, ZoneState } from "@/types";
