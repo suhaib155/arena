@@ -12,7 +12,7 @@ import { Platform, type TextStyle, type ViewStyle } from "react-native";
  *  screens; reach for the palette when a token is brand-specific (hex zone
  *  states, Locked MOVE gold, Deed violet, …). */
 export const palette = {
-  morningWhite: "#EFF3F1",
+  morningWhite: "#F8FAF7",
   cloudCard: "#FFFFFF",
   mistPanel: "#F1F6F3",
   paleSky: "#EAF6FF",
@@ -119,16 +119,16 @@ export function selectionRing(selected: boolean, color: string = colors.primary)
 export const shadows = {
   /** Resting glass card. */
   card: {
-    shadowColor: "#0B1B33",
-    shadowOpacity: 0.07,
+    shadowColor: "#101828",
+    shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   } satisfies ViewStyle,
   /** Floating elements: tab bar, hero card, footers. */
   float: {
-    shadowColor: "#0B1B33",
-    shadowOpacity: 0.13,
+    shadowColor: "#101828",
+    shadowOpacity: 0.12,
     shadowRadius: 28,
     shadowOffset: { width: 0, height: 14 },
     elevation: 10,

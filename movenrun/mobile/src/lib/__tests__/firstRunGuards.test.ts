@@ -383,7 +383,7 @@ test("Home decides nothing — it renders one board and no second opinion", () =
      HERE is that the screen obeys the board instead of re-deciding with its
      own conditionals — the original defect was four independent booleans on
      this screen that disagreed with each other. */
-  assert.match(src, /buildTodayBoard\(\{/, "the screen consumes the pure rule");
+  assert.match(src, /buildTodayBoard\(/, "the screen consumes the pure rule");
   assert.equal(
     (src.match(/buildTodayBoard\(/g) ?? []).length,
     1,
@@ -398,6 +398,26 @@ test("Home decides nothing — it renders one board and no second opinion", () =
   // the screen itself renders no button at all and cannot grow a rival CTA.
   assert.ok(!/<Button\b/.test(src), "Home renders no button of its own");
   assert.ok(!/variant="primary"/.test(src), "the only primary action is the board's");
+});
+
+test("Home reads store state but derives nothing from it itself", () => {
+  const src = code(HOME);
+  /* The board's inputs are computed by `boardInputFromState`, which is unit
+     tested. When that derivation lived inline here it was wrong — `movedToday`
+     counted any completion today, so an indoor warmup quest ticked "Move
+     today" — and no test could reach it. Keep it out of the screen. */
+  assert.match(src, /boardInputFromState\(\{/, "the screen consumes the pure mapping");
+  assert.ok(
+    !/history\s*\.\s*(filter|some|reduce)\(/.test(src),
+    "history is interpreted in lib/tasks.ts, never in the screen",
+  );
+  assert.ok(!/completedAt/.test(src), "date bucketing belongs to the mapping");
+  assert.ok(
+    !/zoneStatus\(/.test(src),
+    "zone health is derived in the mapping, not re-derived here",
+  );
+  // And the movement predicate has exactly one owner.
+  assert.ok(!/"move-session"/.test(src), "no magic session id in the screen");
 });
 
 test("Home derives its state and keeps movement on the real route", () => {

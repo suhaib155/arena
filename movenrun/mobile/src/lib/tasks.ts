@@ -15,7 +15,10 @@
  * Pure: no store, no React, no I/O. The screen passes plain state in and
  * renders what comes back.
  */
-import type { IoniconName } from "@/types";
+import type { IoniconName, Zone } from "@/types";
+import { getLocalDateKey } from "./date";
+import { isMovementSession } from "./sessionQuest";
+import { zoneStatus } from "./territory";
 
 /** What kind of movement a task represents. Drives icon and accent only. */
 export type TaskKind = "resume" | "defend" | "move" | "quest" | "capture" | "club";
@@ -91,6 +94,69 @@ export interface TodayBoard {
 
 /** Hard cap on board size. A checklist you can't see the end of is a backlog. */
 export const TASK_CAP = 5;
+
+/* ── Store state → board input ────────────────────────────────────────────── */
+
+/** The slice of store state the board is derived from. Structural, so the test
+ *  suite can build one without importing the store. */
+export interface BoardSourceState {
+  /** Completion history, newest first. Holds BOTH movement sessions and warmup
+   *  quests — see `lib/sessionQuest.ts`. */
+  history: readonly { questId: string; completedAt: string }[];
+  zones: readonly Zone[];
+  dailyQuestTitle: string;
+  dailyQuestXp: number;
+  dailyQuestDone: boolean;
+  hasClub: boolean;
+  /** Injectable for tests; defaults to now. */
+  now?: Date;
+}
+
+/**
+ * Turn raw store state into a {@link TodayBoardInput}.
+ *
+ * This exists as its own pure function because the first version lived inline
+ * in the Home screen, and that is where it went wrong: `movedToday` was
+ * `history.length > 0` for today, which counts warmup quests as movement — so
+ * finishing a sixty-second indoor mobility quest ticked "Move today" and the
+ * board stopped asking the user to move.
+ *
+ * A screen can't be unit-tested here; a function can. Moving the derivation out
+ * is what makes the rule testable at all, which is why the fix is a refactor
+ * rather than a one-line predicate change.
+ */
+export function boardInputFromState(state: BoardSourceState): TodayBoardInput {
+  const todayKey = getLocalDateKey(state.now);
+  const onToday = (iso: string) => getLocalDateKey(new Date(iso)) === todayKey;
+
+  return {
+    /* Persistent movement recovery isn't implemented — a finished route lives
+       only in memory during the summary flow — so there is genuinely never a
+       session to resume. Honest today; the board already supports the state. */
+    hasRecoverableMovement: false,
+    // Movement sessions ONLY. A warmup quest is not a move.
+    movedToday: state.history.some((rec) => isMovementSession(rec) && onToday(rec.completedAt)),
+    atRiskZoneCount: state.zones.filter((z) => zoneStatus(z).health !== "yours").length,
+    zonesOwned: state.zones.length,
+    dailyQuestTitle: state.dailyQuestTitle,
+    dailyQuestXp: state.dailyQuestXp,
+    dailyQuestDone: state.dailyQuestDone,
+    hasClub: state.hasClub,
+  };
+}
+
+/** XP earned today, from every completion — movement and warmup alike. Unlike
+ *  `movedToday` this deliberately counts both: a warmup quest really did award
+ *  the XP it shows. */
+export function xpEarnedToday(
+  history: readonly { xp: number; completedAt: string }[],
+  now?: Date,
+): number {
+  const todayKey = getLocalDateKey(now);
+  return history
+    .filter((rec) => getLocalDateKey(new Date(rec.completedAt)) === todayKey)
+    .reduce((sum, rec) => sum + rec.xp, 0);
+}
 
 /**
  * Build today's board.
