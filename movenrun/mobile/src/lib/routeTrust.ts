@@ -14,6 +14,7 @@ import {
   type TrackPoint,
 } from "@/lib/geo";
 import { isSaveable, type FinishedSession } from "@/services/moveSession";
+import { summarizeGaps } from "./trackPoints";
 
 export type TrustLabel =
   | "Strong"
@@ -155,6 +156,20 @@ export function scoreRoute(session: FinishedSession): RouteTrust {
     riskFlags.push("Speed spike");
   } else if (overallMs >= 0.4 && overallMs <= 6.5) {
     positiveSignals.push("Realistic pace");
+  }
+
+  /* Untracked time. Foreground-only tracking stops when the app is
+     backgrounded, so part of the route was never recorded — the distance is a
+     floor, not a measurement, and a route with a hole in it must not be able
+     to score as "Clean". This is the only signal here we *know* rather than
+     infer: it comes from app lifecycle transitions, not from point spacing
+     (standing at a traffic light produces identical silence). */
+  const gaps = summarizeGaps(session.gaps ?? [], durationMs);
+  if (gaps.significant) {
+    score -= 20;
+    riskFlags.push("Tracking gap");
+  } else if (gaps.count > 0) {
+    score -= 5;
   }
 
   // Amount of movement.
