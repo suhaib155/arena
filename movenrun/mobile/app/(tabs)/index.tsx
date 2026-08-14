@@ -11,10 +11,14 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { colors, palette, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { useSessionStart } from "@/hooks/useSessionStart";
-import { zoneStatus } from "@/lib/territory";
-import { getLocalDateKey } from "@/lib/date";
 import { tapFeedback } from "@/lib/haptics";
-import { buildTodayBoard, type Task, type TaskAction } from "@/lib/tasks";
+import {
+  boardInputFromState,
+  buildTodayBoard,
+  xpEarnedToday,
+  type Task,
+  type TaskAction,
+} from "@/lib/tasks";
 
 function greeting(date = new Date()): string {
   const h = date.getHours();
@@ -45,26 +49,20 @@ export default function TodayScreen() {
   const zones = useGameStore((s) => s.zones);
   const selectedClubId = useGameStore((s) => s.selectedClubId);
 
-  const todayKey = getLocalDateKey();
-  const todaysRecords = history.filter(
-    (rec) => getLocalDateKey(new Date(rec.completedAt)) === todayKey,
-  );
-  const xpToday = todaysRecords.reduce((sum, rec) => sum + rec.xp, 0);
-  const atRiskCount = zones.filter((z) => zoneStatus(z).health !== "yours").length;
-
-  const board = buildTodayBoard({
-    /* Persistent movement recovery isn't implemented — finished routes live only
-       in memory during the summary flow — so there is genuinely never a session
-       to resume. Honest today; the board already supports the state. */
-    hasRecoverableMovement: false,
-    movedToday: todaysRecords.length > 0,
-    atRiskZoneCount: atRiskCount,
-    zonesOwned: zones.length,
+  /* Every derivation lives in lib/tasks.ts, so it can be unit-tested. Doing it
+     inline here is how "Move today" once counted an indoor warmup quest as a
+     movement session — a rule no test could reach. */
+  const boardInput = boardInputFromState({
+    history,
+    zones,
     dailyQuestTitle: dailyQuest.title,
     dailyQuestXp: dailyQuest.xpReward,
     dailyQuestDone: dailyCompletedToday,
     hasClub: selectedClubId != null,
   });
+  const board = buildTodayBoard(boardInput);
+  const xpToday = xpEarnedToday(history);
+  const atRiskCount = boardInput.atRiskZoneCount;
 
   /** Semantic task actions become concrete routes here, and only here. */
   const go = (action: TaskAction) => {

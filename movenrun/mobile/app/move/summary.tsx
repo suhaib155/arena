@@ -25,12 +25,14 @@ import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
 import { resolveCompletion } from "@/lib/completionSummary";
 import type { Quest, IoniconName } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
+/* One owner for this id: the Home board filters history by it to tell a real
+   movement session apart from an indoor warmup quest. */
+import { SESSION_QUEST_ID } from "@/lib/sessionQuest";
 
 /**
  * One synthetic quest id per local day gates session XP through the store's
  * existing once-per-day award logic — saving repeatedly can't farm XP.
  */
-const SESSION_QUEST_ID = "move-session";
 
 /** Map a trust tone to its Daylight Cartography bar/text colors. */
 function toneColor(tone: TrustTone): { bar: string; text: string } {

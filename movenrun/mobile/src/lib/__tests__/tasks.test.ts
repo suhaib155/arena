@@ -8,7 +8,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildTodayBoard, TASK_CAP, type TodayBoardInput, type TaskKind } from "../tasks";
+import {
+  boardInputFromState,
+  buildTodayBoard,
+  TASK_CAP,
+  xpEarnedToday,
+  type TodayBoardInput,
+  type TaskKind,
+} from "../tasks";
+import { SESSION_QUEST_ID, isMovementSession } from "../sessionQuest";
+import type { Zone } from "@/types";
 
 /** A player mid-game with nothing outstanding but the daily tasks. */
 const BASE: TodayBoardInput = {
@@ -195,4 +204,137 @@ test("the daily quest carries its own title and reward", () => {
   const quest = [b.focus, ...b.tasks].find((t) => t?.id === "quest");
   assert.equal(quest?.title, "Hill Repeats");
   assert.equal(quest?.reward, 75);
+});
+
+// ---- store state → board input ---------------------------------------------
+//
+// These are the tests that were missing. `buildTodayBoard` takes `movedToday`
+// as an *input*, so no amount of testing it could ever catch a wrong
+// derivation — and the derivation was wrong: it counted any completion today,
+// so an indoor warmup quest ticked "Move today".
+
+const NOW = new Date("2026-08-09T14:00:00Z");
+const at = (iso: string) => new Date(iso).toISOString();
+
+/** A completion record as the store writes it. */
+const completion = (questId: string, iso: string, xp = 10) => ({
+  questId,
+  completedAt: at(iso),
+  xp,
+});
+
+/** A zone last defended `daysAgo`, so its derived health is controllable. */
+function zone(id: string, daysAgo: number, defensePercent = 100): Zone {
+  const touched = new Date(NOW.getTime() - daysAgo * 86_400_000).toISOString();
+  return {
+    id,
+    name: `Zone ${id}`,
+    state: "yours",
+    controlPercent: 100,
+    defensePercent,
+    lastTouchedAt: touched,
+    capturedAt: touched,
+    lastDefendedAt: touched,
+    lastFortifiedAt: null,
+    fortifyCount: 0,
+    isDeedPreview: false,
+    isDemo: false,
+  };
+}
+
+const SOURCE = {
+  history: [] as { questId: string; completedAt: string; xp: number }[],
+  zones: [] as Zone[],
+  dailyQuestTitle: "Sunrise Mobility",
+  dailyQuestXp: 40,
+  dailyQuestDone: false,
+  hasClub: true,
+  now: NOW,
+};
+const from = (over: Partial<typeof SOURCE> = {}) => boardInputFromState({ ...SOURCE, ...over });
+
+test("a warmup quest completed today is NOT a move", () => {
+  // The regression, stated directly. A sixty-second indoor mobility quest must
+  // never satisfy the movement task.
+  const input = from({ history: [completion("warmup-mobility", "2026-08-09T09:00:00Z")] });
+  assert.equal(input.movedToday, false);
+
+  const board = buildTodayBoard(input);
+  const move = [board.focus, ...board.tasks].find((t) => t?.id === "move");
+  assert.equal(move?.state, "todo", "the board must still be asking the user to move");
+});
+
+test("a movement session completed today IS a move", () => {
+  const input = from({ history: [completion(SESSION_QUEST_ID, "2026-08-09T09:00:00Z")] });
+  assert.equal(input.movedToday, true);
+
+  const board = buildTodayBoard(input);
+  const move = [board.focus, ...board.tasks].find((t) => t?.id === "move");
+  assert.equal(move?.state, "done");
+});
+
+test("only TODAY's movement counts", () => {
+  assert.equal(from({ history: [completion(SESSION_QUEST_ID, "2026-08-08T23:59:00Z")] }).movedToday,
+    false, "yesterday's session does not carry over");
+  assert.equal(from({ history: [completion(SESSION_QUEST_ID, "2026-08-10T00:01:00Z")] }).movedToday,
+    false, "a future-dated record is not today");
+});
+
+test("a mixed history is judged only on its movement sessions", () => {
+  const input = from({
+    history: [
+      completion("warmup-mobility", "2026-08-09T12:00:00Z"),
+      completion("warmup-cardio", "2026-08-09T08:00:00Z"),
+      completion(SESSION_QUEST_ID, "2026-08-07T08:00:00Z"),
+    ],
+  });
+  assert.equal(input.movedToday, false, "two warmups today plus an old session is not moving today");
+
+  const withSession = from({
+    history: [
+      completion("warmup-mobility", "2026-08-09T12:00:00Z"),
+      completion(SESSION_QUEST_ID, "2026-08-09T07:00:00Z"),
+    ],
+  });
+  assert.equal(withSession.movedToday, true);
+});
+
+test("XP today counts every completion, movement or warmup", () => {
+  // Deliberately different from movedToday: a warmup really did award its XP.
+  const history = [
+    completion("warmup-mobility", "2026-08-09T12:00:00Z", 40),
+    completion(SESSION_QUEST_ID, "2026-08-09T07:00:00Z", 120),
+    completion("warmup-cardio", "2026-08-08T12:00:00Z", 999),
+  ];
+  assert.equal(xpEarnedToday(history, NOW), 160);
+});
+
+test("the movement-session predicate has exactly one owner", () => {
+  assert.equal(SESSION_QUEST_ID, "move-session");
+  assert.equal(isMovementSession({ questId: SESSION_QUEST_ID }), true);
+  assert.equal(isMovementSession({ questId: "warmup-mobility" }), false);
+});
+
+test("zone counts are derived from zone health, not from raw ownership", () => {
+  const fresh = zone("a", 0);
+  const neglected = zone("b", 6, 20);
+  const input = from({ zones: [fresh, neglected] });
+  assert.equal(input.zonesOwned, 2, "both are owned");
+  assert.equal(input.atRiskZoneCount, 1, "only the neglected one needs defending");
+  assert.equal(from({ zones: [fresh] }).atRiskZoneCount, 0);
+  assert.equal(from().zonesOwned, 0);
+});
+
+test("the daily quest is passed through unchanged", () => {
+  const input = from({ dailyQuestTitle: "Hill Repeats", dailyQuestXp: 75, dailyQuestDone: true });
+  assert.equal(input.dailyQuestTitle, "Hill Repeats");
+  assert.equal(input.dailyQuestXp, 75);
+  assert.equal(input.dailyQuestDone, true);
+});
+
+test("resume is honestly false until movement recovery exists", () => {
+  // Recovery is not implemented: a finished route lives only in memory during
+  // the summary flow. Claiming otherwise would surface an unusable task.
+  assert.equal(from({ history: [completion(SESSION_QUEST_ID, "2026-08-09T09:00:00Z")] })
+    .hasRecoverableMovement, false);
 });
