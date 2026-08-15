@@ -285,8 +285,29 @@ rm -rf android      # generated, never committed
 ```
 
 `src/lib/__tests__/androidTargetSdk.test.ts` guards this in CI: it reads the same
-version catalog Gradle does and fails if the effective level drops below 36, or
-if the light-canvas/foreground-only-location invariants regress.
+version catalog Gradle does and fails if the effective level drops below 36.
+The product invariants that ride alongside it — foreground-only tracking, the
+declared runtime architecture, and the light canvas — are guarded separately in
+`src/lib/__tests__/androidRuntimePolicy.test.ts`.
+
+### Runtime architecture
+
+`app.json` declares `"newArchEnabled": false`, so the app runs on React Native's
+**legacy architecture**. This is written down rather than inherited: the default
+moved underneath this project (SDK 51 resolved to legacy; SDK 53 changed the
+default to the New Architecture), so without an explicit value the upgrade to
+SDK 54 would silently switch the runtime with nothing in the diff to review.
+
+The API level does not depend on it. Prebuilding SDK 54 both ways produces
+byte-identical `AndroidManifest.xml`, `styles.xml`, `colors.xml` and
+`app/build.gradle`, and the same 36/36/24 — the only difference is the single
+`newArchEnabled` line in the generated `gradle.properties`.
+
+Keeping legacy here is a *deferral, not a decision to stay*: **SDK 54 is the last
+Expo SDK in which the New Architecture can be disabled** ([New Architecture
+guide][new-arch]). Migrating is its own task, and it needs a device pass —
+flipping this flag changes runtime behaviour that nothing in this repo's
+offline suite can observe.
 
 Two Android 16 behaviours to keep in mind when testing on a device:
 
@@ -297,3 +318,4 @@ Two Android 16 behaviours to keep in mind when testing on a device:
   portrait lock still holds on phones but not on tablets/foldables.
 
 [play-target]: https://developer.android.com/google/play/requirements/target-sdk
+[new-arch]: https://docs.expo.dev/guides/new-architecture/

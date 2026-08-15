@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "scheme": "movenrun",
     "userInterfaceStyle": "light",
+    "newArchEnabled": false,
     "backgroundColor": "#F8FAF7",
     "splash": {
       "resizeMode": "contain",
