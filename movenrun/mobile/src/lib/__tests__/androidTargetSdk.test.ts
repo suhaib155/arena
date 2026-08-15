@@ -30,9 +30,6 @@ import { join } from "node:path";
 /** Play's floor for new apps and updates as of 2026-08-31. */
 const REQUIRED_API_LEVEL = 36;
 
-/** The established light canvas (Morning White) — see the design system. */
-const MORNING_WHITE = "#F8FAF7";
-
 const MOBILE = process.cwd();
 
 /** react-native is hoisted to the workspace root, but tolerate a local install. */
@@ -101,40 +98,9 @@ test("no config plugin pins the Android SDK levels below the requirement", () =>
   }
 });
 
-test("targeting API 36 does not smuggle in background location or a foreground service", () => {
-  // Android 16 readiness must not become an excuse to widen the app's
-  // foreground-only tracking policy (docs/ROADMAP.md, mobile/README.md).
-  const android = (appConfig().android ?? {}) as Record<string, any>;
-  const permissions: string[] = android.permissions ?? [];
-  const forbidden = [
-    "android.permission.ACCESS_BACKGROUND_LOCATION",
-    "android.permission.FOREGROUND_SERVICE",
-    "android.permission.FOREGROUND_SERVICE_LOCATION",
-  ];
-  for (const permission of forbidden) {
-    assert.ok(
-      !permissions.includes(permission),
-      `${permission} must not be declared — tracking is foreground-only and session-scoped.`,
-    );
-  }
-});
-
-test("the light canvas survives the Android 16 theme change", () => {
-  // Targeting API 36 switches the generated Android theme from
-  // Theme.AppCompat.Light to Theme.AppCompat.DayNight, so the light lock has
-  // to be declared *and* backed by expo-system-ui, which applies it at launch
-  // (AppCompatDelegate.setDefaultNightMode). Without the module the app would
-  // follow the system into dark mode on native surfaces.
-  const config = appConfig();
-  assert.equal(config.userInterfaceStyle, "light");
-  assert.equal(config.backgroundColor, MORNING_WHITE);
-  assert.equal(config.splash?.backgroundColor, MORNING_WHITE);
-  assert.equal(config.android?.adaptiveIcon?.backgroundColor, MORNING_WHITE);
-
-  const pkg = JSON.parse(readFileSync(join(MOBILE, "package.json"), "utf8"));
-  assert.ok(
-    pkg.dependencies?.["expo-system-ui"],
-    "expo-system-ui must stay installed: it is what makes userInterfaceStyle: light " +
-      "effective under the DayNight theme that API 36 builds generate.",
-  );
-});
+// The product invariants that this upgrade must not widen — foreground-only
+// tracking, the declared runtime architecture, and the light canvas — live in
+// `androidRuntimePolicy.test.ts`. They answer a different question from the
+// Play API-level floor asserted above and are resolved from different inputs,
+// so keeping them here made a failure message ambiguous about which contract
+// had actually broken.
