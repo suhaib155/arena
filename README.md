@@ -1,8 +1,7 @@
 # MovenRun
 
-**A GPS territory game you play by moving.** Walk or run through the real world,
-capture the map tiles you pass through, hold them against other players, and own
-the ground you cover.
+**A GPS territory game you play by moving.** Walk or run through the real world
+and capture the map tiles you pass through.
 
 The whole product is one loop:
 
@@ -10,6 +9,19 @@ The whole product is one loop:
 
 Everything in this repository exists to serve that loop. If a feature doesn't
 advance it, it doesn't ship.
+
+### Where that loop stands today
+
+The loop is the destination, not a description of the current build. Concretely:
+
+| | Today | Planned |
+| --- | --- | --- |
+| **Move** | Shipped. A foreground GPS session measures distance and pace while it is open. No background tracking. | — |
+| **Capture** | Shipped, on-device. A route that covers eligible ground captures a zone into local storage. Not every route captures. | Server-verified capture against real tile density |
+| **Defend** | Shipped against **decay** — control fades between visits and moving through a zone refreshes it. **Not against other people.** Rivals and clubs are a deterministic local simulation with no accounts, no PvP, no sync and no backend behind them. | Real opponents and contested tiles |
+| **Own** | **Preview only.** Zone Deeds are deployed to Base Sepolia (a public testnet) and the app reads them read-only: no wallet, no minting, no claim, no market, no rewards, and no value. | Base mainnet deeds — see [`docs/ROADMAP.md`](movenrun/docs/ROADMAP.md) Phase 3 |
+
+Nothing in this repository moves real value.
 
 ---
 
@@ -84,8 +96,9 @@ These are hard limits, not preferences.
 - **No liquid token economy** ships before reliable GPS verification, real tile
   density, and genuine sponsor demand. In-app rewards are XP and Locked MOVE —
   progress, not payouts.
-- **Audit before touching contracts.** The Base Sepolia deployment is a
-  production asset. Never re-deploy casually.
+- **Audit before touching contracts.** The Base Sepolia deployment is testnet,
+  but it is a real deployed artifact that `docs/CONTRACTS_AUDIT.md` and
+  `contracts/deployments/` are the record of. Never re-deploy casually.
 - **No new dependencies casually**, and no wallet connection or token rewards
   ahead of the phases above.
 - **Feature branches and pull requests** — never commit straight to `main`.
