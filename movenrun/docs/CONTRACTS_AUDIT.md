@@ -305,6 +305,40 @@ this PR. Work around it by temporarily swapping `.default(0n)` for
 `.default(sql\`0\`)` in a scratch copy of schema.ts before running
 `db:generate`, or upgrade `drizzle-kit` first.)*
 
+**Migration `0003_movement_verifications` — deployment gate.** The
+bearer-authenticated movement path (`backend/src/movement/**`) introduces one
+new table, `movement_verifications`. Registering it in `drizzle.config.ts` and
+`db/client.ts` is NOT what creates it: this repository is migration-driven
+(`db:migrate` → `drizzle-kit migrate`, journal at `drizzle/meta/_journal.json`),
+and no CI or deployment workflow runs migrations — `backend-checks.yml`
+type-checks and tests only. Deployed without `0003`, `/movement/verify` compiles,
+passes CI, and then fails at runtime because the table does not exist. Apply it
+the same way as the others, against a reachable `DATABASE_URL`:
+```
+yarn workspace @movenrun/backend db:migrate
+```
+Hand-authored like `0001`/`0002` — `drizzle-kit@0.22.8 generate` still crashes
+with the pre-existing BigInt-default bug described above (reproduced again for
+this change). The drizzle meta snapshot is again intentionally not regenerated,
+blocked by the same bug.
+
+The `(user_id, client_session_id)` UNIQUE constraint in that migration is
+load-bearing, not decorative: it is what makes movement submission idempotent
+under concurrency. The application catches Postgres `23505` and re-reads the
+winning row, so without the constraint in the *database* the guarantee does not
+exist however the application is written. Validated against an ephemeral
+PostgreSQL 16.13: all four migrations apply to a clean database; the real
+`DrizzleMovementVerificationRepository` inserts and reads back (including the
+`text[]` columns and the `now()` default); a duplicate `(user_id,
+client_session_id)` is rejected by the database and surfaces as
+`MovementSessionConflictError`; two genuinely concurrent `submit()` calls
+converge on exactly one persisted row; the same session id under a different
+user stays independent; re-running `db:migrate` is a no-op that preserves rows;
+and a database already at `0002` upgrades cleanly. `routes` is untouched — still
+14 columns with `routes_route_hash_unique` intact. Migrations here are
+forward-only: `0000`–`0003` ship no down/rollback step and contain no `DROP`,
+so reversal is an operational decision, not a scripted one.
+
 **Race-condition backstop for the routeHash dedup (tightened).** The
 synchronous `findByRouteHash` check leaves a gap: two concurrent submissions
 of the same route can both pass it before either writes. `routes_route_hash_unique`
