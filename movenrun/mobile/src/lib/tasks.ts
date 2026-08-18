@@ -20,7 +20,8 @@ import { getLocalDateKey } from "./date";
 import { isMovementSession } from "./sessionQuest";
 import { zoneStatus } from "./territory";
 
-/** What kind of movement a task represents. Drives icon and accent only. */
+/** The closed set of tasks the board can ask for. Each one appears at most
+ *  once, so this doubles as a task's identity — see {@link Task.id}. */
 export type TaskKind = "resume" | "defend" | "move" | "quest" | "capture" | "club";
 
 /** Done or not. There is no third state — a task you cannot do yet is simply
@@ -31,12 +32,51 @@ export type TaskState = "todo" | "done";
  *  route; the screen owns that mapping. */
 export type TaskAction = "move" | "territory" | "quest" | "clubs";
 
+/**
+ * The glyph on a task's call-to-action button.
+ *
+ * Keyed on the destination — what pressing the button *does* — and not on the
+ * task's own {@link Task.icon}, which is its identity in the leading disc. The
+ * two answer different questions: `defend` is a shield that opens the
+ * territory map, so the disc is a shield and the button is a map. Drawing the
+ * task icon in both places says the same thing twice and leaves the
+ * destination unannounced.
+ *
+ * It lives here rather than beside the colour map in `components/taskTone.ts`
+ * because a glyph name is model data — `Task.icon` is already an
+ * `IoniconName` — while a colour needs the palette, and the palette needs
+ * React Native. Keeping it here is what lets the offline suite verify it.
+ *
+ * This exists because the hero button hardcoded `icon="play"`. Every spotlight
+ * rendered a play triangle regardless of destination, so "Browse clubs",
+ * "View territory" and "See how it works" all advertised playback. The board
+ * had carried the semantics all along; the button simply never asked.
+ *
+ * `Record<TaskAction, …>`: a new action without a decided glyph is a type
+ * error, not a silent fallback.
+ */
+export const TASK_ACTION_ICON: Record<TaskAction, IoniconName> = {
+  move: "walk-outline",
+  territory: "map-outline",
+  quest: "flash-outline",
+  clubs: "people-outline",
+};
+
 /** Colour intent. Semantic, never decorative — see the tone map in the screen. */
 export type TaskTone = "primary" | "danger" | "gold" | "green";
 
 export interface Task {
+  /**
+   * The task's identity AND its semantic kind — they were always the same
+   * value. A separate `kind: TaskKind` field sat beside this one, set to the
+   * identical literal in all six builders and read by nothing: not the hero,
+   * not the row, not a test, not a screen. It looked like the presentation
+   * discriminator without being one, which is how the hero ended up hardcoding
+   * its icon instead of asking the model. Presentation derives from `action`
+   * (see TASK_ACTION_ICON above) and `tone` (see components/taskTone.ts);
+   * identity is this.
+   */
   id: TaskKind;
-  kind: TaskKind;
   /** Imperative and second person: "Move for 10 minutes", not "Movement". */
   title: string;
   /** One supporting line. Never a second sentence. */
@@ -188,7 +228,6 @@ export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
   if (input.hasRecoverableMovement) {
     board.push({
       id: "resume",
-      kind: "resume",
       title: "Finish your move",
       detail: "You have a session in progress.",
       cta: "Resume move",
@@ -205,7 +244,6 @@ export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
     const many = input.atRiskZoneCount > 1;
     board.push({
       id: "defend",
-      kind: "defend",
       title: many ? `Defend ${input.atRiskZoneCount} zones` : "Defend your zone",
       detail: "Move through your territory to refresh its defence.",
       cta: "View territory",
@@ -220,7 +258,6 @@ export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
   // Daily — the core of the product, so it is on the board every single day.
   board.push({
     id: "move",
-    kind: "move",
     title: input.zonesOwned === 0 && !input.movedToday ? "Make your first move" : "Move today",
     detail: input.movedToday
       ? "Session logged. Move again any time."
@@ -237,7 +274,6 @@ export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
   // indoors on a day movement isn't possible.
   board.push({
     id: "quest",
-    kind: "quest",
     title: input.dailyQuestTitle,
     detail: input.dailyQuestDone ? "Completed today." : "Today's warmup quest.",
     cta: input.dailyQuestDone ? "View quest" : "Start quest",
@@ -262,7 +298,6 @@ export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
   if (input.zonesOwned === 0) {
     board.push({
       id: "capture",
-      kind: "capture",
       title: "Capture your first zone",
       detail: "See what territory is and how zones are captured.",
       cta: "See how it works",
@@ -278,7 +313,6 @@ export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
   if (!input.hasClub) {
     board.push({
       id: "club",
-      kind: "club",
       title: "Pick a club",
       detail: "Your movement adds to their city score.",
       cta: "Browse clubs",

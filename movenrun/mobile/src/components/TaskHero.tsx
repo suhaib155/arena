@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, iconTile, palette, spacing, type } from "@/theme";
-import type { Task, TodayBoard } from "@/lib/tasks";
+import { TASK_ACTION_ICON, type Task, type TodayBoard } from "@/lib/tasks";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { XPBar } from "./XPBar";
@@ -61,11 +61,18 @@ export function TaskHero({ board, onStart, onMoveAnyway }: TaskHeroProps) {
       <XPBar progress={board.progress} />
 
       {task ? (
-        <Button label={task.cta} icon="play" onPress={() => onStart(task)} style={styles.cta} />
+        /* The glyph follows the task's action, not the task's own icon and not
+           a constant — see TASK_ACTION_ICON. */
+        <Button
+          label={task.cta}
+          icon={TASK_ACTION_ICON[task.action]}
+          onPress={() => onStart(task)}
+          style={styles.cta}
+        />
       ) : (
         <Button
           label="Move anyway"
-          icon="walk-outline"
+          icon={TASK_ACTION_ICON.move}
           variant="secondary"
           onPress={onMoveAnyway}
           style={styles.cta}
