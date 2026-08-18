@@ -55,9 +55,23 @@ router.post("/submit", requireWalletAuth(), writeLimiter, async (req, res) => {
 
 // GET /gps/verify/:id — read the persisted route status. Never returns raw GPS
 // points, coordinates, or path — see services/route.service.ts (getRouteView).
-router.get("/verify/:id", async (req, res) => {
+//
+// Owner-authorized. This was previously unauthenticated: anyone holding a route
+// UUID could read that wallet's verified distance, primary hex, session window
+// and — once VERIFIED — its oracle signature. A capability URL is not an
+// authorization model for another user's movement, so the same wallet-signature
+// auth the write path uses now guards the read, and the verified signer must be
+// the wallet the route belongs to.
+//
+// A route owned by someone else returns 404, not 403, so this cannot be used to
+// probe whether a given route id exists.
+router.get("/verify/:id", requireWalletAuth(), async (req, res) => {
   const view = await getRouteView(req.params.id, routeRepository);
   if (!view) {
+    return res.status(404).json({ error: "Route not found" });
+  }
+  const owner = await routeRepository.findById(req.params.id);
+  if (!owner || owner.walletAddress.toLowerCase() !== req.movenrunAuth!.address) {
     return res.status(404).json({ error: "Route not found" });
   }
   return res.json(view);
