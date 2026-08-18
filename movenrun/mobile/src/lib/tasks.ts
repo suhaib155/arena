@@ -136,7 +136,14 @@ export function boardInputFromState(state: BoardSourceState): TodayBoardInput {
     hasRecoverableMovement: false,
     // Movement sessions ONLY. A warmup quest is not a move.
     movedToday: state.history.some((rec) => isMovementSession(rec) && onToday(rec.completedAt)),
-    atRiskZoneCount: state.zones.filter((z) => zoneStatus(z).health !== "yours").length,
+    /* `state.now` has to reach zoneStatus too. It did not, so zone health was
+       derived from the wall clock while every other field honoured the injected
+       time — the function was non-deterministic against its own documented
+       seam, and the suite failed by calendar drift rather than by any code
+       change. Fixed here because it blocks this branch's gate; see the PR. */
+    atRiskZoneCount: state.zones.filter(
+      (z) => zoneStatus(z, state.now?.getTime()).health !== "yours",
+    ).length,
     zonesOwned: state.zones.length,
     dailyQuestTitle: state.dailyQuestTitle,
     dailyQuestXp: state.dailyQuestXp,
@@ -241,18 +248,28 @@ export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
     reward: input.dailyQuestXp,
   });
 
-  // Milestone — drops off the board once the first zone is captured.
+  /* Milestone — drops off the board once the first zone is captured.
+     This is also Home's only territory affordance for a player who owns
+     nothing: `defend` is the board's other territory task and it requires
+     `atRiskZoneCount > 0`, which a zero-zone player can never satisfy, so
+     without this row Home never mentions territory to exactly the audience
+     that has never seen it. It used to send them to `move`, which merely
+     repeated the CTA the `move` task above already owns — two rows, one
+     action, and nothing anywhere explaining what a zone is. It now opens the
+     territory map, where lib/territoryIntro.ts explains the loop. The primary
+     movement CTA is unaffected: `move` is pushed first, so it still takes the
+     spotlight. */
   if (input.zonesOwned === 0) {
     board.push({
       id: "capture",
       kind: "capture",
       title: "Capture your first zone",
-      detail: "Move through new ground to claim it.",
-      cta: "Start move",
+      detail: "See what territory is and how zones are captured.",
+      cta: "See how it works",
       state: "todo",
-      action: "move",
+      action: "territory",
       tone: "green",
-      icon: "flag-outline",
+      icon: "map-outline",
       reward: 0,
     });
   }
