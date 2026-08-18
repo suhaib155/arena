@@ -81,6 +81,10 @@ export function ZoneSheet({
         <ScalePress
           to={0.85}
           onPress={onClose}
+          /* Drawn at 32pt so it sits inside the sheet header without crowding
+             the zone name; 8pt of slop each side carries it to 48pt of actual
+             target. */
+          hitSlop={8}
           style={styles.closeBtn}
           accessibilityRole="button"
           accessibilityLabel="Close zone details"

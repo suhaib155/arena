@@ -41,6 +41,8 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const SCREENS = [...walk(APP), ...walk(SRC)];
+/* Discovery is structural, but it was never asserted — see uiGuards.test.ts,
+   which owns the fail-closed contract for the same corpus. */
 const read = (f: string) => readFileSync(f, "utf8");
 
 /** Opening `<Pressable ...>` tags, brace-aware so a `=>` inside a prop
@@ -96,12 +98,14 @@ test("iconTile and avatar are the only two shapes, and they differ", () => {
 
 test("no screen hand-rolls a square icon container any more", () => {
   const offenders: string[] = [];
+  let inspected = 0;
   for (const file of SCREENS) {
     const src = read(file);
     // A centred box with equal width/height and its own borderRadius is the
     // shape iconTile()/avatar() exist to own.
     const blocks = src.matchAll(/(\w+):\s*\{([^{}]*?)\}/gs);
     for (const [, name, body] of blocks) {
+      inspected += 1;
       const w = body.match(/width:\s*(\d+)\s*,/);
       const h = body.match(/height:\s*(\d+)\s*,/);
       const r = /borderRadius:/.test(body);
@@ -111,6 +115,9 @@ test("no screen hand-rolls a square icon container any more", () => {
       }
     }
   }
+  // An empty corpus produces an empty offender list, so this rule used to pass
+  // hardest when discovery was broken. State what was inspected first.
+  assert.ok(inspected > 0, `no style blocks inspected across ${SCREENS.length} files`);
   assert.deepEqual(offenders, [], "use iconTile(size) or avatar(size) instead");
 });
 
@@ -140,15 +147,20 @@ test("anything that floats above the page uses a card radius", () => {
   // their own families and are deliberately not covered by this rule.
   const CARD_RADII = ["radius.lg", "radius.xl", "radius.pill"];
   const offenders: string[] = [];
+  let shadowed = 0;
   for (const file of SCREENS) {
     for (const [name, body] of styleBlocks(read(file))) {
       if (!/\.\.\.shadows\.(card|float)/.test(body)) continue;
+      shadowed += 1;
       const radius = body.match(/borderRadius:\s*([\w.]+)/)?.[1];
       if (radius && !CARD_RADII.includes(radius)) {
         offenders.push(`${file.replace(process.cwd(), "")}: ${name} (${radius})`);
       }
     }
   }
+  // Same fail-open as above: no shadowed blocks found means nothing was
+  // checked, not that every card is correct.
+  assert.ok(shadowed > 0, `no shadowed style blocks found across ${SCREENS.length} files`);
   assert.deepEqual(offenders, [], `use ${CARD_RADII.join(" / ")}, or drop the shadow`);
 });
 
