@@ -1,0 +1,1340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MovenRun — Partner Onboarding Brief</title>
+<style>
+:root{
+  --morning:#F8FAF7; --cloud:#FFFFFF; --mist:#F1F6F3; --pale:#EAF6FF;
+  --ink:#111827; --graphite:#667085; --silver:#A3AAB8;
+  --blue:#246BFE; --green:#18C987; --mint:#58F2B3; --coral:#FF6B4A;
+  --gold:#F7B955; --violet:#7657FF; --red:#EF4444; --dust:#D0D5DD;
+  --line:#E4EAEF;
+}
+@page { size:A4; margin:14mm 14mm 15mm 14mm; }
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Liberation Sans","DejaVu Sans",Arial,sans-serif;
+  color:var(--ink); background:var(--cloud);
+  font-size:9.9pt; line-height:1.52; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+h1,h2,h3,h4{ margin:0; line-height:1.22; }
+p{margin:0 0 7.5pt;}
+a{color:var(--blue);text-decoration:none;}
+
+/* ---------- structural ---------- */
+.page{ page-break-after:always; }
+.page:last-child{ page-break-after:auto; }
+.nobreak{ page-break-inside:avoid; }
+.pb{ page-break-before:always; }
+
+/* ---------- cover ---------- */
+.cover{
+  height:299mm; display:flex; flex-direction:column; justify-content:space-between;
+  background:linear-gradient(160deg,#FFFFFF 0%,#EAF6FF 46%,#F1F6F3 100%);
+  margin:-14mm -14mm -15mm -14mm; padding:22mm 20mm 26mm;
+}
+.brandmark{display:flex;align-items:center;gap:10px;}
+.brandmark .name{font-size:16pt;font-weight:700;letter-spacing:-0.3px;}
+.cover h1{font-size:44pt;font-weight:700;letter-spacing:-1.6px;margin:0 0 10px;}
+.cover .sub{font-size:14pt;color:var(--graphite);font-weight:400;max-width:135mm;line-height:1.45;}
+.eyebrow{
+  display:inline-block;font-size:8.4pt;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--blue);background:rgba(36,107,254,.10);border:1px solid rgba(36,107,254,.22);
+  padding:5px 12px;border-radius:999px;
+}
+.cover-meta{display:flex;gap:26px;flex-wrap:wrap;border-top:1px solid rgba(17,24,39,.12);padding-top:14px;}
+.cover-meta div{font-size:9pt;color:var(--graphite);}
+.cover-meta strong{display:block;color:var(--ink);font-size:10pt;margin-bottom:2px;}
+
+/* ---------- section headers ---------- */
+.sec-num{
+  font-size:8.4pt;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--blue);
+  margin-bottom:5px;
+}
+h2.sec{ font-size:19.5pt; font-weight:700; letter-spacing:-0.7px; margin:0 0 6px; }
+.sec-lede{ font-size:10.8pt; color:var(--graphite); line-height:1.45; margin:0 0 12px; max-width:162mm;}
+.rule{height:3px;width:52px;background:var(--blue);border-radius:2px;margin:0 0 11px;}
+h3{ font-size:11.8pt; font-weight:700; margin:12.5pt 0 5pt; letter-spacing:-0.2px;}
+h4{ font-size:10.2pt; font-weight:700; margin:9pt 0 3.5pt;}
+
+/* ---------- content bits ---------- */
+ul,ol{margin:0 0 8pt; padding-left:15pt;}
+li{margin-bottom:3.6pt;}
+li::marker{color:var(--blue);}
+strong{font-weight:700;}
+.small{font-size:9pt;color:var(--graphite);}
+
+.card{
+  background:var(--cloud);border:1px solid var(--line);border-radius:12px;
+  padding:11px 13px;margin:0 0 9px;
+}
+.card.tint-blue{background:#F3F7FF;border-color:#D6E4FF;}
+.card.tint-green{background:#F0FBF6;border-color:#C9EEDD;}
+.card.tint-violet{background:#F6F3FF;border-color:#DED4FF;}
+.card.tint-gold{background:#FFF9EF;border-color:#F5E3C0;}
+.card.tint-coral{background:#FFF4F1;border-color:#FBD8CD;}
+.card h4{margin-top:0;}
+.card p:last-child{margin-bottom:0;}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;}
+
+.kpi{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--cloud);}
+.kpi .n{font-size:19pt;font-weight:700;letter-spacing:-0.8px;line-height:1.1;}
+.kpi .l{font-size:8.6pt;color:var(--graphite);margin-top:3px;line-height:1.35;}
+
+table{width:100%;border-collapse:collapse;margin:0 0 10px;font-size:8.9pt;}
+th{
+  text-align:left;background:var(--mist);color:var(--ink);font-weight:700;
+  padding:6px 9px;border-bottom:2px solid var(--line);font-size:8.3pt;
+  text-transform:uppercase;letter-spacing:0.5px;
+}
+td{padding:5.5px 9px;border-bottom:1px solid var(--line);vertical-align:top;}
+tr:nth-child(even) td{background:#FBFCFD;}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+.callout{
+  border-left:4px solid var(--blue);background:#F3F7FF;border-radius:0 10px 10px 0;
+  padding:10px 13px;margin:0 0 10px;
+}
+.callout.warn{border-left-color:var(--coral);background:#FFF4F1;}
+.callout.ok{border-left-color:var(--green);background:#F0FBF6;}
+.callout p:last-child{margin-bottom:0;}
+.callout .tag{
+  font-size:8pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--blue);display:block;margin-bottom:4px;
+}
+.callout.warn .tag{color:var(--coral);}
+.callout.ok .tag{color:#0E9C68;}
+
+.pill{
+  display:inline-block;font-size:8pt;font-weight:700;padding:3px 9px;border-radius:999px;
+  letter-spacing:.4px;
+}
+.pill.built{background:#E4F8EF;color:#0E7A52;}
+.pill.progress{background:#FFF3DC;color:#9A6B10;}
+.pill.planned{background:#EEF1F5;color:#5A6473;}
+
+.figure{margin:4px 0 11px;}
+.figure svg{display:block;width:100%;height:auto;}
+.figcap{font-size:8.3pt;color:var(--graphite);margin-top:5px;text-align:center;font-style:italic;}
+
+.toc-item{
+  display:flex;align-items:baseline;gap:9px;padding:6.5px 0;border-bottom:1px solid var(--line);
+}
+.toc-item .n{
+  font-size:8.6pt;font-weight:700;color:var(--blue);min-width:24px;
+  font-variant-numeric:tabular-nums;
+}
+.toc-item .t{font-weight:700;font-size:10.2pt;}
+.toc-item .d{color:var(--graphite);font-size:9pt;margin-left:auto;text-align:right;max-width:88mm;}
+
+.footer-note{
+  margin-top:16px;padding-top:9px;border-top:1px solid var(--line);
+  font-size:8.4pt;color:var(--silver);line-height:1.5;
+}
+.two-col{column-count:2;column-gap:14px;}
+.two-col p, .two-col li{break-inside:avoid;}
+.glossary dt{font-weight:700;font-size:8.9pt;margin-top:4.5px;}
+.glossary dd{margin:0.5px 0 0;font-size:8.5pt;color:var(--graphite);line-height:1.38;}
+.check{list-style:none;padding-left:0;}
+.check li{padding-left:20px;position:relative;}
+.check li:before{
+  content:"";position:absolute;left:0;top:6px;width:11px;height:11px;border-radius:3px;
+  border:1.6px solid var(--blue);
+}
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="page">
+<div class="cover">
+
+  <div class="brandmark">
+    <svg width="34" height="38" viewBox="0 0 34 38"><polygon points="17,1 33,10 33,28 17,37 1,28 1,10" fill="#246BFE"/><polygon points="17,8 27,13.5 27,24.5 17,30 7,24.5 7,13.5" fill="#FFFFFF" opacity=".92"/><polygon points="17,13 23,16.2 23,22.8 17,26 11,22.8 11,16.2" fill="#18C987"/></svg>
+    <span class="name">MovenRun</span>
+  </div>
+
+  <div>
+    <span class="eyebrow">Partner Onboarding Brief · Confidential</span>
+    <h1 style="margin-top:16px;">Move.<br>Capture.<br>Own.</h1>
+    <p class="sub">Everything you need to understand MovenRun — the product, the technology, the business, and the plan — written for someone who has never touched crypto.</p>
+  </div>
+
+  <div>
+    <div class="figure" style="max-width:150mm;margin-bottom:20px;">
+      <svg viewBox="0 0 620 96">
+        <defs><marker id="cvArrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#A3AAB8"/></marker></defs>
+        <g font-family="Liberation Sans,Arial" text-anchor="middle">
+          <g><polygon points="46,10 76,27 76,61 46,78 16,61 16,27" fill="#246BFE"/><text x="46" y="49" font-size="12" font-weight="700" fill="#fff">MOVE</text></g>
+          <line x1="88" y1="44" x2="136" y2="44" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cvArrow)"/>
+          <g><polygon points="196,10 226,27 226,61 196,78 166,61 166,27" fill="#18C987"/><text x="196" y="49" font-size="10.5" font-weight="700" fill="#fff">CAPTURE</text></g>
+          <line x1="238" y1="44" x2="286" y2="44" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cvArrow)"/>
+          <g><polygon points="346,10 376,27 376,61 346,78 316,61 316,27" fill="#7657FF"/><text x="346" y="49" font-size="12" font-weight="700" fill="#fff">OWN</text></g>
+          <line x1="388" y1="44" x2="436" y2="44" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cvArrow)"/>
+          <g><polygon points="496,10 526,27 526,61 496,78 466,61 466,27" fill="#F7B955"/><text x="496" y="49" font-size="12" font-weight="700" fill="#fff">GROW</text></g>
+          <line x1="538" y1="44" x2="600" y2="44" stroke="#A3AAB8" stroke-width="1.8" stroke-dasharray="4 3"/>
+        </g>
+      </svg>
+    </div>
+    <div class="cover-meta">
+      <div><strong>Prepared for</strong>Incoming partner onboarding</div>
+      <div><strong>Version</strong>1.0 · August 2026</div>
+      <div><strong>Built on</strong>Base (Ethereum Layer 2)</div>
+      <div><strong>Stage</strong>Development · Testnet deployed</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============ HOW TO READ / TOC ============ -->
+<div class="page">
+  <div class="sec-num">Start here</div>
+  <h2 class="sec">How to read this document</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">You do not need any technical or crypto background to read this. Every specialist term is explained the first time it appears, and there is a plain-English glossary at the end.</p>
+
+  <div class="grid3" style="margin-bottom:16px;">
+    <div class="card tint-blue" style="margin:0;"><h4>Sections 1–4</h4><p class="small" style="margin:0;">The product. What MovenRun is, why it exists, and what using it feels like. Read these even if you read nothing else.</p></div>
+    <div class="card tint-violet" style="margin:0;"><h4>Sections 5–9</h4><p class="small" style="margin:0;">The technology, taught from zero. What crypto is, what Base is, and what they actually do inside our app.</p></div>
+    <div class="card tint-gold" style="margin:0;"><h4>Sections 10–16</h4><p class="small" style="margin:0;">The business. What is already built, the roadmap, how we get users, why us, and the honest risks.</p></div>
+  </div>
+
+  <h3>Contents</h3>
+  <div class="toc-item"><span class="n">01</span><span class="t">MovenRun in one page</span><span class="d">The whole product, summarised</span></div>
+  <div class="toc-item"><span class="n">02</span><span class="t">The problem we are solving</span><span class="d">Why movement apps and "move-to-earn" both failed</span></div>
+  <div class="toc-item"><span class="n">03</span><span class="t">The core loop: Move → Capture → Own → Grow</span><span class="d">The four verbs the entire game runs on</span></div>
+  <div class="toc-item"><span class="n">04</span><span class="t">What using the app actually feels like</span><span class="d">A walkthrough of a real session, screen by screen</span></div>
+  <div class="toc-item"><span class="n">05</span><span class="t">Crypto, explained from zero</span><span class="d">Blockchain, wallets, tokens and NFTs in everyday language</span></div>
+  <div class="toc-item"><span class="n">06</span><span class="t">What is Base, and why we chose it</span><span class="d">The chain we build on and what it costs us</span></div>
+  <div class="toc-item"><span class="n">07</span><span class="t">How MovenRun is built: three layers</span><span class="d">App → verification → blockchain</span></div>
+  <div class="toc-item"><span class="n">08</span><span class="t">Two users, two experiences</span><span class="d">The non-crypto user and the crypto user, side by side</span></div>
+  <div class="toc-item"><span class="n">09</span><span class="t">Zone Deeds and the $MOVE economy</span><span class="d">What we own, what we earn, and how the money works</span></div>
+  <div class="toc-item"><span class="n">10</span><span class="t">Proof of movement: how we stop cheating</span><span class="d">The single most important technical problem</span></div>
+  <div class="toc-item"><span class="n">11</span><span class="t">What is already built</span><span class="d">Evidence, not promises — with an honest status table</span></div>
+  <div class="toc-item"><span class="n">12</span><span class="t">Roadmap</span><span class="d">Four phases and what unlocks each one</span></div>
+  <div class="toc-item"><span class="n">13</span><span class="t">How we get users</span><span class="d">The growth playbook, city by city</span></div>
+  <div class="toc-item"><span class="n">14</span><span class="t">Why us, why now</span><span class="d">The case for this team and this moment</span></div>
+  <div class="toc-item"><span class="n">15</span><span class="t">Risks, stated honestly</span><span class="d">What could go wrong and what we do about it</span></div>
+  <div class="toc-item"><span class="n">16</span><span class="t">Glossary &amp; your first two weeks</span><span class="d">Every term in one line, plus an onboarding checklist</span></div>
+
+  <div class="callout" style="margin-top:18px;">
+    <span class="tag">One thing to hold on to</span>
+    <p>If you remember a single sentence from this document, make it this one: <strong>MovenRun turns the ground you walk on into property you actually own — and the person walking never has to know a blockchain was involved.</strong></p>
+  </div>
+</div>
+
+<!-- ============ 01 ============ -->
+<div class="page">
+  <div class="sec-num">Section 01</div>
+  <h2 class="sec">MovenRun in one page</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">If you had ninety seconds to explain MovenRun to a stranger, this is what you would say.</p>
+
+  <div class="card tint-blue">
+    <h4>The plain version</h4>
+    <p style="margin-bottom:0;">MovenRun is a mobile game you play by walking, running, or cycling in the real world. We divide the entire planet into small hexagon-shaped tiles — think of a honeycomb laid over a map. When you move through a tile, you capture it. Hold a tile and it becomes yours: a piece of digital property called a <strong>Zone Deed</strong> that is recorded permanently and independently of our company, so nobody — including us — can take it away. Capture enough neighbouring tiles and you own a district. Team up with a club and you fight for a city.</p>
+  </div>
+
+  <h3>The four things that make it different</h3>
+  <div class="grid2">
+    <div class="card tint-green"><h4>1 · You own progress, you don't rent it</h4><p style="margin-bottom:0;">In a fitness app your streak is a number in someone's database. If the company shuts down, it is gone. In MovenRun your territory is recorded on a public ledger under your own keys. It survives us.</p></div>
+    <div class="card tint-violet"><h4>2 · Every claim is proven</h4><p style="margin-bottom:0;">Territory is only valuable if it is hard to get. Every session is checked for physical plausibility — realistic speed, sane GPS accuracy, continuous motion — before it can claim anything. Faking movement is rejected.</p></div>
+    <div class="card tint-gold"><h4>3 · The crypto is invisible</h4><p style="margin-bottom:0;">No seed phrases, no wallet setup, no buying a coin before you can start. You tap once and you are moving. The blockchain is doing real work underneath, and a normal user never sees a single piece of it.</p></div>
+    <div class="card tint-coral"><h4>4 · The economy is built to last</h4><p style="margin-bottom:0;">Previous "move-to-earn" apps printed tokens with nothing to spend them on and collapsed. We designed the ways money leaves the system <em>before</em> the ways it enters. That order is deliberate.</p></div>
+  </div>
+
+  <h3>Where we are right now</h3>
+  <div class="grid3" style="margin-bottom:12px;">
+    <div class="kpi"><div class="n" style="color:var(--blue);">8</div><div class="l">Smart contracts written, tested, and deployed to Base test network</div></div>
+    <div class="kpi"><div class="n" style="color:var(--green);">26/26</div><div class="l">Contract tests passing, including a full end-to-end integration test</div></div>
+    <div class="kpi"><div class="n" style="color:var(--violet);">0.74 km²</div><div class="l">The size of one capturable zone — roughly a small neighbourhood</div></div>
+  </div>
+  <div class="grid3">
+    <div class="kpi"><div class="n" style="color:var(--gold);">4</div><div class="l">Roadmap phases, each gated on evidence rather than a calendar date</div></div>
+    <div class="kpi"><div class="n" style="color:var(--coral);">1B</div><div class="l">Maximum $MOVE tokens that can ever exist — a hard cap in code</div></div>
+    <div class="kpi"><div class="n">3</div><div class="l">Ways to play: walking, running, and cycling — all equally valid</div></div>
+  </div>
+
+  <h3>The honest status line</h3>
+  <div class="callout warn">
+    <span class="tag">Read this before you talk to anyone external</span>
+    <p>MovenRun is a <strong>development-stage product</strong>. The blockchain foundation is genuinely built and live on Base's <em>test</em> network. The mobile app today is a working shell that proves the build pipeline and on-device progress system, and the full territory map is the next thing we ship. Our public documentation describes the protocol <strong>as designed</strong>. When you speak about MovenRun, describe the vision as the vision and the built parts as built — Section 11 gives you the exact line-by-line status so you never have to guess.</p>
+  </div>
+
+  <div class="footer-note">Nothing in this document is financial advice, an offer, or a promise of returns. Digital territory is a game asset, not real-world property.</div>
+</div>
+
+<!-- ============ 02 ============ -->
+<div class="page">
+  <div class="sec-num">Section 02</div>
+  <h2 class="sec">The problem we are solving</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Billions of people move every single day. Almost none of that movement builds anything for the person doing it. Three previous attempts got close and each failed in a specific, fixable way.</p>
+
+  <h3>Failure one — fitness apps forget you</h3>
+  <p>Strava, Google Fit, Apple Fitness and the rest are excellent at <em>measuring</em>. You walk five kilometres, they show you a number, and tomorrow that number is history. Nothing accumulates into something you hold. Your three-year streak is a graph, not an asset. And crucially, the moment you stop paying or the company changes direction, all of it is theirs to switch off.</p>
+
+  <h3>Failure two — location platforms sell you</h3>
+  <p>The other major use of movement data is advertising. Platforms collect where you go, build a profile, and sell access to it. The mover generates all the value and captures none of it. This is the model MovenRun most deliberately rejects: we are not a data broker, we do not sell location profiles, and our verification system is designed to keep <em>proofs</em> of movement rather than permanent trails of where you have been.</p>
+
+  <h3>Failure three — the first "move-to-earn" wave collapsed</h3>
+  <p>In 2022 a category of apps promised to pay you in cryptocurrency for walking. They grew explosively and then unravelled. The reason is simple and worth understanding properly, because avoiding it is the core of our economic design:</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 190">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="4" y="8" width="320" height="176" rx="12" fill="#FFF4F1" stroke="#FBD8CD"/>
+        <text x="20" y="32" font-size="11.5" font-weight="700" fill="#B03A1C">The old move-to-earn loop (broken)</text>
+        <g font-size="9.6" fill="#111827">
+          <rect x="20" y="46" width="128" height="30" rx="7" fill="#fff" stroke="#FBD8CD"/><text x="32" y="65">Users move</text>
+          <path d="M152,61 L176,61" stroke="#FF6B4A" stroke-width="1.6"/><path d="M176,57 L184,61 L176,65 z" fill="#FF6B4A"/>
+          <rect x="188" y="46" width="120" height="30" rx="7" fill="#fff" stroke="#FBD8CD"/><text x="200" y="65">Tokens printed</text>
+          <path d="M248,80 L248,98" stroke="#FF6B4A" stroke-width="1.6"/><path d="M244,98 L248,106 L252,98 z" fill="#FF6B4A"/>
+          <rect x="188" y="110" width="120" height="30" rx="7" fill="#fff" stroke="#FBD8CD"/><text x="196" y="129">Nothing to spend</text>
+          <path d="M186,125 L162,125" stroke="#FF6B4A" stroke-width="1.6"/><path d="M162,121 L154,125 L162,129 z" fill="#FF6B4A"/>
+          <rect x="20" y="110" width="128" height="30" rx="7" fill="#fff" stroke="#FBD8CD"/><text x="32" y="129">Everyone sells</text>
+        </g>
+        <text x="20" y="158" font-size="8.6" fill="#B03A1C">Price falls, the only reason to play disappears,</text><text x="20" y="170" font-size="8.6" fill="#B03A1C">and users leave.</text>
+
+        <rect x="336" y="8" width="320" height="176" rx="12" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="352" y="32" font-size="11.5" font-weight="700" fill="#0E7A52">The MovenRun loop (designed to hold)</text>
+        <g font-size="9.6" fill="#111827">
+          <rect x="352" y="46" width="128" height="30" rx="7" fill="#fff" stroke="#C9EEDD"/><text x="364" y="65">Users move</text>
+          <path d="M484,61 L508,61" stroke="#18C987" stroke-width="1.6"/><path d="M508,57 L516,61 L508,65 z" fill="#18C987"/>
+          <rect x="520" y="46" width="120" height="30" rx="7" fill="#fff" stroke="#C9EEDD"/><text x="530" y="65">Capture territory</text>
+          <path d="M580,80 L580,98" stroke="#18C987" stroke-width="1.6"/><path d="M576,98 L580,106 L584,98 z" fill="#18C987"/>
+          <rect x="520" y="110" width="120" height="30" rx="7" fill="#fff" stroke="#C9EEDD"/><text x="528" y="129">Defend &amp; upgrade</text>
+          <path d="M518,125 L494,125" stroke="#18C987" stroke-width="1.6"/><path d="M494,121 L486,125 L494,129 z" fill="#18C987"/>
+          <rect x="352" y="110" width="128" height="30" rx="7" fill="#fff" stroke="#C9EEDD"/><text x="360" y="129">Costs tokens</text>
+        </g>
+        <text x="352" y="158" font-size="8.6" fill="#0E7A52">Spending is required to keep what you hold, so demand</text><text x="352" y="170" font-size="8.6" fill="#0E7A52">exists without any speculation.</text>
+      </g>
+    </svg>
+    <div class="figcap">The difference in one picture: the old model gave people a token and no reason to keep it. Ours makes the token the thing you spend to defend what you own.</div>
+  </div>
+
+  <h3>The insight underneath all three</h3>
+  <div class="card tint-blue">
+    <p style="margin-bottom:0;"><strong>Ownership is the most durable form of progress.</strong> A score resets. A streak breaks. A token price falls. But property you hold, that you have defended, that has a history attached to it and neighbours you fought for — that keeps meaning something regardless of what any market does. So we made the map itself the asset, and made every claim on it require proof of real effort.</p>
+  </div>
+</div>
+
+<!-- ============ 03 ============ -->
+<div class="page">
+  <div class="sec-num">Section 03</div>
+  <h2 class="sec">The core loop: Move → Capture → Own → Grow</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Every feature we build has to serve these four verbs. If a proposed feature does not advance one of them, it is out of scope. This is our single most important internal rule.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 300" style="max-width:122mm;margin:0 auto;">
+      <defs>
+        <marker id="lp" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker>
+      </defs>
+      <g font-family="Liberation Sans,Arial">
+        <!-- arcs -->
+        <path d="M215,66 A150,110 0 0 1 445,66" fill="none" stroke="#D0D5DD" stroke-width="2" marker-end="url(#lp)"/>
+        <path d="M556,110 A150,110 0 0 1 556,196" fill="none" stroke="#D0D5DD" stroke-width="2" marker-end="url(#lp)"/>
+        <path d="M445,240 A150,110 0 0 1 215,240" fill="none" stroke="#D0D5DD" stroke-width="2" marker-end="url(#lp)"/>
+        <path d="M104,196 A150,110 0 0 1 104,110" fill="none" stroke="#D0D5DD" stroke-width="2" marker-end="url(#lp)"/>
+
+        <!-- MOVE -->
+        <g><polygon points="140,20 190,48 190,104 140,132 90,104 90,48" fill="#246BFE"/>
+        <text x="140" y="66" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">MOVE</text>
+        <text x="140" y="86" font-size="8.6" fill="#D6E4FF" text-anchor="middle">walk · run · cycle</text></g>
+        <!-- CAPTURE -->
+        <g><polygon points="520,20 570,48 570,104 520,132 470,104 470,48" fill="#18C987"/>
+        <text x="520" y="66" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">CAPTURE</text>
+        <text x="520" y="86" font-size="8.6" fill="#E4F8EF" text-anchor="middle">claim the hexes</text></g>
+        <!-- OWN -->
+        <g><polygon points="520,176 570,204 570,260 520,288 470,260 470,204" fill="#7657FF"/>
+        <text x="520" y="222" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">OWN</text>
+        <text x="520" y="242" font-size="8.6" fill="#DED4FF" text-anchor="middle">Zone Deeds</text></g>
+        <!-- GROW -->
+        <g><polygon points="140,176 190,204 190,260 140,288 90,260 90,204" fill="#F7B955"/>
+        <text x="140" y="222" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">GROW</text>
+        <text x="140" y="242" font-size="8.6" fill="#FFF9EF" text-anchor="middle">districts · clubs</text></g>
+
+        <!-- centre -->
+        <g text-anchor="middle" fill="#667085" font-size="9.4">
+          <text x="330" y="146" font-size="11" font-weight="700" fill="#111827">Each turn of the loop</text>
+          <text x="330" y="164">makes the next one</text>
+          <text x="330" y="180">worth more</text>
+        </g>
+        <!-- arc labels -->
+        <g font-size="8.8" fill="#667085" text-anchor="middle">
+          <text x="330" y="34">your route crosses tiles</text>
+          <text x="612" y="156" transform="rotate(90 612 156)">holding turns into owning</text>
+          <text x="330" y="278">territory compounds</text>
+          <text x="48" y="156" transform="rotate(-90 48 156)">so you go out again</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">The MovenRun core loop. It is closed on purpose: growth gives you a reason to move again tomorrow.</div>
+  </div>
+
+  <h3>Move</h3>
+  <p>You open the app and start a session. Walking, running, and cycling are treated as equally valid — no minimum speed, no mode that scores "better". A twenty-minute walk around your block is a first-class move here. That is a deliberate decision, not a compromise: a network that only rewards athletes never changes how ordinary people actually live.</p>
+
+  <h3>Capture</h3>
+  <p>Your route crosses hexagonal tiles on a global map, and finishing the session claims them. This is the moment a walk stops being exercise and becomes a foothold — the tiles light up along the line you actually walked.</p>
+
+  <h3>Own</h3>
+  <p>Captured zones become <strong>Zone Deeds</strong>: records of ownership held under your own keys rather than in our database. A deed is yours to keep, strengthen, defend when challenged, and transfer. This is the difference between MovenRun and every scoreboard ever built — the map remembers you because you genuinely own part of it.</p>
+
+  <h3>Grow</h3>
+  <p>Ownership compounds. Zones group into <strong>districts</strong>; districts build club and city standing; actively-held territory earns in-game yield; and holding a stake gives you a vote in how the network runs. A year of morning walks becomes a portfolio of territory and a real voice in the game's direction.</p>
+
+  <h3>The same loop at three speeds</h3>
+  <table>
+    <tr><th style="width:16%;">Mode</th><th style="width:30%;">A typical session</th><th>How ownership grows</th></tr>
+    <tr><td><strong>Walking</strong></td><td>20–40 min neighbourhood loop</td><td>Deep, durable ownership of home territory. Strongest streaks and district mastery — the most defensible position in the game.</td></tr>
+    <tr><td><strong>Running</strong></td><td>3–8 km route</td><td>Wider reach per session. Ideal for reclaiming contested zones and pushing into new districts.</td></tr>
+    <tr><td><strong>Cycling</strong></td><td>10–25 km ride</td><td>Broad exploration, touching many zones. Returning is what turns exploration into holdings.</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">Why this matters commercially</span>
+    <p>Consistency beats intensity in our scoring. That is a health-first choice, and it is also the right retention design: the player who walks twenty minutes a day for a year is worth vastly more to the network than the athlete who runs a marathon once and disappears.</p>
+  </div>
+</div>
+
+<!-- ============ 04 ============ -->
+<div class="page">
+  <div class="sec-num">Section 04</div>
+  <h2 class="sec">What using the app actually feels like</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A walkthrough of one real session, from the moment someone downloads the app to the moment they own a piece of their neighbourhood. No jargon in this section at all.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 260">
+      <g font-family="Liberation Sans,Arial">
+        <!-- phone 1 -->
+        <g>
+          <rect x="10" y="14" width="120" height="216" rx="16" fill="#fff" stroke="#D0D5DD" stroke-width="1.6"/>
+          <rect x="18" y="26" width="104" height="192" rx="10" fill="#F8FAF7"/>
+          <text x="70" y="48" font-size="8" font-weight="700" fill="#667085" text-anchor="middle">YOUR MAP</text>
+          <g opacity=".95">
+            <polygon points="46,62 58,69 58,83 46,90 34,83 34,69" fill="#E7ECEF"/>
+            <polygon points="70,62 82,69 82,83 70,90 58,83 58,69" fill="#E7ECEF"/>
+            <polygon points="94,62 106,69 106,83 94,90 82,83 82,69" fill="#E7ECEF"/>
+            <polygon points="58,90 70,97 70,111 58,118 46,111 46,97" fill="#E7ECEF"/>
+            <polygon points="82,90 94,97 94,111 82,118 70,111 70,97" fill="#E7ECEF"/>
+            <polygon points="46,118 58,125 58,139 46,146 34,139 34,125" fill="#E7ECEF"/>
+            <polygon points="70,118 82,125 82,139 70,146 58,139 58,125" fill="#E7ECEF"/>
+            <polygon points="94,118 106,125 106,139 94,146 82,139 82,125" fill="#E7ECEF"/>
+          </g>
+          <circle cx="70" cy="104" r="5" fill="#246BFE"/><circle cx="70" cy="104" r="10" fill="#246BFE" opacity=".18"/>
+          <rect x="26" y="160" width="88" height="26" rx="13" fill="#246BFE"/>
+          <text x="70" y="177" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">START</text>
+          <text x="70" y="202" font-size="7.4" fill="#A3AAB8" text-anchor="middle">no wallet · no signup wall</text>
+          <text x="70" y="248" font-size="9" font-weight="700" fill="#111827" text-anchor="middle">1 · Open</text>
+        </g>
+        <!-- phone 2 -->
+        <g>
+          <rect x="187" y="14" width="120" height="216" rx="16" fill="#fff" stroke="#D0D5DD" stroke-width="1.6"/>
+          <rect x="195" y="26" width="104" height="192" rx="10" fill="#F8FAF7"/>
+          <text x="247" y="48" font-size="8" font-weight="700" fill="#18C987" text-anchor="middle">● MOVING</text>
+          <g opacity=".95">
+            <polygon points="223,62 235,69 235,83 223,90 211,83 211,69" fill="#E7ECEF"/>
+            <polygon points="247,62 259,69 259,83 247,90 235,83 235,69" fill="#D6F5E8"/>
+            <polygon points="271,62 283,69 283,83 271,90 259,83 259,69" fill="#E7ECEF"/>
+            <polygon points="235,90 247,97 247,111 235,118 223,111 223,97" fill="#D6F5E8"/>
+            <polygon points="259,90 271,97 271,111 259,118 247,111 247,97" fill="#D6F5E8"/>
+            <polygon points="223,118 235,125 235,139 223,146 211,139 211,125" fill="#E7ECEF"/>
+            <polygon points="247,118 259,125 259,139 247,146 235,139 235,125" fill="#D6F5E8"/>
+            <polygon points="271,118 283,125 283,139 271,146 259,139 259,125" fill="#E7ECEF"/>
+          </g>
+          <path d="M232,136 C240,120 252,112 252,98 C252,86 244,78 247,70" fill="none" stroke="#18C987" stroke-width="2.6" stroke-linecap="round"/>
+          <circle cx="247" cy="70" r="4.5" fill="#18C987" stroke="#fff" stroke-width="1.6"/>
+          <g text-anchor="middle">
+            <text x="215" y="172" font-size="11" font-weight="700" fill="#111827">1.2</text><text x="215" y="182" font-size="6.6" fill="#A3AAB8">km</text>
+            <text x="247" y="172" font-size="11" font-weight="700" fill="#111827">9:04</text><text x="247" y="182" font-size="6.6" fill="#A3AAB8">time</text>
+            <text x="279" y="172" font-size="11" font-weight="700" fill="#111827">5'31"</text><text x="279" y="182" font-size="6.6" fill="#A3AAB8">pace</text>
+          </g>
+          <text x="247" y="204" font-size="7.4" fill="#A3AAB8" text-anchor="middle">glanceable — eyes on the road</text>
+          <text x="247" y="248" font-size="9" font-weight="700" fill="#111827" text-anchor="middle">2 · Move</text>
+        </g>
+        <!-- phone 3 -->
+        <g>
+          <rect x="364" y="14" width="120" height="216" rx="16" fill="#fff" stroke="#D0D5DD" stroke-width="1.6"/>
+          <rect x="372" y="26" width="104" height="192" rx="10" fill="#F8FAF7"/>
+          <text x="424" y="48" font-size="8" font-weight="700" fill="#667085" text-anchor="middle">SESSION COMPLETE</text>
+          <g>
+            <polygon points="400,64 412,71 412,85 400,92 388,85 388,71" fill="#18C987"/>
+            <polygon points="424,64 436,71 436,85 424,92 412,85 412,71" fill="#18C987"/>
+            <polygon points="412,92 424,99 424,113 412,120 400,113 400,99" fill="#18C987"/>
+            <polygon points="448,64 460,71 460,85 448,92 436,85 436,71" fill="#E7ECEF"/>
+            <polygon points="436,92 448,99 448,113 436,120 424,113 424,99" fill="#18C987"/>
+          </g>
+          <text x="424" y="140" font-size="9.4" font-weight="700" fill="#0E7A52" text-anchor="middle">6 zones captured</text>
+          <g text-anchor="middle" font-size="7.6" fill="#667085">
+            <text x="424" y="158">2.4 km · 18:22 active</text>
+            <text x="424" y="172">+420 XP · streak 9 days</text>
+          </g>
+          <rect x="384" y="182" width="80" height="20" rx="10" fill="#7657FF"/>
+          <text x="424" y="196" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">CLAIM DEEDS</text>
+          <text x="424" y="248" font-size="9" font-weight="700" fill="#111827" text-anchor="middle">3 · Own</text>
+        </g>
+        <!-- phone 4 -->
+        <g>
+          <rect x="541" y="14" width="120" height="216" rx="16" fill="#fff" stroke="#D0D5DD" stroke-width="1.6"/>
+          <rect x="549" y="26" width="104" height="192" rx="10" fill="#F8FAF7"/>
+          <text x="601" y="48" font-size="8" font-weight="700" fill="#667085" text-anchor="middle">YOUR TERRITORY</text>
+          <g>
+            <polygon points="577,62 589,69 589,83 577,90 565,83 565,69" fill="#7657FF"/>
+            <polygon points="601,62 613,69 613,83 601,90 589,83 589,69" fill="#18C987"/>
+            <polygon points="625,62 637,69 637,83 625,90 613,83 613,69" fill="#18C987"/>
+            <polygon points="589,90 601,97 601,111 589,118 577,111 577,97" fill="#7657FF"/>
+            <polygon points="613,90 625,97 625,111 613,118 601,111 601,97" fill="#FF6B4A"/>
+            <polygon points="577,118 589,125 589,139 577,146 565,139 565,125" fill="#18C987"/>
+            <polygon points="601,118 613,125 613,139 601,146 589,139 589,125" fill="#7657FF"/>
+          </g>
+          <g font-size="7" fill="#667085">
+            <rect x="565" y="154" width="8" height="8" rx="2" fill="#18C987"/><text x="577" y="161">captured</text>
+            <rect x="565" y="167" width="8" height="8" rx="2" fill="#7657FF"/><text x="577" y="174">deed owned</text>
+            <rect x="565" y="180" width="8" height="8" rx="2" fill="#FF6B4A"/><text x="577" y="187">contested</text>
+          </g>
+          <text x="601" y="206" font-size="7.6" font-weight="700" fill="#111827" text-anchor="middle">Riverside · 14 zones</text>
+          <text x="601" y="248" font-size="9" font-weight="700" fill="#111827" text-anchor="middle">4 · Grow</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">One complete session, start to finish. Notice what is absent from every screen: any mention of a blockchain, a wallet, or a token.</div>
+  </div>
+
+  <h3>Step by step, in words</h3>
+  <ol>
+    <li><strong>You download the app and tap once.</strong> An account is created for you, and behind the scenes so is a secure wallet — but you are never shown a seed phrase or asked to install anything. You are moving within seconds.</li>
+    <li><strong>You pick a mode and press start.</strong> Walk, run, or cycle. The map shows the hexagons around you: grey means unclaimed, green means you already hold it.</li>
+    <li><strong>You go for your walk.</strong> The route draws itself live. Distance, time, and pace are shown large and simple, so your attention stays on the pavement rather than the screen. You can pause and resume freely — nothing punishes stopping.</li>
+    <li><strong>You finish and get a summary.</strong> Distance, active time, zones explored, XP earned, streak maintained. Then the satisfying part: the hexagons you crossed animate into your colour. Six new zones are yours.</li>
+    <li><strong>Over the following weeks it compounds.</strong> You return to the same routes and your hold strengthens. Neighbouring zones connect into a district. You join a club and your captures start counting toward a shared total. Somebody challenges one of your zones and you have to go out and defend it.</li>
+  </ol>
+
+  <div class="callout">
+    <span class="tag">The design principle behind all of it</span>
+    <p>Nothing in the live session requires interaction, no mechanic rewards speed over safety, and no information depends on animation or colour alone. It is designed to be usable by someone with reduced mobility, poor eyesight, or an old phone — because that is most of the world.</p>
+  </div>
+</div>
+
+<!-- ============ 05 ============ -->
+<div class="page">
+  <div class="sec-num">Section 05</div>
+  <h2 class="sec">Crypto, explained from zero</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">You do not need to like crypto, invest in it, or find it interesting to be excellent at this job. You do need to be able to explain five ideas clearly. Here they are, each with an everyday analogy.</p>
+
+  <h3>1 · A blockchain is a shared record book that nobody owns</h3>
+  <p>Imagine a ledger in the middle of a village square. Anyone can write in it, everyone can read it, and once something is written it cannot be erased or edited — you can only add a new line. Thousands of independent people keep identical copies, so if one person tries to cheat their copy, every other copy disagrees and the cheat is rejected.</p>
+  <p>That is a blockchain. It is not a currency, a company, or a website. It is a way of keeping a record that no single party controls. Everything else in crypto is built on top of that one property.</p>
+  <div class="card tint-blue">
+    <h4>Why we care</h4>
+    <p style="margin-bottom:0;">Because a record nobody owns is a record we cannot revoke. When we say a player genuinely owns their territory, this is the mechanism that makes it true rather than a marketing line. If MovenRun the company disappeared tomorrow, the deeds would still exist and still belong to the people who earned them.</p>
+  </div>
+
+  <h3>2 · A wallet is a key, not a bank account</h3>
+  <p>The word "wallet" is a poor name and causes most of the confusion. A crypto wallet does not <em>hold</em> anything. It holds a <strong>private key</strong> — a very long secret number that proves you are you. The ledger says "this territory belongs to key #4821…"; whoever can produce that key controls that territory.</p>
+  <p>Traditionally, users are made to write down twelve random words (a "seed phrase") that can regenerate their key, and told that if they lose those words their assets are gone forever. This single step is where the overwhelming majority of normal people abandon crypto apps — and rightly so.</p>
+  <div class="card tint-green">
+    <h4>What we do instead: embedded wallets</h4>
+    <p style="margin-bottom:0;">MovenRun creates the wallet for the player automatically at sign-up and secures it for them, the same way an email provider secures their inbox. There is no seed phrase to write down and nothing to install. The ownership is completely real and completely theirs — it just does not get in the way. A player who later becomes crypto-savvy can export that wallet and take full control at any time. <strong>This is the single most important product decision in MovenRun.</strong></p>
+  </div>
+
+  <h3>3 · A token is a unit that the ledger counts</h3>
+  <p>If the shared record book can track who owns what, it can track quantities too. A token is simply a countable balance recorded on that ledger. Our token is called <strong>$MOVE</strong>. Inside MovenRun it works like the currency of the game: you earn it by moving, and you spend it to claim premium zones, enter challenges, and strengthen what you hold.</p>
+  <p>The important distinction: some tokens are designed as investments, and some are designed as fuel for a system. $MOVE is designed as fuel. Section 9 covers this honestly, including the parts we deliberately constrain.</p>
+
+  <h3 class="pb">4 · An NFT is a deed, not a picture</h3>
+  <p>NFT stands for "non-fungible token", which is a terrible name for a simple idea. Fungible means interchangeable — any ten-rupee note is as good as any other. Non-fungible means each one is distinct and identifiable, like the title deed to a specific house.</p>
+  <p>NFTs became famous through cartoon profile pictures, and that association is unhelpful. The underlying technology is just a way of recording <em>"this specific unique thing belongs to this specific person"</em> on a ledger nobody controls. Land registries, ticketing, and certificates are the natural uses.</p>
+  <div class="card tint-violet">
+    <h4>Ours is called a Zone Deed</h4>
+    <p style="margin-bottom:0;">Each hexagon on our world map has a permanent unique identifier. A Zone Deed is an NFT whose identifier <em>is</em> that hexagon. So the deed is not a picture of a place — the deed <em>is</em> the place, as far as the game is concerned. It carries who holds it, the history of how it changed hands, how strongly it is defended, and the yield it has earned.</p>
+  </div>
+
+  <h3>5 · Gas is the postage stamp, and we pay it</h3>
+  <p>Writing to a public ledger costs a small fee, called <strong>gas</strong>, which pays the network of computers that maintain it. Normally the user must hold some cryptocurrency to pay it — meaning a new player would have to buy a coin before they could claim their first zone. That is an absurd barrier for a walking app.</p>
+  <p>We use a technology called <strong>account abstraction</strong> to sponsor those fees on the player's behalf. The player presses "claim" and it just works. We absorb a tiny cost per transaction; on Base that cost is a fraction of a cent, which is precisely why we chose Base.</p>
+
+  <div class="callout warn">
+    <span class="tag">How to talk about this externally</span>
+    <p>Some people have strong negative associations with crypto, often for good reasons — scams, speculation, and collapsed schemes. Do not argue with that. The honest and disarming answer is: <em>"You're right that a lot of it has been rubbish. We use the technology for one narrow thing — making sure the territory you earn actually belongs to you and can't be taken away. You never have to buy anything, and you'll never see a wallet."</em> That sentence converts sceptics better than any amount of enthusiasm.</p>
+  </div>
+</div>
+
+<!-- ============ 06 ============ -->
+<div class="page">
+  <div class="sec-num">Section 06</div>
+  <h2 class="sec">What is Base, and why we chose it</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Base is the specific blockchain MovenRun is built on. Understanding what it is — and why it is the right choice — matters, because we are applying to its accelerator programme.</p>
+
+  <h3>The problem Base exists to solve</h3>
+  <p>Ethereum is the largest and most trusted programmable blockchain, but it has a well-known weakness: it processes a limited number of transactions at a time, so when it gets busy, fees rise. At peak, one simple action could cost several dollars. For a banking application that might be acceptable. For a game where someone claims six hexagons after a morning walk, it is unworkable.</p>
+
+  <h3>What a Layer 2 does</h3>
+  <p>A "Layer 2" is a faster, cheaper network that sits on top of Ethereum and periodically writes a compressed summary of its activity back down to it. You keep Ethereum's security guarantees, but transactions are fast and cost a tiny fraction of a cent.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 178">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="16" y="12" width="628" height="44" rx="10" fill="#EAF6FF" stroke="#C9E2FF"/>
+        <text x="32" y="32" font-size="10.5" font-weight="700" fill="#111827">MovenRun</text>
+        <text x="32" y="47" font-size="8.8" fill="#667085">The app your player uses. Thousands of small actions a day: captures, claims, challenges.</text>
+        <text x="622" y="38" font-size="9" fill="#246BFE" text-anchor="end" font-weight="700">fast &amp; free to the user</text>
+
+        <path d="M330,58 L330,72" stroke="#A3AAB8" stroke-width="1.8"/><path d="M326,72 L330,80 L334,72 z" fill="#A3AAB8"/>
+
+        <rect x="16" y="82" width="628" height="44" rx="10" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="32" y="102" font-size="10.5" font-weight="700" fill="#246BFE">Base — an Ethereum Layer 2</text>
+        <text x="32" y="117" font-size="8.8" fill="#667085">Settles every action in ~2 seconds for a fraction of a cent. Built and operated by Coinbase.</text>
+        <text x="622" y="108" font-size="9" fill="#246BFE" text-anchor="end" font-weight="700">where MovenRun lives</text>
+
+        <path d="M330,128 L330,140" stroke="#A3AAB8" stroke-width="1.8"/><path d="M326,140 L330,148 L334,140 z" fill="#A3AAB8"/>
+
+        <rect x="16" y="150" width="628" height="26" rx="8" fill="#F1F6F3" stroke="#E4EAEF"/>
+        <text x="32" y="167" font-size="10" font-weight="700" fill="#111827">Ethereum</text>
+        <text x="120" y="167" font-size="8.8" fill="#667085">The base layer. Slower and more expensive, but the deepest security in the industry — it is the final court of record.</text>
+      </g>
+    </svg>
+    <div class="figcap">Why the stack matters: our users get speed and zero fees; our ownership records inherit Ethereum's security.</div>
+  </div>
+
+  <h3>Why Base specifically</h3>
+  <table>
+    <tr><th style="width:28%;">Reason</th><th>What it means for MovenRun</th></tr>
+    <tr><td><strong>Costs are negligible</strong></td><td>Our economics depend on sponsoring every user's fees. Thousands of daily captures are only viable at a fraction of a cent each. On Ethereum directly, this product could not exist.</td></tr>
+    <tr><td><strong>Confirmation is fast</strong></td><td>Roughly two seconds. A capture has to feel instant at the end of a run, not like waiting for a bank transfer.</td></tr>
+    <tr><td><strong>Best-in-class invisible onboarding</strong></td><td>Base has the strongest ecosystem for embedded wallets and sponsored gas — the two things that let us hide crypto from the player. The deciding factor.</td></tr>
+    <tr><td><strong>Built by Coinbase</strong></td><td>Base is operated by a large, regulated, publicly-listed company. For a product that must be trusted by non-crypto users, that backing is a genuine asset.</td></tr>
+    <tr><td><strong>Consumer-app focus</strong></td><td>Base has positioned itself as the chain for mainstream consumer apps rather than financial trading. Our product is exactly what its ecosystem wants to attract — which is why we fit Base Batches.</td></tr>
+    <tr><td><strong>Distribution</strong></td><td>A flagship consumer app on Base gets access to an ecosystem actively looking for apps to promote. See Section 13.</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">Where we already are on Base</span>
+    <p>This is not aspirational. Our full contract suite — eight contracts covering the token, the deeds, the challenge system, seasons, the vault and governance — is <strong>already written, tested, and deployed to Base Sepolia</strong>, Base's public test network. Test networks are functionally identical to the real thing but use valueless tokens, so you can prove a system works before real money touches it. Deploying to Base mainnet is a Phase 3 decision, deliberately gated (see Sections 11 and 12).</p>
+  </div>
+</div>
+
+<!-- ============ 07 ============ -->
+<div class="page">
+  <div class="sec-num">Section 07</div>
+  <h2 class="sec">How MovenRun is built: three layers</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The whole system is three layers stacked on each other. If you understand this diagram you understand our architecture, and you can hold your own in any technical conversation about us.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 336">
+      <g font-family="Liberation Sans,Arial">
+        <!-- L1 -->
+        <rect x="14" y="10" width="632" height="88" rx="12" fill="#EAF6FF" stroke="#C9E2FF" stroke-width="1.4"/>
+        <text x="34" y="34" font-size="8.4" font-weight="700" letter-spacing="1.4" fill="#246BFE">LAYER 1</text>
+        <text x="34" y="54" font-size="13" font-weight="700" fill="#111827">Experience — the mobile app</text>
+        <text x="34" y="72" font-size="9.2" fill="#667085">Onboarding, movement sessions, the territory map, clubs, seasons, the profile. Contains the embedded</text>
+        <text x="34" y="86" font-size="9.2" fill="#667085">wallet that the player never has to see. Built with React Native, so one codebase serves Android and iOS.</text>
+        <g><polygon points="596,32 620,46 620,74 596,88 572,74 572,46" fill="#246BFE"/><text x="596" y="64" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">APP</text></g>
+
+        <path d="M330,100 L330,116" stroke="#A3AAB8" stroke-width="2"/><path d="M325,116 L330,126 L335,116 z" fill="#A3AAB8"/>
+        <text x="344" y="116" font-size="8.6" fill="#667085">raw GPS route, sent once per session</text>
+
+        <!-- L2 -->
+        <rect x="14" y="128" width="632" height="88" rx="12" fill="#F0FBF6" stroke="#C9EEDD" stroke-width="1.4"/>
+        <text x="34" y="152" font-size="8.4" font-weight="700" letter-spacing="1.4" fill="#0E9C68">LAYER 2</text>
+        <text x="34" y="172" font-size="13" font-weight="700" fill="#111827">Verification — proving the movement was real</text>
+        <text x="34" y="190" font-size="9.2" fill="#667085">Checks the route for physical plausibility, converts it into the exact hexagons it crossed, reduces it to a</text>
+        <text x="34" y="204" font-size="9.2" fill="#667085">compact fingerprint, and signs it. This is the layer that makes the whole economy trustworthy.</text>
+        <g><polygon points="596,150 620,164 620,192 596,206 572,192 572,164" fill="#18C987"/><text x="596" y="182" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">PROOF</text></g>
+
+        <path d="M330,218 L330,234" stroke="#A3AAB8" stroke-width="2"/><path d="M325,234 L330,244 L335,234 z" fill="#A3AAB8"/>
+        <text x="344" y="234" font-size="8.6" fill="#667085">a signed proof — never the raw location trail</text>
+
+        <!-- L3 -->
+        <rect x="14" y="246" width="632" height="80" rx="12" fill="#F6F3FF" stroke="#DED4FF" stroke-width="1.4"/>
+        <text x="34" y="270" font-size="8.4" font-weight="700" letter-spacing="1.4" fill="#7657FF">LAYER 3</text>
+        <text x="34" y="290" font-size="13" font-weight="700" fill="#111827">Protocol — the contracts on Base</text>
+        <text x="34" y="308" font-size="9.2" fill="#667085">The permanent system of record: the $MOVE token, Zone Deeds, the challenge system, seasons, the</text>
+        <text x="34" y="321" font-size="9.2" fill="#667085">staking vault, and governance. Ownership lives here, under the player's keys — not in our database.</text>
+        <g><polygon points="596,264 620,278 620,306 596,320 572,306 572,278" fill="#7657FF"/><text x="596" y="296" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">BASE</text></g>
+      </g>
+    </svg>
+    <div class="figcap">Movement flows up; ownership settles down. The chain never takes movement on faith — it acts only on verified proofs.</div>
+  </div>
+
+  <h3>Why hexagons, and not squares</h3>
+  <p>We use an open standard called <strong>H3</strong> — originally built by Uber — which tiles the entire planet into hexagons. Every point on Earth belongs to exactly one hexagon with a permanent identifier, so two players standing on the same corner are always in the same zone, anywhere in the world. We use size level 8: about <strong>0.74 km²</strong> per tile, roughly a small neighbourhood — big enough to feel meaningful, small enough that a single walk captures several.</p>
+  <div class="grid3">
+    <div class="card" style="margin:0;"><h4>Even neighbours</h4><p class="small" style="margin:0;">Every hexagon touches six others at an equal distance. With squares, diagonal neighbours are further away than edge neighbours, which makes rules about spreading and defending territory messy and unfair.</p></div>
+    <div class="card" style="margin:0;"><h4>Fits how people move</h4><p class="small" style="margin:0;">Real routes curve. Hexagons approximate the area around a curving path far more naturally than a square grid does.</p></div>
+    <div class="card" style="margin:0;"><h4>Nests cleanly</h4><p class="small" style="margin:0;">Small hexes roll up into bigger ones, which is exactly how zones become districts and districts become cities — one grid for the whole game.</p></div>
+
+  <h3 class="pb" style="margin-top:0;">What the eight contracts do</h3>
+  <p>A "smart contract" is a program that lives on the blockchain. It runs exactly as written, the same way for everyone, and nobody — including us — can quietly change it. Our suite, in plain terms:</p>
+  <table>
+    <tr><th style="width:24%;">Contract</th><th>In plain language</th></tr>
+    <tr><td><strong>MoveToken</strong></td><td>The $MOVE currency itself. Enforces the one-billion supply cap and only creates new tokens when the verification layer has signed off on a real route.</td></tr>
+    <tr><td><strong>GPSOracle</strong></td><td>The bridge between the real world and the chain — the only thing the token contract trusts when deciding whether someone actually moved.</td></tr>
+    <tr><td><strong>ZoneNFT</strong></td><td>The Zone Deed — our land registry. One entry per hexagon: the owner, the yield earned, and how long it has been held.</td></tr>
+    <tr><td><strong>ZoneChallenge</strong></td><td>Land defence. Challenging a zone opens a fourteen-day contest decided by who moves more there.</td></tr>
+    <tr><td><strong>GearNFT</strong></td><td>Collectible gear — shoes, jacket, watch, headband — boosting what a session earns, up to a hard cap.</td></tr>
+    <tr><td><strong>SeasonController</strong></td><td>Runs the ninety-day season cycle: start, wind-down, and settlement.</td></tr>
+    <tr><td><strong>MoveVault</strong></td><td>Staking and the community treasury — where players lock tokens and funds are held.</td></tr>
+    <tr><td><strong>MovenDAO</strong></td><td>Governance — how the community votes on network settings, treasury and direction.</td></tr>
+  </table>
+
+</div>
+</div>
+
+<!-- ============ 08 ============ -->
+<div class="page">
+  <div class="sec-num">Section 08</div>
+  <h2 class="sec">Two users, two experiences</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">MovenRun has to work for someone who has never heard of a blockchain <em>and</em> for someone who has been trading on-chain for years. These are not two products — they are the same product with different amounts of the machinery exposed.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 250">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="318" height="234" rx="12" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="24" y="32" font-size="12" font-weight="700" fill="#0E7A52">Priya — has never used crypto</text>
+        <text x="24" y="48" font-size="8.8" fill="#667085">Walks 25 minutes most mornings. Downloaded the app</text>
+        <text x="24" y="61" font-size="8.8" fill="#667085">because a friend in her club shared a city challenge.</text>
+        <g font-size="9.2" fill="#111827">
+          <circle cx="32" cy="84" r="9" fill="#18C987"/><text x="32" y="88" font-size="9" fill="#fff" text-anchor="middle">1</text>
+          <text x="50" y="82">Taps "Start". An account and a secure</text><text x="50" y="94">wallet are created invisibly.</text>
+          <circle cx="32" cy="120" r="9" fill="#18C987"/><text x="32" y="124" font-size="9" fill="#fff" text-anchor="middle">2</text>
+          <text x="50" y="118">Walks. Watches hexes light up. Gets a</text><text x="50" y="130">summary and a streak.</text>
+          <circle cx="32" cy="156" r="9" fill="#18C987"/><text x="32" y="160" font-size="9" fill="#fff" text-anchor="middle">3</text>
+          <text x="50" y="154">Claims her zones with one button. Fees</text><text x="50" y="166">are paid for her; she never notices.</text>
+          <circle cx="32" cy="192" r="9" fill="#18C987"/><text x="32" y="196" font-size="9" fill="#fff" text-anchor="middle">4</text>
+          <text x="50" y="190">Joins a club, competes for her district,</text><text x="50" y="202">defends her zones by walking.</text>
+        </g>
+        <text x="24" y="228" font-size="9" font-weight="700" fill="#0E7A52">She owns real on-chain assets and has never</text>
+        <text x="24" y="239" font-size="9" font-weight="700" fill="#0E7A52">seen the word "blockchain" in the app.</text>
+
+        <rect x="336" y="8" width="318" height="234" rx="12" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="354" y="32" font-size="12" font-weight="700" fill="#5A3FD6">Arjun — crypto-native</text>
+        <text x="354" y="48" font-size="8.8" fill="#667085">Holds NFTs, uses a hardware wallet, reads the</text>
+        <text x="354" y="61" font-size="8.8" fill="#667085">contracts before he touches anything.</text>
+        <g font-size="9.2" fill="#111827">
+          <circle cx="362" cy="84" r="9" fill="#7657FF"/><text x="362" y="88" font-size="9" fill="#fff" text-anchor="middle">1</text>
+          <text x="380" y="82">Connects his own wallet instead of using</text><text x="380" y="94">the embedded one. Full self-custody.</text>
+          <circle cx="362" cy="120" r="9" fill="#7657FF"/><text x="362" y="124" font-size="9" fill="#fff" text-anchor="middle">2</text>
+          <text x="380" y="118">Verifies his deeds on a public block</text><text x="380" y="130">explorer, independently of our app.</text>
+          <circle cx="362" cy="156" r="9" fill="#7657FF"/><text x="362" y="160" font-size="9" fill="#fff" text-anchor="middle">3</text>
+          <text x="380" y="154">Trades deeds, stakes $MOVE, targets</text><text x="380" y="166">high-traffic zones strategically.</text>
+          <circle cx="362" cy="192" r="9" fill="#7657FF"/><text x="362" y="196" font-size="9" fill="#fff" text-anchor="middle">4</text>
+          <text x="380" y="190">Votes on governance proposals about</text><text x="380" y="202">the network's parameters.</text>
+        </g>
+        <text x="354" y="228" font-size="9" font-weight="700" fill="#5A3FD6">He gets a real asset layer under a game he</text>
+        <text x="354" y="239" font-size="9" font-weight="700" fill="#5A3FD6">actually enjoys playing.</text>
+      </g>
+    </svg>
+    <div class="figcap">The same map, the same deeds, the same economy. The only difference is how much of the machinery each person chooses to see.</div>
+  </div>
+
+  <h3>What each user sees and does not see</h3>
+  <table>
+    <tr><th style="width:26%;">Aspect</th><th style="width:37%;">Non-crypto user</th><th>Crypto-native user</th></tr>
+    <tr><td><strong>Sign-up</strong></td><td>One tap. A wallet is created and secured for them in the background.</td><td>Connects an existing wallet, or exports the embedded one to self-custody.</td></tr>
+    <tr><td><strong>Seed phrase</strong></td><td>Never shown one. Never needs one.</td><td>Full key control available whenever they want it.</td></tr>
+    <tr><td><strong>Fees</strong></td><td>Sponsored. They never buy or hold a gas token.</td><td>Can transact directly and pay their own if they prefer.</td></tr>
+    <tr><td><strong>Language in the app</strong></td><td>"Zones", "territory", "claim", "defend". Game words.</td><td>Can see the underlying contract addresses and token IDs.</td></tr>
+    <tr><td><strong>What they own</strong></td><td>Genuine on-chain deeds — identical to what Arjun holds.</td><td>Genuine on-chain deeds — identical to what Priya holds.</td></tr>
+    <tr><td><strong>What motivates them</strong></td><td>Health, habit, streaks, their neighbourhood, their club.</td><td>Ownership, scarcity, strategy, governance, composability.</td></tr>
+    <tr><td><strong>Exit path</strong></td><td>Can walk away and their deeds still exist, still theirs.</td><td>Can withdraw everything to a wallet we do not control.</td></tr>
+  </table>
+
+  <div class="callout">
+    <span class="tag">Why this dual design is the whole strategy</span>
+    <p>Almost every on-chain consumer product picks one audience and loses the other. Crypto-first apps have real ownership but an audience of a few million enthusiasts. Mainstream apps have huge audiences but no real ownership to offer. MovenRun's bet is that you can build for Priya and Arjun in the same product — <strong>because Priya is where the volume is and Arjun is where the depth is, and the map only becomes interesting when both are on it.</strong></p>
+  </div>
+</div>
+
+<!-- ============ 09 ============ -->
+<div class="page">
+  <div class="sec-num">Section 09</div>
+  <h2 class="sec">Zone Deeds and the $MOVE economy</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This is the section people will question you on hardest, so it is worth reading twice. The short version: movement creates the token, playing the game consumes it, and territory is the asset that sits above both.</p>
+
+  <h3>The economic loop</h3>
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 208">
+      <defs><marker id="ec" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker></defs>
+      <g font-family="Liberation Sans,Arial">
+        <rect x="14" y="42" width="176" height="122" rx="12" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="102" y="68" font-size="10.6" font-weight="700" fill="#0E7A52" text-anchor="middle">MINT — how it enters</text>
+        <g font-size="8.8" fill="#111827" text-anchor="middle">
+          <text x="102" y="90">Verified movement only</text>
+          <text x="102" y="106">Capped, decaying schedule</text>
+          <text x="102" y="122">Daily limit per account</text>
+          <text x="102" y="146" font-weight="700" fill="#0E7A52">Never a faucet</text>
+        </g>
+
+        <path d="M196,103 L232,103" stroke="#A3AAB8" stroke-width="2" marker-end="url(#ec)"/>
+
+        <rect x="242" y="42" width="176" height="122" rx="12" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="330" y="68" font-size="10.6" font-weight="700" fill="#246BFE" text-anchor="middle">DEMAND — why it's wanted</text>
+        <g font-size="8.8" fill="#111827" text-anchor="middle">
+          <text x="330" y="90">Claim &amp; upgrade zones</text>
+          <text x="330" y="106">Enter challenges &amp; seasons</text>
+          <text x="330" y="122">Stake in the vault · vote</text>
+          <text x="330" y="146" font-weight="700" fill="#246BFE">Utility, not speculation</text>
+        </g>
+
+        <path d="M424,103 L460,103" stroke="#A3AAB8" stroke-width="2" marker-end="url(#ec)"/>
+
+        <rect x="470" y="42" width="176" height="122" rx="12" fill="#FFF4F1" stroke="#FBD8CD"/>
+        <text x="558" y="68" font-size="10.6" font-weight="700" fill="#B03A1C" text-anchor="middle">BURN — how it leaves</text>
+        <g font-size="8.8" fill="#111827" text-anchor="middle">
+          <text x="558" y="90">Minting a deed burns tokens</text>
+          <text x="558" y="106">Challenges &amp; boosts burn</text>
+          <text x="558" y="122">Season-end "Great Burn"</text>
+          <text x="558" y="146" font-weight="700" fill="#B03A1C">Supply tightens as we grow</text>
+        </g>
+
+        <path d="M558,170 C558,192 102,192 102,170" fill="none" stroke="#A3AAB8" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ec)"/>
+        <text x="330" y="200" font-size="8.8" fill="#667085" text-anchor="middle">Scarcer supply makes held territory more valuable — which makes moving worth more</text>
+
+        <text x="330" y="26" font-size="9.6" font-weight="700" fill="#111827" text-anchor="middle">The rule we designed around: sinks and caps are decided BEFORE incentives</text>
+      </g>
+    </svg>
+    <div class="figcap">The loop the previous generation of move-to-earn apps did not have. Their tokens only ever entered.</div>
+  </div>
+
+  <h3>The numbers, as currently designed</h3>
+  <p class="small" style="margin-top:-4px;">These are the parameters written into our deployed test contracts. They are subject to change through governance and further testing before any mainnet launch, and none of them is a promise of value.</p>
+  <table>
+    <tr><th style="width:34%;">Parameter</th><th>Value</th></tr>
+    <tr><td>Token name</td><td>MoveToken ($MOVE)</td></tr>
+    <tr><td>Maximum supply, ever</td><td class="num">1,000,000,000 $MOVE — a hard cap enforced in code</td></tr>
+    <tr><td>How new tokens are created</td><td>Only against a signed proof of a verified route</td></tr>
+    <tr><td>Starting rate</td><td class="num">10 $MOVE per kilometre</td></tr>
+    <tr><td>Halving</td><td>The rate halves roughly every six months, so issuance decays over time</td></tr>
+    <tr><td>Daily cap per account</td><td class="num">200 $MOVE at launch, halving with each epoch — anti-farming</td></tr>
+    <tr><td>Zone tax</td><td class="num">2% of everything minted in a hexagon is credited to that zone's deed holder</td></tr>
+    <tr><td>Loyalty bonus</td><td>Yield multiplier rises with holding time: 1.0× → 1.25× → 1.5× → 1.75× at 30 / 90 / 180 days</td></tr>
+    <tr><td>Dormancy</td><td>A zone untouched for 180 days can be flagged; after 210 it can be reclaimed and reopened</td></tr>
+    <tr><td>Season length</td><td class="num">90 days, ending with a partial burn of top-zone yield</td></tr>
+  </table>
+
+  <h4 class="pb" style="margin-top:0;">Where tokens are permanently destroyed</h4>
+  <table>
+    <tr><th style="width:46%;">Action</th><th>Amount burned</th></tr>
+    <tr><td>Minting a Zone Deed</td><td class="num">Scales with how busy the zone is — popular land costs more</td></tr>
+    <tr><td>Declaring a challenge on someone's zone</td><td class="num">100 $MOVE</td></tr>
+    <tr><td>Stronghold boost while defending</td><td class="num">300 $MOVE per activation, max 3</td></tr>
+    <tr><td>Extending a challenge window</td><td class="num">500 $MOVE</td></tr>
+    <tr><td>Great Burn at season end</td><td class="num">10% of accumulated yield, top 100 zones</td></tr>
+  </table>
+
+  <h3>Intended supply distribution</h3>
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 84">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="14" y="14" width="379.2" height="28" fill="#18C987" rx="4"/>
+        <rect x="395.2" y="14" width="94.8" height="28" fill="#246BFE"/>
+        <rect x="492" y="14" width="75.8" height="28" fill="#7657FF"/>
+        <rect x="569.8" y="14" width="50.6" height="28" fill="#F7B955"/>
+        <rect x="622.4" y="14" width="31.6" height="28" fill="#FF6B4A" rx="4"/>
+        <g font-size="8.4" fill="#667085">
+          <rect x="14" y="56" width="9" height="9" rx="2" fill="#18C987"/><text x="27" y="64">Play-to-earn emissions 60%</text>
+          <rect x="182" y="56" width="9" height="9" rx="2" fill="#246BFE"/><text x="195" y="64">Team &amp; advisors 15%</text>
+          <rect x="312" y="56" width="9" height="9" rx="2" fill="#7657FF"/><text x="325" y="64">Ecosystem &amp; grants 12%</text>
+          <rect x="452" y="56" width="9" height="9" rx="2" fill="#F7B955"/><text x="465" y="64">Liquidity 8%</text>
+          <rect x="552" y="56" width="9" height="9" rx="2" fill="#FF6B4A"/><text x="565" y="64">Public 5%</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">Sixty percent goes to the people who actually move. Team allocation carries a 12-month cliff and 36-month linear vesting.</div>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">The guardrail you must know about</span>
+    <p>We have a hard internal rule: <strong>no tradeable reward economy ships until three conditions are met</strong> — (1) movement verification is genuinely reliable, (2) at least one city has real tile density, and (3) there is genuine sponsor or land demand. Until then, players earn XP and <em>locked</em> in-app credits that cannot be traded. This is written into our roadmap as a blocking gate, not a preference. It is the discipline the previous generation lacked, and it is what you should lead with if anyone asks whether we are "another move-to-earn".</p>
+  </div>
+</div>
+
+<!-- ============ 10 ============ -->
+<div class="page">
+  <div class="sec-num">Section 10</div>
+  <h2 class="sec">Proof of movement: how we stop cheating</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">If someone can fake a walk, they can mint territory and tokens from their sofa, and the entire economy is worthless. This is the hardest technical problem in the product, and everything else depends on getting it right.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 254">
+      <defs><marker id="pv" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#A3AAB8"/></marker></defs>
+      <g font-family="Liberation Sans,Arial">
+        <rect x="150" y="8" width="360" height="30" rx="8" fill="#EAF6FF" stroke="#C9E2FF"/>
+        <text x="330" y="28" font-size="9.8" font-weight="700" fill="#111827" text-anchor="middle">Player finishes a session · phone sends the recorded route</text>
+        <path d="M330,40 L330,52" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#pv)"/>
+
+        <rect x="60" y="60" width="540" height="80" rx="10" fill="#F1F6F3" stroke="#E4EAEF"/>
+        <text x="330" y="80" font-size="9.6" font-weight="700" fill="#111827" text-anchor="middle">Plausibility checks — is this physically possible?</text>
+        <g font-size="8.6" fill="#111827">
+          <rect x="76" y="90" width="164" height="38" rx="8" fill="#fff" stroke="#D0D5DD"/>
+          <text x="158" y="106" font-weight="700" text-anchor="middle">Speed</text><text x="158" y="120" fill="#667085" text-anchor="middle">faster than ~80 km/h → rejected</text>
+          <rect x="248" y="90" width="164" height="38" rx="8" fill="#fff" stroke="#D0D5DD"/>
+          <text x="330" y="106" font-weight="700" text-anchor="middle">Accuracy</text><text x="330" y="120" fill="#667085" text-anchor="middle">too many vague GPS points → rejected</text>
+          <rect x="420" y="90" width="164" height="38" rx="8" fill="#fff" stroke="#D0D5DD"/>
+          <text x="502" y="106" font-weight="700" text-anchor="middle">Continuity</text><text x="502" y="120" fill="#667085" text-anchor="middle">impossible jumps or gaps → rejected</text>
+        </g>
+        <path d="M330,142 L330,154" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#pv)"/>
+
+        <rect x="150" y="162" width="360" height="34" rx="8" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="330" y="178" font-size="9.6" font-weight="700" fill="#0E7A52" text-anchor="middle">Reduced to a unique fingerprint and signed by our oracle</text>
+        <text x="330" y="191" font-size="8.4" fill="#667085" text-anchor="middle">The same route can never be submitted twice — replays are blocked permanently</text>
+        <path d="M330,198 L330,210" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#pv)"/>
+
+        <rect x="150" y="218" width="360" height="30" rx="8" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="330" y="238" font-size="9.8" font-weight="700" fill="#5A3FD6" text-anchor="middle">Contract accepts the proof → zones captured, tokens minted</text>
+      </g>
+    </svg>
+    <div class="figcap">Nothing reaches the blockchain unless it has passed every check. The contracts are built to trust the proof, never the phone.</div>
+  </div>
+
+  <h3>What each defence actually does</h3>
+  <ul>
+    <li><strong>Speed gate.</strong> Consecutive GPS points are checked against the time between them. Anything implying more than roughly 80 km/h is thrown out — that catches the simplest cheat, which is driving.</li>
+    <li><strong>Accuracy gate.</strong> Phones report how confident they are in each location fix. A session where too many points are vague gets rejected, because vague points are how spoofing tools hide.</li>
+    <li><strong>Duration and continuity gates.</strong> Sessions longer than 24 hours, or containing teleport-shaped jumps, are rejected outright.</li>
+    <li><strong>Route fingerprinting.</strong> The whole route is compressed into one unique fingerprint. Once that fingerprint has been used to claim something, it can never be used again — so you cannot record one good walk and submit it a hundred times.</li>
+    <li><strong>The oracle signature.</strong> Our verification service cryptographically signs approved routes. The contracts on Base will only act on a proof carrying that signature, so no one can submit a fake claim directly to the blockchain, bypassing our checks.</li>
+    <li><strong>Economic caps.</strong> Even a perfect cheat is bounded: there is a hard daily limit per account, and a zone requires a minimum number of <em>distinct</em> movers over 90 days before it becomes mintable at all. One person cannot manufacture a valuable district alone.</li>
+  </ul>
+
+  <div class="callout ok">
+    <span class="tag">Honest framing</span>
+    <p>No GPS system on earth is perfectly spoof-proof, and we do not claim to be. What we claim is layered defence: several independent checks, each of which a cheater must defeat simultaneously, plus economic caps that make the effort not worth the reward. Verification is treated as a permanently ongoing investment rather than a solved problem, and it hardens as the network grows. If someone challenges you on this, that honesty is the strongest available answer.</p>
+  </div>
+</div>
+
+<!-- ============ 11 ============ -->
+<div class="page">
+  <div class="sec-num">Section 11</div>
+  <h2 class="sec">What is already built</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Most early-stage projects sell a vision. We have a vision <em>and</em> a substantial amount of working, tested infrastructure. Knowing exactly which is which is the most useful thing you can carry into any external conversation.</p>
+
+  <div class="grid2" style="margin-bottom:14px;">
+    <div class="card tint-green" style="margin:0;">
+      <h4><span class="pill built">BUILT</span> &nbsp;Smart contract suite</h4>
+      <p style="margin-bottom:0;">All eight contracts written, compiled, and <strong>deployed to Base Sepolia</strong> — Base's public test network — with 26 of 26 tests passing including a full end-to-end integration test. Every address and transaction hash is recorded and publicly verifiable on the block explorer. This is real, inspectable, third-party-checkable work.</p>
+    </div>
+    <div class="card tint-green" style="margin:0;">
+      <h4><span class="pill built">BUILT</span> &nbsp;Backend services</h4>
+      <p style="margin-bottom:0;">A working API with the GPS verification pipeline, hexagon computation, the oracle signing service, zone and battle endpoints, a job queue for processing routes, and a typed database layer with migrations.</p>
+    </div>
+    <div class="card tint-green" style="margin:0;">
+      <h4><span class="pill built">BUILT</span> &nbsp;Identity &amp; wallet foundation</h4>
+      <p style="margin-bottom:0;">Full account, session, and wallet-linking infrastructure with a security-first design: fail-closed configuration, secure device storage, signed webhooks, audit logging, a documented threat model, and twelve architecture decision records. The provider is deliberately not yet switched on.</p>
+    </div>
+    <div class="card tint-green" style="margin:0;">
+      <h4><span class="pill built">BUILT</span> &nbsp;Mobile app shell &amp; release pipeline</h4>
+      <p style="margin-bottom:0;">A working Android app with onboarding, sessions, XP, levels, streaks, a profile, clubs and territory-preview screens, plus an automated build pipeline that produces installable APKs. The design system is shared with the website.</p>
+    </div>
+    <div class="card tint-green" style="margin:0;">
+      <h4><span class="pill built">BUILT</span> &nbsp;Public site &amp; documentation</h4>
+      <p style="margin-bottom:0;">A complete marketing site and a twenty-plus-page technical documentation set covering the whitepaper, product, protocol, economy, governance, security, privacy, risks and FAQ — all live.</p>
+    </div>
+    <div class="card tint-gold" style="margin:0;">
+      <h4><span class="pill progress">IN PROGRESS</span> &nbsp;The territory map in the app</h4>
+      <p style="margin-bottom:0;">Connecting the live GPS map and hexagon capture into the mobile app is the current build focus. The GPS, map overlay and wallet scaffolding already exist in the repository as a parked reference implementation to draw from.</p>
+    </div>
+  </div>
+
+  <h3 class="pb">The complete honest status table</h3>
+  <p class="small" style="margin-top:-4px;">Use this table rather than your memory when anyone asks what is live. Being precise here builds far more credibility than overstating.</p>
+  <table>
+    <tr><th style="width:40%;">Capability</th><th style="width:19%;">Status</th><th>Detail</th></tr>
+    <tr><td>Smart contracts on Base test network</td><td><span class="pill built">Built</span></td><td>8 contracts, deployed, addresses public</td></tr>
+    <tr><td>Contract test suite</td><td><span class="pill built">Built</span></td><td>26/26 passing, incl. integration</td></tr>
+    <tr><td>GPS verification pipeline</td><td><span class="pill built">Built</span></td><td>Backend service, checks + oracle signing</td></tr>
+    <tr><td>Hexagon territory computation</td><td><span class="pill built">Built</span></td><td>H3 level 8, route → zone conversion</td></tr>
+    <tr><td>Account, session &amp; wallet infrastructure</td><td><span class="pill built">Built</span></td><td>Security foundation complete</td></tr>
+    <tr><td>Android app + automated release builds</td><td><span class="pill built">Built</span></td><td>Installable APK pipeline working</td></tr>
+    <tr><td>Marketing site &amp; full documentation</td><td><span class="pill built">Built</span></td><td>Live and public</td></tr>
+    <tr><td>Live territory map inside the app</td><td><span class="pill progress">In progress</span></td><td>Current build priority — Phase 1</td></tr>
+    <tr><td>Embedded wallet provider switched on</td><td><span class="pill progress">In progress</span></td><td>Infrastructure ready, provider not yet wired</td></tr>
+    <tr><td>Clubs, city wars, seasons (live)</td><td><span class="pill planned">Phase 2</span></td><td>Screens designed; systems not live</td></tr>
+    <tr><td>Zone Deeds on Base mainnet</td><td><span class="pill planned">Phase 3</span></td><td>Deliberately gated — see the guardrail</td></tr>
+    <tr><td>Tradeable $MOVE economy</td><td><span class="pill planned">Phase 3</span></td><td>Blocked until verification + density + demand</td></tr>
+    <tr><td>Community governance live</td><td><span class="pill planned">Phase 4</span></td><td>Contract deployed to testnet; not active</td></tr>
+    <tr><td>iOS app</td><td><span class="pill planned">Planned</span></td><td>Codebase is cross-platform; Android first</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">Why this matters for the Base Batches application</span>
+    <p>Accelerators see hundreds of decks describing products that do not exist. Very few applicants can point to a deployed, tested, publicly verifiable contract suite on Base's own test network, a working verification backend, and a shipping mobile build pipeline — before asking for anything. <strong>Our evidence is the strongest part of our application.</strong> Lead with it.</p>
+  </div>
+</div>
+
+<!-- ============ 12 ============ -->
+<div class="page">
+  <div class="sec-num">Section 12</div>
+  <h2 class="sec">Roadmap</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">We advance on evidence, not on a countdown. Each phase has to clear a specific bar before the next one starts — movement has to feel great before ownership goes live, and verification has to be sound before it carries real value.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 240">
+      <g font-family="Liberation Sans,Arial">
+        <line x1="34" y1="46" x2="626" y2="46" stroke="#E4EAEF" stroke-width="3"/>
+        <line x1="34" y1="46" x2="180" y2="46" stroke="#246BFE" stroke-width="3"/>
+
+        <!-- P1 -->
+        <circle cx="34" cy="46" r="10" fill="#246BFE"/><circle cx="34" cy="46" r="4" fill="#fff"/>
+        <text x="34" y="26" font-size="8.4" font-weight="700" fill="#246BFE" text-anchor="middle">NOW</text>
+        <rect x="14" y="66" width="140" height="152" rx="10" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="30" y="88" font-size="8" font-weight="700" letter-spacing="1.2" fill="#246BFE">PHASE 1</text>
+        <text x="30" y="105" font-size="10.6" font-weight="700" fill="#111827">Movement</text>
+        <text x="30" y="119" font-size="10.6" font-weight="700" fill="#111827">&amp; capture</text>
+        <g font-size="8.2" fill="#667085">
+          <text x="30" y="140">Live territory map</text>
+          <text x="30" y="153">Reliable GPS sessions</text>
+          <text x="30" y="166">Route → hex capture</text>
+          <text x="30" y="179">Streaks &amp; summaries</text>
+          <text x="30" y="192">No wallet required</text>
+          <text x="30" y="209" font-weight="700" fill="#246BFE">Gate: capture feels great</text>
+        </g>
+
+        <!-- P2 -->
+        <circle cx="212" cy="46" r="9" fill="#fff" stroke="#18C987" stroke-width="3"/>
+        <rect x="192" y="66" width="140" height="152" rx="10" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="208" y="88" font-size="8" font-weight="700" letter-spacing="1.2" fill="#0E9C68">PHASE 2</text>
+        <text x="208" y="105" font-size="10.6" font-weight="700" fill="#111827">Clubs &amp; city</text>
+        <text x="208" y="119" font-size="10.6" font-weight="700" fill="#111827">competition</text>
+        <g font-size="8.2" fill="#667085">
+          <text x="208" y="140">Clubs &amp; leaderboards</text>
+          <text x="208" y="153">District control</text>
+          <text x="208" y="166">City wars &amp; seasons</text>
+          <text x="208" y="179">Crew missions</text>
+          <text x="208" y="192">Shared territory</text>
+          <text x="208" y="209" font-weight="700" fill="#0E9C68">Gate: real tile density</text>
+        </g>
+
+        <!-- P3 -->
+        <circle cx="390" cy="46" r="9" fill="#fff" stroke="#7657FF" stroke-width="3"/>
+        <rect x="370" y="66" width="140" height="152" rx="10" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="386" y="88" font-size="8" font-weight="700" letter-spacing="1.2" fill="#5A3FD6">PHASE 3</text>
+        <text x="386" y="105" font-size="10.6" font-weight="700" fill="#111827">On-chain</text>
+        <text x="386" y="119" font-size="10.6" font-weight="700" fill="#111827">ownership</text>
+        <g font-size="8.2" fill="#667085">
+          <text x="386" y="140">Live Zone Deeds</text>
+          <text x="386" y="153">$MOVE economy online</text>
+          <text x="386" y="166">Challenges &amp; staking</text>
+          <text x="386" y="179">First paid sponsors</text>
+          <text x="386" y="192">Marketplace fees</text>
+          <text x="386" y="209" font-weight="700" fill="#5A3FD6">Gate: verification + demand</text>
+        </g>
+
+        <!-- P4 -->
+        <circle cx="568" cy="46" r="9" fill="#fff" stroke="#F7B955" stroke-width="3"/>
+        <rect x="548" y="66" width="98" height="152" rx="10" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="564" y="88" font-size="8" font-weight="700" letter-spacing="1.2" fill="#9A6B10">PHASE 4</text>
+        <text x="564" y="105" font-size="10.6" font-weight="700" fill="#111827">Community</text>
+        <text x="564" y="119" font-size="10.6" font-weight="700" fill="#111827">ownership</text>
+        <g font-size="8.2" fill="#667085">
+          <text x="564" y="140">On-chain voting</text>
+          <text x="564" y="153">Community treasury</text>
+          <text x="564" y="166">Parameter control</text>
+          <text x="564" y="179">Progressive</text>
+          <text x="564" y="192">decentralisation</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">Four phases, each gated on evidence. We are at the start of Phase 1 with Phase 3's infrastructure already built and tested.</div>
+  </div>
+
+  <h3>Why the order is this way round</h3>
+  <p>Notice something unusual: the blockchain work is largely done, but it is scheduled to go live <em>third</em>. That inversion is intentional and it is the most defensible thing about our plan.</p>
+  <ul>
+    <li><strong>A territory game needs neighbours.</strong> Owning a hexagon means nothing if nobody will ever contest it. So density has to come before ownership, which means the free, wallet-free experience has to work first.</li>
+    <li><strong>An economy needs sound inputs.</strong> Switching on tradeable rewards before verification is genuinely hard to beat is how the previous generation destroyed itself. We would rather be late than exploited.</li>
+    <li><strong>Sponsors need an audience.</strong> Sponsored zones and city partnerships only have value once a city is actually being played in. Revenue follows density, not the other way round.</li>
+  </ul>
+
+  <div class="callout">
+    <span class="tag">What the next twelve months look like</span>
+    <p>Ship the live territory map and prove the capture loop feels good. Reach real density in a first city. Switch on the embedded wallet and put deeds in players' hands on testnet. Sign the first sponsor. Only then take the economy to mainnet — with the verification and density evidence to justify it.</p>
+  </div>
+</div>
+
+<!-- ============ 13 ============ -->
+<div class="page">
+  <div class="sec-num">Section 13</div>
+  <h2 class="sec">How we get users</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A territory game has an unusual growth property: it is <em>better</em> when your neighbours play, so it spreads geographically rather than randomly. That single fact shapes the entire go-to-market plan.</p>
+
+  <h3>The core insight: density, not downloads</h3>
+  <p>A hundred thousand users spread thinly across the world is a worse product than five thousand users concentrated in one city. Contested zones, rival clubs, and district wars all require neighbours. So our target metric is not total installs — it is <strong>how many active players share a city</strong>. Every growth decision follows from that.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 214">
+      <defs><marker id="fw" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#246BFE"/></marker></defs>
+      <g font-family="Liberation Sans,Arial" font-size="9">
+        <text x="330" y="18" font-size="10.4" font-weight="700" fill="#111827" text-anchor="middle">The density flywheel</text>
+        <g>
+          <rect x="248" y="30" width="164" height="34" rx="8" fill="#EAF6FF" stroke="#C9E2FF"/>
+          <text x="330" y="51" font-weight="700" fill="#111827" text-anchor="middle">More players in one city</text>
+          <path d="M416,47 C470,47 500,62 508,80" fill="none" stroke="#246BFE" stroke-width="1.8" marker-end="url(#fw)"/>
+
+          <rect x="452" y="88" width="180" height="34" rx="8" fill="#F0FBF6" stroke="#C9EEDD"/>
+          <text x="542" y="109" font-weight="700" fill="#111827" text-anchor="middle">Zones become contested</text>
+          <path d="M542,126 C542,152 500,168 452,172" fill="none" stroke="#246BFE" stroke-width="1.8" marker-end="url(#fw)"/>
+
+          <rect x="240" y="160" width="180" height="34" rx="8" fill="#F6F3FF" stroke="#DED4FF"/>
+          <text x="330" y="181" font-weight="700" fill="#111827" text-anchor="middle">The game gets genuinely fun</text>
+          <path d="M240,177 C192,172 150,156 150,126" fill="none" stroke="#246BFE" stroke-width="1.8" marker-end="url(#fw)"/>
+
+          <rect x="30" y="88" width="180" height="34" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="120" y="109" font-weight="700" fill="#111827" text-anchor="middle">Players recruit neighbours</text>
+          <path d="M148,84 C160,62 194,47 248,47" fill="none" stroke="#246BFE" stroke-width="1.8" marker-end="url(#fw)"/>
+        </g>
+        <text x="330" y="122" font-size="8.6" fill="#667085" text-anchor="middle">Every turn makes the</text>
+        <text x="330" y="136" font-size="8.6" fill="#667085" text-anchor="middle">next city easier to win</text>
+      </g>
+    </svg>
+    <div class="figcap">Growth compounds locally. This is why we launch city by city rather than everywhere at once.</div>
+  </div>
+
+  <h3>Seven channels, in the order we intend to use them</h3>
+
+  <h4>1 · Launch one city at a time</h4>
+  <p>Pick a single city, concentrate everything on it, and do not move on until the map there is genuinely contested. A city with visible rivalry becomes its own advertisement — and gives us a repeatable playbook, a case study, and real density numbers to show partners. Diluting effort across ten cities gets you ten dead maps.</p>
+
+  <h4>2 · Running clubs, walking groups and gyms</h4>
+  <p>These groups already exist, already meet on a schedule, and are already competitive. They are the highest-leverage acquisition channel in the product because they arrive pre-formed: one club captain converts thirty players in one conversation, and thirty players in one neighbourhood is instant density. Clubs, crew missions and shared territory are built specifically to serve them.</p>
+
+  <h4>3 · Zero-friction onboarding as a growth lever</h4>
+  <p>This is not just a UX nicety — it is the difference between a 3% and a 40% conversion rate from install to first session. Every competing on-chain app loses most of its funnel at "write down these twelve words". We do not have that step at all. When someone shares MovenRun with a friend who has never used crypto, that friend can actually get in.</p>
+
+  <h4 class="pb" style="margin-top:0;">4 · The Base ecosystem</h4>
+  <p>Base is actively looking for consumer applications that bring non-crypto users on-chain — that is precisely what Base Batches exists to fund. Being a visible flagship consumer app on Base gives us ecosystem promotion, developer community reach, and credibility with partners who already trust Coinbase. This is a distribution channel most consumer apps simply do not have access to.</p>
+
+  <h4>5 · Local businesses and sponsored zones</h4>
+  <p>A café can sponsor the zone it sits in. A gym can host an event zone. A council can sponsor a park trail. This is the same idea as a shop paying for a map pin, except players actively want to visit because it advances their game. It is our clearest early revenue line <em>and</em> a growth channel, because sponsors promote to their own customers. It also gives us a reason to be welcomed into a city rather than merely present in it.</p>
+
+  <h4>6 · Territory is inherently shareable</h4>
+  <p>A map of your neighbourhood shaded in your colour is a far better social object than "I walked 5 km". It is visual, personal, and immediately provokes the reaction we want: <em>"that's my street — why is it yours?"</em> Share cards are built into the session flow for exactly this reason.</p>
+
+  <h4>7 · Seasons that reset the pressure</h4>
+  <p>Ninety-day seasons give lapsed players a natural reason to return and new players a fair entry point where the map is not already permanently owned by veterans. Recurring competition is what keeps a network alive after the launch spike fades.</p>
+
+  <h3>What we track</h3>
+  <table>
+    <tr><th style="width:34%;">Metric</th><th>Why it is the one that matters</th></tr>
+    <tr><td><strong>Active players per city</strong></td><td>Our real growth number. Density, not downloads.</td></tr>
+    <tr><td><strong>Contested zone ratio</strong></td><td>What share of zones have more than one mover. This is the health of the game.</td></tr>
+    <tr><td><strong>Install → first session</strong></td><td>Directly measures whether frictionless onboarding is working.</td></tr>
+    <tr><td><strong>Week-4 retention</strong></td><td>Habit formation. A movement product lives or dies here.</td></tr>
+    <tr><td><strong>Sessions per active week</strong></td><td>Consistency beats intensity, so frequency matters more than distance.</td></tr>
+    <tr><td><strong>Club participation rate</strong></td><td>Social users retain dramatically better than solo ones.</td></tr>
+  </table>
+</div>
+
+<!-- ============ 14 ============ -->
+<div class="page">
+  <div class="sec-num">Section 14</div>
+  <h2 class="sec">Why us, why now</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The idea of turning movement into a map game is not secret. The reason it has not been done properly is that it requires three hard things to be true at the same time — and only recently have all three become possible.</p>
+
+  <div class="grid3" style="margin-bottom:16px;">
+    <div class="card tint-blue" style="margin:0;"><h4>Now is possible</h4><p class="small" style="margin:0;">Only in the last couple of years have embedded wallets and sponsored fees matured enough to hide crypto completely. Two years ago this product would have required every user to buy a token before their first walk. That is what changed.</p></div>
+    <div class="card tint-green" style="margin:0;"><h4>Now is affordable</h4><p class="small" style="margin:0;">Fees on Base are a fraction of a cent. A game generating thousands of small on-chain actions per day is economically viable for the first time. On the base layer it never was.</p></div>
+    <div class="card tint-violet" style="margin:0;"><h4>Now is credible</h4><p class="small" style="margin:0;">The move-to-earn collapse taught the whole market what not to do — and left a large audience that liked the idea and lost trust in the execution. A version built with discipline lands into a market that already understands the pitch.</p></div>
+  </div>
+
+  <h3>What we bring that a well-funded competitor would not</h3>
+  <ul>
+    <li><strong>We built the hard part first.</strong> Most teams build the app and bolt on the blockchain later, discovering too late that verification and economics do not work. We deployed and tested the contract suite, the oracle and the verification pipeline before asking anyone for money — which means our economic design has been pressure-tested against real code rather than a spreadsheet.</li>
+    <li><strong>We have a written guardrail we actually enforce.</strong> Our own internal rules block a tradeable economy until verification, density and demand are all proven. That is written into the canonical scope document that governs every decision. Discipline is a competitive advantage in a category that died of the lack of it.</li>
+    <li><strong>We designed for the non-crypto user from the first line of code.</strong> Not as a later "onboarding improvement" but as the founding constraint. The consequence shows everywhere: no wallet in the core loop, game words instead of crypto words, and the whole thing playable for free.</li>
+    <li><strong>We are health-first, and mean it.</strong> A 20-minute walk is a first-class move. There is no minimum speed and nothing that rewards risky behaviour. That decision costs us the "hardcore athlete" audience and buys us everyone else — which is a far larger market and a far more retentive one.</li>
+    <li><strong>We are documented to an unusual standard.</strong> A public whitepaper, a full technical documentation set, a threat model, a security checklist, twelve architecture decision records, and a contracts audit document. This matters because it means a new partner, an investor, or an auditor can verify our claims rather than trust them.</li>
+  </ul>
+
+  <h3>Where the money comes from</h3>
+  <table>
+    <tr><th style="width:30%;">Revenue line</th><th style="width:16%;">Phase</th><th>Description</th></tr>
+    <tr><td><strong>Sponsored zones</strong></td><td>Phase 3</td><td>Local businesses, gyms, councils and brands pay to sponsor specific zones or areas. Our clearest and most defensible early line.</td></tr>
+    <tr><td><strong>Deed marketplace fees</strong></td><td>Phase 3</td><td>A small fee on territory that changes hands between players.</td></tr>
+    <tr><td><strong>Premium tools</strong></td><td>Phase 3</td><td>Paid features for committed players and deed holders — analytics, planning, advanced club tools.</td></tr>
+    <tr><td><strong>Events &amp; partnerships</strong></td><td>Phase 4</td><td>City events, brand activations, and limited-time map takeovers.</td></tr>
+  </table>
+  <p class="small">Note the pattern: every line is paid by a business or a committed player, and none of it depends on ordinary users spending money. The free experience stays genuinely free — which is what protects our growth engine.</p>
+
+  <div class="callout ok">
+    <span class="tag">The one-sentence pitch</span>
+    <p><strong>MovenRun is the first movement game where the ground you cover becomes property you genuinely own — built on Base so it settles in seconds for almost nothing, and engineered so that the person walking never has to know any of that is happening.</strong></p>
+  </div>
+</div>
+
+<!-- ============ 15 ============ -->
+<div class="page">
+  <div class="sec-num">Section 15</div>
+  <h2 class="sec">Risks, stated honestly</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">You will be asked about these. Answering them openly is far more persuasive than deflecting — and as a partner you need to know what could actually go wrong.</p>
+
+  <table>
+    <tr><th style="width:24%;">Risk</th><th style="width:36%;">The honest problem</th><th>How we address it</th></tr>
+    <tr>
+      <td><strong>Movement spoofing</strong></td>
+      <td>Location can be faked with widely available tools. An economy built on movement must resist people who never leave their sofa.</td>
+      <td>Layered defence — plausibility checks, deterministic route fingerprints, replay blocking, oracle attestation, hard daily caps, and a minimum number of distinct movers before a zone becomes valuable. Treated as permanently ongoing work, never "solved".</td>
+    </tr>
+    <tr>
+      <td><strong>Economic balance</strong></td>
+      <td>Movement economies have collapsed when incentives outran real utility. Ours could too if we got the parameters wrong.</td>
+      <td>Utility-first design: capped and decaying issuance, sinks decided before incentives, and a hard gate blocking any tradeable economy until verification and density are proven. Parameters are adjustable through governance rather than fixed forever.</td>
+    </tr>
+    <tr>
+      <td><strong>Smart-contract security</strong></td>
+      <td>On-chain code is unforgiving. A bug can be irreversible and expensive.</td>
+      <td>Standards-based contracts rather than reinvented primitives, narrowly-scoped roles with no single all-powerful key, timelocked governance, a documented threat model, and defence in depth. A full external audit is a prerequisite for mainnet.</td>
+    </tr>
+    <tr>
+      <td><strong>Adoption density</strong></td>
+      <td>A territory game with no neighbours is a lonely map. This is our biggest commercial risk, not a technical one.</td>
+      <td>Frictionless onboarding to reach beyond crypto natives, a game that is still rewarding solo, and a deliberate city-by-city rollout that builds density before it is needed rather than hoping for it.</td>
+    </tr>
+    <tr>
+      <td><strong>Regulation</strong></td>
+      <td>Rules for digital assets differ by country and keep changing. Some jurisdictions may restrict parts of the model.</td>
+      <td>A design centred on utility and ownership rather than financial return, no promises of income anywhere in our materials, transparent on-chain governance, and a phased rollout that can adapt market by market.</td>
+    </tr>
+    <tr>
+      <td><strong>Location privacy</strong></td>
+      <td>Movement data is among the most sensitive data that exists. Mishandling it would be both a harm and an existential reputational risk.</td>
+      <td>Proofs rather than permanent trails, data minimisation by design, no third-party ad tracking, no selling of location profiles, no exposure of anyone else's precise position, and user control over their own assets and keys.</td>
+    </tr>
+    <tr>
+      <td><strong>Battery and phone reliability</strong></td>
+      <td>Continuous GPS drains batteries and behaves differently across hundreds of Android devices.</td>
+      <td>An engineering priority for Phase 1: sampling tuned for battery, graceful handling of GPS gaps, and sessions that survive interruption. This is a known cost of the category, and it must be solved before scale.</td>
+    </tr>
+    <tr>
+      <td><strong>Crypto's reputation</strong></td>
+      <td>Many people have a negative association with the word, often justified. It can cost us mainstream users before they try anything.</td>
+      <td>We lead with movement, health and territory. Crypto is never the pitch — it is the mechanism, and it stays invisible. Our public language avoids financial promises entirely.</td>
+    </tr>
+  </table>
+
+  <div class="callout warn">
+    <span class="tag">The uncomfortable one</span>
+    <p>The largest risk is not technical at all — it is that we build an excellent product and cannot reach density in a first city. Everything in Section 13 exists to attack that specific risk, and it is the one we will be measured on first. If you take ownership of one problem in this business, that is the one worth taking.</p>
+  </div>
+</div>
+
+<!-- ============ 16 ============ -->
+<div class="page">
+  <div class="sec-num">Section 16</div>
+  <h2 class="sec">Glossary</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Every term you will hear, in one line each. Keep this page bookmarked for your first few weeks.</p>
+
+  <div class="two-col glossary">
+  <dl>
+    <dt>Account abstraction</dt><dd>The technology that lets us pay blockchain fees on a user's behalf, so they never buy a token.</dd>
+    <dt>Base</dt><dd>The blockchain we build on. A fast, cheap Layer 2 built on Ethereum and operated by Coinbase.</dd>
+    <dt>Base Sepolia</dt><dd>Base's public test network. Functionally identical to the real thing but with valueless tokens. Our contracts are deployed here.</dd>
+    <dt>Blockchain</dt><dd>A shared record book that no single company owns and nobody can edit after the fact.</dd>
+    <dt>Burn</dt><dd>Permanently destroying tokens, removing them from supply forever. Our main way of keeping the economy tight.</dd>
+    <dt>Club</dt><dd>A team of players whose captures contribute to shared territory and a shared leaderboard position.</dd>
+    <dt>Contested</dt><dd>A zone someone has formally challenged. It changes hands unless the current holder defends it.</dd>
+    <dt>DAO</dt><dd>"Decentralised autonomous organisation" — governance by token-holder vote rather than by a company.</dd>
+    <dt>District</dt><dd>A group of neighbouring zones. Holding a critical mass of one earns mastery and standing.</dd>
+    <dt>Dormancy</dt><dd>A zone left untouched too long can be flagged and eventually reclaimed, so the map does not freeze.</dd>
+    <dt>Embedded wallet</dt><dd>A wallet we create and secure for the player automatically. No seed phrase, no setup.</dd>
+    <dt>Ethereum</dt><dd>The largest programmable blockchain. Base settles down to it, inheriting its security.</dd>
+    <dt>Gas</dt><dd>The small fee for writing to a blockchain. We sponsor it so players never see it.</dd>
+    <dt>Gear</dt><dd>Collectible items — shoes, jacket, watch, headband — that boost what a session earns, up to a capped limit.</dd>
+    <dt>Great Burn</dt><dd>An end-of-season event that destroys a portion of accumulated yield from the most active zones.</dd>
+    <dt>H3</dt><dd>The open hexagon grid system, originally from Uber, that we use to tile the entire planet.</dd>
+    <dt>Hex / zone / tile</dt><dd>Three words for the same thing: one hexagonal cell of the map, roughly 0.74 km².</dd>
+    <dt>Layer 2</dt><dd>A fast, cheap network built on top of Ethereum that periodically settles down to it. Base is one.</dd>
+    <dt>Locked MOVE</dt><dd>Non-tradeable in-app credit earned before the real economy launches. Deliberately not a payout.</dd>
+    <dt>Mainnet</dt><dd>The real blockchain network where assets have real value — as opposed to a test network.</dd>
+    <dt>Mint</dt><dd>To create something new on the blockchain: a token, or a deed for a zone.</dd>
+    <dt>$MOVE</dt><dd>Our token. Minted by verified movement, spent on claiming, upgrading, challenging and staking.</dd>
+    <dt>NFT</dt><dd>A unique, individually identifiable record of ownership. Ours are Zone Deeds — think title deed, not cartoon.</dd>
+    <dt>Oracle</dt><dd>The service that bridges the real world and the blockchain by signing off on verified routes.</dd>
+    <dt>Private key</dt><dd>The secret that proves ownership of on-chain assets. Whoever holds it controls them.</dd>
+    <dt>Proof of movement</dt><dd>The verified, signed evidence that someone genuinely moved. The foundation of the whole economy.</dd>
+    <dt>Season</dt><dd>A 90-day competitive cycle with its own objectives, standings and settlement.</dd>
+    <dt>Self-custody</dt><dd>Holding your own private key, so no company can touch your assets. Optional in MovenRun.</dd>
+    <dt>Smart contract</dt><dd>A program that lives on the blockchain and runs exactly as written, the same way for everyone.</dd>
+    <dt>Staking</dt><dd>Locking tokens for a period to back the network and gain a voice in governance.</dd>
+    <dt>Testnet</dt><dd>A practice blockchain where tokens are worthless, used to prove software works before real value is at stake.</dd>
+    <dt>Timelock</dt><dd>A mandatory delay between a governance vote passing and it taking effect, so the community can react.</dd>
+    <dt>Wallet</dt><dd>Not a container — a key. It proves which on-chain assets are yours.</dd>
+    <dt>Zone Deed</dt><dd>The on-chain record of owning one specific hexagon. Our core asset.</dd>
+    <dt>Zone tax</dt><dd>2% of everything minted inside a hexagon is credited to that zone's deed holder.</dd>
+  </dl>
+  </div>
+</div>
+
+<!-- ============ FIRST TWO WEEKS ============ -->
+<div class="page">
+  <div class="sec-num">Appendix</div>
+  <h2 class="sec">Your first two weeks</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A practical onboarding path. The goal by the end of week two is that you can explain MovenRun to a sceptical stranger without notes, and have an opinion about what we should do next.</p>
+
+  <div class="grid2">
+    <div class="card tint-blue">
+      <h4>Week 1 — Understand the product</h4>
+      <ul class="check" style="margin-bottom:0;">
+        <li>Read this document end to end, then read Sections 5 and 9 again.</li>
+        <li>Install the current build and complete several sessions yourself. Nothing substitutes for feeling the loop.</li>
+        <li>Read the public site and documentation as an outsider would, and note every sentence that confused you — those notes are genuinely valuable while your perspective is still fresh.</li>
+        <li>Walk one of your own regular routes and sketch which zones you would capture. It makes the abstraction concrete.</li>
+        <li>Write your own one-paragraph explanation of MovenRun without looking at ours, and compare.</li>
+      </ul>
+    </div>
+    <div class="card tint-violet">
+      <h4>Week 2 — Pressure-test it</h4>
+      <ul class="check" style="margin-bottom:0;">
+        <li>Explain the product to three people who have never used crypto. Write down every objection verbatim.</li>
+        <li>Go through the honest status table in Section 11 until you can recall built-versus-planned without checking.</li>
+        <li>Look at one competing movement app and form a view on what they do better than us.</li>
+        <li>Pick a candidate first city and make the case for it: population density, walking culture, existing club scene, local business appetite.</li>
+        <li>Bring back the single hardest question you were asked that we do not yet have a good answer to.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>The four things to be able to say without hesitating</h3>
+  <ol>
+    <li><strong>What MovenRun is</strong> — "You walk, you capture hexagons on a map of the real world, and the territory becomes genuinely yours."</li>
+    <li><strong>Why crypto is involved</strong> — "So that ownership is real and can't be revoked, including by us. That's the only reason it's there."</li>
+    <li><strong>Why it won't repeat the last collapse</strong> — "The ways money leaves the system were designed before the ways it enters, and we've blocked any tradeable economy until verification and density are proven."</li>
+    <li><strong>What is actually built</strong> — "Eight contracts deployed and tested on Base's test network, a working verification backend, and a shipping mobile build. The live territory map is what we're building now."</li>
+  </ol>
+
+  <div class="callout">
+    <span class="tag">A note on what you bring</span>
+    <p>Coming from outside crypto is an advantage in this role, not a gap to close. Almost everyone we need to reach is also outside crypto, and the failure mode of this industry is people who cannot remember what it was like not to understand it. If a section of this document was hard to follow, that is a product insight — please treat it as one and tell us.</p>
+  </div>
+
+  <div class="footer-note">
+    <strong>MovenRun — Partner Onboarding Brief, v1.0 · August 2026.</strong> Confidential and prepared for internal partner onboarding.
+    MovenRun is a development-stage product; features, parameters and timelines described here may change. Nothing in this document is financial advice,
+    an offer, or a promise of returns. Digital territory is a game asset, not real-world property. MovenRun encourages regular activity, which is generally
+    healthy, but it is a game rather than a medical service and does not diagnose, treat or prevent any condition.
+  </div>
+</div>
+
+</body>
+</html>
