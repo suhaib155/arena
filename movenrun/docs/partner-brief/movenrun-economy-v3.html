@@ -1,0 +1,1491 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MovenRun — The Economy, Rebuilt</title>
+<style>
+:root{
+  --morning:#F8FAF7; --cloud:#FFFFFF; --mist:#F1F6F3; --pale:#EAF6FF;
+  --ink:#111827; --graphite:#667085; --silver:#A3AAB8;
+  --blue:#246BFE; --green:#18C987; --mint:#58F2B3; --coral:#FF6B4A;
+  --gold:#F7B955; --violet:#7657FF; --red:#EF4444; --dust:#D0D5DD;
+  --line:#E4EAEF;
+}
+@page { size:A4; margin:14mm 14mm 15mm 14mm; }
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Liberation Sans","DejaVu Sans",Arial,sans-serif;
+  color:var(--ink); background:var(--cloud);
+  font-size:9.6pt; line-height:1.46; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+h1,h2,h3,h4{ margin:0; line-height:1.22; }
+p{margin:0 0 6.5pt;}
+a{color:var(--blue);text-decoration:none;}
+
+/* ---------- structural ---------- */
+.page{ page-break-after:always; }
+.page:last-child{ page-break-after:auto; }
+.nobreak{ page-break-inside:avoid; }
+.pb{ page-break-before:always; }
+
+/* ---------- cover ---------- */
+.cover{
+  height:299mm; display:flex; flex-direction:column; justify-content:space-between;
+  background:linear-gradient(160deg,#FFFFFF 0%,#EAF6FF 46%,#F1F6F3 100%);
+  margin:-14mm -14mm -15mm -14mm; padding:22mm 20mm 26mm;
+}
+.brandmark{display:flex;align-items:center;gap:10px;}
+.brandmark .name{font-size:16pt;font-weight:700;letter-spacing:-0.3px;}
+.cover h1{font-size:44pt;font-weight:700;letter-spacing:-1.6px;margin:0 0 10px;}
+.cover .sub{font-size:14pt;color:var(--graphite);font-weight:400;max-width:135mm;line-height:1.45;}
+.eyebrow{
+  display:inline-block;font-size:8.4pt;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--blue);background:rgba(36,107,254,.10);border:1px solid rgba(36,107,254,.22);
+  padding:5px 12px;border-radius:999px;
+}
+.cover-meta{display:flex;gap:26px;flex-wrap:wrap;border-top:1px solid rgba(17,24,39,.12);padding-top:14px;}
+.cover-meta div{font-size:9pt;color:var(--graphite);}
+.cover-meta strong{display:block;color:var(--ink);font-size:10pt;margin-bottom:2px;}
+
+/* ---------- section headers ---------- */
+.sec-num{
+  font-size:8.4pt;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--blue);
+  margin-bottom:5px;
+}
+h2.sec{ font-size:19.5pt; font-weight:700; letter-spacing:-0.7px; margin:0 0 6px; }
+.sec-lede{ font-size:10.8pt; color:var(--graphite); line-height:1.45; margin:0 0 12px; max-width:162mm;}
+.rule{height:3px;width:52px;background:var(--blue);border-radius:2px;margin:0 0 11px;}
+h3{ font-size:11.4pt; font-weight:700; margin:10.5pt 0 4.5pt; letter-spacing:-0.2px;}
+h4{ font-size:10.2pt; font-weight:700; margin:9pt 0 3.5pt;}
+
+/* ---------- content bits ---------- */
+ul,ol{margin:0 0 8pt; padding-left:15pt;}
+li{margin-bottom:3pt;}
+li::marker{color:var(--blue);}
+strong{font-weight:700;}
+.small{font-size:9pt;color:var(--graphite);}
+
+.card{
+  background:var(--cloud);border:1px solid var(--line);border-radius:12px;
+  padding:11px 13px;margin:0 0 9px;
+}
+.card.tint-blue{background:#F3F7FF;border-color:#D6E4FF;}
+.card.tint-green{background:#F0FBF6;border-color:#C9EEDD;}
+.card.tint-violet{background:#F6F3FF;border-color:#DED4FF;}
+.card.tint-gold{background:#FFF9EF;border-color:#F5E3C0;}
+.card.tint-coral{background:#FFF4F1;border-color:#FBD8CD;}
+.card h4{margin-top:0;}
+.card p:last-child{margin-bottom:0;}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;}
+
+.kpi{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--cloud);}
+.kpi .n{font-size:19pt;font-weight:700;letter-spacing:-0.8px;line-height:1.1;}
+.kpi .l{font-size:8.6pt;color:var(--graphite);margin-top:3px;line-height:1.35;}
+
+table{width:100%;border-collapse:collapse;margin:0 0 10px;font-size:8.9pt;}
+th{
+  text-align:left;background:var(--mist);color:var(--ink);font-weight:700;
+  padding:6px 9px;border-bottom:2px solid var(--line);font-size:8.3pt;
+  text-transform:uppercase;letter-spacing:0.5px;
+}
+td{padding:4.6px 8px;border-bottom:1px solid var(--line);vertical-align:top;}
+tr:nth-child(even) td{background:#FBFCFD;}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+.callout{
+  border-left:4px solid var(--blue);background:#F3F7FF;border-radius:0 10px 10px 0;
+  padding:10px 13px;margin:0 0 10px;
+}
+.callout.warn{border-left-color:var(--coral);background:#FFF4F1;}
+.callout.ok{border-left-color:var(--green);background:#F0FBF6;}
+.callout p:last-child{margin-bottom:0;}
+.callout .tag{
+  font-size:8pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--blue);display:block;margin-bottom:4px;
+}
+.callout.warn .tag{color:var(--coral);}
+.callout.ok .tag{color:#0E9C68;}
+
+.pill{
+  display:inline-block;font-size:8pt;font-weight:700;padding:3px 9px;border-radius:999px;
+  letter-spacing:.4px;
+}
+.pill.built{background:#E4F8EF;color:#0E7A52;}
+.pill.progress{background:#FFF3DC;color:#9A6B10;}
+.pill.planned{background:#EEF1F5;color:#5A6473;}
+
+.figure{margin:4px 0 11px;}
+.figure svg{display:block;width:100%;height:auto;}
+.figcap{font-size:8.3pt;color:var(--graphite);margin-top:5px;text-align:center;font-style:italic;}
+
+.toc-item{
+  display:flex;align-items:baseline;gap:9px;padding:6.5px 0;border-bottom:1px solid var(--line);
+}
+.toc-item .n{
+  font-size:8.6pt;font-weight:700;color:var(--blue);min-width:24px;
+  font-variant-numeric:tabular-nums;
+}
+.toc-item .t{font-weight:700;font-size:10.2pt;}
+.toc-item .d{color:var(--graphite);font-size:9pt;margin-left:auto;text-align:right;max-width:88mm;}
+
+.footer-note{
+  margin-top:16px;padding-top:9px;border-top:1px solid var(--line);
+  font-size:8.4pt;color:var(--silver);line-height:1.5;
+}
+.two-col{column-count:2;column-gap:14px;}
+.two-col p, .two-col li{break-inside:avoid;}
+.glossary dt{font-weight:700;font-size:8.9pt;margin-top:4.5px;}
+.glossary dd{margin:0.5px 0 0;font-size:8.5pt;color:var(--graphite);line-height:1.38;}
+.check{list-style:none;padding-left:0;}
+.check li{padding-left:20px;position:relative;}
+.check li:before{
+  content:"";position:absolute;left:0;top:6px;width:11px;height:11px;border-radius:3px;
+  border:1.6px solid var(--blue);
+}
+</style>
+<style>
+.pb{page-break-before:always;}
+.badge{display:inline-block;font-size:7.2pt;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+  padding:2px 7px;border-radius:5px;margin-left:5px;white-space:nowrap;}
+.badge.new{background:#E4F8EF;color:#0E7A52;}
+.badge.fix{background:#FFF3DC;color:#9A6B10;}
+.badge.keep{background:#EEF1F5;color:#5A6473;}
+.money{font-variant-numeric:tabular-nums;white-space:nowrap;}
+td.r,th.r{text-align:right;}
+tr.tot td{background:#F3F7FF !important;font-weight:700;border-top:2px solid #D6E4FF;}
+.fixbox{border-left:4px solid var(--green);background:#F0FBF6;border-radius:0 10px 10px 0;padding:8px 12px;margin:0 0 8px;}
+.fixbox .t{font-size:8pt;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#0E7A52;display:block;margin-bottom:3px;}
+.fixbox p{margin-bottom:0;}
+.probbox{border-left:4px solid var(--coral);background:#FFF4F1;border-radius:0 10px 10px 0;padding:8px 12px;margin:0 0 5px;}
+.probbox .t{font-size:8pt;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#B03A1C;display:block;margin-bottom:3px;}
+.probbox p{margin-bottom:0;}
+.stepn{display:inline-block;min-width:17px;height:17px;line-height:17px;text-align:center;border-radius:50%;
+  background:var(--blue);color:#fff;font-size:8pt;font-weight:700;margin-right:6px;}
+.rule2{height:2px;background:var(--line);margin:14px 0 12px;}
+.lead{font-size:11.4pt;font-weight:700;color:var(--ink);margin:0 0 8px;line-height:1.4;}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="page">
+<div class="cover">
+  <div class="brandmark">
+    <svg width="34" height="38" viewBox="0 0 34 38"><polygon points="17,1 33,10 33,28 17,37 1,28 1,10" fill="#246BFE"/><polygon points="17,8 27,13.5 27,24.5 17,30 7,24.5 7,13.5" fill="#FFFFFF" opacity=".92"/><polygon points="17,13 23,16.2 23,22.8 17,26 11,22.8 11,16.2" fill="#18C987"/></svg>
+    <span class="name">MovenRun</span>
+  </div>
+  <div>
+    <span class="eyebrow">The Economy, Rebuilt · Version 3 · Confidential</span>
+    <h1 style="margin-top:16px;">An economy<br>you can<br>keep up with.</h1>
+    <p class="sub">Every price indexed to what a player actually earns. A 750-metre walk that counts. Land you can reach without money. And nothing anyone has to burn.</p>
+  </div>
+  <div>
+    <div class="figure" style="max-width:156mm;margin-bottom:18px;">
+      <svg viewBox="0 0 650 118">
+        <g font-family="Liberation Sans,Arial" text-anchor="middle">
+          <rect x="2" y="26" width="150" height="58" rx="11" fill="#18C987"/>
+          <text x="77" y="50" font-size="11" font-weight="700" fill="#fff">STRIDE</text>
+          <text x="77" y="65" font-size="8" fill="#E4F8EF">everyday currency</text>
+          <text x="77" y="77" font-size="8" fill="#E4F8EF">earned by everyone</text>
+
+          <rect x="166" y="26" width="150" height="58" rx="11" fill="#7657FF"/>
+          <text x="241" y="50" font-size="11" font-weight="700" fill="#fff">PLOTS</text>
+          <text x="241" y="65" font-size="8" fill="#DED4FF">claimed by showing up</text>
+          <text x="241" y="77" font-size="8" fill="#DED4FF">upgraded, defended</text>
+
+          <rect x="330" y="26" width="150" height="58" rx="11" fill="#246BFE"/>
+          <text x="405" y="50" font-size="11" font-weight="700" fill="#fff">$MOVE</text>
+          <text x="405" y="65" font-size="8" fill="#D6E4FF">scarce &amp; tradeable</text>
+          <text x="405" y="77" font-size="8" fill="#D6E4FF">deeds, trades, votes</text>
+
+          <rect x="494" y="26" width="154" height="58" rx="11" fill="#F7B955"/>
+          <text x="571" y="50" font-size="11" font-weight="700" fill="#fff">REAL MONEY</text>
+          <text x="571" y="65" font-size="8" fill="#FFF9EF">sponsors &amp; subscriptions</text>
+          <text x="571" y="77" font-size="8" fill="#FFF9EF">pays the bills</text>
+          <text x="325" y="106" font-size="8.6" fill="#667085">Four layers. Each one does a job the others cannot.</text>
+        </g>
+      </svg>
+    </div>
+    <div class="cover-meta">
+      <div><strong>Prepared for</strong>Partner review</div>
+      <div><strong>Version</strong>3.0 · August 2026</div>
+      <div><strong>Replaces</strong>Economy &amp; Investment Brief v2</div>
+      <div><strong>Status</strong>Design proposal · needs new contracts</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- WHAT CHANGED -->
+<div class="page">
+  <div class="sec-num">Start here</div>
+  <h2 class="sec">Seven problems, seven fixes</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Version 2 described an economy that worked on paper and would have failed in practice. Here is exactly what was wrong and what replaces it. Everything else in this document follows from these seven decisions.</p>
+
+  <div class="probbox"><span class="t">Problem 1 — the squeeze</span><p>Rewards shrank every season while upgrading and defending land got more expensive. Eventually nobody could afford anything.</p></div>
+  <div class="fixbox"><span class="t">Fix — every price is indexed to earnings</span><p>Nothing is priced in tokens. Everything is priced in <strong>Days of Walking</strong> — what a typical player earns in a day. If rewards halve, prices halve, so <strong>the grind never gets longer.</strong> Each upgrade also raises that land's income by about the factor its cost rose, holding payback near 38 days at every level.</p></div>
+
+  <div class="probbox"><span class="t">Problem 2 — only long distances paid</span><p>A 750-metre walk was worth almost nothing, so the product quietly belonged to athletes.</p></div>
+  <div class="fixbox"><span class="t">Fix — the first kilometre is the valuable one</span><p>Your first kilometre counts fully; the tenth barely counts. <strong>A marathon earns 4.7× a 750-metre walk, not 56×.</strong> Short walkers become first-class players and distance farming stops working.</p></div>
+
+  <div class="probbox"><span class="t">Problem 3 — free players had nowhere to spend</span><p>Their locked balance grew for ever and meant nothing. A number that only goes up is not an economy.</p></div>
+  <div class="fixbox"><span class="t">Fix — a real everyday currency with a full Vault</span><p><strong>Stride</strong> replaces "Locked MOVE": earned by everyone, spent on everything, held in a Vault with a limit. Fill the Vault and you are visibly wasting walks — so you spend, and money circulates.</p></div>
+
+  <div class="probbox"><span class="t">Problem 4 — new players could not get land</span><p>Land cost tokens. New players had no tokens. The ladder had no bottom rung.</p></div>
+  <div class="fixbox"><span class="t">Fix — land is claimed by showing up</span><p>Every player gets a <strong>Home Plot free</strong>. Further plots need Stride <em>plus</em> proof you go there. <strong>No money, token or wallet needed to own ground.</strong> Tradeable Deeds are an upgrade you earn later or buy for about $9.</p></div>
+
+  <div class="pb"></div>
+  <div class="sec-num" style="margin-top:0;">Start here &#183; continued</div>
+  <h2 class="sec">Seven problems, seven fixes</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The remaining three are about money leaving the system: what players are asked to give up, what they are allowed to sell, and whether the sums added up in the first place.</p>
+
+  <div class="probbox"><span class="t">Problem 5 &#8212; nobody wants to burn what they earned</span><p>"The top 100 landowners burn 10% of their yield" is a punishment for succeeding. Players would have hated it.</p></div>
+  <div class="fixbox"><span class="t">Fix — Ground Rent, waived by visiting</span><p>A small, predictable rent on land you hold — like council tax. <strong>Visit often enough and it is waived entirely.</strong> Active players pay nothing; absentee speculators pay every season.</p></div>
+
+  <div class="probbox"><span class="t">Problem 6 — sell pressure at 70% crypto users</span><p>If most players sell most of what they earn, the market must absorb more than it can.</p></div>
+  <div class="fixbox"><span class="t">Fix — Quick Claim at 60%, or Full Claim at 100%</span><p>Take 60% today or wait 30 days for everything. Nothing is confiscated, and the impatient fund the patient. At the worst case our sinks absorb <strong>3.8× the selling</strong>.</p></div>
+
+  <div class="probbox"><span class="t">Problem 7 — emissions did not add up</span><p>Pools shrinking 20% a season total 45M tokens ever, against 600M reserved for players — thirteen times apart.</p></div>
+  <div class="fixbox"><span class="t">Fix — decay to a floor, not to zero</span><p>The pool falls fast for five years, then settles at a sustaining level. The reserve now funds rewards for <strong>56 years</strong>, and the numbers agree.</p></div>
+</div>
+
+<!-- THE MAP -->
+<div class="page">
+  <div class="sec-num">Overview</div>
+  <h2 class="sec">The whole economy on one page</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Read this once now and again at the end. Green is the everyday currency everyone earns. Purple is land. Blue is the scarce tradeable token. Gold is real money.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 470">
+      <defs>
+        <marker id="a1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#18C987"/></marker>
+        <marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#7657FF"/></marker>
+        <marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#246BFE"/></marker>
+        <marker id="a4" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#F7B955"/></marker>
+      </defs>
+      <g font-family="Liberation Sans,Arial">
+        <rect x="180" y="8" width="300" height="40" rx="10" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="330" y="27" font-size="11" font-weight="700" fill="#0E7A52" text-anchor="middle">YOU WALK, RUN OR CYCLE</text>
+        <text x="330" y="41" font-size="8.4" fill="#667085" text-anchor="middle">the first kilometre counts most &#183; verified before anything is paid</text>
+        <path d="M330,50 L330,66" stroke="#18C987" stroke-width="2.2" marker-end="url(#a1)"/>
+
+        <rect x="120" y="74" width="180" height="44" rx="10" fill="#18C987"/>
+        <text x="210" y="94" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">STRIDE</text>
+        <text x="210" y="108" font-size="8" fill="#E4F8EF" text-anchor="middle">everyday currency, uncapped earn</text>
+
+        <rect x="360" y="74" width="180" height="44" rx="10" fill="#246BFE"/>
+        <text x="450" y="94" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">$MOVE</text>
+        <text x="450" y="108" font-size="8" fill="#D6E4FF" text-anchor="middle">scarce, from the season pool</text>
+        <path d="M300,96 L356,96" stroke="#A3AAB8" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <text x="328" y="90" font-size="7.4" fill="#667085" text-anchor="middle">deed</text>
+        <text x="328" y="99" font-size="7.4" fill="#667085" text-anchor="middle">holders</text>
+
+        <path d="M210,120 L210,140" stroke="#18C987" stroke-width="2.2" marker-end="url(#a1)"/>
+        <path d="M450,120 L450,140" stroke="#246BFE" stroke-width="2.2" marker-end="url(#a3)"/>
+
+        <rect x="30" y="148" width="600" height="76" rx="10" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="330" y="168" font-size="11" font-weight="700" fill="#5A3FD6" text-anchor="middle">YOUR LAND</text>
+        <g font-size="8.6" fill="#111827">
+          <rect x="46" y="178" width="176" height="34" rx="7" fill="#fff" stroke="#DED4FF"/>
+          <text x="134" y="192" font-weight="700" text-anchor="middle">Home Plot &#8212; free</text>
+          <text x="134" y="205" fill="#667085" text-anchor="middle">yours for ever, cannot be lost</text>
+          <rect x="242" y="178" width="176" height="34" rx="7" fill="#fff" stroke="#DED4FF"/>
+          <text x="330" y="192" font-weight="700" text-anchor="middle">Plots &#8212; Stride + visits</text>
+          <text x="330" y="205" fill="#667085" text-anchor="middle">no money needed</text>
+          <rect x="438" y="178" width="176" height="34" rx="7" fill="#fff" stroke="#DED4FF"/>
+          <text x="526" y="192" font-weight="700" text-anchor="middle">Deeds &#8212; tradeable</text>
+          <text x="526" y="205" fill="#667085" text-anchor="middle">earned or $9</text>
+        </g>
+        <path d="M330,226 L330,246" stroke="#7657FF" stroke-width="2.2" marker-end="url(#a2)"/>
+
+        <rect x="60" y="254" width="540" height="60" rx="10" fill="#EAF6FF" stroke="#C9E2FF"/>
+        <text x="330" y="274" font-size="11" font-weight="700" fill="#246BFE" text-anchor="middle">LAND PAYS YOU BACK</text>
+        <text x="330" y="290" font-size="8.8" fill="#111827" text-anchor="middle">every level costs more &#8212; and earns proportionally more</text>
+        <text x="330" y="305" font-size="8.6" font-weight="700" fill="#246BFE" text-anchor="middle">payback stays at about 38 days, at every level, for ever</text>
+        <path d="M330,316 L330,336" stroke="#7657FF" stroke-width="2.2" marker-end="url(#a2)"/>
+
+        <rect x="30" y="344" width="600" height="56" rx="10" fill="#FFF4F1" stroke="#FBD8CD"/>
+        <text x="330" y="364" font-size="11" font-weight="700" fill="#B03A1C" text-anchor="middle">SPENT BACK IN</text>
+        <text x="330" y="380" font-size="8.8" fill="#111827" text-anchor="middle">more plots &#183; upgrades &#183; upkeep &#183; ground rent &#183; contests &#183; clubs &#183; districts &#183; map styles</text>
+        <text x="330" y="394" font-size="8.4" font-weight="700" fill="#B03A1C" text-anchor="middle">Stride circulates &#183; $MOVE is destroyed</text>
+
+        <rect x="30" y="418" width="285" height="44" rx="10" fill="#F7B955"/>
+        <text x="172" y="437" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">SPONSORS PAY REAL MONEY</text>
+        <text x="172" y="452" font-size="8" fill="#FFF9EF" text-anchor="middle">for verified visits to their door</text>
+        <rect x="345" y="418" width="285" height="44" rx="10" fill="#F7B955"/>
+        <text x="487" y="437" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">SUBSCRIBERS PAY REAL MONEY</text>
+        <text x="487" y="452" font-size="8" fill="#FFF9EF" text-anchor="middle">for tools, privacy and club features</text>
+        <path d="M172,414 L172,404 L330,404" fill="none" stroke="#F7B955" stroke-width="2" marker-end="url(#a4)"/>
+        <path d="M487,414 L487,404 L332,404" fill="none" stroke="#F7B955" stroke-width="2" marker-end="url(#a4)"/>
+      </g>
+    </svg>
+    <div class="figcap">Stride circulates for ever. $MOVE is scarce and mostly destroyed. Real money never touches either — it just pays the company.</div>
+  </div>
+
+  <div class="callout ok">
+    <span class="tag">If you remember one thing</span>
+    <p><strong>Everything a player needs in order to keep playing is bought with Stride, which they earn by walking and which has no market price.</strong> $MOVE is only for the things that are genuinely scarce — tradeable deeds, top-tier upgrades, and votes. That single separation is what keeps the game affordable no matter what the token does.</p>
+  </div>
+</div>
+
+<!-- 01 EARNING -->
+<div class="page">
+  <div class="sec-num">Part 1 · Earning</div>
+  <h2 class="sec">Why 750 metres matters as much as 10 km</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The single most important number in the game is not distance. It is <strong>Effort</strong> — and the way we count it decides who the product belongs to.</p>
+
+  <p class="lead">Your first kilometre is worth full value. Every kilometre after that is worth less.</p>
+  <table>
+    <tr><th style="width:32%;">Part of your session</th><th class="r" style="width:22%;">Counts at</th><th>Why</th></tr>
+    <tr><td>First 1 km</td><td class="r money"><strong>100%</strong></td><td>Getting out of the door is the hard part</td></tr>
+    <tr><td>Next 2 km (1–3)</td><td class="r money">60%</td><td>Still real effort, still rewarded well</td></tr>
+    <tr><td>Next 3 km (3–6)</td><td class="r money">30%</td><td>Fitness reward, not economic reward</td></tr>
+    <tr><td>Next 4 km (6–10)</td><td class="r money">10%</td><td>A token acknowledgement</td></tr>
+    <tr><td>Beyond 10 km</td><td class="r money">0%</td><td>Run for the joy of it — the economy stops paying</td></tr>
+    <tr class="tot"><td>Plus, once a day</td><td class="r money">+0.5 Effort</td><td><strong>Showing up beats going far</strong></td></tr>
+  </table>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 176">
+      <g font-family="Liberation Sans,Arial">
+        <text x="6" y="14" font-size="9.4" font-weight="700" fill="#111827">Effort earned, by session length</text>
+        <line x1="46" y1="150" x2="644" y2="150" stroke="#E4EAEF" stroke-width="1.5"/>
+        <g text-anchor="middle">
+          <rect x="60" y="118" width="58" height="32" rx="4" fill="#18C987"/><text x="89" y="139" font-size="9" font-weight="700" fill="#fff">0.75</text>
+          <text x="89" y="164" font-size="8" fill="#667085">0.75 km</text>
+          <rect x="146" y="107" width="58" height="43" rx="4" fill="#18C987"/><text x="175" y="133" font-size="9" font-weight="700" fill="#fff">1.0</text>
+          <text x="175" y="164" font-size="8" fill="#667085">1 km</text>
+          <rect x="232" y="82" width="58" height="68" rx="4" fill="#246BFE"/><text x="261" y="120" font-size="9" font-weight="700" fill="#fff">1.6</text>
+          <text x="261" y="164" font-size="8" fill="#667085">2 km</text>
+          <rect x="318" y="56" width="58" height="94" rx="4" fill="#246BFE"/><text x="347" y="107" font-size="9" font-weight="700" fill="#fff">2.2</text>
+          <text x="347" y="164" font-size="8" fill="#667085">3 km</text>
+          <rect x="404" y="31" width="58" height="119" rx="4" fill="#7657FF"/><text x="433" y="95" font-size="9" font-weight="700" fill="#fff">2.8</text>
+          <text x="433" y="164" font-size="8" fill="#667085">5 km</text>
+          <rect x="490" y="21" width="58" height="129" rx="4" fill="#7657FF"/><text x="519" y="90" font-size="9" font-weight="700" fill="#fff">3.3</text>
+          <text x="519" y="164" font-size="8" fill="#667085">8 km</text>
+          <rect x="576" y="18" width="58" height="132" rx="4" fill="#A3AAB8"/><text x="605" y="88" font-size="9" font-weight="700" fill="#fff">3.5</text>
+          <text x="605" y="164" font-size="8" fill="#667085">10 km +</text>
+        </g>
+        <text x="6" y="34" font-size="8.4" fill="#667085">Effort</text>
+        <line x1="576" y1="18" x2="644" y2="18" stroke="#FF6B4A" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <text x="644" y="14" font-size="7.8" fill="#B03A1C" text-anchor="end">ceiling &#8212; a marathon earns no more than 10 km</text>
+      </g>
+    </svg>
+    <div class="figcap">A marathon earns <strong>4.7×</strong> a 750-metre walk, for <strong>56×</strong> the distance. Farming by distance simply stops working.</div>
+  </div>
+
+  <h3>What that means for four real people</h3>
+  <table>
+    <tr><th style="width:34%;">Player</th><th class="r">Effort / month</th><th class="r">Stride / month</th><th class="r">vs the short walker</th></tr>
+    <tr><td><strong>Short walker</strong> — 750 m, 5 days a week</td><td class="r money">27</td><td class="r money">2,700</td><td class="r money">1.0×</td></tr>
+    <tr><td><strong>Casual</strong> — 2 km, 5 days a week</td><td class="r money">46</td><td class="r money">4,550</td><td class="r money">1.7×</td></tr>
+    <tr><td><strong>Regular</strong> — 4 km, 6 days a week</td><td class="r money">78</td><td class="r money">7,800</td><td class="r money">2.9×</td></tr>
+    <tr><td><strong>Dedicated</strong> — 8 km, 7 days a week</td><td class="r money">115</td><td class="r money">11,500</td><td class="r money">4.3×</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">The most committed athlete in the city earns just over four times what someone managing a short daily walk earns. That is a deliberate design decision, and it is what makes this a health product rather than a fitness competition.</p>
+
+  <div class="callout ok">
+    <span class="tag">Three things this curve buys us at once</span>
+    <p><strong>Inclusion</strong> — a short daily walk is a genuinely competitive way to play. <strong>Anti-farming</strong> — driving, cycling for hours, or looping a route all the day earns almost nothing extra, so the cheapest cheat is also the least profitable. <strong>Health</strong> — the reward structure encourages daily consistency, which is what actually changes people's lives, rather than occasional heroics.</p>
+  </div>
+</div>
+
+<!-- 02 STANDARD DAY -->
+<div class="page">
+  <div class="sec-num">Part 1 · Earning</div>
+  <h2 class="sec">The idea that fixes the squeeze</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This is the most important page in the document. It is the answer to <em>"as rewards shrink and costs rise, won't players eventually be unable to afford anything?"</em></p>
+
+  <p class="lead">We never price anything in tokens. We price everything in <strong>Days of Walking</strong>.</p>
+
+  <div class="card tint-blue" style="text-align:center;padding:16px;">
+    <p style="font-size:12.5pt;font-weight:700;margin-bottom:5px;">1 Day of Walking = what a typical active player earns in one day</p>
+    <p class="small" style="margin-bottom:0;">Measured continuously as the median across everyone playing. Today that is about <strong>150 Stride</strong>. If earnings fall by half, a Day of Walking is 75 Stride — and every price in the game halves with it.</p>
+  </div>
+
+  <h3>Why this changes everything</h3>
+  <p>In version 2, a plot cost a fixed number of tokens. Rewards fell every season, so that fixed price quietly became further and further out of reach — a grind that gets longer every year until it becomes impossible. Players notice this within weeks and leave.</p>
+  <p>With Days of Walking, <strong>the price and the wage move together</strong>. A plot costs about thirteen days of walking in year one, and it still costs about thirteen days of walking in year ten. The economy can shrink, halve, or triple, and the player's experience of it never changes.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 156">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="318" height="140" rx="11" fill="#FFF4F1" stroke="#FBD8CD"/>
+        <text x="165" y="30" font-size="10.4" font-weight="700" fill="#B03A1C" text-anchor="middle">OLD WAY — fixed token prices</text>
+        <g font-size="8.6" fill="#111827">
+          <text x="24" y="54">Year 1 &#183; earn 45/mo &#183; plot costs 90</text>
+          <text x="250" y="54" font-weight="700" fill="#0E7A52" text-anchor="end">2 months</text>
+          <text x="24" y="76">Year 3 &#183; earn 22/mo &#183; plot costs 90</text>
+          <text x="250" y="76" font-weight="700" fill="#9A6B10" text-anchor="end">4 months</text>
+          <text x="24" y="98">Year 5 &#183; earn 11/mo &#183; plot costs 90</text>
+          <text x="250" y="98" font-weight="700" fill="#B03A1C" text-anchor="end">8 months</text>
+          <text x="24" y="120">Year 8 &#183; earn 4/mo &#183; plot costs 90</text>
+          <text x="256" y="120" font-weight="700" fill="#B03A1C" text-anchor="end">22 months</text>
+        </g>
+        <text x="165" y="141" font-size="8.6" font-weight="700" fill="#B03A1C" text-anchor="middle">the grind grows without limit &#8212; players quit</text>
+
+        <rect x="336" y="8" width="318" height="140" rx="11" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="495" y="30" font-size="10.4" font-weight="700" fill="#0E7A52" text-anchor="middle">NEW WAY — priced in Days of Walking</text>
+        <g font-size="8.6" fill="#111827">
+          <text x="354" y="54">Year 1 &#183; plot costs 13 days</text>
+          <text x="580" y="54" font-weight="700" fill="#0E7A52" text-anchor="end">13 days</text>
+          <text x="354" y="76">Year 3 &#183; plot costs 13 days</text>
+          <text x="580" y="76" font-weight="700" fill="#0E7A52" text-anchor="end">13 days</text>
+          <text x="354" y="98">Year 5 &#183; plot costs 13 days</text>
+          <text x="580" y="98" font-weight="700" fill="#0E7A52" text-anchor="end">13 days</text>
+          <text x="354" y="120">Year 8 &#183; plot costs 13 days</text>
+          <text x="580" y="120" font-weight="700" fill="#0E7A52" text-anchor="end">13 days</text>
+        </g>
+        <text x="495" y="141" font-size="8.6" font-weight="700" fill="#0E7A52" text-anchor="middle">the effort never changes &#8212; players stay</text>
+      </g>
+    </svg>
+    <div class="figcap">The same plot, the same player, two pricing rules. One economy dies of its own arithmetic; the other does not.</div>
+  </div>
+
+  <h3>Where the idea comes from</h3>
+  <p>This is not invented. It is <strong>index-linking</strong> — the mechanism countries use to stop inflation quietly destroying pensions and wages. Pensions in the UK, social security in the US, and wage agreements across Europe are all tied to an index rather than to a fixed sum, precisely so that a number agreed today still means the same thing in twenty years. We are doing the same thing to game prices.</p>
+
+  <div class="callout">
+    <span class="tag">How to explain it in one sentence</span>
+    <p><em>"Prices in MovenRun are set in days of walking, not in tokens — so however the token economy moves, a plot always costs about a fortnight of getting out for a walk."</em></p>
+  </div>
+</div>
+
+<!-- 03 TWO CURRENCIES -->
+<div class="page">
+  <div class="sec-num">Part 1 · Earning</div>
+  <h2 class="sec">Two currencies, two jobs</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Version 2 had one token wearing two hats: locked for free players, liquid for landowners. It confused everyone and it still let balances pile up for ever. We split them properly.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 214">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="318" height="198" rx="12" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="24" y="32" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#0E7A52">EVERYDAY CURRENCY</text>
+        <text x="24" y="55" font-size="15" font-weight="700" fill="#111827">Stride</text>
+        <g font-size="9.2" fill="#111827">
+          <text x="24" y="80">&#183;  Everyone earns it, every session</text>
+          <text x="24" y="100">&#183;  Pays for plots, upgrades, upkeep,</text>
+          <text x="38" y="114">rent, contests, clubs, map styles</text>
+          <text x="24" y="134">&#183;  Never touches the blockchain</text>
+          <text x="24" y="154">&#183;  Has no market price and cannot be sold</text>
+          <text x="24" y="174">&#183;  Held in a <tspan font-weight="700">Vault with a limit</tspan></text>
+        </g>
+        <rect x="24" y="184" width="282" height="16" rx="5" fill="#fff" stroke="#C9EEDD"/>
+        <text x="34" y="196" font-size="8.4" font-weight="700" fill="#0E7A52">Unlimited to earn. Impossible to hoard.</text>
+
+        <rect x="336" y="8" width="318" height="198" rx="12" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="354" y="32" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#246BFE">SCARCE CURRENCY</text>
+        <text x="354" y="55" font-size="15" font-weight="700" fill="#111827">$MOVE</text>
+        <g font-size="9.2" fill="#111827">
+          <text x="354" y="80">&#183;  Comes only from the season pool</text>
+          <text x="354" y="100">&#183;  Pays for tradeable deeds, top-tier</text>
+          <text x="368" y="114">upgrades, challenge stakes, votes</text>
+          <text x="354" y="134">&#183;  Lives on the blockchain, under your keys</text>
+          <text x="354" y="154">&#183;  Transferable and sellable</text>
+          <text x="354" y="174">&#183;  <tspan font-weight="700">Never needed to keep playing</tspan></text>
+        </g>
+        <rect x="354" y="184" width="282" height="16" rx="5" fill="#fff" stroke="#D6E4FF"/>
+        <text x="364" y="196" font-size="8.4" font-weight="700" fill="#246BFE">Scarce by design. Optional by design.</text>
+      </g>
+    </svg>
+    <div class="figcap">The pattern every successful game economy uses: a soft currency you earn constantly and spend constantly, and a hard currency that is genuinely rare.</div>
+  </div>
+
+  <h3>The Vault — why a limit is a feature</h3>
+  <p>Stride is held in a <strong>Vault</strong> that starts at 5,000 and can be upgraded to 50,000 and beyond. Once it is full, further earnings are lost.</p>
+  <p>That sounds harsh until you see what it does. A balance that only grows is not money — it is a scoreboard, and scoreboards do not create an economy. The Vault limit means every player has a standing reason to spend: on the next plot, the next level, the next contest. <strong>It converts a growing number into circulating money.</strong> Upgrading the Vault is itself one of the most common purchases in the game, which is exactly how it works in Clash of Clans and every game economy built since.</p>
+
+  <table>
+    <tr><th style="width:44%;">Who</th><th class="r">Fills a 5,000 Vault in</th><th class="r">Fills a 50,000 Vault in</th></tr>
+    <tr><td>Short walker (2,700/month)</td><td class="r money">8 weeks</td><td class="r money">18 months</td></tr>
+    <tr><td>Casual (4,550/month)</td><td class="r money">5 weeks</td><td class="r money">11 months</td></tr>
+    <tr><td>Dedicated (11,500/month)</td><td class="r money">2 weeks</td><td class="r money">4 months</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Nobody is ever forced to spend. But everybody can see their Vault filling, and that is enough.</p>
+
+  <div class="callout warn">
+    <span class="tag">The rule that prevents the classic exploit</span>
+    <p>Stride can <strong>never</strong> be converted into $MOVE at a rate. If it could, free accounts would become token farms overnight — the exact failure that killed the last generation. The only route from free play to $MOVE is <strong>earning a deed and qualifying for the season pool</strong>, which takes real time in a real place and cannot be automated at scale.</p>
+  </div>
+</div>
+
+<!-- 04 LAND LADDER -->
+<div class="page">
+  <div class="sec-num">Part 2 · Land</div>
+  <h2 class="sec">The land ladder</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Three kinds of land, three ways to get it. The bottom rung is free, and every rung above it can be reached by walking rather than by paying.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 250">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="648" height="70" rx="11" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <polygon points="52,20 76,33 76,59 52,72 28,59 28,33" fill="#18C987"/>
+        <text x="52" y="50" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">HOME</text>
+        <text x="98" y="32" font-size="12.5" font-weight="700" fill="#111827">Home Plot &#8212; free, for ever</text>
+        <text x="98" y="50" font-size="9" fill="#667085">One per verified player. Claimed the day you join, wherever you live or work.</text>
+        <text x="98" y="66" font-size="9" font-weight="700" fill="#0E7A52">Cannot be challenged, cannot be taken, cannot be sold. Your anchor in the game.</text>
+
+        <rect x="6" y="88" width="648" height="70" rx="11" fill="#F6F3FF" stroke="#DED4FF"/>
+        <polygon points="52,100 76,113 76,139 52,152 28,139 28,113" fill="#7657FF"/>
+        <text x="52" y="130" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">PLOT</text>
+        <text x="98" y="112" font-size="12.5" font-weight="700" fill="#111827">Plots &#8212; claimed by showing up</text>
+        <text x="98" y="130" font-size="9" fill="#667085">About 13 days of walking in Stride, <tspan font-weight="700">plus five visits in fourteen days</tspan>. No money, no token, no wallet.</text>
+        <text x="98" y="146" font-size="9" font-weight="700" fill="#5A3FD6">Upgradeable to level 6. Not tradeable &#8212; this is land you live on, not land you flip.</text>
+
+        <rect x="6" y="168" width="648" height="74" rx="11" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <polygon points="52,180 76,193 76,219 52,232 28,219 28,193" fill="#246BFE"/>
+        <text x="52" y="210" font-size="8.4" font-weight="700" fill="#fff" text-anchor="middle">DEED</text>
+        <text x="98" y="192" font-size="12.5" font-weight="700" fill="#111827">Deeds &#8212; the tradeable upgrade</text>
+        <text x="98" y="210" font-size="9" fill="#667085">Hold a Plot for 60 days, then convert it: <tspan font-weight="700">300 $MOVE, or about $9</tspan>. Recorded on the blockchain.</text>
+        <text x="98" y="226" font-size="9" font-weight="700" fill="#246BFE">Sellable, rentable, sponsorable &#8212; and the only tier that earns $MOVE from the season pool.</text>
+        <text x="98" y="238" font-size="8.2" fill="#667085">Two ways up: about six months of saving as a casual player, or the price of two coffees.</text>
+      </g>
+    </svg>
+    <div class="figcap">The ladder has a free bottom rung and no step that requires money. Paying only ever buys you time.</div>
+  </div>
+
+  <h3>Why this solves the new-player problem</h3>
+  <p>The old design had a chicken and egg: you needed tokens to buy land, and you needed land to earn tokens. New players had no way in, and free players had no way up. The ladder breaks it in three places:</p>
+  <ul>
+    <li><strong>The Home Plot is free and immediate.</strong> Nobody starts with nothing, and nobody can be evicted from where they live.</li>
+    <li><strong>Plots cost Stride, which everybody earns.</strong> Thirteen days of ordinary walking, and land is yours. No wallet is involved at any point.</li>
+    <li><strong>Deeds are a conversion, not a purchase.</strong> You cannot buy a deed on land you have not held and used. That single rule stops speculators from buying up a city before players arrive — which is what ruined most virtual-land projects.</li>
+  </ul>
+
+  <table>
+    <tr><th style="width:26%;">&nbsp;</th><th>Home Plot</th><th>Plot</th><th>Deed</th></tr>
+    <tr><td><strong>Cost</strong></td><td>Free</td><td>~13 days of walking</td><td>60 days held + 300 $MOVE or $9</td></tr>
+    <tr><td><strong>How many</strong></td><td>Exactly 1</td><td>Unlimited</td><td>Unlimited</td></tr>
+    <tr><td><strong>Can be challenged</strong></td><td>Never</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td><strong>Can be sold</strong></td><td>Never</td><td>No</td><td><strong>Yes</strong></td></tr>
+    <tr><td><strong>Earns Stride</strong></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td><strong>Earns $MOVE</strong></td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr>
+    <tr><td><strong>Can be sponsored</strong></td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr>
+  </table>
+</div>
+
+<!-- 05 PRICING LAND -->
+<div class="page">
+  <div class="sec-num">Part 2 · Land</div>
+  <h2 class="sec">What land costs, and why</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Version 2 said a plot costs <em>"500 × the square root of weekly movers"</em>. Nobody outside a spreadsheet can act on that. Here is the same idea in words anyone can use.</p>
+
+  <p class="lead">Busy places cost more. But not <em>proportionally</em> more — or the city centre would be unreachable for everyone but the rich.</p>
+
+  <div class="card tint-blue">
+    <p style="margin-bottom:0;"><strong>The rule in one line:</strong> a place that is <strong>four times busier costs twice as much</strong>. Nine times busier costs three times as much. Sixteen times busier costs four times as much. Prices rise, but they rise gently, so a popular high street stays within reach of an ordinary player who is willing to save for it.</p>
+  </div>
+
+  <h3>The price list players actually see</h3>
+  <p>Rather than a formula, the app shows a plot's band. Every price is in Days of Walking, so it never drifts.</p>
+  <table>
+    <tr><th style="width:22%;">Band</th><th style="width:24%;">Distinct visitors a week</th><th class="r">Cost in Stride</th><th class="r">Days of walking</th></tr>
+    <tr><td><strong>Quiet</strong></td><td>1 – 4</td><td class="r money">1,000</td><td class="r money">~7</td></tr>
+    <tr><td><strong>Lively</strong></td><td>5 – 15</td><td class="r money">2,000</td><td class="r money">~13</td></tr>
+    <tr><td><strong>Busy</strong></td><td>16 – 40</td><td class="r money">3,500</td><td class="r money">~23</td></tr>
+    <tr><td><strong>Prime</strong></td><td>41 – 100</td><td class="r money">5,500</td><td class="r money">~36</td></tr>
+    <tr><td><strong>Landmark</strong></td><td>100+</td><td class="r money">8,000</td><td class="r money">~53</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">The most valuable ground in a city costs about eight times what the quietest costs — even though it may be a hundred times busier. That gap is deliberate: it keeps the map contestable rather than letting the centre belong permanently to whoever arrived first.</p>
+
+  <h3>The part that is not about money at all</h3>
+  <div class="callout ok">
+    <span class="tag">Presence, not price</span>
+    <p>Stride alone will not get you a plot. You must also have <strong>visited it on five separate days within the last fortnight</strong>. This is the rule that makes MovenRun's land different from every other virtual land project: <strong>you cannot own somewhere you do not go.</strong> It cannot be bought remotely, it cannot be accumulated by a fund, and it cannot be farmed by a script that never leaves a building.</p>
+  </div>
+
+  <h3>And a rule that protects the map from being carved up</h3>
+  <p>Holding many plots in the same district raises the Ground Rent on all of them — a <strong>progressive rate</strong>, exactly like income tax bands. Your first three plots in a district are taxed at the standard rate; the fourth to eighth pay half as much again; beyond that the rate doubles. A player who genuinely lives and moves across a district can comfortably hold a handful. A speculator trying to corner it finds the cost rising faster than the reward.</p>
+  <table>
+    <tr><th style="width:40%;">Plots held in one district</th><th class="r">Ground Rent rate</th></tr>
+    <tr><td>1 – 3</td><td class="r money">standard</td></tr>
+    <tr><td>4 – 8</td><td class="r money">1.5×</td></tr>
+    <tr><td>9 – 15</td><td class="r money">2×</td></tr>
+    <tr><td>16 or more</td><td class="r money">3×</td></tr>
+  </table>
+</div>
+
+<!-- 06 LEVELS -->
+<div class="page">
+  <div class="sec-num">Part 2 · Land</div>
+  <h2 class="sec">Upgrading land without hitting a wall</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This page answers the question you asked directly: <em>as upgrades get more expensive, will players eventually be unable to afford them at all?</em> The answer is no, and here is the arithmetic.</p>
+
+  <p class="lead">Every level costs more than the last. Every level also <em>earns</em> more than the last, by about the same factor. So the time to afford the next step never changes.</p>
+
+  <table>
+    <tr><th style="width:12%;">Level</th><th class="r">Upgrade cost</th><th class="r">Earns / day</th><th class="r">Extra earned</th><th class="r">Pays for itself in</th></tr>
+    <tr><td><strong>1</strong></td><td class="r money">—</td><td class="r money">30</td><td class="r money">—</td><td class="r money">—</td></tr>
+    <tr><td><strong>2</strong></td><td class="r money">1,500</td><td class="r money">70</td><td class="r money">+40</td><td class="r money"><strong>38 days</strong></td></tr>
+    <tr><td><strong>3</strong></td><td class="r money">3,500</td><td class="r money">160</td><td class="r money">+90</td><td class="r money"><strong>39 days</strong></td></tr>
+    <tr><td><strong>4</strong></td><td class="r money">8,000</td><td class="r money">380</td><td class="r money">+220</td><td class="r money"><strong>36 days</strong></td></tr>
+    <tr><td><strong>5</strong></td><td class="r money">18,000</td><td class="r money">850</td><td class="r money">+470</td><td class="r money"><strong>38 days</strong></td></tr>
+    <tr><td><strong>6</strong></td><td class="r money">40,000</td><td class="r money">1,900</td><td class="r money">+1,050</td><td class="r money"><strong>38 days</strong></td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Costs rise 26-fold from level 2 to level 6. So does income. The payback period stays flat at about five weeks, at every level, for ever.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 158">
+      <g font-family="Liberation Sans,Arial">
+        <text x="6" y="14" font-size="9.4" font-weight="700" fill="#111827">Cost and income rise together &#8212; so the wait never grows</text>
+        <line x1="46" y1="112" x2="644" y2="112" stroke="#E4EAEF" stroke-width="1.5"/>
+        <g text-anchor="middle">
+          <rect x="76" y="102" width="34" height="10" rx="3" fill="#7657FF"/><rect x="114" y="103" width="34" height="9" rx="3" fill="#18C987"/>
+          <text x="112" y="128" font-size="8" fill="#667085">Level 2</text>
+          <rect x="188" y="98" width="34" height="14" rx="3" fill="#7657FF"/><rect x="226" y="99" width="34" height="13" rx="3" fill="#18C987"/>
+          <text x="224" y="128" font-size="8" fill="#667085">Level 3</text>
+          <rect x="300" y="88" width="34" height="24" rx="3" fill="#7657FF"/><rect x="338" y="89" width="34" height="23" rx="3" fill="#18C987"/>
+          <text x="336" y="128" font-size="8" fill="#667085">Level 4</text>
+          <rect x="412" y="66" width="34" height="46" rx="3" fill="#7657FF"/><rect x="450" y="68" width="34" height="44" rx="3" fill="#18C987"/>
+          <text x="448" y="128" font-size="8" fill="#667085">Level 5</text>
+          <rect x="524" y="20" width="34" height="92" rx="3" fill="#7657FF"/><rect x="562" y="23" width="34" height="89" rx="3" fill="#18C987"/>
+          <text x="560" y="128" font-size="8" fill="#667085">Level 6</text>
+        </g>
+        <g font-size="8.2" fill="#667085">
+          <rect x="76" y="140" width="9" height="9" rx="2" fill="#7657FF"/><text x="90" y="148">what it costs</text>
+          <rect x="186" y="140" width="9" height="9" rx="2" fill="#18C987"/><text x="200" y="148">what it earns back over 38 days</text>
+          <text x="644" y="148" text-anchor="end" font-weight="700" fill="#0E7A52">the two bars stay the same height at every level</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">This is the shape every long-lived game economy has. Costs climb steeply; so does income; the player's experience stays constant.</div>
+  </div>
+
+  <h3>What it actually feels like</h3>
+  <table>
+    <tr><th style="width:30%;">Player</th><th class="r">Claim a plot</th><th class="r">Reach level 2</th><th class="r">Reach level 3</th><th class="r">Reach level 4</th></tr>
+    <tr><td><strong>Short walker</strong> 750 m × 5</td><td class="r money">day 22</td><td class="r money">day 34</td><td class="r money">day 56</td><td class="r money">day 88</td></tr>
+    <tr><td><strong>Casual</strong> 2 km × 5</td><td class="r money">day 13</td><td class="r money">day 21</td><td class="r money">day 37</td><td class="r money">day 63</td></tr>
+    <tr><td><strong>Regular</strong> 4 km × 6</td><td class="r money">day 8</td><td class="r money">day 13</td><td class="r money">day 24</td><td class="r money">day 43</td></tr>
+    <tr><td><strong>Dedicated</strong> 8 km × 7</td><td class="r money">day 5</td><td class="r money">day 9</td><td class="r money">day 17</td><td class="r money">day 31</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Even the shortest walker has a fully developed plot inside three months — and the most dedicated athlete gets there in one, not in a week. The gap between the most and least committed player is a factor of three, not a factor of fifty.</p>
+</div>
+
+<!-- 07 CONDITION + RENT -->
+<div class="page">
+  <div class="sec-num">Part 2 · Land</div>
+  <h2 class="sec">Upkeep, and the rent that replaces the burn</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Land has to cost something to hold, or the map fills up with absentee owners and newcomers find nothing left. But the cost must never feel like a punishment for playing well.</p>
+
+  <h3>Condition — and why walking is the repair</h3>
+  <p>Every plot has a <strong>Condition</strong> from 0 to 100%. It falls slowly — about 2% a day — and a plot below 60% earns less and defends worse.</p>
+  <p>StepN made you pay tokens to repair your shoes, and players resented it because it felt like a meter running. We do it the other way round:</p>
+  <div class="grid2">
+    <div class="card tint-green"><h4>Visiting restores it — free</h4><p style="margin-bottom:0;">Walk through your plot and Condition jumps back up. One visit restores about 25%. Visit twice a week and it never drops below full. <strong>The primary repair mechanism is the thing the whole app is for.</strong></p></div>
+    <div class="card tint-blue"><h4>Paying restores it — for convenience</h4><p style="margin-bottom:0;">Away for a fortnight, or holding land across town? Spend Stride instead: about 12% of what the plot earns. It is a real cost, but a small one, and only ever paid by people who choose convenience.</p></div>
+  </div>
+  <p class="small">The effect is that active players almost never pay upkeep, and people holding land they never visit pay it constantly. That is exactly the right way round.</p>
+
+  <div class="rule2"></div>
+
+  <h3>Ground Rent — replacing the Great Burn</h3>
+  <div class="probbox"><span class="t">What we removed</span><p>"At the end of every season, the top 100 landowners burn 10% of everything their land earned." A surprise charge aimed at the most successful players, destroying value they had already banked.</p></div>
+
+  <div class="fixbox"><span class="t">What replaces it</span><p>A small, published, predictable <strong>Ground Rent</strong> on every plot — <strong>and it is waived entirely if you visited the plot at least six times during the season.</strong></p></div>
+
+  <table>
+    <tr><th style="width:16%;">Level</th><th class="r">Earns per season</th><th class="r">Ground Rent</th><th class="r">As a share of earnings</th><th class="r">If you visit 6× a season</th></tr>
+    <tr><td><strong>1</strong></td><td class="r money">2,700</td><td class="r money">150</td><td class="r money">5.6%</td><td class="r money"><strong>nothing</strong></td></tr>
+    <tr><td><strong>2</strong></td><td class="r money">6,300</td><td class="r money">320</td><td class="r money">5.1%</td><td class="r money"><strong>nothing</strong></td></tr>
+    <tr><td><strong>3</strong></td><td class="r money">14,400</td><td class="r money">700</td><td class="r money">4.9%</td><td class="r money"><strong>nothing</strong></td></tr>
+    <tr><td><strong>4</strong></td><td class="r money">34,200</td><td class="r money">1,600</td><td class="r money">4.7%</td><td class="r money"><strong>nothing</strong></td></tr>
+    <tr><td><strong>5</strong></td><td class="r money">76,500</td><td class="r money">3,500</td><td class="r money">4.6%</td><td class="r money"><strong>nothing</strong></td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Six visits in ninety days is one visit a fortnight. Anyone who genuinely uses their land will never pay a penny of rent.</p>
+
+  <h3>Why this is the better mechanism</h3>
+  <ul>
+    <li><strong>It is predictable.</strong> You can see next season's rent today.</li>
+    <li><strong>It taxes holding, not earning.</strong> A burn punishes the players who did best. A rent charges the players who are doing nothing. That is the difference between a fine and a bill.</li>
+    <li><strong>It is avoidable by playing.</strong> The way out of the charge is to go for a walk.</li>
+    <li><strong>Everyone already understands it.</strong> Council tax, ground rent, service charge. No explanation needed, no outrage.</li>
+    <li><strong>It frees up dead land.</strong> Rent unpaid for two seasons returns the plot to the map.</li>
+  </ul>
+
+  <div class="callout">
+    <span class="tag">Where the idea comes from</span>
+    <p>This is a <strong>land value tax</strong> — an idea from the economist Henry George, and one of the very few taxes economists broadly agree is efficient. It charges people for occupying scarce ground rather than for the work they do on it. That is precisely the behaviour we want: hold land you use, release land you do not.</p>
+  </div>
+</div>
+
+<!-- 08 THE MAP UI -->
+<div class="page">
+  <div class="sec-num">Part 2 · Land</div>
+  <h2 class="sec">Your map, your colours</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The land you own should feel like yours the moment you look at it. Clean, calm, and coloured the way you chose — closer to a well-designed training app than to a crypto dashboard.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 268">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="300" height="252" rx="18" fill="#F8FAF7" stroke="#E4EAEF" stroke-width="1.5"/>
+        <text x="26" y="34" font-size="9" font-weight="700" fill="#111827">Riverside</text>
+        <text x="286" y="34" font-size="8.4" fill="#667085" text-anchor="end">14 plots</text>
+        <g>
+          <polygon points="70,52 94,65 94,91 70,104 46,91 46,65" fill="#18C987" opacity=".9"/>
+          <polygon points="118,52 142,65 142,91 118,104 94,91 94,65" fill="#18C987" opacity=".55"/>
+          <polygon points="166,52 190,65 190,91 166,104 142,91 142,65" fill="#E7ECEF"/>
+          <polygon points="214,52 238,65 238,91 214,104 190,91 190,65" fill="#E7ECEF"/>
+          <polygon points="94,104 118,117 118,143 94,156 70,143 70,117" fill="#18C987"/>
+          <polygon points="142,104 166,117 166,143 142,156 118,143 118,117" fill="#18C987" opacity=".75"/>
+          <polygon points="190,104 214,117 214,143 190,156 166,143 166,117" fill="#FF6B4A" opacity=".85"/>
+          <polygon points="238,104 262,117 262,143 238,156 214,143 214,117" fill="#E7ECEF"/>
+          <polygon points="70,156 94,169 94,195 70,208 46,195 46,169" fill="#18C987" opacity=".6"/>
+          <polygon points="118,156 142,169 142,195 118,208 94,195 94,169" fill="#18C987"/>
+          <polygon points="166,156 190,169 190,195 166,208 142,195 142,169" fill="#18C987" opacity=".45"/>
+          <polygon points="214,156 238,169 238,195 214,208 190,195 190,169" fill="#E7ECEF"/>
+          <circle cx="118" cy="130" r="5" fill="#111827"/><circle cx="118" cy="130" r="11" fill="#111827" opacity=".14"/>
+        </g>
+        <g font-size="7.4" fill="#667085">
+          <rect x="26" y="222" width="8" height="8" rx="2" fill="#18C987"/><text x="39" y="229">yours</text>
+          <rect x="86" y="222" width="8" height="8" rx="2" fill="#FF6B4A"/><text x="99" y="229">contested</text>
+          <rect x="166" y="222" width="8" height="8" rx="2" fill="#E7ECEF"/><text x="179" y="229">open ground</text>
+          <text x="26" y="248" font-size="7.6" fill="#A3AAB8">shade shows level &#183; darker means further developed</text>
+        </g>
+
+        <rect x="330" y="8" width="324" height="120" rx="12" fill="#fff" stroke="#E4EAEF"/>
+        <text x="350" y="32" font-size="10.6" font-weight="700" fill="#111827">Choose your colour</text>
+        <text x="350" y="48" font-size="8.6" fill="#667085">Your territory, your rivals' territory, and your club's</text>
+        <text x="350" y="60" font-size="8.6" fill="#667085">all take the palette you pick. Changeable any time, free.</text>
+        <g>
+          <circle cx="362" cy="86" r="13" fill="#18C987" stroke="#111827" stroke-width="2"/>
+          <circle cx="398" cy="86" r="13" fill="#246BFE"/>
+          <circle cx="434" cy="86" r="13" fill="#7657FF"/>
+          <circle cx="470" cy="86" r="13" fill="#FF6B4A"/>
+          <circle cx="506" cy="86" r="13" fill="#F7B955"/>
+          <circle cx="542" cy="86" r="13" fill="#111827"/>
+          <circle cx="578" cy="86" r="13" fill="#E7ECEF" stroke="#D0D5DD"/>
+          <text x="578" y="90" font-size="11" fill="#667085" text-anchor="middle">+</text>
+        </g>
+        <text x="350" y="118" font-size="8" fill="#A3AAB8">Extra palettes and map styles are a Stride purchase &#8212; cosmetic only, never an advantage.</text>
+
+        <rect x="330" y="138" width="324" height="122" rx="12" fill="#fff" stroke="#E4EAEF"/>
+        <text x="350" y="162" font-size="10.6" font-weight="700" fill="#111827">Design principles</text>
+        <g font-size="8.8" fill="#111827">
+          <text x="350" y="184">&#183;  One glance answers "what is mine, what is at risk"</text>
+          <text x="350" y="204">&#183;  No numbers on the map itself &#8212; tap a plot for detail</text>
+          <text x="350" y="224">&#183;  Shade, not labels, shows how developed a plot is</text>
+          <text x="350" y="244">&#183;  Colour never carries meaning alone &#8212; patterns too,</text>
+          <text x="362" y="256">so the map works for colour-blind players</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">A board you can read in two seconds, in a colour you chose. Everything else is one tap away.</div>
+  </div>
+
+  <h3>What the player controls</h3>
+  <table>
+    <tr><th style="width:30%;">Setting</th><th style="width:24%;">Cost</th><th>Notes</th></tr>
+    <tr><td><strong>Territory colour</strong></td><td>Free, unlimited changes</td><td>Seven core colours from day one. Your land, your rivals, your club all follow it.</td></tr>
+    <tr><td><strong>Extra palettes</strong></td><td>~600 Stride each</td><td>Seasonal and city-themed sets. Purely cosmetic.</td></tr>
+    <tr><td><strong>Map style</strong></td><td>~1,500 Stride</td><td>Light, dark, minimal, topographic. Never changes what you can see.</td></tr>
+    <tr><td><strong>Plot nickname</strong></td><td>Free</td><td>"Home", "The Park Loop" — your names, not coordinates.</td></tr>
+    <tr><td><strong>Private mode</strong></td><td>Subscription</td><td>Hides your home plot and route detail from other players.</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">Why cosmetics matter economically</span>
+    <p>Map styles and palettes are the cheapest, most guilt-free way for a player to spend Stride, and they are pure sink — nothing enters circulation in return. In every long-running game economy, cosmetics quietly do a large share of the work of keeping currency scarce, precisely because <strong>players enjoy buying them.</strong> A sink people <em>want</em> to use is worth more than a tax they resent.</p>
+  </div>
+</div>
+
+<!-- 09 SEASON POOLS -->
+<div class="page">
+  <div class="sec-num">Part 3 · The token</div>
+  <h2 class="sec">Seasons that shrink, then settle</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">You asked to keep the 90-day season and the falling reward pool. Both stay. What changes is that the fall <strong>stops at a floor</strong> instead of heading towards zero.</p>
+
+  <div class="probbox"><span class="t">The arithmetic problem in version 2</span><p>Pools shrinking 20% every season add up to about <strong>45 million tokens ever issued</strong>. But the plan reserved <strong>600 million</strong> for player rewards. The two numbers were thirteen times apart, and any analyst would have found it in ten minutes.</p></div>
+
+  <div class="fixbox"><span class="t">The fix</span><p>The pool falls quickly for five years, then levels off at <strong>2.5 million per season</strong>. The 600 million reserve now funds rewards for <strong>fifty-six years</strong>, so curve and allocation describe the same economy.</p></div>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 184">
+      <g font-family="Liberation Sans,Arial">
+        <text x="6" y="14" font-size="9.4" font-weight="700" fill="#111827">Tokens released per season</text>
+        <line x1="46" y1="140" x2="640" y2="140" stroke="#E4EAEF" stroke-width="1.5"/>
+        <line x1="46" y1="112" x2="640" y2="112" stroke="#FF6B4A" stroke-width="1.2" stroke-dasharray="5 4"/>
+        <text x="640" y="108" font-size="7.8" fill="#B03A1C" text-anchor="end">floor: 2.5M per season, held for decades</text>
+        <g text-anchor="middle">
+          <rect x="60" y="40" width="42" height="100" rx="4" fill="#246BFE"/><text x="81" y="56" font-size="8" font-weight="700" fill="#fff">9.0</text><text x="81" y="154" font-size="7.6" fill="#667085">S1</text>
+          <rect x="112" y="53" width="42" height="87" rx="4" fill="#3D7DFE"/><text x="133" y="68" font-size="8" font-weight="700" fill="#fff">7.8</text><text x="133" y="154" font-size="7.6" fill="#667085">S2</text>
+          <rect x="164" y="64" width="42" height="76" rx="4" fill="#5490FE"/><text x="185" y="79" font-size="8" font-weight="700" fill="#fff">6.9</text><text x="185" y="154" font-size="7.6" fill="#667085">S3</text>
+          <rect x="216" y="73" width="42" height="67" rx="4" fill="#6E9EFE"/><text x="237" y="88" font-size="8" font-weight="700" fill="#fff">6.1</text><text x="237" y="154" font-size="7.6" fill="#667085">S4</text>
+          <rect x="268" y="80" width="42" height="60" rx="4" fill="#85AFFE"/><text x="289" y="95" font-size="8" font-weight="700" fill="#fff">5.4</text><text x="289" y="154" font-size="7.6" fill="#667085">S5</text>
+          <rect x="320" y="86" width="42" height="54" rx="4" fill="#9CBEFE"/><text x="341" y="101" font-size="7.6" font-weight="700" fill="#fff">4.9</text><text x="341" y="154" font-size="7.6" fill="#667085">S6</text>
+          <rect x="372" y="94" width="42" height="46" rx="4" fill="#B3CEFE"/><text x="393" y="109" font-size="7.6" font-weight="700" fill="#246BFE">4.1</text><text x="393" y="154" font-size="7.6" fill="#667085">S8</text>
+          <rect x="424" y="101" width="42" height="39" rx="4" fill="#C7DBFE"/><text x="445" y="116" font-size="7.6" font-weight="700" fill="#246BFE">3.4</text><text x="445" y="154" font-size="7.6" fill="#667085">S11</text>
+          <rect x="476" y="107" width="42" height="33" rx="4" fill="#D9E7FE"/><text x="497" y="122" font-size="7.6" font-weight="700" fill="#246BFE">2.9</text><text x="497" y="154" font-size="7.6" fill="#667085">S15</text>
+          <rect x="528" y="111" width="42" height="29" rx="4" fill="#E6EFFE"/><text x="549" y="126" font-size="7.6" font-weight="700" fill="#246BFE">2.6</text><text x="549" y="154" font-size="7.6" fill="#667085">S20</text>
+          <rect x="580" y="112" width="42" height="28" rx="4" fill="#E6EFFE"/><text x="601" y="127" font-size="7.6" font-weight="700" fill="#246BFE">2.5</text><text x="601" y="154" font-size="7.6" fill="#667085">S25+</text>
+        </g>
+        <text x="6" y="34" font-size="8.4" fill="#667085">millions</text>
+        <text x="330" y="176" font-size="8.4" fill="#667085" text-anchor="middle">Year 1 releases 29.8M &#183; year 5 releases 10.8M &#183; then about 10M a year, funded until roughly year 56</text>
+      </g>
+    </svg>
+    <div class="figcap">Fast decline while the network is small and rewards should be generous; a long, flat, dependable tail after that.</div>
+  </div>
+
+  <h3>Why a floor rather than a slow fade to nothing</h3>
+  <ul>
+    <li><strong>An economy needs a heartbeat.</strong> A reward that approaches zero eventually means the season means nothing, and seasons are the rhythm of the whole game.</li>
+    <li><strong>New players must still have a reason to arrive in year eight.</strong> A permanent floor means joining late is worse than joining early, but never pointless.</li>
+    <li><strong>It matches how currencies actually work.</strong> Bitcoin halves to a hard stop; most national economies target a small, steady, positive rate instead. We are choosing the second, because we want a working economy rather than a collectible.</li>
+    <li><strong>And nothing depends on it anyway.</strong> Because everyday play is paid for in Stride, a smaller $MOVE pool never makes the game unaffordable — it only makes $MOVE rarer.</li>
+  </ul>
+
+  <table>
+    <tr><th style="width:24%;">Period</th><th class="r">Released</th><th class="r">Running total</th><th>What it is for</th></tr>
+    <tr><td>Year 1</td><td class="r money">29.8M</td><td class="r money">29.8M</td><td>Bootstrapping the first cities</td></tr>
+    <tr><td>Year 2</td><td class="r money">18.9M</td><td class="r money">48.7M</td><td>Expansion, first real competition</td></tr>
+    <tr><td>Year 3</td><td class="r money">14.0M</td><td class="r money">62.8M</td><td>Land economy takes over from emissions</td></tr>
+    <tr><td>Year 5</td><td class="r money">10.8M</td><td class="r money">85.4M</td><td>Approaching the floor</td></tr>
+    <tr class="tot"><td>Years 6 – 56</td><td class="r money">~10M / yr</td><td class="r money">600M</td><td>The long, steady tail</td></tr>
+  </table>
+</div>
+
+<!-- 10 ACTIVITY GATE -->
+<div class="page">
+  <div class="sec-num">Part 3 · The token</div>
+  <h2 class="sec">The pool is a ceiling, not a giveaway</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A fixed pool split among whoever shows up has an obvious flaw: fifty people at launch would share nine million tokens. The Growth Gate closes it.</p>
+
+  <div class="card tint-blue" style="text-align:center;padding:15px;">
+    <p style="font-size:12pt;font-weight:700;margin-bottom:5px;">Released this season = the <em>lower</em> of<br>(the season pool) &nbsp;and&nbsp; (total verified Effort × 1 $MOVE)</p>
+    <p class="small" style="margin-bottom:0;">A small network releases only what it earned. A large network hits the ceiling and everyone shares it.</p>
+  </div>
+
+  <table>
+    <tr><th style="width:22%;">Players</th><th class="r">Would earn at full rate</th><th class="r">Actually released</th><th class="r">Each player gets</th><th>What is happening</th></tr>
+    <tr><td class="money">1,000</td><td class="r money">0.14M</td><td class="r money">0.14M</td><td class="r money">135</td><td>Full rate — the pool is nowhere near touched</td></tr>
+    <tr><td class="money">10,000</td><td class="r money">1.35M</td><td class="r money">1.35M</td><td class="r money">135</td><td>Full rate</td></tr>
+    <tr><td class="money">50,000</td><td class="r money">6.75M</td><td class="r money">6.75M</td><td class="r money">135</td><td>Full rate — still under the ceiling</td></tr>
+    <tr><td class="money">100,000</td><td class="r money">13.5M</td><td class="r money"><strong>9.0M</strong></td><td class="r money">90</td><td>Ceiling reached; everyone shares 67%</td></tr>
+    <tr><td class="money">500,000</td><td class="r money">67.5M</td><td class="r money"><strong>9.0M</strong></td><td class="r money">18</td><td>Heavily shared — $MOVE is now genuinely scarce</td></tr>
+  </table>
+
+  <h3>Three things the Gate achieves</h3>
+  <div class="grid3">
+    <div class="card tint-green" style="margin:0;"><h4>No launch windfall</h4><p class="small" style="margin:0;">Early players cannot split a huge pool between a handful of accounts. Issuance always reflects real work done.</p></div>
+    <div class="card tint-blue" style="margin:0;"><h4>Early still beats late</h4><p class="small" style="margin:0;">Below the ceiling everyone earns the full rate. Joining early is genuinely better — without anyone being paid for nothing.</p></div>
+    <div class="card tint-violet" style="margin:0;"><h4>Growth cannot cause inflation</h4><p class="small" style="margin:0;">Ten times the players never means ten times the tokens. Above the ceiling, growth makes $MOVE rarer, not more plentiful.</p></div>
+  </div>
+
+  <h3>And a rule for who qualifies at all</h3>
+  <p>Only <strong>Deed holders</strong> share the season pool. Free players and Plot holders earn Stride, XP, standing, and territory — everything they need to play and progress — but not the tradeable token. This is the load-bearing rule that makes mass free signup safe: <strong>an account that costs nothing to create earns nothing that can be sold.</strong></p>
+
+  <div class="callout ok">
+    <span class="tag">The route up is real, though</span>
+    <p>A free player reaches a Deed by holding a Plot for sixty days and converting it. No money required. So the gate is not a wall between paying and non-paying users — it is a wall between <strong>committed and disposable accounts</strong>, and the only currency that crosses it is time spent in a real place.</p>
+  </div>
+</div>
+
+<!-- 11 CLAIMING -->
+<div class="page">
+  <div class="sec-num">Part 3 · The token</div>
+  <h2 class="sec">Take 60% now, or 100% in thirty days</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">You asked that landowners be able to sell most of what they earn. They can. But everything arriving on the market on the same afternoon would hurt every one of them, so we let players choose their own timing — and reward patience.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 168">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="228" y="8" width="204" height="34" rx="9" fill="#246BFE"/>
+        <text x="330" y="30" font-size="10.4" font-weight="700" fill="#fff" text-anchor="middle">Your season rewards are ready</text>
+        <path d="M300,44 L180,66" stroke="#A3AAB8" stroke-width="1.8"/>
+        <path d="M360,44 L480,66" stroke="#A3AAB8" stroke-width="1.8"/>
+
+        <rect x="30" y="72" width="270" height="86" rx="11" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="165" y="96" font-size="11.5" font-weight="700" fill="#9A6B10" text-anchor="middle">QUICK CLAIM</text>
+        <text x="165" y="118" font-size="20" font-weight="700" fill="#111827" text-anchor="middle">60%</text>
+        <text x="165" y="135" font-size="8.8" fill="#667085" text-anchor="middle">in your wallet today, tradeable at once</text>
+        <text x="165" y="150" font-size="8.4" fill="#9A6B10" text-anchor="middle">the other 40% returns to the pool</text>
+
+        <rect x="360" y="72" width="270" height="86" rx="11" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="495" y="96" font-size="11.5" font-weight="700" fill="#0E7A52" text-anchor="middle">FULL CLAIM</text>
+        <text x="495" y="118" font-size="20" font-weight="700" fill="#111827" text-anchor="middle">100%</text>
+        <text x="495" y="135" font-size="8.8" fill="#667085" text-anchor="middle">released steadily across 30 days</text>
+        <text x="495" y="150" font-size="8.4" fill="#0E7A52" text-anchor="middle">nothing is lost, nothing is locked afterwards</text>
+      </g>
+    </svg>
+    <div class="figcap">A choice, not a rule. Nobody is prevented from selling, and nobody is penalised for waiting.</div>
+  </div>
+
+  <h3>Why players accept this</h3>
+  <ul>
+    <li><strong>Nothing is confiscated.</strong> The full amount is always available; the only question is when. Anyone who waits a month receives every token they earned.</li>
+    <li><strong>It is a choice they make, not a rule imposed on them.</strong> That distinction matters enormously to how a mechanic feels.</li>
+    <li><strong>It is familiar.</strong> Cashing out early for less is how notice accounts, early-redemption bonds, and pension drawdowns work. Nobody finds it strange or unfair.</li>
+    <li><strong>The 40% is not destroyed.</strong> It goes back into the next season's pool, so impatient players are funding the rewards of the ones who stay. That is a story players actually like.</li>
+  </ul>
+
+  <h3>What it does to the market</h3>
+  <table>
+    <tr><th style="width:44%;">Without the choice</th><th>With the choice</th></tr>
+    <tr><td>Everything is claimable the moment a season ends</td><td>Roughly half is claimed immediately, at a discount</td></tr>
+    <tr><td>A single day of concentrated selling every 90 days</td><td>Selling spread across the following month</td></tr>
+    <tr><td>100% of rewards reach the market</td><td>About 80% does — and later</td></tr>
+    <tr><td>The most patient holders are punished by everyone else's timing</td><td>The most patient holders are rewarded</td></tr>
+  </table>
+
+  <div class="callout">
+    <span class="tag">Meeting your requirement exactly</span>
+    <p>You asked that landowners be able to sell <strong>60–70% of what they earn</strong>. Quick Claim delivers exactly 60% on the day, with no waiting and no conditions — and Full Claim delivers 100% to anyone willing to wait a month. Both ends of your requirement are satisfied by the same mechanism.</p>
+  </div>
+</div>
+
+<!-- 12 SINKS -->
+<div class="page">
+  <div class="sec-num">Part 3 · The token</div>
+  <h2 class="sec">Every price, and the reason for it</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A sink only works if players are happy to use it. Every price below was set by asking two questions: how long does this take to afford, and would a reasonable person feel it was worth it?</p>
+
+  <div class="subhead" style="font-size:8.4pt;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--graphite);margin:0 0 6pt;">Stride — the everyday currency, spent constantly</div>
+  <table>
+    <tr><th style="width:30%;">What you buy</th><th class="r">Cost</th><th class="r">Days of walking</th><th>Why that price</th></tr>
+    <tr><td>Claim a Plot</td><td class="r money">1,000 – 8,000</td><td class="r money">7 – 53</td><td>Reachable in a fortnight for ordinary ground; a real saving effort for prime ground</td></tr>
+    <tr><td>Upgrade a level</td><td class="r money">1,500 – 40,000</td><td class="r money">10 – 264</td><td>Always pays for itself in about 38 days, at every level</td></tr>
+    <tr><td>Upkeep, if you cannot visit</td><td class="r money">12% of what it earns</td><td class="r money">—</td><td>Noticeable but never punishing; free if you go there</td></tr>
+    <tr><td>Ground Rent</td><td class="r money">~5% of earnings</td><td class="r money">—</td><td>Waived entirely by six visits a season</td></tr>
+    <tr><td>Contest entry</td><td class="r money">600</td><td class="r money">4</td><td>Low enough to enter on a whim, high enough to mean something</td></tr>
+    <tr><td>Vault capacity +10,000</td><td class="r money">6,000</td><td class="r money">40</td><td>A goal in itself, and it makes every later upgrade possible</td></tr>
+    <tr><td>Club season pass</td><td class="r money">3,000</td><td class="r money">20</td><td>Shared cost across a club of thirty; about one day each</td></tr>
+    <tr><td>Map style or palette</td><td class="r money">600 – 1,500</td><td class="r money">4 – 10</td><td>Cheap enough to be an impulse; pure sink, no advantage</td></tr>
+  </table>
+
+  <div class="subhead" style="font-size:8.4pt;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--graphite);margin:14pt 0 6pt;">$MOVE — scarce, and destroyed when spent</div>
+  <table>
+    <tr><th style="width:34%;">What you buy</th><th class="r">Cost</th><th>Why that price</th></tr>
+    <tr><td>Convert a Plot into a Deed</td><td class="r money">300 $MOVE, or $9</td><td>Two to six months of saving, or the price of two coffees. Both routes stay open.</td></tr>
+    <tr><td>Level 5 upgrade</td><td class="r money">1,200 $MOVE</td><td>The first point where scarcity should bite. Optional; level 4 is a complete experience.</td></tr>
+    <tr><td>Level 6 upgrade</td><td class="r money">3,500 $MOVE</td><td>Genuinely rare. A handful per district, not a normal step.</td></tr>
+    <tr><td>Challenge stake</td><td class="r money">120 $MOVE</td><td>Returned if you win. A deposit against frivolous challenges, not a fee.</td></tr>
+    <tr><td>Ground Rent on Deeds</td><td class="r money">~90 $MOVE / season</td><td>Waived by visiting, like every other plot.</td></tr>
+    <tr><td>Marketplace fee</td><td class="r money">2.5% of the sale</td><td>Half burned, half to the company. Standard, and low by marketplace norms.</td></tr>
+  </table>
+
+  <h3 class="pb" style="margin-top:0;">Does it balance?</h3>
+  <p>At 100,000 players, in the worst case for selling pressure that you asked us to model:</p>
+  <table>
+    <tr><th style="width:56%;">Per season, at 100,000 players</th><th class="r">$MOVE</th></tr>
+    <tr><td>Deed conversions · 4,000 a month</td><td class="r money">3.60M destroyed</td></tr>
+    <tr><td>Level 5 upgrades · 900 a month</td><td class="r money">3.24M destroyed</td></tr>
+    <tr><td>Level 6 upgrades · 250 a month</td><td class="r money">2.62M destroyed</td></tr>
+    <tr><td>Challenge stakes, forfeited</td><td class="r money">1.44M destroyed</td></tr>
+    <tr><td>Ground Rent on Deeds</td><td class="r money">1.35M destroyed</td></tr>
+    <tr><td>Marketplace fees, districts, clubs, cosmetics</td><td class="r money">1.25M destroyed</td></tr>
+    <tr class="tot"><td>Total destroyed</td><td class="r money">13.5M</td></tr>
+    <tr><td>Released by the season pool</td><td class="r money">9.0M</td></tr>
+    <tr><td>Reaching the market as selling</td><td class="r money">3.5M</td></tr>
+    <tr class="tot"><td>Destroyed for every token sold</td><td class="r money"><strong>3.8×</strong></td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">More is destroyed than is created, and nearly four times more is destroyed than is sold — <strong>provided the land economy is genuinely active.</strong> That condition is the honest dependency in this whole design, and it is exactly what the first city has to prove.</p>
+</div>
+
+<!-- 13 DISTRICTS + FRONTIER -->
+<div class="page">
+  <div class="sec-num">Part 4 · Playing together</div>
+  <h2 class="sec">Districts, and the empty map</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A city is not a pile of plots. Seven plots make a district, districts make a city, and the ground nobody has touched yet is worth more than it looks.</p>
+
+  <h3>Districts — the reason to concentrate</h3>
+  <p>Hold a majority of a district's plots and every one of them earns more. It is the difference between owning scattered squares and owning a neighbourhood.</p>
+  <table>
+    <tr><th style="width:34%;">Plots you hold in a district</th><th class="r">All your plots there earn</th><th>What it means</th></tr>
+    <tr><td>1 – 2 of 7</td><td class="r money">normal</td><td>A foothold</td></tr>
+    <tr><td>3 of 7</td><td class="r money">+10%</td><td>A presence</td></tr>
+    <tr><td>4 of 7 — a majority</td><td class="r money">+25%</td><td><strong>District control.</strong> Your colour flies over it</td></tr>
+    <tr><td>6 of 7</td><td class="r money">+40%</td><td>Dominance — and a target on your back</td></tr>
+    <tr><td>All 7</td><td class="r money">+60%</td><td>Rare, prestigious, and expensive to defend</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Remember that the Ground Rent rate rises with concentration too. Holding a whole district is a genuine achievement with a genuine cost, not a purchase.</p>
+
+  <h3>The Frontier — why empty ground is valuable</h3>
+  <p>Most of the world has never been walked by a MovenRun player. That empty ground is not dead space; it is the cheapest opportunity in the game, and we pay people to go and find it.</p>
+  <div class="grid2">
+    <div class="card tint-green"><h4>First-footing bonus</h4><p style="margin-bottom:0;">The first player ever to move through a cell earns <strong>3× Effort</strong> for that session, and the plot is permanently marked with their name as its discoverer.</p></div>
+    <div class="card tint-blue"><h4>Frontier plots are cheap</h4><p style="margin-bottom:0;">Quiet ground costs about seven days of walking. A new player in an untouched town can build a district faster than a veteran fighting over a city centre.</p></div>
+    <div class="card tint-violet"><h4>It spreads the game outward</h4><p style="margin-bottom:0;">Without it, everyone would crowd the same downtown cells and the map would feel small. Rewarding exploration keeps a city interesting and keeps new towns viable.</p></div>
+    <div class="card tint-gold"><h4>It solves the cold start</h4><p style="margin-bottom:0;">The first fifty players in a new city are the ones with the most to gain — which is precisely the incentive a network needs at the moment it has the fewest people.</p></div>
+  </div>
+
+  <div class="callout ok">
+    <span class="tag">The balance we are aiming for</span>
+    <p>A city centre is expensive, contested, and lucrative. A quiet suburb is cheap, safe, and modest. The Frontier is free, uncontested, and rewards discovery. <strong>Three genuinely different ways to play, and no single correct one</strong> — which is what stops a territory game collapsing into everyone fighting over the same three streets.</p>
+  </div>
+</div>
+
+<!-- 14 CLUBS -->
+<div class="page">
+  <div class="sec-num">Part 4 · Playing together</div>
+  <h2 class="sec">Clubs and shared treasuries</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Clubs are the cheapest way we will ever acquire players, and the strongest reason anyone stays. They need a real economy of their own, not a chat room with a badge.</p>
+
+  <h3>How a club works</h3>
+  <table>
+    <tr><th style="width:26%;">Element</th><th>How it works</th></tr>
+    <tr><td><strong>Founding</strong></td><td>Any player can start one for 3,000 Stride — about twenty days of walking, or one day each if thirty people chip in.</td></tr>
+    <tr><td><strong>The treasury</strong></td><td>Members contribute Stride, usually a small automatic share of what they earn. The treasury is visible to every member.</td></tr>
+    <tr><td><strong>What it buys</strong></td><td>Club-held plots, district pushes, contest entries for the whole club, banners and colours, and shared upgrades that lift every member's land a little.</td></tr>
+    <tr><td><strong>Club plots</strong></td><td>Land held by the club, not an individual. Everyone's visits maintain its Condition, so it is far easier to defend than a personal plot.</td></tr>
+    <tr><td><strong>Roles</strong></td><td>Founder, officers, members. Officers approve spending; the treasury log is public inside the club so nothing can quietly disappear.</td></tr>
+    <tr><td><strong>Leaving</strong></td><td>You keep everything personal. You lose your share of club perks. Contributions are not refunded — which is what makes joining a real commitment.</td></tr>
+  </table>
+
+  <h3>Why clubs matter economically</h3>
+  <div class="grid3">
+    <div class="card tint-green" style="margin:0;"><h4>They are our acquisition channel</h4><p class="small" style="margin:0;">Running clubs, walking groups and gyms already exist and already meet. One captain brings thirty players in one conversation — and thirty players in one neighbourhood is instant density.</p></div>
+    <div class="card tint-blue" style="margin:0;"><h4>They multiply retention</h4><p class="small" style="margin:0;">Leaving a game is easy. Letting down a team you see every week is not. Social ties are the single strongest retention mechanism in any product of this kind.</p></div>
+    <div class="card tint-violet" style="margin:0;"><h4>They are a large, willing sink</h4><p class="small" style="margin:0;">Members contribute readily because the benefit is visible and shared. A club of thirty routinely spends far more than thirty individuals ever would.</p></div>
+  </div>
+
+  <h3>Guarding against fake clubs</h3>
+  <p>A club of thirty accounts run by one person would be an obvious way to farm shared rewards. Three rules make it pointless:</p>
+  <ul>
+    <li><strong>Rewards scale with <em>distinct verified movers</em>, not member count.</strong> Thirty accounts moving on one phone count as one.</li>
+    <li><strong>Diminishing returns per member.</strong> The tenth member adds meaningfully less than the second; the fiftieth adds almost nothing. Big clubs win by being active, not by being large.</li>
+    <li><strong>Club rewards are paid in Stride and standing, never in $MOVE.</strong> There is nothing sellable to farm.</li>
+  </ul>
+</div>
+
+<!-- 15 CITY WARS -->
+<div class="page">
+  <div class="sec-num">Part 4 · Playing together</div>
+  <h2 class="sec">How a contest actually runs</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">"City wars" needed to stop being a phrase and become a set of rules anyone could referee. Here they are.</p>
+
+  <h3>The shape of a season</h3>
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 116">
+      <g font-family="Liberation Sans,Arial">
+        <line x1="30" y1="58" x2="630" y2="58" stroke="#E4EAEF" stroke-width="3"/>
+        <g text-anchor="middle">
+          <circle cx="60" cy="58" r="9" fill="#18C987"/>
+          <text x="60" y="38" font-size="8.6" font-weight="700" fill="#111827">Day 1</text>
+          <text x="60" y="80" font-size="8" fill="#667085">Season opens</text>
+          <text x="60" y="92" font-size="8" fill="#667085">districts reset</text>
+
+          <circle cx="222" cy="58" r="7" fill="#246BFE"/>
+          <text x="222" y="38" font-size="8.6" font-weight="700" fill="#111827">Weeks 1–11</text>
+          <text x="222" y="80" font-size="8" fill="#667085">Weekly rounds. Each week</text>
+          <text x="222" y="92" font-size="8" fill="#667085">a district is the prize.</text>
+
+          <circle cx="408" cy="58" r="7" fill="#F7B955"/>
+          <text x="408" y="38" font-size="8.6" font-weight="700" fill="#111827">Week 12</text>
+          <text x="408" y="80" font-size="8" fill="#667085">Finals week. Double points,</text>
+          <text x="408" y="92" font-size="8" fill="#667085">no new challenges allowed.</text>
+
+          <circle cx="588" cy="58" r="9" fill="#7657FF"/>
+          <text x="588" y="38" font-size="8.6" font-weight="700" fill="#111827">Day 90</text>
+          <text x="588" y="80" font-size="8" fill="#667085">Settlement. Prizes paid,</text>
+          <text x="588" y="92" font-size="8" fill="#667085">rents charged, pool released.</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <h3>How a district is won</h3>
+  <div class="card tint-blue">
+    <p style="margin-bottom:0;"><strong>District score = the total Effort your club's members recorded inside that district this week, counted once per person per day, multiplied by the share of plots your club holds there.</strong></p>
+  </div>
+  <p>Three things follow from that one sentence, and each is deliberate:</p>
+  <ul>
+    <li><strong>You must actually go there.</strong> Effort counts only inside the district's boundary. No amount of running elsewhere helps.</li>
+    <li><strong>Numbers matter, but people matter more.</strong> Counting once per person per day means a club of twenty ordinary walkers beats three athletes running loops all day.</li>
+    <li><strong>Owning land is an advantage, not a victory.</strong> Holding plots multiplies your score but cannot win on its own — a club that stops showing up loses the district it owns.</li>
+  </ul>
+
+  <h3 class="pb" style="margin-top:0;">Challenging one plot</h3>
+  <table>
+    <tr><th style="width:22%;">Stage</th><th>What happens</th></tr>
+    <tr><td><strong>Declare</strong></td><td>Stake 120 $MOVE. You are refunded if you win. A 14-day window opens.</td></tr>
+    <tr><td><strong>Compete</strong></td><td>Both sides record Effort inside that plot. Counted once per person per day.</td></tr>
+    <tr><td><strong>Defend</strong></td><td>The holder can fortify with Stride — up to three times, each worth +20% for 24 hours.</td></tr>
+    <tr><td><strong>Loyalty counts</strong></td><td>Land held a long time defends better: +25% after 90 days, +50% after 180, +75% after a year.</td></tr>
+    <tr><td><strong>Settle</strong></td><td>Higher score takes the plot. The deed transfers automatically — <strong>no cooperation from the loser is required.</strong></td></tr>
+    <tr><td><strong>Cool off</strong></td><td>A losing challenger cannot attack that same plot for 30 days. A winner cannot be challenged for 14.</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">That fifth row fixes a real bug in the deployed contract, where a defender could simply refuse to release land they had lost. The plot is now escrowed from the moment a challenge opens.</p>
+
+  <h3>Where prize money comes from</h3>
+  <table>
+    <tr><th style="width:34%;">Source</th><th>Paid in</th><th>Notes</th></tr>
+    <tr><td>Sponsor funding</td><td>Real money, or goods</td><td>The largest and most desirable source</td></tr>
+    <tr><td>Entry fees</td><td>Stride</td><td>Recycled straight into the prize pool</td></tr>
+    <tr><td>A slice of the season pool</td><td>$MOVE</td><td>Only for Deed-holding participants</td></tr>
+    <tr><td>Forfeited challenge stakes</td><td>$MOVE</td><td>Losers fund winners — no new tokens created</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Three of those four create no new supply. Contests move value between players rather than printing it — which is why they can run weekly without inflating anything.</p>
+</div>
+
+<!-- 16 SPONSORS -->
+<div class="page">
+  <div class="sec-num">Part 4 · Playing together</div>
+  <h2 class="sec">How sponsorship actually works</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This is our best revenue line, so it needs to be a product a shop owner can understand in one minute and judge in one month.</p>
+
+  <h3>The five steps, from the sponsor's side</h3>
+  <table>
+    <tr><th style="width:16%;">Step</th><th style="width:34%;">What the sponsor does</th><th>What happens in the app</th></tr>
+    <tr><td><strong>1 · Pick</strong></td><td>Picks the plot their shop sits on, or a ring around it</td><td>Only plots with 20+ distinct verified visitors a week qualify</td></tr>
+    <tr><td><strong>2 · Fund</strong></td><td>Sets a monthly budget and campaign length</td><td>It becomes a bonus pool attached to those plots</td></tr>
+    <tr><td><strong>3 · Offer</strong></td><td>Picks the reward: bonus Effort, a badge, or a free coffee</td><td>The plot appears on the map with their mark and the reward</td></tr>
+    <tr><td><strong>4 · Attract</strong></td><td>Nothing — this part runs itself</td><td>Players re-route to pass through; every visit is verified</td></tr>
+    <tr><td><strong>5 · Read</strong></td><td>Opens a dashboard</td><td>Distinct visitors, repeat rate, times of day, lift vs the month before</td></tr>
+  </table>
+
+  <h3>What we charge <span class="badge fix">Illustrative — no signed customer yet</span></h3>
+  <table>
+    <tr><th style="width:26%;">Package</th><th class="r" style="width:22%;">Price</th><th>Who it is for, and what they get</th></tr>
+    <tr><td><strong>Doorstep</strong></td><td class="r money">$300 / month</td><td>One plot. A café, barber, or corner shop. Guarantees 400 verified visits or the next month is free.</td></tr>
+    <tr><td><strong>Block</strong></td><td class="r money">$750 / month</td><td>Up to five adjoining plots. A gym, small chain, or shopping parade.</td></tr>
+    <tr><td><strong>Pay per visit</strong></td><td class="r money">$0.45 each</td><td>No commitment. For sponsors who want to test first.</td></tr>
+    <tr><td><strong>District takeover</strong></td><td class="r money">$4,000 / season</td><td>A whole district for a season, with a named weekly contest.</td></tr>
+    <tr><td><strong>City war title</strong></td><td class="r money">$15,000 – 40,000</td><td>Naming rights to a season-long city competition. For brands and Base projects.</td></tr>
+    <tr><td><strong>Event day</strong></td><td class="r money">$5,000 – 60,000</td><td>Marathons, charity runs, festivals. Route-wide, with finisher badges.</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">A pub spending $300 a month buys roughly 400 verified people past its door — about <strong>75p each</strong>, with a report to prove it. A newspaper advert cannot be measured at all.</p>
+
+  <h3>Why a sponsor should trust the numbers</h3>
+  <div class="grid2">
+    <div class="card tint-green"><h4>Every visit is verified</h4><p style="margin-bottom:0;">The checks that guard the token guard the footfall report. A sponsor buys verified movement, not impressions.</p></div>
+    <div class="card tint-blue"><h4>Counted once per person per day</h4><p style="margin-bottom:0;">Walking past six times counts once. It keeps the number honest and stops players farming a sponsor's budget.</p></div>
+    <div class="card tint-violet"><h4>Minimum footfall to qualify</h4><p style="margin-bottom:0;">We will not sell sponsorship on a plot too quiet to deliver. Better to decline than hand over zeroes.</p></div>
+    <div class="card tint-gold"><h4>Measured against a baseline</h4><p style="margin-bottom:0;">Every report shows the four weeks before the campaign beside it. If it did not work, they see that too.</p></div>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">The rule that protects the game</span>
+    <p>A sponsor can add rewards. <strong>A sponsor can never take anything away, gate anything, or change who wins a contest.</strong> Sponsored plots are ordinary plots with a bonus attached — players who ignore them are never worse off. The moment sponsorship starts distorting the game, players stop trusting the map, and the audience we are selling stops existing.</p>
+  </div>
+</div>
+
+<!-- 17 ABUSE -->
+<div class="page">
+  <div class="sec-num">Part 5 · Safety</div>
+  <h2 class="sec">Twelve ways to cheat, and why each fails</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Written as an attacker would write it. If a defence here is weak, it is better that we find it than that someone else does.</p>
+
+  <table>
+    <tr><th style="width:26%;">The attack</th><th style="width:30%;">How it would work</th><th>Why it does not pay</th></tr>
+    <tr><td><strong>1 · Fake the GPS</strong></td><td>Spoof a route from the sofa</td><td>Speed, accuracy, continuity and duration checks; each route usable once; a signature required before anything is created</td></tr>
+    <tr><td><strong>2 · Drive the route</strong></td><td>Cover 40 km in a car</td><td>Anything above ~80 km/h is rejected — and beyond 10 km the reward is zero anyway</td></tr>
+    <tr><td><strong>3 · Farm by distance</strong></td><td>Run all day, every day</td><td>The Effort curve flattens at 10 km. A marathon earns 4.7× a short walk, not 56×</td></tr>
+    <tr><td><strong>4 · Mass free accounts</strong></td><td>Thousands of accounts walking</td><td>Free accounts earn only Stride, which has no market price and cannot leave the app</td></tr>
+    <tr><td><strong>5 · Farm then upgrade</strong></td><td>Build Stride on free accounts, convert to $MOVE</td><td><strong>Stride can never convert to $MOVE.</strong> There is no exchange rate to exploit</td></tr>
+    <tr><td><strong>6 · One phone, many accounts</strong></td><td>Run several accounts on one device</td><td>Device attestation; one Home Plot per verified person; a plot's value counts distinct movers, and a device cluster counts once</td></tr>
+    <tr><td><strong>7 · Friendly challenges</strong></td><td>Attack a friend's plot to farm rewards</td><td>Prizes come from the loser's stake. It is zero-sum between them; no new tokens exist to farm</td></tr>
+    <tr><td><strong>8 · Wash-trade land</strong></td><td>Sell deeds to yourself to fake a market</td><td>A 2.5% fee each way, loyalty resets to zero on transfer, and Ground Rent keeps accruing. Round-tripping costs real money and destroys the land's defensive value</td></tr>
+    <tr><td><strong>9 · Corner a district</strong></td><td>Buy every plot in a valuable area</td><td>Ground Rent rises progressively with concentration — triple rate beyond sixteen plots. And you must still visit them all</td></tr>
+    <tr><td><strong>10 · Bot clubs</strong></td><td>Thirty accounts, one operator</td><td>Club rewards count distinct verified movers with diminishing returns per member, and pay only in Stride and standing</td></tr>
+    <tr><td><strong>11 · Milk a sponsor</strong></td><td>Walk past a sponsored shop fifty times</td><td>Counted once per person per day. Fifty visits pay exactly as much as one</td></tr>
+    <tr><td><strong>12 · Buy a whole city early</strong></td><td>Arrive with capital, take the map</td><td>You cannot claim a plot without visiting it five times in a fortnight. Capital cannot substitute for being there</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The principle underneath all twelve</span>
+    <p><strong>Anything that can be automated earns nothing sellable, and anything sellable requires being in a real place over real time.</strong> Every defence above is an application of that one rule. It is also why the free tier can be completely open — an account that costs nothing to make is worth nothing to farm.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">Stated honestly</span>
+    <p>No location system is perfectly spoof-proof, and we do not claim otherwise. A determined attacker with real devices moving in real places can extract some value — but they would be, in effect, playing the game. The design goal is not perfection; it is that <strong>cheating costs more than playing.</strong></p>
+  </div>
+</div>
+
+<!-- 18 STRESS TEST -->
+<div class="page">
+  <div class="sec-num">Part 5 · Safety</div>
+  <h2 class="sec">The worst case: 70% landowners</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">You asked us to model the uncomfortable version — most of the network holding deeds, most of them wanting to sell. Here it is, with nothing softened.</p>
+
+  <div class="assume" style="background:#FFFBF3;border:1px dashed #E8C88F;border-radius:10px;padding:10px 13px;margin:0 0 11px;">
+    <h4 style="margin:0 0 4px;color:#9A6B10;font-size:8.6pt;letter-spacing:1px;text-transform:uppercase;">The scenario</h4>
+    <ul style="margin:0;font-size:9pt;padding-left:15pt;">
+      <li>100,000 active players — enough that the season pool is fully drawn down</li>
+      <li><strong>70% hold deeds</strong> and qualify for $MOVE; only 30% are free players</li>
+      <li>Half of them take Quick Claim at 60%; half wait for the full amount</li>
+      <li>Of what they claim, they sell <strong>70%</strong></li>
+    </ul>
+  </div>
+
+  <table>
+    <tr><th style="width:56%;">Per season</th><th class="r">$MOVE</th></tr>
+    <tr><td>Released by the pool (at the ceiling)</td><td class="r money">9.00M</td></tr>
+    <tr><td>Going to deed holders — 70% of players</td><td class="r money">6.30M</td></tr>
+    <tr><td>Reduced by Quick Claim choices</td><td class="r money">− 1.26M returns to the pool</td></tr>
+    <tr><td>Actually claimed</td><td class="r money">5.04M</td></tr>
+    <tr class="tot"><td>Sold onto the market — 70% of claims</td><td class="r money">3.53M &nbsp;(1.18M a month)</td></tr>
+    <tr><td>Destroyed by deeds, upgrades, stakes, rent, fees</td><td class="r money">13.51M</td></tr>
+    <tr class="tot"><td>Destroyed for every token sold</td><td class="r money"><strong>3.8×</strong></td></tr>
+  </table>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 112">
+      <g font-family="Liberation Sans,Arial">
+        <text x="6" y="16" font-size="9.4" font-weight="700" fill="#111827">Per season, at the hardest setting we could think of</text>
+        <rect x="6" y="26" width="120" height="30" rx="4" fill="#FF6B4A"/>
+        <text x="66" y="46" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">sold 3.5M</text>
+        <rect x="6" y="64" width="306" height="30" rx="4" fill="#246BFE"/>
+        <text x="159" y="84" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">released 9.0M</text>
+        <rect x="330" y="64" width="0" height="0"/>
+        <rect x="6" y="64" width="0" height="0"/>
+        <rect x="336" y="26" width="318" height="68" rx="6" fill="#18C987"/>
+        <text x="495" y="58" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">destroyed 13.5M</text>
+        <text x="495" y="76" font-size="8.4" fill="#E4F8EF" text-anchor="middle">deeds &#183; upgrades &#183; stakes &#183; rent &#183; fees &#183; cosmetics</text>
+        <text x="6" y="108" font-size="8.2" fill="#667085">More is destroyed than is created; nearly four times more is destroyed than is sold.</text>
+      </g>
+    </svg>
+  </div>
+
+  <h3>The three things holding it up — and what breaks each</h3>
+  <table>
+    <tr><th style="width:26%;">What carries the weight</th><th style="width:30%;">What it depends on</th><th>What we do if it fails</th></tr>
+    <tr><td><strong>An active land economy</strong></td><td>4,000 deed conversions and 1,150 high-tier upgrades a month</td><td>The honest risk. If land is quiet, the sinks shrink and selling dominates. Answer: the Revenue Valve cuts the next pool automatically</td></tr>
+    <tr><td><strong>Quick Claim take-up</strong></td><td>Roughly half choosing the instant option</td><td>If almost nobody takes it, more reaches the market but 30 days later, which is far easier to absorb</td></tr>
+    <tr><td><strong>The Growth Gate</strong></td><td>Nothing — it is arithmetic</td><td>Cannot fail. It is a hard ceiling in the contract</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <span class="tag">Do not oversell this page</span>
+    <p>The stress test shows the <em>structure</em> is sound at 70% landowners. It does not show that 4,000 people a month will want to convert a deed — that is an assumption, and it is the single number that would break the model if it turned out to be ten times smaller. <strong>Present it as "the mechanism holds if the land economy is real, and proving the land economy is real is what the first city is for."</strong></p>
+  </div>
+</div>
+
+<!-- 19 REAL ECONOMIES -->
+<div class="page">
+  <div class="sec-num">Part 5 · Safety</div>
+  <h2 class="sec">Borrowed from real economies</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Almost nothing in this design is new. Each mechanism is something countries or long-running games have already tested at scale — which is the main reason to believe it will work.</p>
+
+  <table>
+    <tr><th style="width:24%;">Our mechanism</th><th style="width:24%;">Where it comes from</th><th>What it solves</th></tr>
+    <tr><td><strong>Days of Walking</strong></td><td>Index-linked pensions and wages</td><td>Stops a shrinking reward quietly making everything unaffordable. The number changes; the effort never does</td></tr>
+    <tr><td><strong>Ground Rent</strong></td><td>Land value tax — Henry George</td><td>Charges people for occupying scarce ground rather than for the work they do on it. Speculators pay; residents do not</td></tr>
+    <tr><td><strong>Progressive rent bands</strong></td><td>Income tax bands</td><td>Makes cornering a district expensive without punishing ordinary players</td></tr>
+    <tr><td><strong>Vault limit</strong></td><td>Clash of Clans storage caps</td><td>Turns a growing balance into circulating money by giving everyone a standing reason to spend</td></tr>
+    <tr><td><strong>Two currencies</strong></td><td>Every successful game economy since the 1990s</td><td>Keeps everyday play affordable while something genuinely scarce still exists</td></tr>
+    <tr><td><strong>Cost and income rising together</strong></td><td>Clash of Clans upgrade curves</td><td>The grind never lengthens, so players never hit a wall and quit</td></tr>
+    <tr><td><strong>Quick Claim discount</strong></td><td>Notice accounts, early-redemption bonds</td><td>Spreads selling out without confiscating anything from anyone</td></tr>
+    <tr><td><strong>Emission floor</strong></td><td>Central bank inflation targets</td><td>An economy needs a small steady heartbeat, not a fade to zero</td></tr>
+    <tr><td><strong>Growth Gate</strong></td><td>Production quotas</td><td>Growth cannot inflate supply; it can only make each share smaller</td></tr>
+    <tr><td><strong>Revenue Valve</strong></td><td>Sovereign wealth funds — Norway</td><td>What can be paid out is bounded by what the enterprise actually earns</td></tr>
+    <tr><td><strong>First-footing bonus</strong></td><td>Homestead acts</td><td>Rewards the people who go where nobody has been, which is where a network most needs them</td></tr>
+    <tr><td><strong>Dormancy reclaim</strong></td><td>Adverse possession</td><td>Land that nobody uses returns to circulation instead of freezing the map</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The thread running through all of it</span>
+    <p>Every one of these mechanisms does the same job in a different place: <strong>it keeps value moving.</strong> The failure mode of a game economy is not too little money — it is money sitting still, in balances nobody spends and land nobody uses. Almost every rule in this document exists to keep something circulating.</p>
+  </div>
+</div>
+
+<!-- 20 JOURNEYS -->
+<div class="page">
+  <div class="sec-num">Part 6 · In practice</div>
+  <h2 class="sec">Three players, twelve months</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The test of an economy is not whether it balances on a spreadsheet. It is whether an ordinary person's year in it makes sense.</p>
+
+  <div class="card tint-green">
+    <h4>Meera — 750 metres, five mornings a week, never spends a penny</h4>
+    <table style="margin-top:8px;margin-bottom:0;">
+      <tr><th style="width:18%;">When</th><th>What happens</th></tr>
+      <tr><td><strong>Day 1</strong></td><td>Claims her Home Plot outside her building. Free, permanent, cannot be taken.</td></tr>
+      <tr><td><strong>Day 22</strong></td><td>Claims her second plot — the park she walks through — with 1,000 Stride and five visits.</td></tr>
+      <tr><td><strong>Day 88</strong></td><td>That plot is level 4. It now earns more each day than her walking does.</td></tr>
+      <tr><td><strong>Month 5</strong></td><td>Joins a neighbourhood club. Her Vault stops filling up because she is contributing.</td></tr>
+      <tr><td><strong>Month 8</strong></td><td>Holds five plots. Ground Rent: zero — she visits all of them anyway.</td></tr>
+      <tr><td><strong>Month 12</strong></td><td>Converts her best plot into a Deed for $9 — her only spend all year — and starts earning $MOVE.</td></tr>
+    </table>
+  </div>
+
+  <div class="card tint-blue">
+    <h4>Daniel — 5 km runs, six days a week, buys a deed on day one</h4>
+    <table style="margin-top:8px;margin-bottom:0;">
+      <tr><th style="width:18%;">When</th><th>What happens</th></tr>
+      <tr><td><strong>Week 1</strong></td><td>Claims his Home Plot and two more along his usual route. Buys a Deed conversion immediately for $9.</td></tr>
+      <tr><td><strong>Month 2</strong></td><td>First season rewards: about 340 $MOVE. Takes Full Claim and waits the 30 days.</td></tr>
+      <tr><td><strong>Month 4</strong></td><td>Holds four of the seven plots in his district — +25% on all of them.</td></tr>
+      <tr><td><strong>Month 6</strong></td><td>Loses a plot to a rival club that simply showed up more often. Wins it back in week 11.</td></tr>
+      <tr><td><strong>Month 9</strong></td><td>Spends 1,200 $MOVE on a level 5 upgrade. Sells about a third of the rest.</td></tr>
+      <tr><td><strong>Month 12</strong></td><td>Has earned roughly 1,300 $MOVE, spent about 1,500, and holds a developed district. <strong>Net a consumer of tokens, not a seller.</strong></td></tr>
+    </table>
+  </div>
+
+  <div class="card tint-coral">
+    <h4>An operator running 40 accounts on a rack of phones</h4>
+    <table style="margin-top:8px;margin-bottom:0;">
+      <tr><th style="width:18%;">Attempt</th><th>Outcome</th></tr>
+      <tr><td><strong>Spoofed routes</strong></td><td>Rejected at verification. Nothing is ever created.</td></tr>
+      <tr><td><strong>Real devices, real walking</strong></td><td>Works — but 40 accounts must each be walked, in five different places, five times a fortnight.</td></tr>
+      <tr><td><strong>What they earn</strong></td><td>Stride. No market price, cannot leave the app, cannot become $MOVE.</td></tr>
+      <tr><td><strong>Converting to Deeds</strong></td><td>40 × $9, plus 60 days of holding each — before earning a single sellable token.</td></tr>
+      <tr><td><strong>The economics</strong></td><td>Real phones, real electricity, real walking, real months. <strong>Cheaper to walk once themselves and play properly.</strong></td></tr>
+    </table>
+  </div>
+
+  <div class="callout ok">
+    <span class="tag">What these three show</span>
+    <p>The person who spends nothing still owns land, joins a club, and reaches a deed. The person who pays gets there faster and deeper, but is a <em>net spender</em> of tokens. And the person trying to extract value finds the cheapest route is to become an ordinary player. <strong>All three outcomes are the ones we want.</strong></p>
+  </div>
+</div>
+
+<!-- 21 REVENUE -->
+<div class="page">
+  <div class="sec-num">Part 6 · In practice</div>
+  <h2 class="sec">What the company earns</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Unchanged in principle from version 2, but the numbers move: deeds are cheaper and far more common, and there is a new line — cosmetics — that did not exist before.</p>
+
+  <table>
+    <tr><th style="width:30%;">Line</th><th style="width:28%;">How it is priced</th><th class="r">One city<br>1,000 players</th><th class="r">At scale<br>100,000 players</th></tr>
+    <tr><td><strong>Sponsors</strong></td><td>$300–750/mo, or per visit</td><td class="r money">$1,500</td><td class="r money">$190,000</td></tr>
+    <tr><td><strong>Deed conversions</strong></td><td>$9, or 300 $MOVE</td><td class="r money">$540</td><td class="r money">$36,000</td></tr>
+    <tr><td><strong>Subscriptions</strong></td><td>$4.99 basic / $9.99 full</td><td class="r money">$400</td><td class="r money">$45,000</td></tr>
+    <tr><td><strong>Marketplace fee</strong></td><td>1.25% to the company</td><td class="r money">$190</td><td class="r money">$25,000</td></tr>
+    <tr><td><strong>Events &amp; city wars</strong></td><td>$5K–60K per event</td><td class="r money">—</td><td class="r money">$85,000</td></tr>
+    <tr><td><strong>Club &amp; sponsor tools</strong></td><td>$9–2,000/mo</td><td class="r money">$180</td><td class="r money">$40,000</td></tr>
+    <tr class="tot"><td>Total per month</td><td></td><td class="r money">$2,810</td><td class="r money">$421,000</td></tr>
+    <tr class="tot"><td>Annualised</td><td></td><td class="r money">$34K</td><td class="r money">$5.1M</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">These are <strong>illustrative models, not forecasts.</strong> We have no paying customers and no validated pricing. Note this is deliberately more conservative than version 2's headline: deeds now cost $9 rather than being a large $MOVE purchase, and we have dropped the aggressive land-trading volume assumption entirely.</p>
+
+  <h3>The two changes worth explaining</h3>
+  <div class="grid2">
+    <div class="card tint-gold"><h4>Deeds got cheap on purpose</h4><p style="margin-bottom:0;">$9 instead of a large token purchase. We lose revenue per deed and gain far more deeds — and every deed holder is a candidate for subscriptions, contests, and sponsorship reach. <strong>Access first, margin later.</strong></p></div>
+    <div class="card tint-blue"><h4>A cheaper subscription tier</h4><p style="margin-bottom:0;">$9.99 matched mature fitness apps with years of trust. A $4.99 tier covering privacy and club tools will convert far better, and we can test both from day one.</p></div>
+  </div>
+
+  <h3>What it costs to serve a player — unchanged and still excellent</h3>
+  <table>
+    <tr><th style="width:50%;">Cost</th><th class="r">Per player per year</th></tr>
+    <tr><td>Blockchain fees, which we pay on the player's behalf</td><td class="r money">~$1.20</td></tr>
+    <tr><td>Servers, database, queues</td><td class="r money">~$1.00</td></tr>
+    <tr><td>Wallet provider <span class="badge fix">still unknown</span></td><td class="r money">to be determined</td></tr>
+    <tr class="tot"><td>Contribution margin</td><td class="r money">above 90%</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Note that Stride never touches the blockchain at all, which is why the fee line stays this small even though players transact constantly. Only deeds, conversions, trades and the season pool are ever written on-chain.</p>
+</div>
+
+<!-- 22 WHAT IT NEEDS -->
+<div class="page">
+  <div class="sec-num">Part 6 · In practice</div>
+  <h2 class="sec">What this needs, and what is still open</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This is a design, not a shipped system. Here is honestly what has to be built and what we have not settled.</p>
+
+  <h3>What has to be built</h3>
+  <table>
+    <tr><th style="width:26%;">Piece</th><th style="width:18%;">Where it lives</th><th>Notes</th></tr>
+    <tr><td><strong>Stride</strong></td><td>Backend only</td><td>Never on the blockchain. Earning, Vault, spending, upkeep. The largest single piece of work, and the cheapest to run.</td></tr>
+    <tr><td><strong>Effort curve</strong></td><td>Backend</td><td>Sits in the existing verification service. A small change to code that already works.</td></tr>
+    <tr><td><strong>Plots &amp; levels</strong></td><td>Backend</td><td>Plots are off-chain until they become Deeds. Cheap, fast, no fees.</td></tr>
+    <tr><td><strong>Days of Walking index</strong></td><td>Backend, read on-chain</td><td>A rolling 30-day median, published for anyone to check.</td></tr>
+    <tr><td><strong>Season pool &amp; Growth Gate</strong></td><td><strong>New contract</strong></td><td>The deployed contract pays a fixed rate per kilometre. This replaces it.</td></tr>
+    <tr><td><strong>Quick Claim / Full Claim</strong></td><td><strong>New contract</strong></td><td>Straightforward vesting logic; well-understood patterns exist.</td></tr>
+    <tr><td><strong>Deeds with escrow</strong></td><td><strong>New contract</strong></td><td>Fixes the deployed bug where a defender could refuse to hand over land they had lost.</td></tr>
+    <tr><td><strong>Ground Rent</strong></td><td><strong>New contract</strong></td><td>Replaces the Great Burn, which currently does not burn anything anyway.</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Four new contracts. That was already necessary — our own audit lists fifteen defects in the deployed set, two of them critical. <strong>This design does not create the need for new contracts; it decides what they should say.</strong></p>
+
+  <h3>What we have not settled</h3>
+  <table>
+    <tr><th style="width:32%;">Open question</th><th>Why it matters</th></tr>
+    <tr><td><strong>Is 100 Stride per Effort right?</strong></td><td>It sets the scale of every price in the game. Easy to change before launch, painful after.</td></tr>
+    <tr><td><strong>Is 38 days the right payback?</strong></td><td>Shorter feels generous but empties sinks; longer feels like a grind. This needs real players to settle.</td></tr>
+    <tr><td><strong>Will 4% of players convert a deed each month?</strong></td><td>The single assumption the whole sink model rests on. Untested.</td></tr>
+    <tr><td><strong>$9 for a deed — right price?</strong></td><td>Low enough to be impulsive, high enough to stop mass sybil accounts. Both ends need testing.</td></tr>
+    <tr><td><strong>Six visits a season to waive rent</strong></td><td>Generous enough that nobody is caught out, strict enough to free dead land. A guess for now.</td></tr>
+    <tr><td><strong>Does Quick Claim get used?</strong></td><td>We assume half. If almost nobody uses it, sell pressure is later but larger.</td></tr>
+    <tr><td><strong>Region rules for tradeable rewards</strong></td><td>Needs legal advice we have not yet paid for. Free play is unaffected either way.</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <span class="tag">The honest summary</span>
+    <p>The <em>structure</em> of this economy is sound and borrows from mechanisms proven at national and game scale. The <em>numbers</em> are calibrated but unvalidated — every one of them comes from our own modelling rather than from watching real players. The first city exists to replace roughly a dozen assumptions with measurements, and we should expect several of them to be wrong.</p>
+  </div>
+</div>
+
+<!-- 23 CHEAT SHEET -->
+<div class="page">
+  <div class="sec-num">Reference</div>
+  <h2 class="sec">The whole thing on one page</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Everything you need to explain this economy to somebody else, in the order you would say it.</p>
+
+  <h3>The nine sentences</h3>
+  <ol style="font-size:10.4pt;line-height:1.6;">
+    <li><strong>You earn by moving, and your first kilometre counts most</strong> — so a 750-metre walk is a real way to play and a marathon is not a farm.</li>
+    <li><strong>Everyday play runs on Stride</strong>, which everyone earns, nobody can sell, and everybody spends.</li>
+    <li><strong>Every price is set in days of walking, not tokens</strong> — so however the economy moves, the effort never changes.</li>
+    <li><strong>Your first plot of land is free</strong>, and further plots are claimed by showing up, not by paying.</li>
+    <li><strong>Each land upgrade earns back its own cost in about five weeks</strong>, at every level, for ever — so nobody hits a wall.</li>
+    <li><strong>Holding land costs a small rent, waived entirely by visiting it</strong> — so active players pay nothing and absentees pay every season.</li>
+    <li><strong>$MOVE is scarce, tradeable, and never needed to keep playing</strong> — only for tradeable deeds, top-tier upgrades, and votes.</li>
+    <li><strong>You can take 60% of your rewards today or 100% in a month</strong>, and the difference funds the players who wait.</li>
+    <li><strong>The company earns from sponsors, subscriptions and events</strong> — real money from people who are not buying a token.</li>
+  </ol>
+
+  <div class="rule2"></div>
+
+  <h3>The numbers worth memorising</h3>
+  <div class="grid3">
+    <div class="kpi"><div class="n" style="color:var(--green);">4.7×</div><div class="l">What a marathon earns versus a 750 m walk — for 56× the distance</div></div>
+    <div class="kpi"><div class="n" style="color:var(--blue);">38 days</div><div class="l">Payback on every land upgrade, at every level</div></div>
+    <div class="kpi"><div class="n" style="color:var(--violet);">13 days</div><div class="l">Of ordinary walking to claim your second plot</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gold);">$9</div><div class="l">To convert a plot into a tradeable deed — or six months of saving</div></div>
+    <div class="kpi"><div class="n" style="color:var(--coral);">3.8×</div><div class="l">Tokens destroyed for every token sold, at the worst case</div></div>
+    <div class="kpi"><div class="n">56 yrs</div><div class="l">How long the reward reserve now funds seasons</div></div>
+  </div>
+
+  <div class="rule2"></div>
+
+  <h3>The three questions people will ask first</h3>
+  <div class="qa" style="margin-bottom:10px;">
+    <div style="font-weight:700;font-size:10pt;">"Won't it get too expensive to keep up?"</div>
+    <div style="font-size:9.4pt;color:#333A47;line-height:1.5;">No — prices are set in days of walking, so they move with earnings, and every upgrade pays for itself in about five weeks whatever level you are on.</div>
+  </div>
+  <div class="qa" style="margin-bottom:10px;">
+    <div style="font-weight:700;font-size:10pt;">"How does a new player with no money get land?"</div>
+    <div style="font-size:9.4pt;color:#333A47;line-height:1.5;">Their first plot is free on day one. The next one costs about a fortnight of walking and five visits — no money, no token, no wallet at any point.</div>
+  </div>
+  <div class="qa">
+    <div style="font-weight:700;font-size:10pt;">"What stops free accounts farming and dumping?"</div>
+    <div style="font-size:9.4pt;color:#333A47;line-height:1.5;">Free accounts earn Stride, which has no market price and can never convert into $MOVE. The only way to the tradeable token is holding real land in a real place for sixty days.</div>
+  </div>
+
+  <div class="footer-note">
+    <strong>MovenRun — The Economy, Rebuilt. Version 3.0 · August 2026.</strong> Confidential; prepared for partner review. Replaces the Economy &amp; Investment Brief v2 and the Revenue Economy Blueprint v1.
+    This document describes a design proposal requiring four new smart contracts; it is not a description of a shipped system. All revenue figures are illustrative models, not forecasts — there are no paying customers and no validated pricing.
+    $MOVE does not trade anywhere; there has been no sale, listing, liquidity or allocation. Plots and Deeds are game assets, not real-world property. Nothing here is financial advice, an offer, or a promise of returns.
+  </div>
+</div>
+
+</body>
+</html>
