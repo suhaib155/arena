@@ -1,0 +1,1847 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MovenRun — Economy &amp; Investment Brief</title>
+<style>
+:root{
+  --morning:#F8FAF7; --cloud:#FFFFFF; --mist:#F1F6F3; --pale:#EAF6FF;
+  --ink:#111827; --graphite:#667085; --silver:#A3AAB8;
+  --blue:#246BFE; --green:#18C987; --mint:#58F2B3; --coral:#FF6B4A;
+  --gold:#F7B955; --violet:#7657FF; --red:#EF4444; --dust:#D0D5DD;
+  --line:#E4EAEF;
+}
+@page { size:A4; margin:14mm 14mm 15mm 14mm; }
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Liberation Sans","DejaVu Sans",Arial,sans-serif;
+  color:var(--ink); background:var(--cloud);
+  font-size:9.9pt; line-height:1.52; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+h1,h2,h3,h4{ margin:0; line-height:1.22; }
+p{margin:0 0 7.5pt;}
+a{color:var(--blue);text-decoration:none;}
+
+/* ---------- structural ---------- */
+.page{ page-break-after:always; }
+.page:last-child{ page-break-after:auto; }
+.nobreak{ page-break-inside:avoid; }
+.pb{ page-break-before:always; }
+.pb{ page-break-before:always; }
+
+/* ---------- cover ---------- */
+.cover{
+  height:299mm; display:flex; flex-direction:column; justify-content:space-between;
+  background:linear-gradient(160deg,#FFFFFF 0%,#EAF6FF 46%,#F1F6F3 100%);
+  margin:-14mm -14mm -15mm -14mm; padding:22mm 20mm 26mm;
+}
+.brandmark{display:flex;align-items:center;gap:10px;}
+.brandmark .name{font-size:16pt;font-weight:700;letter-spacing:-0.3px;}
+.cover h1{font-size:44pt;font-weight:700;letter-spacing:-1.6px;margin:0 0 10px;}
+.cover .sub{font-size:14pt;color:var(--graphite);font-weight:400;max-width:135mm;line-height:1.45;}
+.eyebrow{
+  display:inline-block;font-size:8.4pt;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--blue);background:rgba(36,107,254,.10);border:1px solid rgba(36,107,254,.22);
+  padding:5px 12px;border-radius:999px;
+}
+.cover-meta{display:flex;gap:26px;flex-wrap:wrap;border-top:1px solid rgba(17,24,39,.12);padding-top:14px;}
+.cover-meta div{font-size:9pt;color:var(--graphite);}
+.cover-meta strong{display:block;color:var(--ink);font-size:10pt;margin-bottom:2px;}
+
+/* ---------- section headers ---------- */
+.sec-num{
+  font-size:8.4pt;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--blue);
+  margin-bottom:5px;
+}
+h2.sec{ font-size:19.5pt; font-weight:700; letter-spacing:-0.7px; margin:0 0 6px; }
+.sec-lede{ font-size:10.8pt; color:var(--graphite); line-height:1.45; margin:0 0 12px; max-width:162mm;}
+.rule{height:3px;width:52px;background:var(--blue);border-radius:2px;margin:0 0 11px;}
+h3{ font-size:11.8pt; font-weight:700; margin:12.5pt 0 5pt; letter-spacing:-0.2px;}
+h4{ font-size:10.2pt; font-weight:700; margin:9pt 0 3.5pt;}
+
+/* ---------- content bits ---------- */
+ul,ol{margin:0 0 8pt; padding-left:15pt;}
+li{margin-bottom:3.6pt;}
+li::marker{color:var(--blue);}
+strong{font-weight:700;}
+.small{font-size:9pt;color:var(--graphite);}
+
+.card{
+  background:var(--cloud);border:1px solid var(--line);border-radius:12px;
+  padding:11px 13px;margin:0 0 9px;
+}
+.card.tint-blue{background:#F3F7FF;border-color:#D6E4FF;}
+.card.tint-green{background:#F0FBF6;border-color:#C9EEDD;}
+.card.tint-violet{background:#F6F3FF;border-color:#DED4FF;}
+.card.tint-gold{background:#FFF9EF;border-color:#F5E3C0;}
+.card.tint-coral{background:#FFF4F1;border-color:#FBD8CD;}
+.card h4{margin-top:0;}
+.card p:last-child{margin-bottom:0;}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;}
+
+.kpi{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--cloud);}
+.kpi .n{font-size:19pt;font-weight:700;letter-spacing:-0.8px;line-height:1.1;}
+.kpi .l{font-size:8.6pt;color:var(--graphite);margin-top:3px;line-height:1.35;}
+
+table{width:100%;border-collapse:collapse;margin:0 0 10px;font-size:8.9pt;}
+th{
+  text-align:left;background:var(--mist);color:var(--ink);font-weight:700;
+  padding:6px 9px;border-bottom:2px solid var(--line);font-size:8.3pt;
+  text-transform:uppercase;letter-spacing:0.5px;
+}
+td{padding:5.5px 9px;border-bottom:1px solid var(--line);vertical-align:top;}
+tr:nth-child(even) td{background:#FBFCFD;}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+.callout{
+  border-left:4px solid var(--blue);background:#F3F7FF;border-radius:0 10px 10px 0;
+  padding:10px 13px;margin:0 0 10px;
+}
+.callout.warn{border-left-color:var(--coral);background:#FFF4F1;}
+.callout.ok{border-left-color:var(--green);background:#F0FBF6;}
+.callout p:last-child{margin-bottom:0;}
+.callout .tag{
+  font-size:8pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--blue);display:block;margin-bottom:4px;
+}
+.callout.warn .tag{color:var(--coral);}
+.callout.ok .tag{color:#0E9C68;}
+
+.pill{
+  display:inline-block;font-size:8pt;font-weight:700;padding:3px 9px;border-radius:999px;
+  letter-spacing:.4px;
+}
+.pill.built{background:#E4F8EF;color:#0E7A52;}
+.pill.progress{background:#FFF3DC;color:#9A6B10;}
+.pill.planned{background:#EEF1F5;color:#5A6473;}
+
+.figure{margin:4px 0 11px;}
+.figure svg{display:block;width:100%;height:auto;}
+.figcap{font-size:8.3pt;color:var(--graphite);margin-top:5px;text-align:center;font-style:italic;}
+
+.toc-item{
+  display:flex;align-items:baseline;gap:9px;padding:6.5px 0;border-bottom:1px solid var(--line);
+}
+.toc-item .n{
+  font-size:8.6pt;font-weight:700;color:var(--blue);min-width:24px;
+  font-variant-numeric:tabular-nums;
+}
+.toc-item .t{font-weight:700;font-size:10.2pt;}
+.toc-item .d{color:var(--graphite);font-size:9pt;margin-left:auto;text-align:right;max-width:88mm;}
+
+.footer-note{
+  margin-top:16px;padding-top:9px;border-top:1px solid var(--line);
+  font-size:8.4pt;color:var(--silver);line-height:1.5;
+}
+.two-col{column-count:2;column-gap:14px;}
+.two-col p, .two-col li{break-inside:avoid;}
+.glossary dt{font-weight:700;font-size:8.9pt;margin-top:4.5px;}
+.glossary dd{margin:0.5px 0 0;font-size:8.5pt;color:var(--graphite);line-height:1.38;}
+.check{list-style:none;padding-left:0;}
+.check li{padding-left:20px;position:relative;}
+.check li:before{
+  content:"";position:absolute;left:0;top:6px;width:11px;height:11px;border-radius:3px;
+  border:1.6px solid var(--blue);
+}
+</style>
+<style>
+.badge{display:inline-block;font-size:7.2pt;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+  padding:2px 7px;border-radius:5px;margin-left:6px;white-space:nowrap;}
+.badge.real{background:#E4F8EF;color:#0E7A52;}
+.badge.model{background:#FFF3DC;color:#9A6B10;}
+.badge.plan{background:#EEF1F5;color:#5A6473;}
+.money{font-variant-numeric:tabular-nums;white-space:nowrap;}
+td.r,th.r{text-align:right;}
+tr.tot td{background:#F3F7FF !important;font-weight:700;border-top:2px solid #D6E4FF;}
+tr.neg td{color:#B03A1C;}
+.assume{background:#FFFBF3;border:1px dashed #E8C88F;border-radius:10px;padding:10px 13px;margin:0 0 11px;}
+.assume h4{margin:0 0 4px;color:#9A6B10;font-size:8.6pt;letter-spacing:1px;text-transform:uppercase;}
+.assume ul{margin:0;font-size:9pt;padding-left:15pt;}
+.assume li{margin-bottom:2.5pt;}
+.stepn{display:inline-block;min-width:17px;height:17px;line-height:17px;text-align:center;border-radius:50%;
+  background:var(--blue);color:#fff;font-size:8pt;font-weight:700;margin-right:6px;}
+.qa{margin-bottom:10px;}
+.qa .q{font-weight:700;font-size:10pt;color:var(--ink);margin-bottom:2px;}
+.qa .a{font-size:9.4pt;color:#333A47;line-height:1.5;}
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="page">
+<div class="cover">
+  <div class="brandmark">
+    <svg width="34" height="38" viewBox="0 0 34 38"><polygon points="17,1 33,10 33,28 17,37 1,28 1,10" fill="#246BFE"/><polygon points="17,8 27,13.5 27,24.5 17,30 7,24.5 7,13.5" fill="#FFFFFF" opacity=".92"/><polygon points="17,13 23,16.2 23,22.8 17,26 11,22.8 11,16.2" fill="#18C987"/></svg>
+    <span class="name">MovenRun</span>
+  </div>
+
+  <div>
+    <span class="eyebrow">Economy &amp; Investment Brief · Confidential</span>
+    <h1 style="margin-top:16px;">Where the<br>money<br>comes from.</h1>
+    <p class="sub">How tokens work, how ours works, how the business earns real revenue, and what makes it investable — explained from zero.</p>
+  </div>
+
+  <div>
+    <div class="figure" style="max-width:154mm;margin-bottom:18px;">
+      <svg viewBox="0 0 646 112">
+        <defs><marker id="cvA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#A3AAB8"/></marker></defs>
+        <g font-family="Liberation Sans,Arial" text-anchor="middle">
+          <rect x="4" y="30" width="130" height="50" rx="10" fill="#246BFE"/>
+          <text x="69" y="52" font-size="10.5" font-weight="700" fill="#fff">MOVEMENT</text>
+          <text x="69" y="67" font-size="8" fill="#D6E4FF">creates the token</text>
+          <line x1="142" y1="55" x2="176" y2="55" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cvA)"/>
+          <rect x="184" y="30" width="130" height="50" rx="10" fill="#18C987"/>
+          <text x="249" y="52" font-size="10.5" font-weight="700" fill="#fff">THE GAME</text>
+          <text x="249" y="67" font-size="8" fill="#E4F8EF">spends and burns it</text>
+          <line x1="322" y1="55" x2="356" y2="55" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cvA)"/>
+          <rect x="364" y="30" width="130" height="50" rx="10" fill="#7657FF"/>
+          <text x="429" y="52" font-size="10.5" font-weight="700" fill="#fff">TERRITORY</text>
+          <text x="429" y="67" font-size="8" fill="#DED4FF">holds the value</text>
+          <line x1="502" y1="55" x2="536" y2="55" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cvA)"/>
+          <rect x="544" y="30" width="98" height="50" rx="10" fill="#F7B955"/>
+          <text x="593" y="52" font-size="10.5" font-weight="700" fill="#fff">BUSINESS</text>
+          <text x="593" y="67" font-size="8" fill="#FFF9EF">earns real cash</text>
+        </g>
+      </svg>
+    </div>
+    <div class="cover-meta">
+      <div><strong>Prepared for</strong>Incoming partner onboarding</div>
+      <div><strong>Version</strong>2.0 · August 2026</div>
+      <div><strong>Supersedes</strong>Revenue Economy Blueprint v1</div>
+      <div><strong>Status</strong>Pre-revenue · development stage</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ READING GUIDE ============ -->
+<div class="page">
+  <div class="sec-num">Start here</div>
+  <h2 class="sec">The one thing to understand first</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Almost every misunderstanding about crypto businesses comes from mixing up two completely separate systems. Get this right and everything else in this document follows easily.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 210">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="318" height="194" rx="12" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="24" y="33" font-size="8.2" font-weight="700" letter-spacing="1.3" fill="#246BFE">SYSTEM ONE</text>
+        <text x="24" y="54" font-size="14" font-weight="700" fill="#111827">The game economy</text>
+        <text x="24" y="73" font-size="9.2" fill="#667085">Runs on $MOVE, our in-game token.</text>
+        <g font-size="9.2" fill="#111827">
+          <text x="24" y="99">•  Players earn it by moving</text>
+          <text x="24" y="119">•  Players spend it inside the game</text>
+          <text x="24" y="139">•  Spending destroys most of it</text>
+          <text x="24" y="159">•  Almost no cash enters or leaves</text>
+        </g>
+        <rect x="24" y="172" width="282" height="20" rx="6" fill="#fff" stroke="#D6E4FF"/>
+        <text x="34" y="186" font-size="8.6" font-weight="700" fill="#246BFE">The game's fuel — not our income.</text>
+
+        <rect x="336" y="8" width="318" height="194" rx="12" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="354" y="33" font-size="8.2" font-weight="700" letter-spacing="1.3" fill="#9A6B10">SYSTEM TWO</text>
+        <text x="354" y="54" font-size="14" font-weight="700" fill="#111827">The business</text>
+        <text x="354" y="73" font-size="9.2" fill="#667085">Runs on ordinary money, in ordinary ways.</text>
+        <g font-size="9.2" fill="#111827">
+          <text x="354" y="99">•  Sponsors pay to back zones</text>
+          <text x="354" y="119">•  A small fee on land trades</text>
+          <text x="354" y="139">•  An optional paid subscription</text>
+          <text x="354" y="159">•  Events, clubs, and analytics</text>
+        </g>
+        <rect x="354" y="172" width="282" height="20" rx="6" fill="#fff" stroke="#F5E3C0"/>
+        <text x="364" y="186" font-size="8.6" font-weight="700" fill="#9A6B10">This is our actual revenue.</text>
+      </g>
+    </svg>
+    <div class="figcap">Two separate systems. The token makes the game work. The business pays the bills.</div>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">Why the separation is the whole strategy</span>
+    <p>The move-to-earn apps that collapsed in 2022 had only System One. Their business <em>was</em> the token, so when the token fell, the company had no income and the product died with it. <strong>MovenRun is built so that if $MOVE were worth nothing at all, the business would still have customers paying real money.</strong> That is the most important structural decision in this document, and it is the first thing a serious investor will look for.</p>
+  </div>
+
+  <h3>How numbers are labelled</h3>
+  <p>Figures come from two very different places, and every one is labelled so you never have to guess:</p>
+  <table style="margin-bottom:12px;">
+    <tr><th style="width:24%;">Label</th><th>What it means</th></tr>
+    <tr><td><span class="badge real" style="margin-left:0;">From our code</span></td><td>A real parameter written into our smart contracts. Anyone can verify it on the public blockchain.</td></tr>
+    <tr><td><span class="badge model" style="margin-left:0;">Illustrative</span></td><td>A modelled figure showing how the maths behaves. <strong>Not a forecast.</strong> No paying customer has validated it.</td></tr>
+    <tr><td><span class="badge plan" style="margin-left:0;">Planned</span></td><td>A designed mechanism that is not live yet.</td></tr>
+  </table>
+
+  <div class="callout">
+    <span class="tag">Say this out loud in any investor conversation</span>
+    <p>Every revenue figure in Part C is <strong>illustrative</strong>. We have no paying customers, no signed sponsors, and no validated pricing. Presenting a model as a projection is the fastest way to lose an investor's trust — and saying plainly <em>"this is our model, here are the assumptions, none of it is proven yet"</em> is the fastest way to earn it.</p>
+  </div>
+
+  <h3>Contents</h3>
+  <div class="toc-item"><span class="n">A</span><span class="t">Tokens, from zero</span><span class="d">1–5 · what a token is, where it comes from, why economies fail</span></div>
+  <div class="toc-item"><span class="n">B</span><span class="t">The MovenRun token economy</span><span class="d">6–15 · how $MOVE is created, held, spent and destroyed</span></div>
+  <div class="toc-item"><span class="n">C</span><span class="t">How the business makes money</span><span class="d">16–23 · revenue lines, costs, and city-level economics</span></div>
+  <div class="toc-item"><span class="n">D</span><span class="t">What attracts investment</span><span class="d">24–30 · the investor lens, applied honestly</span></div>
+</div>
+
+<!-- ============ PART A DIVIDER + 01 ============ -->
+<div class="page">
+  <div class="sec-num">Part A · Section 01</div>
+  <h2 class="sec">What a token actually is</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Forget everything you have heard about crypto for two minutes. A token is a much simpler idea than the noise around it suggests.</p>
+
+  <h3>Start with a shared notebook</h3>
+  <p>Imagine a notebook in a village square. Anyone can write in it, everyone can read it, and once something is written it can never be erased — you can only add a new line. Thousands of people keep identical copies, so if one person forges their copy, every other copy disagrees and the forgery is rejected.</p>
+  <p>That notebook is a <strong>blockchain</strong>. It is not a currency or a company. It is just a way of keeping a record that nobody controls.</p>
+
+  <h3>A token is a number in that notebook</h3>
+  <p>If the notebook can record who owns what, it can record quantities too. A <strong>token</strong> is simply a balance written in it: <em>"address #4821 holds 350 units."</em> That is the whole idea. What makes tokens interesting is not the technology — it is the <strong>rules</strong> attached to them, which are also written into the notebook and cannot be quietly changed later.</p>
+
+  <div class="grid3">
+    <div class="card tint-blue" style="margin:0;"><h4>The rules are the product</h4><p class="small" style="margin:0;">How many can ever exist, who can create new ones, what they can be used for, and what destroys them. These rules <em>are</em> the tokenomics.</p></div>
+    <div class="card tint-green" style="margin:0;"><h4>Nobody can cheat them</h4><p class="small" style="margin:0;">The rules run as a program on the blockchain. Not even the company that wrote them can print extra tokens or change the cap afterwards.</p></div>
+    <div class="card tint-violet" style="margin:0;"><h4>That is why it is used at all</h4><p class="small" style="margin:0;">A company database can be edited overnight. A public ledger cannot. That credibility is the only reason to bother with any of this.</p></div>
+  </div>
+
+  <h3>Two kinds of token, and the difference matters legally</h3>
+  <table>
+    <tr><th style="width:26%;">Kind</th><th>What it is</th><th style="width:26%;">Everyday analogy</th></tr>
+    <tr><td><strong>Fungible</strong><br><span class="small">(our $MOVE)</span></td><td>Every unit is identical and interchangeable. Balances, not objects.</td><td>Cash, or arcade tokens</td></tr>
+    <tr><td><strong>Non-fungible (NFT)</strong><br><span class="small">(our Zone Deeds)</span></td><td>Each one is distinct and individually identifiable.</td><td>A title deed to a specific house</td></tr>
+  </table>
+  <p>NFTs became famous through cartoon profile pictures, which is an unhelpful association. The underlying idea is just <em>"this specific unique thing belongs to this specific person, recorded where nobody can revoke it."</em> Land registries and certificates are the natural use — and ours is literally a land registry.</p>
+
+  <div class="callout">
+    <span class="tag">The sentence to remember</span>
+    <p><strong>A token is a balance in a ledger nobody owns, governed by rules nobody can secretly change.</strong> Everything else in Part A is about who gets to create those balances, and why anyone would want one.</p>
+  </div>
+</div>
+
+<!-- ============ 02 ============ -->
+<div class="page">
+  <div class="sec-num">Part A · Section 02</div>
+  <h2 class="sec">Where tokens come from</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Somebody has to create the first token. <em>How</em> they are created is the single biggest fork in the road between a project that lasts and one that does not.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 268">
+      <g font-family="Liberation Sans,Arial">
+        <!-- 1 -->
+        <rect x="6" y="8" width="318" height="120" rx="11" fill="#F1F6F3" stroke="#E4EAEF"/>
+        <text x="24" y="30" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#667085">MODEL 1</text>
+        <text x="24" y="49" font-size="11.6" font-weight="700" fill="#111827">Mined into existence</text>
+        <text x="24" y="68" font-size="9" fill="#667085">Bitcoin. Tokens are created as a reward for</text>
+        <text x="24" y="82" font-size="9" fill="#667085">doing costly work that secures the network.</text>
+        <rect x="24" y="92" width="282" height="24" rx="6" fill="#fff" stroke="#E4EAEF"/>
+        <text x="34" y="107" font-size="8.4" fill="#111827"><tspan font-weight="700">Fair, slow.</tspan> Useless for a consumer app.</text>
+
+        <!-- 2 -->
+        <rect x="336" y="8" width="318" height="120" rx="11" fill="#FFF4F1" stroke="#FBD8CD"/>
+        <text x="354" y="30" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#B03A1C">MODEL 2</text>
+        <text x="354" y="49" font-size="11.6" font-weight="700" fill="#111827">Pre-made and sold</text>
+        <text x="354" y="68" font-size="9" fill="#667085">The team creates the entire supply on day one</text>
+        <text x="354" y="82" font-size="9" fill="#667085">and sells a slice to investors and the public.</text>
+        <rect x="354" y="92" width="282" height="24" rx="6" fill="#fff" stroke="#FBD8CD"/>
+        <text x="364" y="107" font-size="8.4" fill="#111827"><tspan font-weight="700">Fast money.</tspan> Insiders hold everything.</text>
+
+        <!-- 3 -->
+        <rect x="6" y="140" width="318" height="120" rx="11" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="24" y="162" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#9A6B10">MODEL 3</text>
+        <text x="24" y="181" font-size="11.6" font-weight="700" fill="#111827">Emitted for activity</text>
+        <text x="24" y="200" font-size="9" fill="#667085">New tokens are printed continuously to reward</text>
+        <text x="24" y="214" font-size="9" fill="#667085">users for doing something — steps, posts, trades.</text>
+        <rect x="24" y="224" width="282" height="24" rx="6" fill="#fff" stroke="#F5E3C0"/>
+        <text x="34" y="239" font-size="8.4" font-weight="700" fill="#B03A1C">This is what killed move-to-earn.</text>
+
+        <!-- 4 -->
+        <rect x="336" y="140" width="318" height="120" rx="11" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="354" y="162" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#0E7A52">MODEL 4 — OURS</text>
+        <text x="354" y="181" font-size="11.6" font-weight="700" fill="#111827">Earned, capped, and burned</text>
+        <text x="354" y="200" font-size="9" fill="#667085">Emitted only for <tspan font-weight="700">proven</tspan> activity, from a pool that</text>
+        <text x="354" y="214" font-size="9" fill="#667085">shrinks each season, with most of it destroyed again.</text>
+        <rect x="354" y="224" width="282" height="24" rx="6" fill="#fff" stroke="#C9EEDD"/>
+        <text x="364" y="239" font-size="8.4" font-weight="700" fill="#0E7A52">Model 3 with brakes fitted.</text>
+      </g>
+    </svg>
+    <div class="figcap">Four ways new tokens come into existence. Only the fourth has a mechanism for taking them back out.</div>
+  </div>
+
+  <h3>Model 3 in detail, because it is the one we had to fix</h3>
+  <p>"Emitted for activity" sounds ideal: users do something useful, the protocol rewards them, everyone wins. It fails for a reason that is obvious in hindsight.</p>
+  <p>If the only way tokens enter is <em>printing</em>, and the only thing a user can do with them is <em>sell</em>, then supply rises forever while demand depends entirely on new buyers arriving. The moment new buyers slow down, the price falls; the moment the price falls, the reward is worth less; the moment the reward is worth less, users leave — which slows new buyers further. It is a spiral with no floor.</p>
+
+  <h3>What MovenRun does differently — three changes</h3>
+  <ol>
+    <li><strong>Tokens are only created for <em>proven</em> movement.</strong> There is no faucet, no airdrop, no "connect wallet and claim". A cryptographic proof that someone genuinely moved is required before a single token exists. See Section 14.</li>
+    <li><strong>The supply that can be created is capped and shrinking.</strong> Every season issues from a fixed pool, and each pool is deliberately smaller than the last. See Section 10.</li>
+    <li><strong>Most tokens are destroyed by playing the game.</strong> Claiming land, fortifying it, challenging a rival — all of it consumes tokens permanently. See Section 12. This is the piece the previous generation simply did not have.</li>
+  </ol>
+
+  <div class="callout ok">
+    <span class="tag">The design rule we followed</span>
+    <p><strong>Decide how tokens leave the system before deciding how they enter it.</strong> That order is unusual, and it is the reason our economy has a reason to exist beyond new buyers arriving.</p>
+  </div>
+</div>
+
+<!-- ============ 03 ============ -->
+<div class="page">
+  <div class="sec-num">Part A · Section 03</div>
+  <h2 class="sec">How a token gets a price</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This is the part people find most mysterious, and the part that matters least to our business. Both facts are worth understanding.</p>
+
+  <h3>A token has no price until someone trades it</h3>
+  <p>A token sitting in a ledger has no value, the way a concert ticket nobody wants has no value. A price only exists once there is a <strong>market</strong> — a place where someone will exchange the token for something else, usually a stable currency.</p>
+  <p>In crypto that place is usually an automated pool: the team (or anyone) deposits, say, 100,000 tokens alongside $100,000 of stable currency. The pool then quotes a price from the ratio between the two sides, and it moves as people buy or sell. Buying takes tokens out and pushes the price up; selling puts tokens in and pushes it down.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 176">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="10" width="200" height="156" rx="11" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="106" y="34" font-size="10.4" font-weight="700" fill="#0E7A52" text-anchor="middle">PUSHES PRICE UP</text>
+        <g font-size="9" fill="#111827">
+          <text x="24" y="60">People needing tokens</text>
+          <text x="24" y="78">to play the game</text>
+          <text x="24" y="102">Tokens destroyed by</text>
+          <text x="24" y="120">spending (supply falls)</text>
+          <text x="24" y="144">Revenue used to buy</text>
+          <text x="24" y="158">tokens back</text>
+        </g>
+
+        <rect x="228" y="10" width="204" height="156" rx="11" fill="#F1F6F3" stroke="#E4EAEF"/>
+        <text x="330" y="34" font-size="10.4" font-weight="700" fill="#667085" text-anchor="middle">THE MARKET</text>
+        <g transform="translate(330,104)">
+          <circle r="42" fill="none" stroke="#D0D5DD" stroke-width="10"/>
+          <circle r="42" fill="none" stroke="#246BFE" stroke-width="10" stroke-dasharray="132 132" transform="rotate(-90)"/>
+          <text y="-4" font-size="9" fill="#667085" text-anchor="middle">price =</text>
+          <text y="12" font-size="9" font-weight="700" fill="#111827" text-anchor="middle">balance of</text>
+          <text y="26" font-size="9" font-weight="700" fill="#111827" text-anchor="middle">the two sides</text>
+        </g>
+
+        <rect x="454" y="10" width="200" height="156" rx="11" fill="#FFF4F1" stroke="#FBD8CD"/>
+        <text x="554" y="34" font-size="10.4" font-weight="700" fill="#B03A1C" text-anchor="middle">PUSHES PRICE DOWN</text>
+        <g font-size="9" fill="#111827">
+          <text x="472" y="60">New tokens printed</text>
+          <text x="472" y="78">as rewards</text>
+          <text x="472" y="102">Holders selling to</text>
+          <text x="472" y="120">take profit</text>
+          <text x="472" y="144">Nothing to spend</text>
+          <text x="472" y="158">tokens on</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">A token price is only ever the balance between these two columns. Our design work is almost entirely about the left column.</div>
+  </div>
+
+  <h3>Why our business does not depend on this</h3>
+  <p>Here is the crucial commercial point. <strong>MovenRun's revenue is not the token price.</strong> When a café pays to sponsor a zone, that is a normal invoice in normal currency. When someone subscribes to premium tools, that is a normal subscription. Neither transaction cares what $MOVE trades at.</p>
+  <p>The token price matters to us in exactly two ways: it affects how <em>rewarding</em> the game feels to crypto-native players, and a healthy economy makes land more desirable. Both are real, and neither is our income statement.</p>
+
+  <div class="callout warn">
+    <span class="tag">Say this precisely</span>
+    <p>$MOVE does not trade anywhere today. There has been no sale, no listing, no liquidity pool, and no allocation to anyone. It exists only as a test-network contract with no value. <strong>Never describe it as an investment, never quote or estimate a price, and never imply anyone will earn income from it.</strong> That is both the honest position and the legally safe one.</p>
+  </div>
+</div>
+
+<!-- ============ 04 ============ -->
+<div class="page">
+  <div class="sec-num">Part A · Section 04</div>
+  <h2 class="sec">Why crypto economies collapse</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Four failure patterns account for nearly all of it. Every design decision in Part B is a direct answer to one of them, so it is worth knowing them by name.</p>
+
+  <h3><span class="stepn">1</span>The printing spiral</h3>
+  <p><strong>What happens:</strong> tokens are printed as rewards, users immediately sell them, supply grows faster than demand, price falls, rewards become worthless, users leave.</p>
+  <p><strong>Our answer:</strong> a fixed season pool that shrinks each season, so total issuance is bounded and declining rather than proportional to how many people show up (§10). Plus sinks that destroy far more than a typical game ever collects back (§12).</p>
+
+  <h3><span class="stepn">2</span>Rewards with nowhere to go</h3>
+  <p><strong>What happens:</strong> the token has no genuine use inside the product, so the only rational action on receiving one is to sell it. Every reward becomes immediate sell pressure.</p>
+  <p><strong>Our answer:</strong> you cannot claim land, fortify it, challenge a rival, run a club, or enter a season without spending $MOVE. The most committed players are net <em>consumers</em> of the token, not net sellers (§12).</p>
+
+  <h3><span class="stepn">3</span>Free-farm-to-dump</h3>
+  <p><strong>What happens:</strong> anyone can sign up, farm rewards at zero cost, sell them, and repeat with a new account. The economy funds its own attackers.</p>
+  <p><strong>Our answer:</strong> two reward states (§8). Free players earn <strong>Locked MOVE</strong>, which can be spent inside the app but can never be transferred or sold. Only active Zone Deed holders — people who have already spent to acquire and defend land — can earn sellable rewards, and even then only from a capped pool. Crucially, <strong>upgrading does not unlock old rewards</strong>: locked stays locked forever.</p>
+
+  <h3><span class="stepn">4</span>The company that was only a token</h3>
+  <p><strong>What happens:</strong> the project's entire income is token sales and token appreciation. When the market turns, there is no revenue, no runway, and no reason for the team to stay.</p>
+  <p><strong>Our answer:</strong> the whole of Part C. Sponsors, land fees, subscriptions, and events are paid in ordinary money by people who want something other than a token.</p>
+
+  <div class="figure nobreak" style="margin-top:6px;">
+    <svg viewBox="0 0 660 96">
+      <g font-family="Liberation Sans,Arial" font-size="8.8">
+        <rect x="6" y="8" width="648" height="80" rx="11" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="330" y="30" font-size="10.4" font-weight="700" fill="#111827" text-anchor="middle">The four brakes, at a glance</text>
+        <g fill="#111827">
+          <rect x="22" y="42" width="150" height="34" rx="7" fill="#fff" stroke="#D6E4FF"/>
+          <text x="97" y="57" font-weight="700" text-anchor="middle">Shrinking pools</text><text x="97" y="70" fill="#667085" text-anchor="middle">bounded issuance</text>
+          <rect x="182" y="42" width="150" height="34" rx="7" fill="#fff" stroke="#D6E4FF"/>
+          <text x="257" y="57" font-weight="700" text-anchor="middle">Real sinks</text><text x="257" y="70" fill="#667085" text-anchor="middle">spending destroys</text>
+          <rect x="342" y="42" width="150" height="34" rx="7" fill="#fff" stroke="#D6E4FF"/>
+          <text x="417" y="57" font-weight="700" text-anchor="middle">Locked rewards</text><text x="417" y="70" fill="#667085" text-anchor="middle">no free-farm dump</text>
+          <rect x="502" y="42" width="150" height="34" rx="7" fill="#fff" stroke="#D6E4FF"/>
+          <text x="577" y="57" font-weight="700" text-anchor="middle">Real revenue</text><text x="577" y="70" fill="#667085" text-anchor="middle">income without price</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+</div>
+
+<!-- ============ 05 ============ -->
+<div class="page">
+  <div class="sec-num">Part A · Section 05</div>
+  <h2 class="sec">What "digital land" really means</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The phrase sounds like science fiction. The mechanism is closer to a parking permit than to buying a field.</p>
+
+  <h3>The map is divided into permanent cells</h3>
+  <p>We lay a honeycomb over the entire planet using an open standard called <strong>H3</strong>, originally built by Uber. Every point on Earth belongs to exactly one hexagon with a permanent identifier. Our cells are about <strong>0.74 km²</strong> each <span class="badge real">From our code</span> — roughly a small neighbourhood. Two people standing on the same corner are always in the same zone, anywhere in the world.</p>
+
+  <h3>A Zone Deed is a record that a specific cell is yours</h3>
+  <p>When someone claims a cell, an entry is written to the public ledger: <em>"hexagon #8828308281 belongs to address #4821."</em> That entry is the <strong>Zone Deed</strong>. It is not a picture of a place — for the game's purposes, the deed <em>is</em> the place. It carries who holds it now, the history of how it changed hands, how strongly it is defended, and what it has earned.</p>
+
+  <div class="callout warn">
+    <span class="tag">What it is not — be precise about this</span>
+    <p>A Zone Deed is <strong>a game asset, not real-world property</strong>. It confers no rights over the physical land, no access, no planning permission, and no relationship with whoever actually owns the ground. Anyone who implies otherwise is misrepresenting the product.</p>
+  </div>
+
+  <h3>Why scarcity is real here, and not manufactured</h3>
+  <p>Most digital scarcity is arbitrary — a team simply declares that only 10,000 items will exist. Ours is bounded by geography and by effort:</p>
+  <div class="grid2">
+    <div class="card tint-violet"><h4>There is only one of each place</h4><p style="margin-bottom:0;">The hexagon containing the main square of your city exists exactly once, for ever. No amount of demand creates a second one. That is genuine, non-arbitrary scarcity.</p></div>
+    <div class="card tint-green"><h4>Land must be earned, not just bought</h4><p style="margin-bottom:0;">A cell only becomes claimable once <strong>at least 5 distinct people</strong> have genuinely moved through it over 90 days <span class="badge real">From our code</span>. One person cannot manufacture a valuable district alone.</p></div>
+    <div class="card tint-blue"><h4>Busy land costs more</h4><p style="margin-bottom:0;">The claim price scales with how active the cell is — <strong>500 × √(weekly movers)</strong> <span class="badge real">From our code</span>. A quiet suburb is cheap; a busy high street is expensive, automatically.</p></div>
+    <div class="card tint-coral"><h4>Holding it costs effort</h4><p style="margin-bottom:0;">Rivals can challenge your land, and a cell left untouched for 180 days can be flagged and eventually reclaimed <span class="badge real">From our code</span>. Land is a commitment, not a collectible.</p></div>
+  </div>
+
+  <div class="callout ok">
+    <span class="tag">Why this matters commercially</span>
+    <p>Scarcity that comes from geography plus verified effort is far harder to copy than scarcity that comes from a press release. A competitor can clone our app in a quarter; they cannot clone the fact that the people in your neighbourhood already hold the ground around your street.</p>
+  </div>
+</div>
+
+<!-- ============ 06 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 06</div>
+  <h2 class="sec">$MOVE at a glance</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The complete specification of our token on one page. Everything here marked "from our code" is written into contracts already deployed to Base's public test network and can be independently verified.</p>
+
+  <table>
+    <tr><th style="width:33%;">Property</th><th>Value</th></tr>
+    <tr><td>Name and symbol</td><td>MoveToken · <strong>$MOVE</strong> <span class="badge real">From our code</span></td></tr>
+    <tr><td>Chain</td><td>Base — an Ethereum Layer 2 <span class="badge real">From our code</span></td></tr>
+    <tr><td>Maximum supply, ever</td><td class="money"><strong>1,000,000,000</strong> — a hard cap the contract cannot exceed <span class="badge real">From our code</span></td></tr>
+    <tr><td>How new tokens are created</td><td>Only against a cryptographic proof of verified movement <span class="badge real">From our code</span></td></tr>
+    <tr><td>Anti-farming cap</td><td class="money">200 $MOVE per address per day at launch, halving each epoch <span class="badge real">From our code</span></td></tr>
+    <tr><td>Reward states</td><td><strong>Locked</strong> (non-transferable) and <strong>Liquid</strong> (transferable, capped) <span class="badge plan">Planned</span></td></tr>
+    <tr><td>Land tax</td><td class="money">2% of everything minted inside a cell goes to that cell's deed holder <span class="badge real">From our code</span></td></tr>
+    <tr><td>Loyalty bonus</td><td>Defensive strength rises with holding time, up to 1.75× <span class="badge real">From our code</span></td></tr>
+    <tr><td>Season length</td><td class="money">90 days <span class="badge real">From our code</span></td></tr>
+    <tr><td>Gear boost ceiling</td><td class="money">3× maximum, enforced in the contract <span class="badge real">From our code</span></td></tr>
+    <tr><td>Currently tradeable?</td><td><strong>No.</strong> No sale, no listing, no liquidity, no allocation. Test network only.</td></tr>
+  </table>
+
+  <h3>Intended supply distribution <span class="badge plan">Planned — none of this has been executed</span></h3>
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 86">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="12" width="380" height="30" fill="#18C987" rx="4"/>
+        <rect x="388" y="12" width="95" height="30" fill="#246BFE"/>
+        <rect x="485" y="12" width="76" height="30" fill="#7657FF"/>
+        <rect x="563" y="12" width="51" height="30" fill="#F7B955"/>
+        <rect x="616" y="12" width="32" height="30" fill="#FF6B4A" rx="4"/>
+        <text x="196" y="32" font-size="9.6" font-weight="700" fill="#fff" text-anchor="middle">60% — earned by movement</text>
+        <g font-size="8.4" fill="#667085">
+          <rect x="6" y="58" width="9" height="9" rx="2" fill="#18C987"/><text x="19" y="66">Play-to-earn 60%</text>
+          <rect x="140" y="58" width="9" height="9" rx="2" fill="#246BFE"/><text x="153" y="66">Team &amp; advisors 15%</text>
+          <rect x="288" y="58" width="9" height="9" rx="2" fill="#7657FF"/><text x="301" y="66">Ecosystem &amp; grants 12%</text>
+          <rect x="446" y="58" width="9" height="9" rx="2" fill="#F7B955"/><text x="459" y="66">Liquidity 8%</text>
+          <rect x="552" y="58" width="9" height="9" rx="2" fill="#FF6B4A"/><text x="565" y="66">Public 5%</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">Team tokens carry a 12-month cliff and 36-month linear vesting — meaning the team cannot sell anything for a year, then only gradually.</div>
+  </div>
+
+  <div class="callout">
+    <span class="tag">Why the 60% matters to an investor</span>
+    <p>The majority of the supply is reserved for the people who actually move — not for insiders. Combined with a 12-month team cliff, this is the distribution shape investors look for when judging whether a team intends to build or to exit. A project with 40% to insiders and no cliff signals the opposite.</p>
+  </div>
+</div>
+
+<!-- ============ 07 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 07</div>
+  <h2 class="sec">How a user actually gets tokens</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Follow one real morning walk from the first step to the balance appearing. This is the whole creation mechanism, end to end.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 236">
+      <defs><marker id="fa" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#A3AAB8"/></marker></defs>
+      <g font-family="Liberation Sans,Arial">
+        <rect x="150" y="6" width="360" height="30" rx="8" fill="#EAF6FF" stroke="#C9E2FF"/>
+        <text x="330" y="25" font-size="9.8" font-weight="700" fill="#111827" text-anchor="middle">Priya walks 5 km before work. The app records the route.</text>
+        <path d="M330,38 L330,50" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#fa)"/>
+
+        <rect x="60" y="58" width="540" height="66" rx="10" fill="#F1F6F3" stroke="#E4EAEF"/>
+        <text x="330" y="78" font-size="9.6" font-weight="700" fill="#111827" text-anchor="middle">Our servers check the route is physically real</text>
+        <g font-size="8.4" fill="#111827">
+          <rect x="76" y="86" width="120" height="28" rx="7" fill="#fff" stroke="#D0D5DD"/>
+          <text x="136" y="97" text-anchor="middle" font-weight="700">Speed</text><text x="136" y="108" fill="#667085" text-anchor="middle">under 80 km/h</text>
+          <rect x="204" y="86" width="120" height="28" rx="7" fill="#fff" stroke="#D0D5DD"/>
+          <text x="264" y="97" text-anchor="middle" font-weight="700">Accuracy</text><text x="264" y="108" fill="#667085" text-anchor="middle">GPS not vague</text>
+          <rect x="332" y="86" width="120" height="28" rx="7" fill="#fff" stroke="#D0D5DD"/>
+          <text x="392" y="97" text-anchor="middle" font-weight="700">Continuity</text><text x="392" y="108" fill="#667085" text-anchor="middle">no teleports</text>
+          <rect x="460" y="86" width="124" height="28" rx="7" fill="#fff" stroke="#D0D5DD"/>
+          <text x="522" y="97" text-anchor="middle" font-weight="700">Not a repeat</text><text x="522" y="108" fill="#667085" text-anchor="middle">used once only</text>
+        </g>
+        <path d="M330,126 L330,138" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#fa)"/>
+
+        <rect x="150" y="146" width="360" height="34" rx="8" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="330" y="162" font-size="9.6" font-weight="700" fill="#0E7A52" text-anchor="middle">The route is signed — a tamper-proof stamp saying "this really happened"</text>
+        <text x="330" y="175" font-size="8.2" fill="#667085" text-anchor="middle">The blockchain will not create a single token without this signature</text>
+        <path d="M330,182 L330,194" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#fa)"/>
+
+        <rect x="150" y="202" width="360" height="30" rx="8" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="330" y="221" font-size="9.8" font-weight="700" fill="#5A3FD6" text-anchor="middle">Tokens are created and zones are captured</text>
+      </g>
+    </svg>
+    <div class="figcap">Nothing reaches the blockchain unless every check passes. The contracts trust the proof, never the phone.</div>
+  </div>
+
+  <h3>The worked example</h3>
+  <p>Priya walks <strong>5 km</strong>. In the current contract the rate is 10 $MOVE per kilometre, so:</p>
+  <table>
+    <tr><th style="width:52%;">Step</th><th class="r">Amount</th></tr>
+    <tr><td>5 km × 10 $MOVE per km <span class="badge real">From our code</span></td><td class="r money">50 $MOVE</td></tr>
+    <tr><td>She has a 1.5× gear item equipped <span class="badge plan">Planned</span></td><td class="r money">× 1.5 → 75 $MOVE</td></tr>
+    <tr><td>Daily cap check — well under the 200 limit <span class="badge real">From our code</span></td><td class="r money">no reduction</td></tr>
+    <tr><td>2% land tax to whoever owns the cell she crossed <span class="badge real">From our code</span></td><td class="r money">− 1.5 $MOVE</td></tr>
+    <tr class="tot"><td>Credited to Priya</td><td class="r money">73.5 $MOVE</td></tr>
+  </table>
+  <p>Because Priya is a free player who does not own land, her 73.5 arrives as <strong>Locked MOVE</strong> — real, spendable inside the game, but never sellable. The 1.5 that went as land tax goes to a Zone Deed holder as <strong>Liquid</strong> earnings. That single line is the entire two-state economy in miniature, and Section 8 explains why it matters so much.</p>
+
+  <div class="callout warn">
+    <span class="tag">An honest note on the rate</span>
+    <p>The "10 $MOVE per km" figure is what our deployed test contract does today. Our economic design has since moved to a better model — a fixed seasonal pool shared by all active players, rather than a fixed rate per kilometre. Section 10 explains why, and flags this as a change that must be made in the next contract version. <strong>This is the kind of discrepancy worth volunteering to an investor rather than being caught on.</strong></p>
+  </div>
+</div>
+
+<!-- ============ 08 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 08</div>
+  <h2 class="sec">One token, two states</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This is the most important mechanism we have, and the clearest answer to "how is this not another move-to-earn?". Users feel one simple economy; underneath, the protocol keeps engagement and market liquidity apart.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 224">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="318" height="208" rx="12" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="24" y="33" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#246BFE">STATE ONE</text>
+        <text x="24" y="55" font-size="14.5" font-weight="700" fill="#111827">Locked MOVE</text>
+        <text x="24" y="73" font-size="9.2" fill="#667085">Earned by every free player.</text>
+        <g font-size="9.2" fill="#111827">
+          <text x="24" y="99">✓  Spend it on captures, upgrades,</text>
+          <text x="38" y="113">fortifying, clubs, and events</text>
+          <text x="24" y="135">✗  Cannot be transferred</text>
+          <text x="24" y="155">✗  Cannot be sold or withdrawn</text>
+          <text x="24" y="175">✗  Never converts, even later</text>
+        </g>
+        <rect x="24" y="188" width="282" height="20" rx="6" fill="#fff" stroke="#D6E4FF"/>
+        <text x="34" y="202" font-size="8.6" font-weight="700" fill="#246BFE">Real progress. Zero sell pressure.</text>
+
+        <rect x="336" y="8" width="318" height="208" rx="12" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="354" y="33" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#5A3FD6">STATE TWO</text>
+        <text x="354" y="55" font-size="14.5" font-weight="700" fill="#111827">Liquid MOVE</text>
+        <text x="354" y="73" font-size="9.2" fill="#667085">Earned only by active landowners.</text>
+        <g font-size="9.2" fill="#111827">
+          <text x="354" y="99">✓  Everything Locked can do</text>
+          <text x="354" y="119">✓  Transferable and sellable</text>
+          <text x="354" y="141">!  Capped by the season pool</text>
+          <text x="354" y="161">!  Requires holding and defending</text>
+          <text x="368" y="175">land — which costs tokens first</text>
+        </g>
+        <rect x="354" y="188" width="282" height="20" rx="6" fill="#fff" stroke="#DED4FF"/>
+        <text x="364" y="202" font-size="8.6" font-weight="700" fill="#5A3FD6">Real upside. Earned, capped, defended.</text>
+      </g>
+    </svg>
+    <div class="figcap">The same token, held in two different states. Which state you earn in depends on whether you have skin in the game.</div>
+  </div>
+
+  <h3>The rule that makes it work</h3>
+  <div class="callout ok">
+    <span class="tag">The no-retroactive-unlock rule</span>
+    <p>When a free player later becomes a landowner, <strong>their existing Locked balance stays locked for ever.</strong> Only rewards earned <em>after</em> they qualify can be Liquid. This single rule closes the loophole that would otherwise sink the whole design: farm for months on free accounts, upgrade once, and cash out everything at once.</p>
+  </div>
+
+  <h3>Why this is fair rather than a paywall</h3>
+  <p>It would be easy to read this as "free players get the worthless version". It is the opposite, for three reasons:</p>
+  <ul>
+    <li><strong>Locked MOVE buys real progress.</strong> Everything that makes the game deeper — capturing, upgrading, fortifying, running a club, entering events — is purchasable with it. A free player is never blocked from the fun.</li>
+    <li><strong>Landowners pay first.</strong> Nobody earns Liquid rewards without having already spent to acquire land and continuing to spend to defend it. They are net contributors to the economy before they are beneficiaries of it.</li>
+    <li><strong>Free players create the value.</strong> Density is what makes land worth owning and what makes sponsorship worth buying. Free players are not a cost centre — they are the reason the economy exists at all.</li>
+  </ul>
+
+  <table>
+    <tr><th style="width:22%;">Tier</th><th style="width:18%;">Entry</th><th style="width:24%;">Earns</th><th style="width:12%;">Sellable</th><th>Role in the economy</th></tr>
+    <tr><td><strong>Free Explorer</strong></td><td>Free</td><td>XP + Locked</td><td>No</td><td>Creates activity and density</td></tr>
+    <tr><td><strong>Verified Explorer</strong></td><td>Free + verification</td><td>Higher XP + Locked</td><td>No</td><td>Trusted route contributor</td></tr>
+    <tr><td><strong>Deed Holder</strong></td><td>Claim or buy land</td><td>Locked + Liquid</td><td><strong>Yes</strong></td><td>Land economy and liquidity</td></tr>
+    <tr><td><strong>Club Operator</strong></td><td>Club deed or pass</td><td>Club rewards + fees</td><td>Limited</td><td>Organises the community</td></tr>
+    <tr><td><strong>Sponsor Partner</strong></td><td>Campaign fee</td><td>Foot traffic + exposure</td><td>—</td><td><strong>Brings real money in</strong></td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Design principle: nobody needs crypto to enjoy the map, but the deepest economic layer belongs to people who own and maintain land.</p>
+</div>
+
+<!-- ============ 09 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 09</div>
+  <h2 class="sec">What two states do to sell pressure</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A worked example with round numbers. It shows how a thousand rewarded players can produce only a fraction of a thousand players' worth of selling.</p>
+
+  <div class="assume">
+    <h4>Assumptions in this example <span class="badge model" style="margin-left:4px;">Illustrative</span></h4>
+    <ul>
+      <li>1,000 active players in a city, split 60% free / 40% landowners</li>
+      <li>Free players average 100 Locked MOVE over the period; landowners average 75 Locked + 100 Liquid</li>
+      <li>Roughly 30% of Liquid rewards are spent back into the game rather than sold</li>
+      <li>These are round illustrative figures chosen to show the shape of the maths, not measured behaviour</li>
+    </ul>
+  </div>
+
+  <table>
+    <tr><th>Player type</th><th class="r">Players</th><th class="r">Locked MOVE</th><th class="r">Liquid MOVE</th><th class="r">Total earned</th></tr>
+    <tr><td>Free players</td><td class="r money">600</td><td class="r money">60,000</td><td class="r money">0</td><td class="r money">60,000</td></tr>
+    <tr><td>Landowners</td><td class="r money">400</td><td class="r money">30,000</td><td class="r money">40,000</td><td class="r money">70,000</td></tr>
+    <tr class="tot"><td>Total</td><td class="r money">1,000</td><td class="r money">90,000</td><td class="r money">40,000</td><td class="r money">130,000</td></tr>
+  </table>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 138">
+      <g font-family="Liberation Sans,Arial">
+        <text x="6" y="18" font-size="9.6" font-weight="700" fill="#111827">Of 130,000 tokens rewarded, how much can ever reach a market?</text>
+        <rect x="6" y="30" width="452" height="34" fill="#246BFE" rx="5"/>
+        <text x="232" y="52" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">90,000 Locked — can never be sold (69%)</text>
+        <rect x="462" y="30" width="192" height="34" fill="#7657FF" rx="5"/>
+        <text x="558" y="52" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">40,000 Liquid (31%)</text>
+
+        <path d="M462,70 L462,80 M654,70 L654,80" stroke="#A3AAB8" stroke-width="1"/>
+        <path d="M462,80 L654,80" stroke="#A3AAB8" stroke-width="1"/>
+        <path d="M558,80 L558,90" stroke="#A3AAB8" stroke-width="1"/>
+
+        <rect x="462" y="94" width="134" height="30" fill="#FF6B4A" rx="5"/>
+        <text x="529" y="113" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">~28,000 exposed</text>
+        <rect x="600" y="94" width="54" height="30" fill="#18C987" rx="5"/>
+        <text x="627" y="113" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">spent</text>
+
+        <text x="6" y="112" font-size="8.8" fill="#667085">After some Liquid is spent back into</text>
+        <text x="6" y="124" font-size="8.8" fill="#667085">the game, roughly 22% of all rewards</text>
+        <text x="6" y="136" font-size="8.8" fill="#667085">can reach a market.</text>
+      </g>
+    </svg>
+    <div class="figcap">A thousand rewarded players; roughly two hundred players' worth of possible selling. That gap is the mechanism.</div>
+  </div>
+
+  <h3>Reading the result</h3>
+  <div class="grid3">
+    <div class="kpi"><div class="n" style="color:var(--blue);">69%</div><div class="l">of all rewards are structurally unable to be sold — ever</div></div>
+    <div class="kpi"><div class="n" style="color:var(--violet);">31%</div><div class="l">is the theoretical maximum that could reach a market</div></div>
+    <div class="kpi"><div class="n" style="color:var(--green);">~22%</div><div class="l">is the realistic exposure after in-game spending</div></div>
+  </div>
+
+  <p style="margin-top:12px;">The project gets a thousand engaged players, and the market absorbs roughly a fifth of what a naive design would have dumped on it. Free players still feel genuinely rewarded — their balance buys real progress. Landowners still get real, sellable upside. Nobody is being tricked, and the token is not being buried under its own rewards.</p>
+
+  <div class="callout">
+    <span class="tag">The comparison worth drawing</span>
+    <p>In a single-state economy, all 130,000 tokens would be immediately sellable and most would be sold. The two-state design does not reduce how rewarded people feel — it reduces how much of that reward has to be absorbed by buyers. <strong>That is the difference between an economy that compounds and one that dilutes.</strong></p>
+  </div>
+</div>
+
+<!-- ============ 10 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 10</div>
+  <h2 class="sec">Where new tokens come from</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Not a fixed rate per kilometre for ever. Rewards come from a <strong>capped seasonal pool</strong> that every active player shares — and the pool shrinks every season on purpose.</p>
+
+  <h3>The formula, in words</h3>
+  <div class="card tint-blue" style="text-align:center;padding:16px;">
+    <p style="font-size:12pt;font-weight:700;margin-bottom:6px;">Your reward = the season pool × (your activity score ÷ everyone's activity score)</p>
+    <p class="small" style="margin-bottom:0;">More players means more competition for the same pool. Fewer players means the active ones earn more.</p>
+  </div>
+
+  <p>This one change fixes the deepest flaw in the old move-to-earn model. Under a fixed rate per kilometre, ten times as many users automatically means ten times as many tokens printed — growth itself destroys the economy. Under a pool, <strong>growth cannot inflate supply</strong>. It only changes how the same fixed amount is divided.</p>
+
+  <h3>The emission schedule <span class="badge plan">Planned — the deployed contract does not yet do this</span></h3>
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 168">
+      <g font-family="Liberation Sans,Arial">
+        <line x1="52" y1="126" x2="648" y2="126" stroke="#E4EAEF" stroke-width="1.5"/>
+        <g text-anchor="middle">
+          <rect x="70" y="26" width="104" height="100" rx="6" fill="#246BFE"/>
+          <text x="122" y="60" font-size="13" font-weight="700" fill="#fff">9.0M</text>
+          <text x="122" y="76" font-size="8.4" fill="#D6E4FF">MOVE</text>
+          <text x="122" y="144" font-size="9" font-weight="700" fill="#111827">Season 1</text>
+          <text x="122" y="157" font-size="8" fill="#667085">launch pool</text>
+
+          <rect x="216" y="46" width="104" height="80" rx="6" fill="#3D7DFE"/>
+          <text x="268" y="76" font-size="13" font-weight="700" fill="#fff">7.2M</text>
+          <text x="268" y="92" font-size="8.4" fill="#D6E4FF">−20%</text>
+          <text x="268" y="144" font-size="9" font-weight="700" fill="#111827">Season 2</text>
+          <text x="268" y="157" font-size="8" fill="#667085">controlled cut</text>
+
+          <rect x="362" y="62" width="104" height="64" rx="6" fill="#6E9EFE"/>
+          <text x="414" y="88" font-size="13" font-weight="700" fill="#fff">5.76M</text>
+          <text x="414" y="104" font-size="8.4" fill="#EAF2FF">−20%</text>
+          <text x="414" y="144" font-size="9" font-weight="700" fill="#111827">Season 3</text>
+          <text x="414" y="157" font-size="8" fill="#667085">compression</text>
+
+          <rect x="508" y="75" width="104" height="51" rx="6" fill="#9CBEFE"/>
+          <text x="560" y="98" font-size="12.5" font-weight="700" fill="#fff">4.61M</text>
+          <text x="560" y="113" font-size="8.4" fill="#F5F9FF">−20%</text>
+          <text x="560" y="144" font-size="9" font-weight="700" fill="#111827">Season 4</text>
+          <text x="560" y="157" font-size="8" fill="#667085">year-one discipline</text>
+        </g>
+        <text x="6" y="20" font-size="9" fill="#667085">Tokens</text>
+        <text x="6" y="32" font-size="9" fill="#667085">issued</text>
+      </g>
+    </svg>
+    <div class="figcap">Four 90-day seasons make one year. Total year-one issuance: <strong>26.6 million $MOVE</strong> — just 2.7% of the maximum supply.</div>
+  </div>
+
+  <h3>Why a shrinking pool is the right shape</h3>
+  <ul>
+    <li><strong>Early players are rewarded more, and should be.</strong> They take the most risk and do the hardest work — populating an empty map.</li>
+    <li><strong>Supply cannot run away.</strong> Even unlimited user growth cannot print an extra token.</li>
+    <li><strong>It forces the economy to mature.</strong> As emissions fall, the value of holding land, earning land tax, and real sponsor money has to take over. That transition is the whole business plan, and the schedule makes it non-optional.</li>
+  </ul>
+
+  <div class="callout warn">
+    <span class="tag">Two honest gaps you should know about before anyone else finds them</span>
+    <p><strong>1. The deployed contract does not do this yet.</strong> Our live test contract mints a fixed 10 $MOVE per kilometre with a halving every six months — the older design. Moving to seasonal pools requires a new contract version. It is on the plan and it is not yet built.</p>
+    <p style="margin-bottom:0;"><strong>2. The schedule and the distribution do not currently reconcile.</strong> Shrinking 20% per season converges to about <strong>45 million $MOVE issued in total, ever</strong> — but our stated distribution reserves <strong>600 million</strong> (60%) for player rewards. Those two numbers are 13× apart. Either the decay must flatten to a sustaining level after the first years, or the reward allocation is far larger than the emission plan needs. <strong>This must be resolved before any public tokenomics is published.</strong> Section 30 lists it as an open item.</p>
+  </div>
+
+  <div class="callout ok">
+    <span class="tag">How to present this</span>
+    <p>Finding your own inconsistency and naming it is a strength, not a weakness. The wrong move is to publish two numbers that a diligent analyst can pull apart in ten minutes. The right move is: <em>"here is our emission curve, here is our allocation, we know they do not yet reconcile, and here are the two ways we can close it."</em></p>
+  </div>
+</div>
+
+<!-- ============ 11 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 11</div>
+  <h2 class="sec">The four safety valves</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A capped pool sets the ceiling. Four automatic valves sit underneath it, each able to reduce rewards further when the economy is not healthy. None of them can increase rewards.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 214">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="318" height="96" rx="11" fill="#FFF4F1" stroke="#FBD8CD"/>
+        <circle cx="34" cy="36" r="12" fill="#FF6B4A"/><text x="34" y="41" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+        <text x="56" y="41" font-size="11.6" font-weight="700" fill="#111827">Burn valve</text>
+        <text x="24" y="64" font-size="9.2" fill="#111827">If players are not spending enough of what</text>
+        <text x="24" y="78" font-size="9.2" fill="#111827">they earn, the next pool is cut automatically.</text>
+        <text x="24" y="95" font-size="8.4" font-weight="700" fill="#B03A1C">Live in our contract: burn/mint under 0.7 → −10% rate</text>
+
+        <rect x="336" y="8" width="318" height="96" rx="11" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <circle cx="364" cy="36" r="12" fill="#18C987"/><text x="364" y="41" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+        <text x="386" y="41" font-size="11.6" font-weight="700" fill="#111827">Revenue valve</text>
+        <text x="354" y="64" font-size="9.2" fill="#111827">Sellable rewards cannot grow faster than the</text>
+        <text x="354" y="78" font-size="9.2" fill="#111827">real money the business is actually earning.</text>
+        <text x="354" y="95" font-size="8.4" font-weight="700" fill="#0E7A52">Ties the token directly to business performance</text>
+
+        <rect x="6" y="116" width="318" height="94" rx="11" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <circle cx="34" cy="144" r="12" fill="#246BFE"/><text x="34" y="149" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+        <text x="56" y="149" font-size="11.6" font-weight="700" fill="#111827">Locked buffer</text>
+        <text x="24" y="172" font-size="9.2" fill="#111827">Free-player rewards never leave the app, so</text>
+        <text x="24" y="186" font-size="9.2" fill="#111827">most growth adds engagement, not sell pressure.</text>
+        <text x="24" y="203" font-size="8.4" font-weight="700" fill="#246BFE">Roughly 69% of rewards in our worked example</text>
+
+        <rect x="336" y="116" width="318" height="94" rx="11" fill="#F6F3FF" stroke="#DED4FF"/>
+        <circle cx="364" cy="144" r="12" fill="#7657FF"/><text x="364" y="149" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+        <text x="386" y="149" font-size="11.6" font-weight="700" fill="#111827">Deed eligibility</text>
+        <text x="354" y="172" font-size="9.2" fill="#111827">Only players who own land and stay active can</text>
+        <text x="354" y="186" font-size="9.2" fill="#111827">earn sellable rewards at all.</text>
+        <text x="354" y="203" font-size="8.4" font-weight="700" fill="#5A3FD6">You must spend into the economy before you earn from it</text>
+      </g>
+    </svg>
+    <div class="figcap">Four independent brakes. Any one of them tightening reduces issuance; none of them can loosen it.</div>
+  </div>
+
+  <h3>The one that investors care about most</h3>
+  <p>Valve 2 — the revenue valve — is the differentiator worth leading with. It says: <strong>the amount of sellable reward the protocol issues is bounded by the real revenue the business generates.</strong> If sponsorship and subscription income grow, the reward pool can be supported. If they do not, rewards tighten automatically rather than being propped up by new buyers.</p>
+  <p>That single rule turns the token from a promise into a claim on demonstrated business performance, and it means the honest answer to "what backs $MOVE?" is <em>"a real revenue line, and a cap that respects it"</em> rather than <em>"belief".</em></p>
+
+  <h3>Plus the caps already live in the contract <span class="badge real">From our code</span></h3>
+  <table>
+    <tr><th style="width:44%;">Control</th><th>Effect</th></tr>
+    <tr><td>Hard supply cap</td><td class="money">1,000,000,000 $MOVE — the contract cannot exceed it</td></tr>
+    <tr><td>Daily cap per address</td><td class="money">200 $MOVE at launch, halving each epoch</td></tr>
+    <tr><td>Distance ceiling per route</td><td class="money">100 km — no single submission can claim more</td></tr>
+    <tr><td>One-use route proofs</td><td>The same route can never be claimed twice</td></tr>
+    <tr><td>Gear boost ceiling</td><td class="money">3× maximum, whatever the combination</td></tr>
+    <tr><td>Emission floor</td><td class="money">The auto-valve cannot drive rewards below 0.01 $MOVE/km</td></tr>
+  </table>
+</div>
+
+<!-- ============ 12 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 12</div>
+  <h2 class="sec">Where tokens go to die</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Sinks are the half of tokenomics that the failed generation skipped entirely. Ours are designed so that spending feels like <em>strategy</em> — ownership, defence, status, competition — rather than like paying a toll.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 200">
+      <g font-family="Liberation Sans,Arial" font-size="9">
+        <text x="330" y="18" font-size="10.4" font-weight="700" fill="#111827" text-anchor="middle">Eight ways $MOVE leaves circulation</text>
+        <g>
+          <rect x="6" y="30" width="158" height="48" rx="8" fill="#FFF4F1" stroke="#FBD8CD"/>
+          <text x="85" y="49" font-weight="700" fill="#111827" text-anchor="middle">Claiming land</text>
+          <text x="85" y="65" font-size="8.2" fill="#667085" text-anchor="middle">scales with demand</text>
+
+          <rect x="172" y="30" width="158" height="48" rx="8" fill="#FFF4F1" stroke="#FBD8CD"/>
+          <text x="251" y="49" font-weight="700" fill="#111827" text-anchor="middle">Fortifying</text>
+          <text x="251" y="65" font-size="8.2" fill="#667085" text-anchor="middle">300 each, max 3</text>
+
+          <rect x="338" y="30" width="158" height="48" rx="8" fill="#FFF4F1" stroke="#FBD8CD"/>
+          <text x="417" y="49" font-weight="700" fill="#111827" text-anchor="middle">Challenging a rival</text>
+          <text x="417" y="65" font-size="8.2" fill="#667085" text-anchor="middle">100 to declare</text>
+
+          <rect x="504" y="30" width="150" height="48" rx="8" fill="#FFF4F1" stroke="#FBD8CD"/>
+          <text x="579" y="49" font-weight="700" fill="#111827" text-anchor="middle">Buying time</text>
+          <text x="579" y="65" font-size="8.2" fill="#667085" text-anchor="middle">500 to extend</text>
+
+          <rect x="6" y="88" width="158" height="48" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="85" y="107" font-weight="700" fill="#111827" text-anchor="middle">Gear</text>
+          <text x="85" y="123" font-size="8.2" fill="#667085" text-anchor="middle">boosts, per item</text>
+
+          <rect x="172" y="88" width="158" height="48" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="251" y="107" font-weight="700" fill="#111827" text-anchor="middle">Club upgrades</text>
+          <text x="251" y="123" font-size="8.2" fill="#667085" text-anchor="middle">tools, banners, events</text>
+
+          <rect x="338" y="88" width="158" height="48" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="417" y="107" font-weight="700" fill="#111827" text-anchor="middle">Cosmetics</text>
+          <text x="417" y="123" font-size="8.2" fill="#667085" text-anchor="middle">skins, badges, frames</text>
+
+          <rect x="504" y="88" width="150" height="48" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="579" y="107" font-weight="700" fill="#111827" text-anchor="middle">Landmark auctions</text>
+          <text x="579" y="123" font-size="8.2" fill="#667085" text-anchor="middle">rare city zones</text>
+        </g>
+        <rect x="6" y="148" width="648" height="44" rx="9" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="24" y="167" font-size="9.6" font-weight="700" fill="#0E7A52">The design goal</text>
+        <text x="24" y="184" font-size="9" fill="#111827">Free players spend Locked MOVE to play deeper. Landowners spend to protect their upside. Sponsors refill prize pools with real money.</text>
+      </g>
+    </svg>
+    <div class="figcap">Every one of these is something a player <em>wants</em> to do. That is what separates a sink from a tax.</div>
+  </div>
+
+  <h3>The costs already written into our contracts <span class="badge real">From our code</span></h3>
+  <table>
+    <tr><th style="width:44%;">Action</th><th class="r" style="width:22%;">Cost</th><th>Who pays it</th></tr>
+    <tr><td>Claiming a Zone Deed</td><td class="r money">500 × √(weekly movers)</td><td>The claimer</td></tr>
+    <tr><td>Declaring a challenge on someone's land</td><td class="r money">100 $MOVE</td><td>The challenger</td></tr>
+    <tr><td>Stronghold boost while defending</td><td class="r money">300 $MOVE × up to 3</td><td>The defender</td></tr>
+    <tr><td>Extending a challenge window</td><td class="r money">500 $MOVE</td><td>The defender</td></tr>
+    <tr><td>Minting gear</td><td class="r money">varies by item</td><td>The buyer</td></tr>
+    <tr><td>Season-end Great Burn</td><td class="r money">10% of top-100 land yield</td><td>Top landowners</td></tr>
+  </table>
+
+  <h3>A worked example of how much a contested cell consumes</h3>
+  <p>Imagine a busy high-street cell with 25 distinct movers per week, contested once during a season:</p>
+  <table>
+    <tr><th style="width:64%;">Event</th><th class="r">$MOVE destroyed</th></tr>
+    <tr><td>Owner claims the cell — 500 × √25</td><td class="r money">2,500</td></tr>
+    <tr><td>A rival declares a challenge</td><td class="r money">100</td></tr>
+    <tr><td>Owner fortifies twice to hold it</td><td class="r money">600</td></tr>
+    <tr><td>Owner extends the window once</td><td class="r money">500</td></tr>
+    <tr class="tot"><td>Total consumed by one contested cell, one season</td><td class="r money">3,700</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">For scale: at the current contract rate, that is the entire reward from <strong>370 kilometres</strong> of verified movement, destroyed by a single well-fought cell.</p>
+
+  <div class="callout warn">
+    <span class="tag">One sink does not currently work</span>
+    <p>Our deployed contract's "Great Burn" moves tokens to the treasury rather than destroying them — so supply is unchanged. It is catalogued in our own contract-defect register and must be fixed in the next contract version, or renamed honestly. <strong>Do not describe the Great Burn as deflationary until that is done.</strong></p>
+  </div>
+</div>
+
+<!-- ============ 13 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 13</div>
+  <h2 class="sec">Land as a business unit</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A Zone Deed is not a collectible sitting in a wallet. It is playable, defendable, tradable, rentable, and sponsorable — and each of those verbs is a revenue line.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 198">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="648" height="40" rx="9" fill="#EEF1F5" stroke="#DDE3EA"/>
+        <text x="24" y="26" font-size="8.2" font-weight="700" letter-spacing="1.1" fill="#5A6473">LAYER 1</text>
+        <text x="104" y="27" font-size="11" font-weight="700" fill="#111827">Common tiles</text>
+        <text x="104" y="41" font-size="8.8" fill="#667085">Free players capture and hold quiet areas with XP and Locked MOVE. No cost, no trading.</text>
+
+        <rect x="6" y="54" width="648" height="40" rx="9" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="24" y="72" font-size="8.2" font-weight="700" letter-spacing="1.1" fill="#246BFE">LAYER 2</text>
+        <text x="104" y="73" font-size="11" font-weight="700" fill="#111827">Zone badges</text>
+        <text x="104" y="87" font-size="8.8" fill="#667085">Non-transferable proof of local dominance, streaks, reconquests, city participation. Status, not asset.</text>
+
+        <rect x="6" y="100" width="648" height="40" rx="9" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="24" y="118" font-size="8.2" font-weight="700" letter-spacing="1.1" fill="#5A3FD6">LAYER 3</text>
+        <text x="104" y="119" font-size="11" font-weight="700" fill="#111827">Zone Deeds</text>
+        <text x="104" y="133" font-size="8.8" fill="#667085">Tradable land for premium cells. Earns land tax, eligible for Liquid rewards, can be sold, leased, or sponsored.</text>
+
+        <rect x="6" y="146" width="648" height="44" rx="9" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="24" y="164" font-size="8.2" font-weight="700" letter-spacing="1.1" fill="#9A6B10">LAYER 4</text>
+        <text x="104" y="165" font-size="11" font-weight="700" fill="#111827">Sponsored zones</text>
+        <text x="104" y="179" font-size="8.8" fill="#667085">Brands and Base projects fund challenges around real locations, routes, and city campaigns.</text>
+        <text x="104" y="188" font-size="8.4" font-weight="700" fill="#9A6B10">This is where outside money enters the economy.</text>
+      </g>
+    </svg>
+    <div class="figcap">Four layers of land. Value and revenue both increase as you go down.</div>
+  </div>
+
+  <h3>Six ways a single cell generates value</h3>
+  <table>
+    <tr><th style="width:26%;">Mechanism</th><th style="width:40%;">How it works</th><th>What it produces</th></tr>
+    <tr><td><strong>Claim fee</strong></td><td>Claimer burns $MOVE scaled to demand; platform takes a fee</td><td>Company revenue + token burn</td></tr>
+    <tr><td><strong>Land tax</strong></td><td>2% of everything minted in the cell goes to its holder <span class="badge real">From our code</span></td><td>Owner income; a reason to hold</td></tr>
+    <tr><td><strong>Secondary trading</strong></td><td>A fee on land changing hands <span class="badge model">2.5–5%, illustrative</span></td><td>Recurring transaction revenue</td></tr>
+    <tr><td><strong>Maintenance</strong></td><td>Owners spend to fortify and defend</td><td>Burn pressure + engagement</td></tr>
+    <tr><td><strong>Club leasing</strong></td><td>Owners lease control rights to clubs or events</td><td>Owner utility + platform fee</td></tr>
+    <tr><td><strong>Brand wrap</strong></td><td>The cell becomes a sponsored challenge location</td><td><strong>External revenue, no dilution</strong></td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The strategic point</span>
+    <p>Notice that four of these six produce income for the <em>company</em> and two produce income for the <em>player</em> — and none of them requires the token to appreciate. <strong>A deed is a small business, and the platform takes a cut of its activity.</strong> That is a far more durable structure than "we hope the NFT goes up".</p>
+  </div>
+</div>
+
+<!-- ============ 14 ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 14</div>
+  <h2 class="sec">Only real movement earns</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Every token and every deed depends on one thing being true: the movement actually happened. If someone can fake a walk from their sofa, the entire economy is worthless. This is the hardest technical problem we have.</p>
+
+  <div class="grid2">
+    <div class="card tint-green"><h4>Route plausibility <span class="badge real">Live</span></h4><p style="margin-bottom:0;">Speed, distance, timing, and continuity are checked. Anything implying more than ~80 km/h is rejected — which catches the simplest cheat, which is driving.</p></div>
+    <div class="card tint-green"><h4>Signal quality <span class="badge real">Live</span></h4><p style="margin-bottom:0;">Phones report how confident they are in each position. A session where too many points are vague is rejected, because vague points are how spoofing tools hide.</p></div>
+    <div class="card tint-green"><h4>One-use proofs <span class="badge real">Live</span></h4><p style="margin-bottom:0;">Each route is compressed into a unique fingerprint that can be claimed exactly once. You cannot record one good walk and submit it a hundred times.</p></div>
+    <div class="card tint-green"><h4>Economic caps <span class="badge real">Live</span></h4><p style="margin-bottom:0;">Even a perfect cheat is bounded by a hard daily limit per address, and a cell needs <strong>5 distinct movers over 90 days</strong> before it is worth anything.</p></div>
+    <div class="card tint-gold"><h4>Device integrity <span class="badge plan">Planned</span></h4><p style="margin-bottom:0;">Real-device attestation and emulator resistance, so a farm of virtual phones cannot pose as a neighbourhood.</p></div>
+    <div class="card tint-gold"><h4>Social corroboration <span class="badge plan">Planned</span></h4><p style="margin-bottom:0;">Cross-checking against nearby activity and route patterns. A cell where only one account ever appears is treated with suspicion.</p></div>
+    <div class="card tint-gold"><h4>Trust score <span class="badge plan">Planned</span></h4><p style="margin-bottom:0;">Risk-based reward limits and a manual review queue, so unusual accounts earn less until they establish a history.</p></div>
+    <div class="card tint-gold"><h4>Stake-to-earn slashing <span class="badge plan">Planned</span></h4><p style="margin-bottom:0;">Landowners have deposits at stake. Proven cheating costs them their deposit and their eligibility — cheating becomes expensive rather than free.</p></div>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">Say this honestly, because it is the strongest answer</span>
+    <p>No GPS system on earth is perfectly spoof-proof, and we do not claim to be. What we claim is <strong>layered defence</strong>: several independent checks a cheater must defeat simultaneously, plus economic caps that make the effort not worth the reward. Verification is treated as a permanent ongoing investment, not a solved problem. An investor who has seen other projects claim "unspoofable" will trust this answer far more than a confident one.</p>
+  </div>
+
+  <h3>The legal posture that follows from all this</h3>
+  <div class="card tint-blue">
+    <p style="margin-bottom:0;">Free rewards are <strong>non-transferable in-app credits</strong> — closer to loyalty points than to money. Sellable rewards are <strong>capped, activity-based, and gated by eligibility</strong>, with clear user disclosures and region rules. Nothing in the product is offered as income, investment, or return. This posture is not decoration: it is what keeps a movement game a game rather than a financial product, in every market we might launch in.</p>
+  </div>
+</div>
+
+<!-- ============ 15 — FULL PAGE FLOW ============ -->
+<div class="page">
+  <div class="sec-num">Part B · Section 15</div>
+  <h2 class="sec">The complete picture</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Everything in Parts A and B on one page. Blue arrows are tokens moving; gold arrows are real money moving. Notice they meet in only two places.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 546">
+      <defs>
+        <marker id="tk" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#246BFE"/></marker>
+        <marker id="cs" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#F7B955"/></marker>
+        <marker id="bn" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#FF6B4A"/></marker>
+      </defs>
+      <g font-family="Liberation Sans,Arial">
+        <g font-size="8.6">
+          <line x1="266" y1="12" x2="292" y2="12" stroke="#246BFE" stroke-width="2.2" marker-end="url(#tk)"/>
+          <text x="298" y="15" fill="#667085">tokens</text>
+          <line x1="352" y1="12" x2="378" y2="12" stroke="#F7B955" stroke-width="2.2" marker-end="url(#cs)"/>
+          <text x="384" y="15" fill="#667085">real money</text>
+          <line x1="456" y1="12" x2="482" y2="12" stroke="#FF6B4A" stroke-width="2.2" marker-end="url(#bn)"/>
+          <text x="488" y="15" fill="#667085">feedback</text>
+        </g>
+
+        <rect x="242" y="30" width="176" height="46" rx="10" fill="#246BFE"/>
+        <text x="330" y="51" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">SEASON POOL</text>
+        <text x="330" y="66" font-size="8.2" fill="#D6E4FF" text-anchor="middle">capped &#183; shrinks 20% each season</text>
+
+        <path d="M330,78 L330,98" stroke="#246BFE" stroke-width="2.2" marker-end="url(#tk)"/>
+        <text x="338" y="93" font-size="8" fill="#667085">split by verified activity score</text>
+
+        <rect x="190" y="106" width="280" height="38" rx="9" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="330" y="124" font-size="10" font-weight="700" fill="#0E7A52" text-anchor="middle">PROOF OF MOVEMENT</text>
+        <text x="330" y="137" font-size="8.2" fill="#667085" text-anchor="middle">no proof, no tokens &#8212; ever</text>
+
+        <path d="M276,146 L206,172" stroke="#246BFE" stroke-width="2.2" marker-end="url(#tk)"/>
+        <path d="M384,146 L454,172" stroke="#246BFE" stroke-width="2.2" marker-end="url(#tk)"/>
+
+        <rect x="76" y="180" width="230" height="66" rx="10" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="191" y="202" font-size="11" font-weight="700" fill="#246BFE" text-anchor="middle">LOCKED MOVE</text>
+        <text x="191" y="218" font-size="8.6" fill="#111827" text-anchor="middle">every free player</text>
+        <text x="191" y="234" font-size="8.6" font-weight="700" fill="#111827" text-anchor="middle">can never be sold</text>
+
+        <rect x="354" y="180" width="230" height="66" rx="10" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="469" y="202" font-size="11" font-weight="700" fill="#5A3FD6" text-anchor="middle">LIQUID MOVE</text>
+        <text x="469" y="218" font-size="8.6" fill="#111827" text-anchor="middle">active landowners only</text>
+        <text x="469" y="234" font-size="8.6" font-weight="700" fill="#111827" text-anchor="middle">capped &amp; sellable</text>
+
+        <path d="M191,248 L191,272" stroke="#246BFE" stroke-width="2.2" marker-end="url(#tk)"/>
+        <path d="M469,248 L469,272" stroke="#246BFE" stroke-width="2.2" marker-end="url(#tk)"/>
+
+        <rect x="76" y="280" width="508" height="60" rx="10" fill="#FFF4F1" stroke="#FBD8CD"/>
+        <text x="330" y="301" font-size="11" font-weight="700" fill="#B03A1C" text-anchor="middle">SPENT INSIDE THE GAME</text>
+        <text x="330" y="317" font-size="8.8" fill="#111827" text-anchor="middle">claim land &#183; fortify &#183; challenge rivals &#183; gear &#183; clubs &#183; cosmetics &#183; events</text>
+        <text x="330" y="332" font-size="8.6" font-weight="700" fill="#B03A1C" text-anchor="middle">most of this is destroyed permanently</text>
+
+        <path d="M330,342 L330,364" stroke="#246BFE" stroke-width="2.2" marker-end="url(#tk)"/>
+
+        <rect x="200" y="372" width="260" height="46" rx="10" fill="#7657FF"/>
+        <text x="330" y="392" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">ZONE DEEDS &#8212; THE LAND LAYER</text>
+        <text x="330" y="407" font-size="8.4" fill="#DED4FF" text-anchor="middle">scarce &#183; earns 2% land tax &#183; tradable &#183; defendable</text>
+
+        <rect x="110" y="440" width="180" height="44" rx="10" fill="#F7B955"/>
+        <text x="200" y="459" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">SPONSORS</text>
+        <text x="200" y="473" font-size="8" fill="#FFF9EF" text-anchor="middle">pay to reach the land layer</text>
+        <path d="M228,436 L266,422" stroke="#F7B955" stroke-width="2.4" marker-end="url(#cs)"/>
+
+        <rect x="370" y="440" width="180" height="44" rx="10" fill="#F7B955"/>
+        <text x="460" y="459" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">SUBSCRIBERS</text>
+        <text x="460" y="473" font-size="8" fill="#FFF9EF" text-anchor="middle">pay for tools and insight</text>
+        <path d="M432,436 L394,422" stroke="#F7B955" stroke-width="2.4" marker-end="url(#cs)"/>
+
+        <path d="M200,486 L200,502 L242,502" fill="none" stroke="#F7B955" stroke-width="2.4"/>
+        <path d="M460,486 L460,502 L418,502" fill="none" stroke="#F7B955" stroke-width="2.4"/>
+        <rect x="216" y="504" width="228" height="36" rx="9" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="330" y="519" font-size="10" font-weight="700" fill="#9A6B10" text-anchor="middle">COMPANY REVENUE</text>
+        <text x="330" y="532" font-size="8.2" fill="#667085" text-anchor="middle">operations &#183; growth &#183; prize pools &#183; buyback</text>
+
+        <path d="M590,310 L626,310 L626,53 L424,53" fill="none" stroke="#FF6B4A" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#bn)"/>
+        <text x="644" y="200" font-size="8" fill="#B03A1C" transform="rotate(90 644 200)">burn ratio tightens the next pool</text>
+
+        <path d="M210,522 L34,522 L34,53 L236,53" fill="none" stroke="#F7B955" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#cs)"/>
+        <text x="18" y="200" font-size="8" fill="#9A6B10" transform="rotate(-90 18 200)">revenue valve caps sellable rewards</text>
+      </g>
+    </svg>
+    <div class="figcap">The two economies touch in exactly two places: sponsors pay to reach players on the land layer, and revenue sets the ceiling on sellable rewards. Everywhere else, tokens and cash stay separate.</div>
+  </div>
+
+  <div class="callout ok">
+    <span class="tag">The five sentences that summarise the whole design</span>
+    <p><strong>1.</strong> Tokens are only created for proven movement, from a pool that shrinks every season.
+    <strong>2.</strong> Most rewards are locked and can never be sold, so growth adds engagement rather than sell pressure.
+    <strong>3.</strong> Sellable rewards go only to people who have already spent on land and keep defending it.
+    <strong>4.</strong> Playing the game destroys tokens faster than most players earn them.
+    <strong>5.</strong> The company's income comes from sponsors and subscribers paying real money, not from the token.</p>
+  </div>
+</div>
+
+<!-- ============ 16 ============ -->
+<div class="page">
+  <div class="sec-num">Part C · Section 16</div>
+  <h2 class="sec">How the business actually earns</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Eight revenue streams, which group into four engines. Not one of them requires the token to be worth anything, and not one of them charges an ordinary player to play.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 244">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="8" width="318" height="112" rx="11" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="24" y="30" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#9A6B10">ENGINE 1 — STRONGEST</text>
+        <text x="24" y="50" font-size="12.4" font-weight="700" fill="#111827">Sponsors &amp; brands</text>
+        <g font-size="9" fill="#111827">
+          <text x="24" y="72">•  Local zone sponsorship</text>
+          <text x="24" y="89">•  City war campaign packages</text>
+          <text x="24" y="106">•  Foot-traffic analytics dashboards</text>
+        </g>
+
+        <rect x="336" y="8" width="318" height="112" rx="11" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="354" y="30" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#5A3FD6">ENGINE 2</text>
+        <text x="354" y="50" font-size="12.4" font-weight="700" fill="#111827">Land economy</text>
+        <g font-size="9" fill="#111827">
+          <text x="354" y="72">•  Deed claim fees</text>
+          <text x="354" y="89">•  Marketplace fee on land trades</text>
+          <text x="354" y="106">•  Landmark auctions and leasing</text>
+        </g>
+
+        <rect x="6" y="130" width="318" height="106" rx="11" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="24" y="152" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#246BFE">ENGINE 3 — MOST PREDICTABLE</text>
+        <text x="24" y="172" font-size="12.4" font-weight="700" fill="#111827">Subscriptions</text>
+        <g font-size="9" fill="#111827">
+          <text x="24" y="194">•  MovenRun Premium, monthly</text>
+          <text x="24" y="211">•  Club tools for organisers</text>
+        </g>
+        <text x="24" y="229" font-size="8.4" font-weight="700" fill="#246BFE">Recurring, forecastable, chain-independent</text>
+
+        <rect x="336" y="130" width="318" height="106" rx="11" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="354" y="152" font-size="8.2" font-weight="700" letter-spacing="1.2" fill="#0E7A52">ENGINE 4</text>
+        <text x="354" y="172" font-size="12.4" font-weight="700" fill="#111827">Events</text>
+        <g font-size="9" fill="#111827">
+          <text x="354" y="194">•  Marathon and race collectibles</text>
+          <text x="354" y="211">•  City events and charity runs</text>
+        </g>
+        <text x="354" y="229" font-size="8.4" font-weight="700" fill="#0E7A52">Lumpy but high-value; strong partnerships</text>
+      </g>
+    </svg>
+    <div class="figcap">Four engines with genuinely different risk profiles. If any one underperforms, the others are unaffected.</div>
+  </div>
+
+  <h3>Why this mix is deliberately diversified</h3>
+  <table>
+    <tr><th style="width:22%;">Engine</th><th style="width:20%;">Predictability</th><th style="width:20%;">Depends on token?</th><th>Depends on what</th></tr>
+    <tr><td><strong>Sponsors</strong></td><td>Medium — contract-based</td><td>No</td><td>Local player density</td></tr>
+    <tr><td><strong>Land economy</strong></td><td>Low — activity-driven</td><td>Partly</td><td>An active land market</td></tr>
+    <tr><td><strong>Subscriptions</strong></td><td><strong>High — recurring</strong></td><td>No</td><td>Product quality and habit</td></tr>
+    <tr><td><strong>Events</strong></td><td>Low — lumpy</td><td>No</td><td>Partnerships and calendar</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The line to use with investors</span>
+    <p><strong>Three of our four revenue engines work identically whether $MOVE is worth ten dollars or nothing.</strong> That is the structural answer to the obvious question — "what happens to your business in a crypto bear market?" — and very few projects in this category can give it.</p>
+  </div>
+
+  <h3>What we deliberately do not charge for</h3>
+  <ul>
+    <li><strong>Playing.</strong> Moving, capturing, streaks, clubs, and city competition are free for ever. Charging here would kill the density that everything else depends on.</li>
+    <li><strong>Basic access.</strong> No paywall, no trial, no "premium required to earn". Premium buys convenience and insight, never earning power.</li>
+    <li><strong>Getting started with crypto.</strong> Wallets are free, fees are sponsored, nothing must be bought to claim a first zone.</li>
+  </ul>
+</div>
+
+<!-- ============ 17 ============ -->
+<div class="page">
+  <div class="sec-num">Part C · Section 17</div>
+  <h2 class="sec">Sponsors: the strongest line</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Our best revenue does not come from users buying tokens. It comes from businesses paying to reach people who are physically walking past their door.</p>
+
+  <h3>What a sponsor is actually buying</h3>
+  <p>A café that sponsors the cell it sits in is not buying an advert. It is buying a reason for players to <strong>choose a route that goes past it</strong> — and then a report showing how many people did. That is closer to a shop paying for a map pin than to a banner ad, except that players actively <em>want</em> to visit because it advances their game.</p>
+
+  <div class="grid3" style="margin-bottom:14px;">
+    <div class="card tint-gold" style="margin:0;"><h4>Verified footfall</h4><p class="small" style="margin:0;">Not impressions, not clicks — people who genuinely, physically moved through a location, proven by the same verification that guards our token.</p></div>
+    <div class="card tint-gold" style="margin:0;"><h4>A measurable campaign</h4><p class="small" style="margin:0;">A sponsor can see how many players entered the zone, how often they returned, and how it compares to before the campaign.</p></div>
+    <div class="card tint-gold" style="margin:0;"><h4>Goodwill, not intrusion</h4><p class="small" style="margin:0;">Sponsored zones give players extra rewards and objectives. The sponsor is funding the fun, not interrupting it.</p></div>
+  </div>
+
+  <h3>Indicative packages <span class="badge model">Illustrative — no signed customer has validated any of this</span></h3>
+  <table>
+    <tr><th style="width:26%;">Package</th><th class="r" style="width:22%;">Price</th><th>Typical buyer</th></tr>
+    <tr><td><strong>Local zone sponsor</strong></td><td class="r money">$300 – $1,000 / mo</td><td>Running stores, gyms, cafés, campus clubs</td></tr>
+    <tr><td><strong>City war sponsor</strong></td><td class="r money">$10K – $50K / season</td><td>Base projects, fitness brands, consumer apps</td></tr>
+    <tr><td><strong>Marathon / event drop</strong></td><td class="r money">$5K – $100K / event</td><td>Race organisers, city events, charity runs</td></tr>
+    <tr><td><strong>Analytics dashboard</strong></td><td class="r money">$1K – $5K / mo</td><td>Multi-location brands running campaigns</td></tr>
+  </table>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 168">
+      <defs><marker id="fw2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#F7B955"/></marker></defs>
+      <g font-family="Liberation Sans,Arial" font-size="9">
+        <text x="330" y="16" font-size="10.4" font-weight="700" fill="#111827" text-anchor="middle">The sponsor flywheel</text>
+        <rect x="238" y="28" width="184" height="32" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="330" y="48" font-weight="700" fill="#111827" text-anchor="middle">Sponsor pays real money</text>
+        <path d="M424,44 C486,44 512,60 516,76" fill="none" stroke="#F7B955" stroke-width="2" marker-end="url(#fw2)"/>
+
+        <rect x="452" y="84" width="196" height="32" rx="8" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="550" y="104" font-weight="700" fill="#111827" text-anchor="middle">Funds prizes &amp; bonuses</text>
+        <path d="M550,120 C550,142 500,152 440,152" fill="none" stroke="#F7B955" stroke-width="2" marker-end="url(#fw2)"/>
+
+        <rect x="238" y="136" width="184" height="32" rx="8" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="330" y="156" font-weight="700" fill="#111827" text-anchor="middle">Players move more</text>
+        <path d="M236,152 C176,152 126,142 126,120" fill="none" stroke="#F7B955" stroke-width="2" marker-end="url(#fw2)"/>
+
+        <rect x="28" y="84" width="196" height="32" rx="8" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="126" y="104" font-weight="700" fill="#111827" text-anchor="middle">Land &amp; footfall gain value</text>
+        <path d="M126,80 C122,60 176,44 236,44" fill="none" stroke="#F7B955" stroke-width="2" marker-end="url(#fw2)"/>
+      </g>
+    </svg>
+    <div class="figcap">Outside money buys activity; activity makes land and footfall more valuable; that makes the next sponsor easier to sign.</div>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">The honest state of this line</span>
+    <p>We have <strong>no signed sponsors and no validated pricing.</strong> The packages above are our model, informed by what comparable local-marketing spend looks like, not by a single closed deal. The first paid sponsor is one of the most important milestones in the plan precisely because it converts this page from a theory into evidence.</p>
+  </div>
+</div>
+
+<!-- ============ 18 ============ -->
+<div class="page">
+  <div class="sec-num">Part C · Section 18</div>
+  <h2 class="sec">Premium, without a paywall</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Subscriptions are the most predictable revenue a consumer app can have. The rule we set ourselves: premium may improve <em>convenience, insight and status</em> — never earning power.</p>
+
+  <div class="card tint-blue" style="text-align:center;padding:14px;">
+    <p style="font-size:14pt;font-weight:700;margin-bottom:3px;">MovenRun Premium — $9.99 / month <span class="badge model" style="vertical-align:4px;">Illustrative</span></p>
+    <p class="small" style="margin-bottom:0;">Not a paywall. Earning stays controlled by land ownership and season pools, for subscribers and non-subscribers alike.</p>
+  </div>
+
+  <div class="grid2" style="margin-top:11px;">
+    <div class="card"><h4>Advanced map tools</h4><p style="margin-bottom:0;">Heatmaps, personal territory analytics, rival tracking, and route planning — for players who want to play strategically rather than casually.</p></div>
+    <div class="card"><h4>Gasless convenience</h4><p style="margin-bottom:0;">Sponsored claims and simplified wallet handling for frequent actions. Saves steps, not money the user would otherwise pay.</p></div>
+    <div class="card"><h4>Club perks</h4><p style="margin-bottom:0;">Priority club creation, private boards, member roles, and event tools. Aimed squarely at the organisers who bring thirty players each.</p></div>
+    <div class="card"><h4>Privacy controls</h4><p style="margin-bottom:0;">Private route mode, masked home zone, and advanced safety settings. A genuinely valuable feature for anyone uneasy about location.</p></div>
+    <div class="card"><h4>Premium cosmetics</h4><p style="margin-bottom:0;">Exclusive map skins, badges, profile frames, and share cards. Status is a real motivator in a competitive territory game.</p></div>
+    <div class="card"><h4>Event access</h4><p style="margin-bottom:0;">Early access to sponsor runs, city wars, and limited challenge drops.</p></div>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">Pricing sensitivity — the assumption most worth testing</span>
+    <p>$9.99/month puts us at the same price as established fitness subscriptions from companies with years of trust and far more features. For a new app that is ambitious. Two things follow: <strong>expect a lower conversion rate than a mature product</strong>, and <strong>consider testing a lower tier</strong> (a $3–5 "club organiser" or "privacy" tier) before assuming the headline price. Section 22 shows what happens to our model if conversion is a third of the optimistic case.</p>
+  </div>
+
+  <h3>Why the "never earning power" rule is non-negotiable</h3>
+  <p>The moment a subscription increases what a player earns, three bad things happen at once. The game becomes pay-to-win, which drives away the free players whose density everything depends on. The rewards become harder to describe as a game feature and easier to describe as a financial return, which is a regulatory problem. And the sponsor proposition weakens, because footfall starts reflecting who paid rather than who genuinely moves. Holding this line costs us some short-term revenue and protects the entire model.</p>
+</div>
+
+<!-- ============ 19 ============ -->
+<div class="page">
+  <div class="sec-num">Part C · Section 19</div>
+  <h2 class="sec">What it costs to run</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Revenue slides are easy. The question an investor asks next is what it costs to serve a player — and here the answer is unusually good, because our expensive resource is people, not infrastructure.</p>
+
+  <h3>The cost of putting a player on the blockchain</h3>
+  <p>We sponsor every user's transaction fees, so their cost lands on us. This is the number people assume will be crippling, and on Base it simply is not:</p>
+  <table>
+    <tr><th style="width:56%;">Assumption <span class="badge model" style="margin-left:0;">Illustrative</span></th><th class="r">Value</th></tr>
+    <tr><td>On-chain actions per active player per month</td><td class="r money">20</td></tr>
+    <tr><td>Typical cost of one action on Base</td><td class="r money">$0.005</td></tr>
+    <tr><td>Gas cost per player per month</td><td class="r money">$0.10</td></tr>
+    <tr><td>Gas cost per player per <strong>year</strong></td><td class="r money">$1.20</td></tr>
+    <tr class="tot"><td>At 100,000 monthly active players</td><td class="r money">≈ $10,000 / month</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">On Ethereum's base layer the same 20 actions could cost several dollars each — the same product would be economically impossible. <strong>This single line is why the choice of Base is a business decision, not a technical preference.</strong></p>
+
+  <h3>The rest of the cost base</h3>
+  <table>
+    <tr><th style="width:34%;">Cost</th><th style="width:22%;">Behaviour</th><th>Notes</th></tr>
+    <tr><td><strong>Team</strong></td><td>Fixed, dominant</td><td>Engineering, design, city operations. This is 80%+ of spend at every stage and the only cost that really matters early.</td></tr>
+    <tr><td><strong>Sponsored gas</strong></td><td>Scales per player</td><td>~$1.20 per player per year. Negligible.</td></tr>
+    <tr><td><strong>Infrastructure</strong></td><td>Steps up in blocks</td><td>Servers, database, queues, map and location services. Hundreds of dollars monthly at city scale.</td></tr>
+    <tr><td><strong>Wallet provider</strong></td><td>Per active user</td><td>Typically priced per monthly active wallet. <strong>Currently unknown</strong> — we have not selected a vendor, so this is a genuine open cost.</td></tr>
+    <tr><td><strong>City operations</strong></td><td>Per city launched</td><td>Local partnerships, club outreach, events. The real cost of the growth model, and mostly people-time.</td></tr>
+    <tr><td><strong>Compliance &amp; audit</strong></td><td>Lumpy, significant</td><td>An external smart-contract audit before mainnet is a hard requirement and a meaningful one-off cost.</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The structural advantage</span>
+    <p>Serving one more player costs us close to nothing — roughly a dollar a year in fees plus a fraction of shared infrastructure. Almost all our cost is fixed team cost. <strong>That means gross margins are very high and the entire question is whether we can reach enough players to cover a fixed team cost</strong> — which is exactly the shape of a software business, and exactly what a software investor knows how to underwrite.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">The honest gap</span>
+    <p>We have not selected an embedded-wallet provider, and their pricing is typically per monthly active wallet. At large scale that could become one of our few genuinely per-user costs. Until a vendor is chosen, treat wallet cost as an <strong>unknown</strong> in any model — including ours.</p>
+  </div>
+</div>
+
+<!-- ============ 20 ============ -->
+<div class="page">
+  <div class="sec-num">Part C · Section 20</div>
+  <h2 class="sec">One city, one thousand players</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The important property of this model is that it earns <em>before</em> scale. Land and sponsors are local, so a single well-populated city can produce revenue long before a global user base exists.</p>
+
+  <div class="assume">
+    <h4>Every assumption in this model <span class="badge model" style="margin-left:4px;">Illustrative</span></h4>
+    <ul>
+      <li>1,000 monthly active players in one city, roughly 60% free / 40% landowners</li>
+      <li>120 land claims per month at an $8 platform fee</li>
+      <li>$15,000 of monthly land trading at a 2.5% fee</li>
+      <li>5 local sponsors at $300/month — the entry-level package</li>
+      <li>5% subscription conversion (50 players) at $9.99</li>
+      <li>20 club organisers on tools at $9, and 300 event claims at $2</li>
+      <li><strong>None of this is validated by a paying customer. It is arithmetic, not evidence.</strong></li>
+    </ul>
+  </div>
+
+  <table>
+    <tr><th style="width:34%;">Revenue stream</th><th style="width:34%;">Assumption</th><th class="r">Monthly</th></tr>
+    <tr><td>Local sponsors</td><td>5 × $300</td><td class="r money">$1,500</td></tr>
+    <tr><td>Zone Deed claim fees</td><td>120 × $8</td><td class="r money">$960</td></tr>
+    <tr><td>Event drops</td><td>300 × $2</td><td class="r money">$600</td></tr>
+    <tr><td>Premium subscriptions</td><td>50 × $9.99</td><td class="r money">$500</td></tr>
+    <tr><td>Marketplace fees</td><td>$15K volume × 2.5%</td><td class="r money">$375</td></tr>
+    <tr><td>Club tools</td><td>20 × $9</td><td class="r money">$180</td></tr>
+    <tr class="tot"><td>Total revenue</td><td>One starter city</td><td class="r money">$4,115 / mo</td></tr>
+    <tr class="neg"><td>Sponsored gas</td><td>1,000 × $0.10</td><td class="r money">− $100</td></tr>
+    <tr class="neg"><td>Infrastructure</td><td>Baseline servers, database, queues</td><td class="r money">− $400</td></tr>
+    <tr class="neg"><td>Wallet provider</td><td>Estimated per active wallet</td><td class="r money">− $50</td></tr>
+    <tr class="tot"><td>Contribution after direct costs</td><td>≈ 87% margin</td><td class="r money">$3,565 / mo</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;"><strong>Contribution margin, not profit.</strong> Team salaries are excluded — at this stage they are the whole cost base, and one city does not cover them. The point of this table is the <em>shape</em>: revenue per city arrives early, and serving those players costs almost nothing.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 128">
+      <g font-family="Liberation Sans,Arial">
+        <text x="6" y="16" font-size="9.4" font-weight="700" fill="#111827">Where the $4,115 comes from</text>
+        <rect x="6" y="26" width="236" height="30" fill="#F7B955" rx="4"/>
+        <text x="124" y="46" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">Sponsors $1,500</text>
+        <rect x="246" y="26" width="151" height="30" fill="#7657FF"/>
+        <text x="321" y="46" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">Land $960</text>
+        <rect x="401" y="26" width="94" height="30" fill="#18C987"/>
+        <text x="448" y="46" font-size="8.4" font-weight="700" fill="#fff" text-anchor="middle">Events $600</text>
+        <rect x="499" y="26" width="79" height="30" fill="#246BFE"/>
+        <text x="538" y="46" font-size="8.4" font-weight="700" fill="#fff" text-anchor="middle">Subs $500</text>
+        <rect x="582" y="26" width="59" height="30" fill="#A3AAB8"/>
+        <text x="611" y="46" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">$555</text>
+
+        <text x="6" y="82" font-size="9.4" font-weight="700" fill="#111827">Revenue vs the cost of serving those players</text>
+        <rect x="6" y="90" width="600" height="26" fill="#18C987" rx="4"/>
+        <text x="306" y="108" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">Revenue $4,115</text>
+        <rect x="6" y="90" width="80" height="26" fill="#FF6B4A" rx="4"/>
+        <text x="46" y="108" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">$550</text>
+      </g>
+    </svg>
+    <div class="figcap">Sponsors are the largest line even at the smallest scale — which is why the first signed sponsor matters more than the first thousand users.</div>
+  </div>
+
+  <div class="callout">
+    <span class="tag">What this model is really claiming</span>
+    <p>Not that we will earn $4,115 a month. It is claiming something more useful: <strong>the revenue model does not require millions of users to switch on.</strong> One dense city with a handful of local sponsors already produces a real, if small, income — which means the business can be tested for a few thousand dollars of revenue rather than a few million.</p>
+  </div>
+</div>
+
+<!-- ============ 21 ============ -->
+<div class="page">
+  <div class="sec-num">Part C · Section 21</div>
+  <h2 class="sec">At scale — and the honest downside</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Most decks show only the optimistic column. Showing both is more persuasive, because the first thing a serious investor does is rebuild your model with their own assumptions.</p>
+
+  <table>
+    <tr><th style="width:28%;">Stream</th><th style="width:26%;">Optimistic case</th><th class="r">Monthly</th><th class="r">Conservative</th></tr>
+    <tr><td>Marketplace fees</td><td>$10M volume × 2.5%</td><td class="r money">$250,000</td><td class="r money">$25,000</td></tr>
+    <tr><td>City war sponsors</td><td>10 campaigns × $25K</td><td class="r money">$250,000</td><td class="r money">$45,000</td></tr>
+    <tr><td>Zone Deed claims</td><td>20,000 × $10</td><td class="r money">$200,000</td><td class="r money">$50,000</td></tr>
+    <tr><td>Brand zones</td><td>100 × $1,500</td><td class="r money">$150,000</td><td class="r money">$40,000</td></tr>
+    <tr><td>Event drops</td><td>50,000 × $3</td><td class="r money">$150,000</td><td class="r money">$45,000</td></tr>
+    <tr><td>Sponsor dashboards</td><td>50 × $2,000</td><td class="r money">$100,000</td><td class="r money">$30,000</td></tr>
+    <tr><td>Premium subscriptions</td><td>8% of users × $9.99</td><td class="r money">$79,920</td><td class="r money">$29,970</td></tr>
+    <tr><td>Club tools</td><td>2,000 × $19</td><td class="r money">$38,000</td><td class="r money">$11,400</td></tr>
+    <tr class="tot"><td>Total at 100,000 players</td><td>per month</td><td class="r money">$1.22M</td><td class="r money">$276K</td></tr>
+    <tr class="tot"><td>Annualised</td><td></td><td class="r money">$14.6M</td><td class="r money">$3.3M</td></tr>
+    <tr><td>Revenue per player / month</td><td>ARPU</td><td class="r money">$12.18</td><td class="r money">$2.76</td></tr>
+    <tr class="neg"><td>Direct cost to serve</td><td>gas + infra + wallets</td><td class="r money">− $23,000</td><td class="r money">− $23,000</td></tr>
+    <tr class="tot"><td>Contribution margin</td><td></td><td class="r money">98%</td><td class="r money">92%</td></tr>
+  </table>
+
+  <div class="assume">
+    <h4>The conservative column assumes <span class="badge model" style="margin-left:4px;">Illustrative</span></h4>
+    <ul>
+      <li>Subscription conversion of <strong>3%</strong>, not 8% — closer to typical consumer freemium</li>
+      <li>Land trading volume <strong>ten times lower</strong> at $1M/month</li>
+      <li>A quarter as many land claims, and roughly a third of the sponsor and event activity</li>
+    </ul>
+  </div>
+
+  <div class="callout warn">
+    <span class="tag">The assumption most likely to be attacked</span>
+    <p><strong>$10M of monthly land trading at 100,000 players is $100 per player per month of trading volume.</strong> That is a very active market — plausible for a mature, sought-after land economy, aggressive for a young one. Expect an investor to strike it out entirely. Notice that even at a tenth of it, the business still annualises above $3M with a 92% contribution margin. <strong>Lead with the conservative column and let them find the upside themselves.</strong></p>
+  </div>
+
+  <p>A team of around twenty people at that scale might cost $200–300K a month. So the optimistic case is comfortably profitable, and the conservative case is roughly break-even on a fully-loaded basis — which is a perfectly respectable place for a consumer network to be at 100,000 users, with four independent levers still to pull.</p>
+</div>
+
+<!-- ============ 22 ============ -->
+<div class="page">
+  <div class="sec-num">Part C · Section 22</div>
+  <h2 class="sec">The economics of one player</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Investors reduce every consumer business to three numbers: what a user is worth, what they cost to acquire, and how long it takes to get that money back. Here they are, with the caveat that none is yet measured.</p>
+
+  <div class="grid3" style="margin-bottom:14px;">
+    <div class="kpi"><div class="n" style="color:var(--green);">$2.76</div><div class="l">Revenue per player per month, conservative case <span class="badge model" style="margin-left:0;">Illustrative</span></div></div>
+    <div class="kpi"><div class="n" style="color:var(--blue);">~$1.20</div><div class="l">Direct cost to serve one player for a whole year</div></div>
+    <div class="kpi"><div class="n" style="color:var(--violet);">&gt;90%</div><div class="l">Contribution margin in both cases</div></div>
+  </div>
+
+  <h3>Why our acquisition cost should be unusually low</h3>
+  <p>Most consumer apps buy users through advertising, at anywhere from a few dollars to tens of dollars each. Three properties of this product cut that cost structurally:</p>
+  <ul>
+    <li><strong>Clubs arrive pre-formed.</strong> Running clubs, walking groups, and gyms already exist and already meet. One captain converts thirty players in a single conversation — thirty players in one neighbourhood, which is also exactly the density we need.</li>
+    <li><strong>Territory is inherently shareable.</strong> A map of your neighbourhood in your colour provokes <em>"that's my street — why is it yours?"</em>. A distance number does not.</li>
+    <li><strong>Rivalry recruits.</strong> A player losing ground to a neighbour has a direct incentive to bring friends. The game mechanic <em>is</em> the referral mechanic.</li>
+  </ul>
+
+  <table>
+    <tr><th style="width:44%;">Metric <span class="badge model" style="margin-left:0;">Illustrative</span></th><th class="r">Conservative</th><th class="r">Optimistic</th></tr>
+    <tr><td>Revenue per player / month</td><td class="r money">$2.76</td><td class="r money">$12.18</td></tr>
+    <tr><td>Cost to acquire a player (blended)</td><td class="r money">$5.00</td><td class="r money">$2.00</td></tr>
+    <tr><td>Months to pay that back</td><td class="r money">1.8</td><td class="r money">0.2</td></tr>
+    <tr><td>Assumed average player lifetime</td><td class="r money">12 months</td><td class="r money">18 months</td></tr>
+    <tr class="tot"><td>Lifetime value per player</td><td class="r money">≈ $33</td><td class="r money">≈ $219</td></tr>
+    <tr class="tot"><td>Value-to-cost ratio</td><td class="r money">6.6×</td><td class="r money">100×+</td></tr>
+  </table>
+  <p class="small" style="margin-top:-4px;">Investors generally look for a ratio above 3× and payback inside 12 months. Both cases clear that comfortably — <strong>but every input above is modelled, not measured.</strong> The number that matters is the first one we actually observe.</p>
+
+  <div class="callout warn">
+    <span class="tag">What would break this</span>
+    <p>Retention. Every figure above assumes players stay for a year. A movement app lives or dies on habit formation, and if week-4 retention is poor, lifetime value collapses regardless of how good the margins look. <strong>Retention is the number we should be most impatient to measure, and the one an investor will ask for first.</strong></p>
+  </div>
+</div>
+
+<!-- ============ 23 ============ -->
+<div class="page">
+  <div class="sec-num">Part D · Section 23</div>
+  <h2 class="sec">What investors actually score</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">At our stage nobody is valuing revenue, because there is none. They are scoring six things — and knowing which ones we are strong on tells you what to lead with.</p>
+
+  <table>
+    <tr><th style="width:22%;">What they score</th><th style="width:44%;">The question behind it</th><th>Weight at pre-revenue</th></tr>
+    <tr><td><strong>Team</strong></td><td>Can these people build and ship the hard part?</td><td><strong>Highest</strong></td></tr>
+    <tr><td><strong>Evidence of work</strong></td><td>Is there something real, or just a deck?</td><td><strong>Very high</strong></td></tr>
+    <tr><td><strong>Market</strong></td><td>If it works, is the prize big enough to matter?</td><td>High</td></tr>
+    <tr><td><strong>Moat</strong></td><td>What stops a funded competitor copying it in a quarter?</td><td>High</td></tr>
+    <tr><td><strong>Economic design</strong></td><td>Does this survive contact with real incentives?</td><td>Medium-high in crypto</td></tr>
+    <tr><td><strong>Timing</strong></td><td>Why is now the moment, rather than two years ago?</td><td>Medium</td></tr>
+  </table>
+
+  <h3>The three things that specifically raise a crypto project's score</h3>
+  <div class="grid3">
+    <div class="card tint-green" style="margin:0;"><h4>Revenue that is not the token</h4><p class="small" style="margin:0;">The single strongest signal after the 2022 collapse. It says the business survives a bear market.</p></div>
+    <div class="card tint-blue" style="margin:0;"><h4>Sinks designed before incentives</h4><p class="small" style="margin:0;">Shows the team understood why the previous generation failed rather than repeating its pitch.</p></div>
+    <div class="card tint-violet" style="margin:0;"><h4>Verifiable, shipped work</h4><p class="small" style="margin:0;">Deployed contracts and passing tests anyone can check beat any amount of narrative.</p></div>
+  </div>
+
+  <h3>And the three that lower it fastest</h3>
+  <div class="grid3">
+    <div class="card tint-coral" style="margin:0;"><h4>Projections presented as facts</h4><p class="small" style="margin:0;">One unlabelled model figure and everything else you said gets re-examined.</p></div>
+    <div class="card tint-coral" style="margin:0;"><h4>Hidden problems</h4><p class="small" style="margin:0;">Anything they discover that you did not volunteer costs far more than the problem itself.</p></div>
+    <div class="card tint-coral" style="margin:0;"><h4>Token-price-dependent plans</h4><p class="small" style="margin:0;">"It works if the token appreciates" is read as "it does not work".</p></div>
+  </div>
+
+  <div class="callout ok">
+    <span class="tag">The posture that wins</span>
+    <p>Lead with what is <strong>built and checkable</strong>, label every model as a model, and volunteer your own open problems before they are found. Counter-intuitively, a founder who says <em>"here are three things wrong with our contracts and here is the fix plan"</em> scores higher than one who claims everything is finished — because the first is describing a process the investor can trust, and the second is describing a claim they now have to verify.</p>
+  </div>
+</div>
+
+<!-- ============ 24 ============ -->
+<div class="page">
+  <div class="sec-num">Part D · Section 24</div>
+  <h2 class="sec">Our honest scorecard</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Where MovenRun is genuinely strong, and where it is not. No self-awarded score — just the two columns, so you can hold both in a conversation.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 214">
+      <g font-family="Liberation Sans,Arial" font-size="9">
+        <text x="130" y="16" font-size="9.6" font-weight="700" fill="#111827" text-anchor="middle">How ready is each dimension?</text>
+        <g>
+          <text x="6" y="42" fill="#111827" font-weight="700">Evidence of work</text>
+          <rect x="176" y="32" width="440" height="14" rx="4" fill="#EEF1F5"/><rect x="176" y="32" width="396" height="14" rx="4" fill="#18C987"/>
+          <text x="624" y="43" font-size="8.4" fill="#0E7A52" font-weight="700">strong</text>
+
+          <text x="6" y="70" fill="#111827" font-weight="700">Economic design</text>
+          <rect x="176" y="60" width="440" height="14" rx="4" fill="#EEF1F5"/><rect x="176" y="60" width="352" height="14" rx="4" fill="#18C987"/>
+          <text x="624" y="71" font-size="8.4" fill="#0E7A52" font-weight="700">strong</text>
+
+          <text x="6" y="98" fill="#111827" font-weight="700">Timing</text>
+          <rect x="176" y="88" width="440" height="14" rx="4" fill="#EEF1F5"/><rect x="176" y="88" width="352" height="14" rx="4" fill="#18C987"/>
+          <text x="624" y="99" font-size="8.4" fill="#0E7A52" font-weight="700">strong</text>
+
+          <text x="6" y="126" fill="#111827" font-weight="700">Moat potential</text>
+          <rect x="176" y="116" width="440" height="14" rx="4" fill="#EEF1F5"/><rect x="176" y="116" width="264" height="14" rx="4" fill="#F7B955"/>
+          <text x="624" y="127" font-size="8.4" fill="#9A6B10" font-weight="700">promising</text>
+
+          <text x="6" y="154" fill="#111827" font-weight="700">Market size</text>
+          <rect x="176" y="144" width="440" height="14" rx="4" fill="#EEF1F5"/><rect x="176" y="144" width="308" height="14" rx="4" fill="#F7B955"/>
+          <text x="624" y="155" font-size="8.4" fill="#9A6B10" font-weight="700">large, unproven</text>
+
+          <text x="6" y="182" fill="#111827" font-weight="700">Traction</text>
+          <rect x="176" y="172" width="440" height="14" rx="4" fill="#EEF1F5"/><rect x="176" y="172" width="44" height="14" rx="4" fill="#FF6B4A"/>
+          <text x="624" y="183" font-size="8.4" fill="#B03A1C" font-weight="700">none yet</text>
+
+          <text x="6" y="210" fill="#111827" font-weight="700">Revenue</text>
+          <rect x="176" y="200" width="440" height="14" rx="4" fill="#EEF1F5"/><rect x="176" y="200" width="22" height="14" rx="4" fill="#FF6B4A"/>
+          <text x="624" y="211" font-size="8.4" fill="#B03A1C" font-weight="700">zero</text>
+        </g>
+      </g>
+    </svg>
+    <div class="figcap">An honest read. The two weakest bars are the two things funding is meant to fix.</div>
+  </div>
+
+  <div class="grid2">
+    <div class="card tint-green">
+      <h4>What is genuinely strong</h4>
+      <ul style="margin-bottom:0;">
+        <li><strong>The hard part was built first.</strong> Eight smart contracts written, tested, and deployed to Base's public test network — 49 passing tests — before asking anyone for money.</li>
+        <li><strong>Verifiable, not narrative.</strong> Every contract address is public and checkable by a stranger in five minutes.</li>
+        <li><strong>Unusual defect honesty.</strong> We wrote tests that prove our own deployed contracts are flawed, published the severity register, and named two of our own issues critical.</li>
+        <li><strong>Security engineering above stage.</strong> A documented threat model, a 52-point control checklist, thirteen architecture decision records, and a key-rotation runbook.</li>
+        <li><strong>Revenue independent of the token.</strong> Three of four engines are unaffected by token price.</li>
+        <li><strong>Sinks before incentives.</strong> The economy is designed so playing consumes more than most players earn.</li>
+      </ul>
+    </div>
+    <div class="card tint-coral">
+      <h4>What is genuinely weak</h4>
+      <ul style="margin-bottom:0;">
+        <li><strong>No users, no revenue, no signed sponsor.</strong> Everything commercial in this document is a model.</li>
+        <li><strong>The layers are not yet connected.</strong> The app, the verification service, and the contracts each work; none has ever run end to end together.</li>
+        <li><strong>No wallet provider selected</strong>, so "invisible onboarding" — the entire strategic bet — cannot yet be demonstrated to anyone.</li>
+        <li><strong>Deployed contracts need a V2.</strong> Fifteen catalogued logic defects, two critical. Not patchable; requires redeploy and migration.</li>
+        <li><strong>No external audit yet</strong> — a hard prerequisite before real value moves.</li>
+        <li><strong>Retention is unmeasured.</strong> The number the whole model rests on is the one we do not have.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 25 ============ -->
+<div class="page">
+  <div class="sec-num">Part D · Section 25</div>
+  <h2 class="sec">The Base ecosystem thesis</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Our first community should not be "global fitness". It should be Base itself — projects, cities, clubs, creators and sponsors already competing for attention, given a physical arena to compete in.</p>
+
+  <div class="grid2">
+    <div class="card tint-blue"><h4>Base City Wars</h4><p style="margin-bottom:0;">Cities compete for seasonal territory. Base projects sponsor teams and prize pools — a ready-made sponsor pipeline that already has budget and already wants reach.</p></div>
+    <div class="card tint-blue"><h4>Project clubs</h4><p style="margin-bottom:0;">Every protocol on Base can form a running club and compete publicly. Teams that already have communities bring them with them.</p></div>
+    <div class="card tint-violet"><h4>Builder miles</h4><p style="margin-bottom:0;">Founders, developers, creators, and communities earn movement badges. A social object that circulates inside exactly the network we want to reach.</p></div>
+    <div class="card tint-violet"><h4>Protocol zones</h4><p style="margin-bottom:0;">Partner projects sponsor branded zones with on-chain proof of participation — sponsorship that is native to the ecosystem rather than borrowed from web2.</p></div>
+    <div class="card tint-green"><h4>Gasless claims</h4><p style="margin-bottom:0;">Free players claim badges and zones without ever holding a gas token. Removes the step where most newcomers give up.</p></div>
+    <div class="card tint-green"><h4>Share-card virality</h4><p style="margin-bottom:0;">Base-native share cards, leaderboard claims, and invites turn every captured district into distribution.</p></div>
+  </div>
+
+  <div class="callout ok">
+    <span class="tag">Why this is the right first market</span>
+    <p>Base is explicitly looking for consumer applications that bring non-crypto users on-chain — that is what its accelerator exists to fund. We are a consumer product whose entire design goal is exactly that, and whose contracts are <em>already deployed on Base's own test network</em>. <strong>The fit is structural, not opportunistic.</strong> And unlike a general fitness launch, the Base community is reachable, concentrated, competitive, and already holds budget for sponsorship.</p>
+  </div>
+
+  <h3>What being a flagship Base consumer app is worth</h3>
+  <ul>
+    <li><strong>Distribution most consumer apps cannot buy.</strong> Ecosystem promotion to an audience actively looking for apps to try.</li>
+    <li><strong>A warm sponsor pipeline.</strong> Base projects sponsoring city wars are a far shorter sales cycle than cold-calling cafés — and they prove the format before we take it to local business.</li>
+    <li><strong>Credibility with partners.</strong> Base is operated by a large regulated company, which matters when a council or a race organiser is deciding whether to work with us.</li>
+    <li><strong>Density by default.</strong> A concentrated community launching together solves the cold-start problem that geography would otherwise make brutal.</li>
+  </ul>
+</div>
+
+<!-- ============ 26 ============ -->
+<div class="page">
+  <div class="sec-num">Part D · Section 26</div>
+  <h2 class="sec">What funding actually buys</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">A specific plan for a $100K programme grant. The test of a good use-of-funds page is whether every line converts an unknown into a measured fact.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 108">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="14" width="257" height="34" fill="#246BFE" rx="5"/>
+        <text x="134" y="36" font-size="9.6" font-weight="700" fill="#fff" text-anchor="middle">Engineering — $40K</text>
+        <rect x="267" y="14" width="161" height="34" fill="#7657FF"/>
+        <text x="347" y="36" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">Audit &amp; V2 — $25K</text>
+        <rect x="432" y="14" width="129" height="34" fill="#F7B955"/>
+        <text x="496" y="36" font-size="8.8" font-weight="700" fill="#fff" text-anchor="middle">City ops — $20K</text>
+        <rect x="565" y="14" width="51" height="34" fill="#18C987"/>
+        <text x="590" y="36" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">$8K</text>
+        <rect x="620" y="14" width="34" height="34" fill="#FF6B4A" rx="5"/>
+        <text x="637" y="36" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">$7K</text>
+        <g font-size="8.4" fill="#667085">
+          <rect x="6" y="66" width="9" height="9" rx="2" fill="#246BFE"/><text x="19" y="74">Engineering 40%</text>
+          <rect x="132" y="66" width="9" height="9" rx="2" fill="#7657FF"/><text x="145" y="74">Audit &amp; V2 contracts 25%</text>
+          <rect x="308" y="66" width="9" height="9" rx="2" fill="#F7B955"/><text x="321" y="74">First city operations 20%</text>
+          <rect x="470" y="66" width="9" height="9" rx="2" fill="#18C987"/><text x="483" y="74">Infrastructure 8%</text>
+          <rect x="576" y="66" width="9" height="9" rx="2" fill="#FF6B4A"/><text x="589" y="74">Legal 7%</text>
+        </g>
+        <text x="6" y="98" font-size="8.6" fill="#667085">Illustrative allocation of a $100,000 programme grant.</text>
+      </g>
+    </svg>
+  </div>
+
+  <table>
+    <tr><th style="width:26%;">Allocation</th><th style="width:36%;">What it pays for</th><th>What it converts</th></tr>
+    <tr><td><strong>Engineering<br>$40K</strong></td><td>Connect the app, verification service, and contracts end to end; real hexagon capture; integrate a wallet provider so onboarding is genuinely invisible</td><td>Turns "we built the hard parts" into <strong>a working demonstration</strong></td></tr>
+    <tr><td><strong>Audit &amp; V2 contracts<br>$25K</strong></td><td>New contract version fixing the fifteen catalogued defects, plus an external security audit</td><td>Turns a testnet reference into <strong>something that can hold real value</strong></td></tr>
+    <tr><td><strong>First city operations<br>$20K</strong></td><td>Club partnerships, launch events, local sponsor sales, community management in one chosen city</td><td>Turns an assumed model into <strong>measured retention and a first paid sponsor</strong></td></tr>
+    <tr><td><strong>Infrastructure<br>$8K</strong></td><td>Hosting, database, queues, wallet provider fees, sponsored gas for twelve months</td><td>Keeps the service running through the whole proving period</td></tr>
+    <tr><td><strong>Legal &amp; compliance<br>$7K</strong></td><td>Review of the reward structure, disclosures, and regional posture</td><td>Turns "we think this is a game not a security" into <strong>advice we can rely on</strong></td></tr>
+  </table>
+
+  <h3>The four milestones this should produce</h3>
+  <div class="grid2">
+    <div class="card tint-blue"><h4>1 · One complete vertical slice</h4><p style="margin-bottom:0;">A real walk in the app, verified, producing a real on-chain capture visible back in the app. The whole product thesis, demonstrated once.</p></div>
+    <div class="card tint-green"><h4>2 · One city with measured density</h4><p style="margin-bottom:0;">1,000+ monthly active players in a single city, with real week-4 retention and contested-zone numbers.</p></div>
+    <div class="card tint-gold"><h4>3 · First three paid sponsors</h4><p style="margin-bottom:0;">Signed, invoiced, and reported on — converting the strongest revenue line from theory to evidence.</p></div>
+    <div class="card tint-violet"><h4>4 · Audited V2 contracts</h4><p style="margin-bottom:0;">Fixed, externally reviewed, and ready for the mainnet decision.</p></div>
+  </div>
+
+  <div class="callout">
+    <span class="tag">The framing that works</span>
+    <p>Do not ask for money to "build the product" — the product substantially exists. Ask for money to <strong>convert four specific unknowns into four measured facts</strong>. Investors fund de-risking far more readily than they fund construction.</p>
+  </div>
+</div>
+
+<!-- ============ 27 ============ -->
+<div class="page">
+  <div class="sec-num">Part D · Section 27</div>
+  <h2 class="sec">The questions you will be asked</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Ten questions, with answers that are accurate and correctly hedged. Learn the shape of these rather than the words.</p>
+
+  <div class="qa"><div class="q">1 · How is this not another move-to-earn that collapses?</div>
+  <div class="a">Three structural differences. The asset is <strong>territory</strong>, not a token balance, so progress is ownable rather than only sellable. <strong>Sinks were designed before incentives</strong> — you must spend to claim, fortify, and defend, so demand does not depend on new buyers. And <strong>most rewards can never be sold at all</strong>: free players earn a locked, non-transferable credit. On top of that we have an enforced internal rule blocking any tradeable economy until verification, density, and real sponsor demand are all proven.</div></div>
+
+  <div class="qa"><div class="q">2 · What happens to your business if the token goes to zero?</div>
+  <div class="a">Three of our four revenue engines are unaffected — sponsorship, subscriptions, and events are paid in ordinary money by people who want footfall, tools, or a race experience. The land economy would be hurt. The company would not be existentially threatened, which is precisely the structure the last generation lacked.</div></div>
+
+  <div class="qa"><div class="q">3 · What stops people faking GPS?</div>
+  <div class="a">Layered defence: a speed gate, an accuracy gate, continuity and duration checks, a route fingerprint usable exactly once, a cryptographic signature the contracts require, a hard daily cap per address, and a rule that a cell needs five <em>distinct</em> movers over ninety days before it is worth anything. No GPS system is perfectly spoof-proof and we do not claim to be — we claim several independent checks a cheater must beat at once, plus caps that make it not worth the effort.</div></div>
+
+  <div class="qa"><div class="q">4 · Why will anyone sponsor a zone?</div>
+  <div class="a">Because they are buying verified physical footfall with a measurable report, not impressions. A café gets players choosing routes past its door and a dashboard showing how many did. Honest caveat: <strong>we have not signed one yet</strong>, and doing so is one of our top milestones.</div></div>
+
+  <div class="qa"><div class="q">5 · What is your actual traction?</div>
+  <div class="a">Zero users and zero revenue. What we have is verifiable engineering: eight contracts deployed to Base's test network with 49 passing tests, a working GPS verification service, a security and identity foundation, and a mobile app with real movement tracking. We are pre-traction and precise about it.</div></div>
+
+  <div class="qa"><div class="q">6 · What is the biggest risk?</div>
+  <div class="a">Density, not technology. A territory game with no neighbours is a lonely map, and reaching enough players in one city is harder than anything in our codebase. Our whole go-to-market — clubs, city-by-city launch, Base-native competition — exists to attack that one risk.</div></div>
+
+  <div class="qa"><div class="q">7 · What stops a bigger company copying this?</div>
+  <div class="a">The app can be copied in a quarter. What cannot is the fact that the people in a neighbourhood already hold the ground around their streets, the sponsor relationships in that city, and a verification system that is genuinely hard to get right. The moat is geographic and social, and it only exists where we have already won.</div></div>
+
+  <div class="qa"><div class="q">8 · Is the token a security?</div>
+  <div class="a">Our design is deliberately built to avoid that: free rewards are non-transferable in-app credits closer to loyalty points; sellable rewards are capped, activity-gated, and never offered as income or return; nothing is sold to the public today. We have not yet taken formal legal advice, and doing so is a funded line in our use of funds. <strong>Never assert a legal conclusion we have not paid someone to give us.</strong></div></div>
+
+  <div class="qa"><div class="q">9 · Your contracts are already deployed — are they safe?</div>
+  <div class="a">The deployed version is a <strong>testnet reference implementation, not production-ready</strong>. We catalogued sixteen defects ourselves, two of them critical, each proven by a passing test, and published the register. They require a V2 redeploy plus an external audit before real value moves. Volunteering this is the strongest available answer, because the alternative is them finding it.</div></div>
+
+  <div class="qa"><div class="q">10 · Why now, and why you?</div>
+  <div class="a">Now, because embedded wallets and sponsored fees have only recently matured enough to hide crypto completely — two years ago every user would have had to buy a token before their first walk — and because fees on Base are finally low enough for a game with thousands of small daily transactions. Us, because we built the difficult half first and can point at it, and because we have shown we would rather publish our own defects than ship on top of them.</div></div>
+</div>
+
+<!-- ============ 28 ============ -->
+<div class="page">
+  <div class="sec-num">Part D · Section 28</div>
+  <h2 class="sec">The numbers that will prove it</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Everything in Part C is a model until these are measured. This is the list we should be impatient about, in the order the evidence should arrive.</p>
+
+  <table>
+    <tr><th style="width:26%;">Metric</th><th style="width:20%;">Why it matters</th><th class="r" style="width:16%;">Healthy</th><th>What it proves</th></tr>
+    <tr><td><strong>Week-4 retention</strong></td><td>Habit formation</td><td class="r money">&gt; 25%</td><td>Everything. Lifetime value collapses without it.</td></tr>
+    <tr><td><strong>Active players per city</strong></td><td>Density, not downloads</td><td class="r money">1,000+</td><td>That the territory game actually works socially</td></tr>
+    <tr><td><strong>Contested zone ratio</strong></td><td>Rivalry is live</td><td class="r money">&gt; 20%</td><td>That the map is a contest, not a colouring book</td></tr>
+    <tr><td><strong>Install → first session</strong></td><td>Onboarding friction</td><td class="r money">&gt; 40%</td><td>That invisible crypto onboarding genuinely works</td></tr>
+    <tr><td><strong>Sessions per active week</strong></td><td>Consistency beats intensity</td><td class="r money">3+</td><td>That it became a habit rather than a novelty</td></tr>
+    <tr><td><strong>Club participation</strong></td><td>Social retention</td><td class="r money">&gt; 30%</td><td>That our cheapest acquisition channel is real</td></tr>
+    <tr><td><strong>Signed sponsors</strong></td><td>Revenue validation</td><td class="r money">3 in city one</td><td>That the strongest revenue line exists</td></tr>
+    <tr><td><strong>Sponsor renewal rate</strong></td><td>Real value delivered</td><td class="r money">&gt; 60%</td><td>That sponsorship is a business, not a favour</td></tr>
+    <tr><td><strong>Subscription conversion</strong></td><td>Willingness to pay</td><td class="r money">3–5%</td><td>Whether $9.99 is the right price</td></tr>
+    <tr><td><strong>Verified vs rejected routes</strong></td><td>Anti-cheat health</td><td class="r money">stable</td><td>That the economy's foundation is sound</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The two that matter most</span>
+    <p><strong>Week-4 retention and the first renewed sponsor.</strong> The first tells you whether people form a habit, which drives every number in Part C. The second tells you whether anyone will pay for the audience that habit creates. Every other metric is a detail next to those two.</p>
+  </div>
+
+  <h3>The sequence the evidence should arrive in</h3>
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 108">
+      <defs><marker id="ms" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#A3AAB8"/></marker></defs>
+      <g font-family="Liberation Sans,Arial" font-size="8.8" text-anchor="middle">
+        <rect x="6" y="24" width="148" height="52" rx="9" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="80" y="44" font-weight="700" fill="#246BFE">STEP 1</text>
+        <text x="80" y="59" fill="#111827">Vertical slice works</text>
+        <text x="80" y="71" fill="#667085" font-size="8">end to end, once</text>
+        <line x1="158" y1="50" x2="176" y2="50" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#ms)"/>
+
+        <rect x="182" y="24" width="148" height="52" rx="9" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="256" y="44" font-weight="700" fill="#0E7A52">STEP 2</text>
+        <text x="256" y="59" fill="#111827">Retention measured</text>
+        <text x="256" y="71" fill="#667085" font-size="8">one city, real players</text>
+        <line x1="334" y1="50" x2="352" y2="50" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#ms)"/>
+
+        <rect x="358" y="24" width="148" height="52" rx="9" fill="#FFF9EF" stroke="#F5E3C0"/>
+        <text x="432" y="44" font-weight="700" fill="#9A6B10">STEP 3</text>
+        <text x="432" y="59" fill="#111827">Sponsors pay</text>
+        <text x="432" y="71" fill="#667085" font-size="8">and then renew</text>
+        <line x1="510" y1="50" x2="528" y2="50" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#ms)"/>
+
+        <rect x="534" y="24" width="120" height="52" rx="9" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="594" y="44" font-weight="700" fill="#5A3FD6">STEP 4</text>
+        <text x="594" y="59" fill="#111827">Economy live</text>
+        <text x="594" y="71" fill="#667085" font-size="8">after audit</text>
+        <text x="330" y="98" fill="#667085" font-size="8.4">Each step is a precondition for the next. Skipping one is how this category fails.</text>
+      </g>
+    </svg>
+  </div>
+</div>
+
+<!-- ============ 29 ============ -->
+<div class="page">
+  <div class="sec-num">Part D · Section 29</div>
+  <h2 class="sec">Open items and disclosures</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Everything in this document that is unresolved, in one place, so nobody is surprised by it later — including you.</p>
+
+  <h3>Economic questions we have not yet answered</h3>
+  <table>
+    <tr><th style="width:36%;">Open item</th><th>Why it matters and what has to happen</th></tr>
+    <tr><td><strong>Emission schedule vs allocation</strong></td><td>Shrinking pools 20% per season total roughly 45M $MOVE ever, but the stated distribution reserves 600M for players. These must be reconciled before any tokenomics is published. Either the decay flattens after the early years, or the allocation is far larger than needed.</td></tr>
+    <tr><td><strong>Contracts do not match the design</strong></td><td>The deployed contract mints per kilometre with halvings; the design calls for seasonal pools. Requires a V2 contract.</td></tr>
+    <tr><td><strong>The Great Burn does not burn</strong></td><td>It currently transfers to the treasury, leaving supply unchanged. Fix it or rename it — do not call it deflationary meanwhile.</td></tr>
+    <tr><td><strong>Wallet provider cost unknown</strong></td><td>No vendor selected, and pricing is usually per active wallet. One of few genuinely per-user costs, currently unmodelled.</td></tr>
+    <tr><td><strong>Subscription price untested</strong></td><td>$9.99 matches mature fitness apps. A lower entry tier may convert far better.</td></tr>
+    <tr><td><strong>Land trading volume unproven</strong></td><td>The most aggressive assumption in the scale model, and the first line an investor will delete.</td></tr>
+    <tr><td><strong>No legal opinion yet</strong></td><td>Our reward structure is designed to be a game feature, not a financial product — but that is our design intent, not counsel's conclusion.</td></tr>
+  </table>
+
+  <h3>Standing disclosures</h3>
+  <div class="callout warn">
+    <p><strong>MovenRun is a development-stage product.</strong> Features, parameters, and timelines described here may change. Nothing in this document is financial advice, an offer, a solicitation, or a promise of returns.</p>
+    <p><strong>$MOVE does not trade.</strong> There has been no sale, no listing, no liquidity, and no allocation to anyone. It exists only as a test-network contract with no value.</p>
+    <p><strong>Zone Deeds are game assets, not real-world property.</strong> They confer no rights over physical land.</p>
+    <p style="margin-bottom:0;"><strong>Every revenue figure is illustrative.</strong> We have no paying customers and no validated pricing. Models in this document are arithmetic demonstrating structure, not forecasts.</p>
+  </div>
+
+  <h3 class="pb" style="margin-top:0;">Money words, in one line each</h3>
+  <div class="two-col glossary">
+  <dl>
+    <dt>ARPU</dt><dd>Average revenue per user, usually per month.</dd>
+    <dt>Burn</dt><dd>Permanently destroying tokens so they can never return to supply.</dd>
+    <dt>CAC</dt><dd>Customer acquisition cost — what it costs to get one new user.</dd>
+    <dt>Contribution margin</dt><dd>Revenue minus the direct cost of serving it, before team salaries.</dd>
+    <dt>Emission</dt><dd>The creation of new tokens as rewards.</dd>
+    <dt>Freemium conversion</dt><dd>The share of free users who become paying subscribers. Typically 2–5%.</dd>
+    <dt>Gas</dt><dd>The small fee for writing to a blockchain. We pay it for users.</dd>
+    <dt>Liquidity</dt><dd>How easily a token can be bought or sold without moving its price.</dd>
+    <dt>Liquid MOVE</dt><dd>Reward that can be transferred and sold. Landowners only, capped.</dd>
+    <dt>Locked MOVE</dt><dd>Reward that can be spent in-app but never sold. Most rewards are this.</dd>
+    <dt>LTV</dt><dd>Lifetime value — total revenue expected from one user before they leave.</dd>
+    <dt>Payback period</dt><dd>How long until a user's revenue repays what it cost to acquire them.</dd>
+    <dt>Season pool</dt><dd>A fixed quantity of tokens issued over 90 days, shared by activity.</dd>
+    <dt>Sell pressure</dt><dd>How much of a token is likely to be sold rather than held or spent.</dd>
+    <dt>Sink</dt><dd>Any mechanism that removes tokens from circulation.</dd>
+    <dt>Supply cap</dt><dd>The maximum tokens that can ever exist. Ours is one billion.</dd>
+    <dt>Unit economics</dt><dd>Whether one customer is profitable, independent of scale.</dd>
+    <dt>Zone tax</dt><dd>2% of tokens minted in a cell, paid to that cell's owner.</dd>
+  </dl>
+  </div>
+
+  <div class="footer-note">
+    <strong>MovenRun — Economy &amp; Investment Brief, v2.0 · August 2026.</strong> Confidential; prepared for internal partner onboarding. Supersedes the Revenue Economy Blueprint v1.
+    Companion to the MovenRun Partner Onboarding Brief v1.0. Figures marked "from our code" are parameters in contracts deployed to Base Sepolia testnet and are independently verifiable;
+    all other figures are illustrative models. Nothing here is financial advice, an offer, or a promise of returns.
+  </div>
+</div>
+
+</body>
+</html>
