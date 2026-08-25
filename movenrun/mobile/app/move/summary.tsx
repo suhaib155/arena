@@ -15,11 +15,16 @@ import { formatDuration, formatPace } from "@/lib/geo";
 import {
   clearLastSession,
   getLastSession,
+  getVerificationState,
   isSaveable,
   sessionXp,
+  setVerificationState,
 } from "@/services/moveSession";
+import { MovementApiClient } from "@/services/movementApi";
+import { submitCompletedSession } from "@/services/verifySession";
 import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
 import { resolveCompletion } from "@/lib/completionSummary";
@@ -58,6 +63,14 @@ export default function MoveSummaryScreen() {
   const ownedZones = useGameStore((s) => s.zones);
   const totalXp = useGameStore((s) => s.totalXp);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
+  /* THE identity client, built once by the auth store — screens never
+     construct their own. The movement client rides its transport, so both
+     domains share one bearer attachment and one single-flight refresh. */
+  const identityClient = useAuthStore((s) => s.client);
+  const movementClient = useMemo(
+    () => (identityClient ? new MovementApiClient(identityClient.transport) : null),
+    [identityClient],
+  );
   const [saved, setSaved] = useState(false);
 
   if (!session) {
@@ -118,6 +131,22 @@ export default function MoveSummaryScreen() {
       instructions: [],
     };
     completeQuest(sessionQuest);
+    /* Server verification of the completed route.
+       Saving is the user's deliberate act of turning this session into
+       progress, and it is the only path that is already gated to real GPS
+       sessions long enough to be worth keeping — so it is the honest place for
+       the route to leave the device, and the only one.
+       Fire-and-forget on purpose: `submitCompletedSession` never throws, the
+       result is recorded against this session's stable id, and a slow or
+       failed verification must never delay or block a completion the user has
+       already earned. Nothing below depends on it. */
+    if (movementClient) {
+      void submitCompletedSession(session, {
+        client: movementClient,
+        readState: getVerificationState,
+        writeState: setVerificationState,
+      });
+    }
     /* Persist the route-trust *preview* summary only (score + label) — never
        raw GPS points, and it does not affect rewards or capture. */
     if (trust) setRouteTrust(trust.score, trust.label);
