@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MovenRun Economy V6</title>
+<style>
+:root{
+  --morning:#F8FAF7; --cloud:#FFFFFF; --mist:#F1F6F3; --pale:#EAF6FF;
+  --ink:#111827; --graphite:#5B6472; --silver:#A3AAB8;
+  --blue:#246BFE; --green:#18C987; --coral:#FF6B4A; --gold:#F7B955;
+  --violet:#7657FF; --red:#EF4444; --dust:#D0D5DD; --line:#E4EAEF;
+}
+@page { size:A4; margin:15mm 15mm 16mm 15mm; }
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{ font-family:"Liberation Sans","DejaVu Sans",Arial,sans-serif; color:var(--ink);
+  background:var(--cloud); font-size:10.8pt; line-height:1.52;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+h1,h2,h3,h4{margin:0;line-height:1.2;}
+p{margin:0 0 8pt;}
+.page{page-break-after:always;} .page:last-child{page-break-after:auto;}
+.nobreak{page-break-inside:avoid;} .pb{page-break-before:always;}
+
+.cover{height:299mm;display:flex;flex-direction:column;justify-content:space-between;
+  background:linear-gradient(160deg,#FFFFFF 0%,#EAF6FF 46%,#F1F6F3 100%);
+  margin:-15mm -15mm -16mm -15mm;padding:24mm 20mm 26mm;}
+.brandmark{display:flex;align-items:center;gap:11px;}
+.brandmark .name{font-size:17pt;font-weight:700;letter-spacing:-0.3px;}
+.cover h1{font-size:44pt;font-weight:700;letter-spacing:-1.6px;margin:0 0 12px;}
+.cover .sub{font-size:14.5pt;color:var(--graphite);max-width:140mm;line-height:1.45;}
+.eyebrow{display:inline-block;font-size:9pt;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--blue);background:rgba(36,107,254,.10);border:1px solid rgba(36,107,254,.22);
+  padding:6px 13px;border-radius:999px;}
+.cover-meta{display:flex;gap:26px;flex-wrap:wrap;border-top:1px solid rgba(17,24,39,.12);padding-top:14px;}
+.cover-meta div{font-size:9.4pt;color:var(--graphite);}
+.cover-meta strong{display:block;color:var(--ink);font-size:10.4pt;margin-bottom:2px;}
+
+.sec-num{font-size:9pt;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--blue);margin-bottom:5px;}
+h2.sec{font-size:21pt;font-weight:700;letter-spacing:-0.7px;margin:0 0 7px;}
+.sec-lede{font-size:11.6pt;color:var(--graphite);line-height:1.45;margin:0 0 13px;max-width:165mm;}
+.rule{height:3px;width:54px;background:var(--blue);border-radius:2px;margin:0 0 12px;}
+h3{font-size:12.6pt;font-weight:700;margin:13pt 0 5pt;letter-spacing:-0.2px;}
+h4{font-size:11pt;font-weight:700;margin:9pt 0 4pt;}
+ul,ol{margin:0 0 9pt;padding-left:17pt;} li{margin-bottom:4pt;} li::marker{color:var(--blue);}
+.small{font-size:9.6pt;color:var(--graphite);}
+
+.card{background:var(--cloud);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 10px;}
+.card.b{background:#F3F7FF;border-color:#D6E4FF;} .card.g{background:#F0FBF6;border-color:#C9EEDD;}
+.card.v{background:#F6F3FF;border-color:#DED4FF;} .card.o{background:#FFF9EF;border-color:#F5E3C0;}
+.card.r{background:#FFF4F1;border-color:#FBD8CD;}
+.card h4{margin-top:0;} .card p:last-child{margin-bottom:0;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+
+table{width:100%;border-collapse:collapse;margin:0 0 11px;font-size:10pt;}
+th{text-align:left;background:var(--mist);font-weight:700;padding:7px 10px;border-bottom:2px solid var(--line);
+  font-size:9.2pt;text-transform:uppercase;letter-spacing:.5px;}
+td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+tr:nth-child(even) td{background:#FBFCFD;}
+td.r,th.r{text-align:right;} .money{font-variant-numeric:tabular-nums;white-space:nowrap;}
+tr.tot td{background:#F3F7FF !important;font-weight:700;border-top:2px solid #D6E4FF;}
+
+.callout{border-left:4px solid var(--blue);background:#F3F7FF;border-radius:0 10px 10px 0;padding:11px 14px;margin:0 0 11px;}
+.callout.warn{border-left-color:var(--coral);background:#FFF4F1;}
+.callout.ok{border-left-color:var(--green);background:#F0FBF6;}
+.callout p:last-child{margin-bottom:0;}
+.callout .tag{font-size:8.6pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--blue);display:block;margin-bottom:4px;}
+.callout.warn .tag{color:#B03A1C;} .callout.ok .tag{color:#0E7A52;}
+.figure{margin:5px 0 12px;} .figure svg{display:block;width:100%;height:auto;}
+.figcap{font-size:9.2pt;color:var(--graphite);margin-top:5px;text-align:center;font-style:italic;}
+.kpi{border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:var(--cloud);}
+.kpi .n{font-size:20pt;font-weight:700;letter-spacing:-0.8px;line-height:1.1;}
+.kpi .l{font-size:9.2pt;color:var(--graphite);margin-top:3px;line-height:1.35;}
+.eq{background:#F3F7FF;border:1px solid #D6E4FF;border-radius:11px;padding:13px 15px;text-align:center;margin:0 0 11px;}
+.eq .f{font-size:12.5pt;font-weight:700;} .eq .n{font-size:9.4pt;color:var(--graphite);margin-top:5px;}
+.footer-note{margin-top:15px;padding-top:9px;border-top:1px solid var(--line);font-size:9pt;color:var(--silver);line-height:1.5;}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="page">
+<div class="cover">
+  <div class="brandmark">
+    <svg width="36" height="40" viewBox="0 0 34 38"><polygon points="17,1 33,10 33,28 17,37 1,28 1,10" fill="#246BFE"/><polygon points="17,8 27,13.5 27,24.5 17,30 7,24.5 7,13.5" fill="#FFFFFF" opacity=".92"/><polygon points="17,13 23,16.2 23,22.8 17,26 11,22.8 11,16.2" fill="#18C987"/></svg>
+    <span class="name">MovenRun</span>
+  </div>
+  <div>
+    <span class="eyebrow">Economy V6 · Final Design · Confidential</span>
+    <h1 style="margin-top:16px;">Everyone earns<br>the token.<br>Playing burns it.</h1>
+    <p class="sub">One token, two states. Free players are rewarded for ever and can never sell. Buyers get the rights. And the more people play, the smaller the supply gets.</p>
+  </div>
+  <div>
+    <div class="figure" style="max-width:150mm;margin-bottom:16px;">
+      <svg viewBox="0 0 620 96">
+        <g font-family="Liberation Sans,Arial" text-anchor="middle">
+          <rect x="2" y="20" width="180" height="56" rx="11" fill="#18C987"/>
+          <text x="92" y="44" font-size="11.5" font-weight="700" fill="#fff">LOCKED $MOVE</text>
+          <text x="92" y="61" font-size="8.6" fill="#E4F8EF">free players · never sellable</text>
+          <text x="209" y="52" font-size="20" fill="#A3AAB8">+</text>
+          <rect x="234" y="20" width="180" height="56" rx="11" fill="#246BFE"/>
+          <text x="324" y="44" font-size="11.5" font-weight="700" fill="#fff">LIQUID $MOVE</text>
+          <text x="324" y="61" font-size="8.6" fill="#D6E4FF">buyers · rights &amp; trading</text>
+          <text x="441" y="52" font-size="20" fill="#A3AAB8">=</text>
+          <rect x="466" y="20" width="152" height="56" rx="11" fill="#FF6B4A"/>
+          <text x="542" y="44" font-size="11.5" font-weight="700" fill="#fff">ONE SUPPLY</text>
+          <text x="542" y="61" font-size="8.6" fill="#FFF4F1">capped · always shrinking</text>
+        </g>
+      </svg>
+    </div>
+    <div class="cover-meta">
+      <div><strong>Prepared for</strong>Partner review</div>
+      <div><strong>Version</strong>6.0 · Final</div>
+      <div><strong>Replaces</strong>V2 – V5</div>
+      <div><strong>Status</strong>Design ready to build</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- THE DECISION -->
+<div class="page">
+  <div class="sec-num">Section 1</div>
+  <h2 class="sec">The decision</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Five versions produced good pieces and one bad habit — each rewrote everything. V6 takes the best part of each and stops.</p>
+
+  <table>
+    <tr><th style="width:14%;">From</th><th style="width:34%;">What we keep</th><th>What we drop</th></tr>
+    <tr><td><strong>V2</strong></td><td><strong>Locked MOVE for free players</strong> — one token, two states, never converts</td><td>The Great Burn; the assumption that land prints income</td></tr>
+    <tr><td><strong>V3</strong></td><td>Front-loaded effort curve; prices indexed to earnings</td><td><strong>Stride</strong> — a second currency that hollowed out token demand</td></tr>
+    <tr><td><strong>V4</strong></td><td>Private base camp; non-exclusive residency; honest burn accounting</td><td>Coverage rule that collapses; land expiring every season; too many gates</td></tr>
+    <tr><td><strong>V5</strong></td><td>Many recurring sinks; the reflexivity test</td><td>Complexity; fourteen systems nobody could hold in their head</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The single change that makes it work</span>
+    <p>V3 invented a second currency so free players had something to spend. That was the mistake: it meant free play created no token demand. <strong>V6 pays free players in the real token, permanently locked.</strong> They can spend it on everything in the game, and every token they spend is destroyed — from the same capped supply the buyers hold. Free players stop being a cost and become the engine that shrinks supply.</p>
+  </div>
+
+  <h3>What each kind of player gets</h3>
+  <div class="grid2">
+    <div class="card g">
+      <h4>Free player — locked for ever</h4>
+      <ul style="margin-bottom:0;">
+        <li>Earns real $MOVE by moving</li>
+        <li>Spends it on gear, land, defence, style</li>
+        <li>Can never sell, send or convert it</li>
+        <li>No wallet, no purchase, no crypto knowledge</li>
+        <li>Plays the whole game, competes, wins</li>
+      </ul>
+    </div>
+    <div class="card b">
+      <h4>On-chain buyer — the rights layer</h4>
+      <ul style="margin-bottom:0;">
+        <li>Holds liquid $MOVE they bought or earned</li>
+        <li><strong>Votes</strong> on parameters and treasury</li>
+        <li><strong>Stakes</strong> for standing and priority</li>
+        <li>Owns tradable <strong>deeds</strong> and can sell them</li>
+        <li>Trades on the marketplace</li>
+      </ul>
+    </div>
+  </div>
+  <p class="small">Both spend the same token on the same things. The difference is not power inside the game — it is ownership rights outside it. A free player is never beaten by a wallet; they are only ever beaten by someone who moved more.</p>
+</div>
+
+<!-- THE ENGINE -->
+<div class="page">
+  <div class="sec-num">Section 2</div>
+  <h2 class="sec">Why this burns more than it prints</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This is the mechanism the whole design rests on. It is worth understanding precisely, because it is what no previous run-to-earn game had.</p>
+
+  <div class="eq">
+    <div class="f">Locked tokens can only be spent inside the game.<br>Everything spent inside the game is destroyed.</div>
+    <div class="n">So every locked token ever minted eventually leaves the supply for good.</div>
+  </div>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 218">
+      <defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#A3AAB8"/></marker></defs>
+      <g font-family="Liberation Sans,Arial">
+        <rect x="196" y="6" width="268" height="40" rx="10" fill="#111827"/>
+        <text x="330" y="24" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">SEASON POOL — 6.0M</text>
+        <text x="330" y="39" font-size="8.6" fill="#A3AAB8" text-anchor="middle">fixed schedule, from a capped supply</text>
+        <path d="M290,48 L190,70" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#a)"/>
+        <path d="M370,48 L470,70" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#a)"/>
+
+        <rect x="20" y="76" width="290" height="52" rx="10" fill="#18C987"/>
+        <text x="165" y="97" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">LOCKED — 4.2M (70%)</text>
+        <text x="165" y="114" font-size="8.8" fill="#E4F8EF" text-anchor="middle">to free players · cannot leave the game</text>
+
+        <rect x="350" y="76" width="290" height="52" rx="10" fill="#246BFE"/>
+        <text x="495" y="97" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">LIQUID — 1.8M (30%)</text>
+        <text x="495" y="114" font-size="8.8" fill="#D6E4FF" text-anchor="middle">to deed holders · tradable</text>
+
+        <path d="M165,130 L165,152" stroke="#18C987" stroke-width="2.2" marker-end="url(#a)"/>
+        <text x="176" y="146" font-size="8.4" fill="#0E7A52">all of it</text>
+        <path d="M400,130 L400,152" stroke="#246BFE" stroke-width="2.2" marker-end="url(#a)"/>
+        <text x="330" y="146" font-size="8.4" fill="#246BFE" text-anchor="end">spent in game</text>
+        <path d="M563,130 L563,152" stroke="#A3AAB8" stroke-width="2.2" marker-end="url(#a)"/>
+        <text x="574" y="146" font-size="8.4" fill="#5B6472">withdrawn</text>
+
+        <rect x="20" y="158" width="450" height="46" rx="10" fill="#FF6B4A"/>
+        <text x="245" y="180" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">DESTROYED — 4.77M</text>
+        <text x="245" y="196" font-size="8.8" fill="#FFF4F1" text-anchor="middle">all locked spending, plus liquid spent in-game</text>
+
+        <rect x="486" y="158" width="154" height="46" rx="10" fill="#EEF1F5" stroke="#D0D5DD"/>
+        <text x="563" y="180" font-size="11" font-weight="700" fill="#5B6472" text-anchor="middle">SELLABLE — 0.99M</text>
+        <text x="563" y="196" font-size="8.6" fill="#8A93A0" text-anchor="middle">17% of the pool</text>
+      </g>
+    </svg>
+    <div class="figcap">Of six million tokens released, nearly five million are destroyed and one million can ever reach a market.</div>
+  </div>
+
+  <h3>The property that makes growth safe</h3>
+  <table>
+    <tr><th style="width:26%;">Share of players who are free</th><th class="r">Destroyed</th><th class="r">Can be sold</th><th class="r">Burned per token sold</th></tr>
+    <tr><td class="money">60%</td><td class="r money">4.36M</td><td class="r money">1.32M</td><td class="r money">3.3×</td></tr>
+    <tr><td class="money">70%</td><td class="r money">4.77M</td><td class="r money">0.99M</td><td class="r money">4.8×</td></tr>
+    <tr><td class="money"><strong>80%</strong></td><td class="r money">5.18M</td><td class="r money">0.66M</td><td class="r money"><strong>7.8×</strong></td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">Read that table again</span>
+    <p><strong>The more free players there are, the more deflationary the economy becomes.</strong> In every previous run-to-earn game, growth meant more tokens hitting the market and was the thing that eventually killed them. Here, growth means more tokens locked into a form that can only be burned. <strong>Mass adoption is now the safest thing that can happen to us, not the most dangerous.</strong></p>
+  </div>
+</div>
+
+<!-- EARN + BURN -->
+<div class="page">
+  <div class="sec-num">Section 3</div>
+  <h2 class="sec">How you earn it</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Consistency, not distance. The first kilometre pays fully; the tenth barely pays at all.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 128">
+      <g font-family="Liberation Sans,Arial">
+        <line x1="42" y1="100" x2="644" y2="100" stroke="#E4EAEF" stroke-width="1.5"/>
+        <g text-anchor="middle">
+          <rect x="60" y="72" width="66" height="28" rx="4" fill="#18C987"/><text x="93" y="91" font-size="9.5" font-weight="700" fill="#fff">0.75</text><text x="93" y="116" font-size="9" fill="#5B6472">750 m</text>
+          <rect x="152" y="58" width="66" height="42" rx="4" fill="#18C987"/><text x="185" y="84" font-size="9.5" font-weight="700" fill="#fff">1.6</text><text x="185" y="116" font-size="9" fill="#5B6472">2 km</text>
+          <rect x="244" y="42" width="66" height="58" rx="4" fill="#246BFE"/><text x="277" y="76" font-size="9.5" font-weight="700" fill="#fff">2.2</text><text x="277" y="116" font-size="9" fill="#5B6472">3 km</text>
+          <rect x="336" y="26" width="66" height="74" rx="4" fill="#246BFE"/><text x="369" y="68" font-size="9.5" font-weight="700" fill="#fff">2.8</text><text x="369" y="116" font-size="9" fill="#5B6472">5 km</text>
+          <rect x="428" y="14" width="66" height="86" rx="4" fill="#7657FF"/><text x="461" y="62" font-size="9.5" font-weight="700" fill="#fff">3.3</text><text x="461" y="116" font-size="9" fill="#5B6472">8 km</text>
+          <rect x="520" y="9" width="66" height="91" rx="4" fill="#A3AAB8"/><text x="553" y="60" font-size="9.5" font-weight="700" fill="#fff">3.5</text><text x="553" y="116" font-size="9" fill="#5B6472">10 km+</text>
+        </g>
+        <text x="6" y="24" font-size="9" fill="#5B6472">Effort</text>
+        <text x="644" y="22" font-size="9" fill="#B03A1C" text-anchor="end" font-weight="700">ceiling — a marathon earns no more than 10 km</text>
+      </g>
+    </svg>
+    <div class="figcap">A marathon earns 4.7× a 750-metre walk, for 56× the distance. Short walkers are real players; distance farming does not work.</div>
+  </div>
+
+  <table>
+    <tr><th style="width:34%;">Session</th><th class="r">Counts at</th><th>Plus</th></tr>
+    <tr><td>First 1 km</td><td class="r money">100%</td><td rowspan="5" style="vertical-align:middle;"><strong>+0.5 Effort</strong> for your first session of the day — showing up beats going far.<br><br>Capped at <strong>4.0 Effort per person per day</strong>, so no one can grind past the ceiling.</td></tr>
+    <tr><td>1 – 3 km</td><td class="r money">60%</td></tr>
+    <tr><td>3 – 6 km</td><td class="r money">30%</td></tr>
+    <tr><td>6 – 10 km</td><td class="r money">10%</td></tr>
+    <tr><td>Beyond 10 km</td><td class="r money">0%</td></tr>
+  </table>
+
+  <h3>What that pays</h3>
+  <table>
+    <tr><th style="width:40%;">Player</th><th class="r">Effort / month</th><th class="r">$MOVE / season</th></tr>
+    <tr><td><strong>Short walker</strong> — 750 m, 5 days a week</td><td class="r money">27</td><td class="r money">~36</td></tr>
+    <tr><td><strong>Casual</strong> — 2 km, 5 days a week</td><td class="r money">46</td><td class="r money">~60</td></tr>
+    <tr><td><strong>Regular</strong> — 4 km, 6 days a week</td><td class="r money">78</td><td class="r money">~103</td></tr>
+    <tr><td><strong>Dedicated</strong> — 8 km, 7 days a week</td><td class="r money">115</td><td class="r money">~152</td></tr>
+  </table>
+  <p class="small">The most committed athlete earns just over four times the most casual walker. That is deliberate: this is a health product, not a race.</p>
+</div>
+
+<!-- SIX SINKS -->
+<div class="page">
+  <div class="sec-num">Section 4</div>
+  <h2 class="sec">Six ways to spend it</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">The burn engine. Every one recurs, every one is something players want, and every token spent is destroyed.</p>
+
+  <div class="grid3" style="margin-bottom:12px;">
+    <div class="card g" style="margin:0;"><h4>1 · Gear</h4><p class="small" style="margin:0;">Craft boots, jackets and packs from materials found in different terrain. Parks give one thing, hills another, night walks another. Looks and capability — never extra earnings.</p></div>
+    <div class="card b" style="margin:0;"><h4>2 · Recharge</h4><p class="small" style="margin:0;">Gear and land hold a charge that drains as you use them. Walking through your own land recharges it free; paying recharges it instantly. The most frequent spend in the game.</p></div>
+    <div class="card v" style="margin:0;"><h4>3 · Upgrade</h4><p class="small" style="margin:0;">Land levels up. Each level costs more and does more — more quest slots, stronger defence, more style options. Never more income.</p></div>
+    <div class="card o" style="margin:0;"><h4>4 · Defend</h4><p class="small" style="margin:0;">When a rival challenges your land you can fortify it, up to three times. Costly, temporary, and the difference between holding and losing.</p></div>
+    <div class="card r" style="margin:0;"><h4>5 · Protect</h4><p class="small" style="margin:0;">Insure land before a contest and recover part of your outlay if you lose. Removes the fear that stops people competing at all.</p></div>
+    <div class="card" style="margin:0;"><h4>6 · Style</h4><p class="small" style="margin:0;">Colours, map themes, banners, titles, share cards. Pure sink, no advantage, and the easiest thing in the world to sell to someone enjoying themselves.</p></div>
+  </div>
+
+  <h3>What it costs, and what it burns</h3>
+  <table>
+    <tr><th style="width:24%;">Spend</th><th class="r">Cost</th><th class="r">Who does it</th><th class="r">Per player / season</th><th>Why that price</th></tr>
+    <tr><td><strong>Gear crafting</strong></td><td class="r money">14</td><td class="r money">55%</td><td class="r money">7.7</td><td>An impulse, not a decision</td></tr>
+    <tr><td><strong>Recharge</strong></td><td class="r money">22</td><td class="r money">80%</td><td class="r money">17.6</td><td>Small and frequent — free if you visit</td></tr>
+    <tr><td><strong>Land upgrade</strong></td><td class="r money">55</td><td class="r money">35%</td><td class="r money">19.2</td><td>A real goal worth saving for</td></tr>
+    <tr><td><strong>Defend</strong></td><td class="r money">38</td><td class="r money">30%</td><td class="r money">11.4</td><td>Painful enough to matter, affordable enough to try</td></tr>
+    <tr><td><strong>Protect</strong></td><td class="r money">20</td><td class="r money">25%</td><td class="r money">5.0</td><td>Cheap insurance encourages more contests</td></tr>
+    <tr><td><strong>Style</strong></td><td class="r money">15</td><td class="r money">40%</td><td class="r money">6.0</td><td>Guilt-free, repeatable, pure burn</td></tr>
+    <tr class="tot"><td>Total</td><td class="r money"></td><td class="r money"></td><td class="r money">67</td><td>against ~60 earned</td></tr>
+  </table>
+
+  <div class="callout">
+    <span class="tag">The calibration that matters</span>
+    <p>A typical player earns about <strong>60</strong> tokens a season and finds about <strong>67</strong> worth of things they want. The gap of seven is bought — roughly <strong>20 cents a month</strong> at a realistic token price. Small enough that nobody feels pushed, large enough that across a city it is the demand that absorbs everything the sellers sell.</p>
+  </div>
+</div>
+
+<!-- SUPPLY -->
+<div class="page">
+  <div class="sec-num">Section 5</div>
+  <h2 class="sec">Supply that can never run away</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">This is where StepN and Axie died. Their supply grew with their player count. Ours cannot.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 152">
+      <g font-family="Liberation Sans,Arial">
+        <line x1="46" y1="120" x2="640" y2="120" stroke="#E4EAEF" stroke-width="1.5"/>
+        <line x1="46" y1="98" x2="640" y2="98" stroke="#FF6B4A" stroke-width="1.2" stroke-dasharray="5 4"/>
+        <text x="640" y="94" font-size="9" fill="#B03A1C" text-anchor="end">floor 1.5M — held for decades</text>
+        <g text-anchor="middle">
+          <rect x="66" y="30" width="52" height="90" rx="4" fill="#246BFE"/><text x="92" y="47" font-size="9" font-weight="700" fill="#fff">6.0</text><text x="92" y="136" font-size="9" fill="#5B6472">Y1</text>
+          <rect x="150" y="52" width="52" height="68" rx="4" fill="#4886FE"/><text x="176" y="69" font-size="9" font-weight="700" fill="#fff">4.4</text><text x="176" y="136" font-size="9" fill="#5B6472">Y2</text>
+          <rect x="234" y="66" width="52" height="54" rx="4" fill="#6E9EFE"/><text x="260" y="83" font-size="9" font-weight="700" fill="#fff">3.4</text><text x="260" y="136" font-size="9" fill="#5B6472">Y3</text>
+          <rect x="318" y="76" width="52" height="44" rx="4" fill="#93B7FE"/><text x="344" y="93" font-size="9" font-weight="700" fill="#246BFE">2.7</text><text x="344" y="136" font-size="9" fill="#5B6472">Y5</text>
+          <rect x="402" y="86" width="52" height="34" rx="4" fill="#B8D0FE"/><text x="428" y="103" font-size="9" font-weight="700" fill="#246BFE">2.1</text><text x="428" y="136" font-size="9" fill="#5B6472">Y8</text>
+          <rect x="486" y="94" width="52" height="26" rx="4" fill="#D9E7FE"/><text x="512" y="110" font-size="9" font-weight="700" fill="#246BFE">1.7</text><text x="512" y="136" font-size="9" fill="#5B6472">Y12</text>
+          <rect x="570" y="98" width="52" height="22" rx="4" fill="#E9F0FE"/><text x="596" y="112" font-size="9" font-weight="700" fill="#246BFE">1.5</text><text x="596" y="136" font-size="9" fill="#5B6472">Y20+</text>
+        </g>
+        <text x="6" y="28" font-size="9" fill="#5B6472">per season</text>
+      </g>
+    </svg>
+    <div class="figcap">Falls fast while the network is small, then settles at a level the reserve funds for over forty years.</div>
+  </div>
+
+  <table>
+    <tr><th style="width:42%;">Rule</th><th>Setting</th></tr>
+    <tr><td>Hard cap, unchangeable in the contract</td><td class="money"><strong>1,000,000,000 $MOVE</strong></td></tr>
+    <tr><td>Reserved for player rewards</td><td class="money">300M (30%)</td></tr>
+    <tr><td>Released per season</td><td class="money">Starts at 6M, falls 10% a season, floors at 1.5M</td></tr>
+    <tr><td>How long the reserve lasts</td><td class="money"><strong>About 43 years</strong></td></tr>
+    <tr><td>Does the pool grow with players?</td><td class="money"><strong>No — never.</strong> More players share the same pool</td></tr>
+    <tr><td>Can anyone raise it?</td><td class="money">Only a timelocked governance vote, within published limits</td></tr>
+  </table>
+
+  <h3>Why this is the whole difference</h3>
+  <table>
+    <tr><th style="width:28%;">&nbsp;</th><th>StepN / Axie</th><th>MovenRun</th></tr>
+    <tr><td><strong>Supply set by</strong></td><td>Number of players × a rate</td><td><strong>A fixed schedule</strong></td></tr>
+    <tr><td><strong>Twice the players</strong></td><td>Twice the tokens minted</td><td>The same tokens, half each</td></tr>
+    <tr><td><strong>Main sink</strong></td><td>Breeding or minting — <em>created another earner</em></td><td>Gear, recharge, defence — consumed and gone</td></tr>
+    <tr><td><strong>When confidence fell</strong></td><td>Spending stopped, minting continued</td><td>Locked tokens keep burning regardless of price</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <span class="tag">The trap they fell into, named plainly</span>
+    <p>In Axie, breeding a creature was the biggest way to spend — and it produced a new creature that minted its own tokens. The main sink was really <strong>an investment in more inflation</strong>. Nothing in our six sinks creates a new earner. Gear wears out, charge drains, fortifications expire, insurance pays out and ends. Everything is consumed.</p>
+  </div>
+</div>
+
+<!-- RIGHTS -->
+<div class="page">
+  <div class="sec-num">Section 6</div>
+  <h2 class="sec">What buying actually gets you</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Free players get the whole game. Buyers get ownership rights. Keeping those two things separate is what makes this fair and what keeps it Web3.</p>
+
+  <table>
+    <tr><th style="width:34%;">&nbsp;</th><th class="r" style="width:24%;">Free player</th><th class="r">On-chain holder</th></tr>
+    <tr><td>Earn $MOVE by moving</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td>Spend it on all six sinks</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td>Capture, upgrade and defend land</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td>Clubs, contests, leaderboards, seasons</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td>Win a city war</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td><strong>Sell or transfer tokens</strong></td><td class="r" style="color:#B03A1C;font-weight:700;">Never</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td><strong>Vote on governance</strong></td><td class="r" style="color:#B03A1C;font-weight:700;">No</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td><strong>Stake for standing and priority</strong></td><td class="r" style="color:#B03A1C;font-weight:700;">No</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td><strong>Own a tradable deed</strong></td><td class="r" style="color:#B03A1C;font-weight:700;">No</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+    <tr><td><strong>Trade on the marketplace</strong></td><td class="r" style="color:#B03A1C;font-weight:700;">No</td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td></tr>
+  </table>
+
+  <h3>The three rights, and what each is for</h3>
+  <div class="grid3">
+    <div class="card b" style="margin:0;"><h4>Voting</h4><p class="small" style="margin:0;">Holders vote on emission settings, sink prices, season rules and treasury spending. Snapshot-based, timelocked, published in advance. <strong>The economy belongs to the people holding it, not to us.</strong></p></div>
+    <div class="card v" style="margin:0;"><h4>Staking</h4><p class="small" style="margin:0;">Lock tokens for a season to gain standing, priority in land contests, and a larger voting weight. <strong>It pays no interest</strong> — it buys position, not yield. That is deliberate: interest just makes piles bigger.</p></div>
+    <div class="card o" style="margin:0;"><h4>Deeds</h4><p class="small" style="margin:0;">Land held long enough can be minted as a tradable deed with its full history. Sellable, rentable, sponsorable — the one genuinely scarce asset in the game.</p></div>
+  </div>
+
+  <h3>The bridge between the two</h3>
+  <p>A free player who wants the rights layer has a route: hold land for sixty days, then mint it as a deed. That mint has a token cost, payable in cash or in tokens bought on the market. <strong>Nothing about being free is permanent except the locked state of tokens already earned</strong> — and those stay locked for ever, which is exactly what stops farm-and-dump.</p>
+
+  <div class="callout ok">
+    <span class="tag">Why this feels like Web3 rather than a company account</span>
+    <p>Every deed, every vote and every stake is on Base, under the holder's own keys. We cannot revoke a deed, reverse a vote or freeze a stake. What we control is the game; what the holders control is the economy's settings and their own property. <strong>A free player is never controlled by us either — they simply hold a balance that was minted non-transferable and always will be.</strong></p>
+  </div>
+</div>
+
+<!-- LAND + GAMIFICATION -->
+<div class="page">
+  <div class="sec-num">Section 7</div>
+  <h2 class="sec">Land, and nobody locked out</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Two people can live on the same street. Only one can run the zone. Separating those two ideas removes the collision entirely.</p>
+
+  <table>
+    <tr><th style="width:22%;">Layer</th><th style="width:20%;">How many</th><th>What it is</th></tr>
+    <tr><td><strong>Home</strong></td><td class="money">One each, free</td><td>Your own base. Private, never shown to anyone, cannot be taken. A hundred players in one street each have one.</td></tr>
+    <tr><td><strong>Residency</strong></td><td class="money">Unlimited</td><td>Local membership, earned by five visits in a fortnight. Everyone who walks there can hold it at once. It blocks nobody.</td></tr>
+    <tr><td><strong>Charter</strong></td><td class="money">One per zone</td><td>The right to run the zone — name it, style it, set quests, host sponsors. Earned by contribution, renewed automatically while you stay active.</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The incentive that makes it pleasant</span>
+    <p>A charter holder's standing rises with how busy their zone is. <strong>So they want newcomers there.</strong> A new player is not a threat to be resented — they are what makes the zone worth holding. That is the opposite of every virtual land project so far.</p>
+  </div>
+  <p class="small">Zones start large. When one reaches around forty regular residents it splits into seven at the next season boundary; the holder keeps one, six open up. Land supply follows people, never a schedule.</p>
+
+  <h3>What we borrowed, and from where</h3>
+  <table>
+    <tr><th style="width:30%;">Mechanism</th><th style="width:28%;">Taken from</th><th>What it fixes</th></tr>
+    <tr><td>Charge that drains and refills</td><td>Interval and fitness apps</td><td>A daily reason to return; a recurring spend that never feels like a tax</td></tr>
+    <tr><td>Cost and capability rising together</td><td>Clash of Clans upgrades</td><td>The grind never lengthens, so nobody hits a wall and quits</td></tr>
+    <tr><td>Gear that wears out</td><td>Every durable-goods economy</td><td>Small, frequent, unavoidable circulation</td></tr>
+    <tr><td>Seasons and a reset</td><td>League sport</td><td>Arriving late is always a real start</td></tr>
+    <tr><td>Locked rewards</td><td>Loyalty points and air miles</td><td>Real reward, zero sell pressure</td></tr>
+    <tr><td>Prices set in walking days</td><td>Index-linked pensions</td><td>A shrinking pool can never price players out</td></tr>
+    <tr><td>Leasehold, not freehold</td><td>Singapore land policy</td><td>Land goes to people who use it</td></tr>
+    <tr><td>Snapshot voting with a timelock</td><td>Standard on-chain governance</td><td>Nobody can buy a vote at the last minute</td></tr>
+  </table>
+</div>
+
+<!-- APP MAPPING -->
+<div class="page">
+  <div class="sec-num">Section 8</div>
+  <h2 class="sec">Where this lives in the app we already have</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Almost every screen this economy needs is already built. The work is wiring, not invention.</p>
+
+  <table>
+    <tr><th style="width:30%;">Already in the app</th><th style="width:26%;">Economic role</th><th>What has to be added</th></tr>
+    <tr><td><code>territory</code>, <code>zones</code>, <code>zoneCommand</code></td><td>Capture, upgrade, defend</td><td>Real hexagon capture and the upgrade ladder</td></tr>
+    <tr><td><code>lockedMove</code></td><td><strong>Locked balance</strong></td><td>Make it a real ledger instead of a display preview</td></tr>
+    <tr><td><code>deedPreview</code>, <code>deedsView</code></td><td>Deeds and rights</td><td>Connect to the on-chain deed contract</td></tr>
+    <tr><td><code>clubs</code>, <code>clubTerritory</code>, <code>crewMissions</code></td><td>Group sinks</td><td>Shared treasury and club spending</td></tr>
+    <tr><td><code>cityDistricts</code>, <code>cityWarBoard</code>, <code>districtMastery</code></td><td>Contests</td><td>Scoring, entry fees, settlement</td></tr>
+    <tr><td><code>collectionsView</code>, <code>zoneCollections</code></td><td>Status sinks</td><td>Minting a completed set</td></tr>
+    <tr><td><code>rivalGhosts</code></td><td>Weekly hook</td><td>Matching and optional stakes</td></tr>
+    <tr><td><code>seasonObjectives</code>, <code>weeklyRecap</code></td><td>Season rhythm</td><td>Season pass and settlement</td></tr>
+    <tr><td><code>sponsorZones</code>, <code>eventZones</code></td><td>Outside money</td><td>Real campaigns and dashboards</td></tr>
+    <tr><td><code>routeProof</code>, <code>routeTrust</code>, <code>signalQuality</code></td><td>Anti-cheat</td><td>Wire to the verification service that already runs</td></tr>
+    <tr><td><code>territoryAlerts</code></td><td>Defence prompts</td><td>Notify when land is challenged</td></tr>
+    <tr><td><code>wallets</code>, <code>security</code></td><td>Rights layer</td><td>Switch on a wallet provider</td></tr>
+  </table>
+
+  <div class="callout">
+    <span class="tag">What this means for cost and risk</span>
+    <p>Eleven of the twelve systems this economy needs already exist as working screens with tested logic. <strong>The economy is not a rewrite — it is a ledger, four contracts, and connecting what is already there.</strong> That is the single strongest argument that this design is buildable rather than aspirational.</p>
+  </div>
+
+  <h3>The four contracts</h3>
+  <table>
+    <tr><th style="width:30%;">Contract</th><th>Job</th></tr>
+    <tr><td><strong>Token with two states</strong></td><td>Mint locked or liquid from one capped supply; locked can never transfer</td></tr>
+    <tr><td><strong>Burn router</strong></td><td>Every sink pays through it; destroys tokens and publishes the receipt</td></tr>
+    <tr><td><strong>Season controller</strong></td><td>Releases the fixed pool, splits locked and liquid, settles the season</td></tr>
+    <tr><td><strong>Deeds and governance</strong></td><td>Tradable land, snapshot voting, staking, timelock</td></tr>
+  </table>
+  <p class="small">These replace the deployed test contracts, which our own audit already found to carry fifteen defects, two of them critical. The redeploy was necessary regardless; this design decides what the new contracts should say.</p>
+</div>
+
+<!-- NUMBERS -->
+<div class="page">
+  <div class="sec-num">Section 9</div>
+  <h2 class="sec">The numbers, and where they break</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">All figures are illustrative models of the structure — not forecasts. There are no players and no revenue yet.</p>
+
+  <table>
+    <tr><th style="width:22%;">Scenario</th><th class="r">Players</th><th class="r">Released</th><th class="r">Destroyed</th><th class="r">Can be sold</th><th class="r">Burn : sell</th></tr>
+    <tr><td><strong>Pilot city</strong></td><td class="r money">5,000</td><td class="r money">6.0M</td><td class="r money">4.8M</td><td class="r money">0.99M</td><td class="r money">4.8×</td></tr>
+    <tr><td><strong>Base case</strong></td><td class="r money">100,000</td><td class="r money">6.0M</td><td class="r money">4.8M</td><td class="r money">0.99M</td><td class="r money">4.8×</td></tr>
+    <tr><td><strong>Growth</strong></td><td class="r money">500,000</td><td class="r money">6.0M</td><td class="r money">5.2M</td><td class="r money">0.66M</td><td class="r money">7.8×</td></tr>
+    <tr style="background:#FFF4F1;"><td><strong>Demand shock</strong></td><td class="r money">100,000</td><td class="r money">6.0M</td><td class="r money">4.4M</td><td class="r money">1.32M</td><td class="r money">3.3×</td></tr>
+  </table>
+  <p class="small">Notice the released column never changes. That is the point — the pool is fixed by schedule, not by how many people show up.</p>
+
+  <h3>Reading the shock case</h3>
+  <p>In a downturn, players stop buying deeds, so the free share falls and more of the pool is minted liquid. Burn falls, selling rises, and the ratio drops from 4.8× to 3.3×. <strong>It gets worse — and it stays positive.</strong> More is still destroyed than sold, because locked tokens keep burning whatever the price does. That is the property no previous run-to-earn game had: <strong>our burn does not depend on confidence.</strong></p>
+
+  <h3>What would actually break this</h3>
+  <table>
+    <tr><th style="width:32%;">Risk</th><th>What happens, and what we would do</th></tr>
+    <tr><td><strong>Players do not spend</strong></td><td>The biggest risk by far. If people hoard locked tokens instead of spending them, burn stalls. Mitigated by charge draining, gear wearing out and seasonal deadlines — but it needs proving with real players.</td></tr>
+    <tr><td><strong>Nobody buys the top-up</strong></td><td>The seven-token gap goes unfilled and sinks shrink. Survivable — the economy just runs smaller — but it removes the demand that absorbs selling.</td></tr>
+    <tr><td><strong>Too few deed holders</strong></td><td>Fewer people to sell, which is fine, but also fewer buying deeds and voting. Governance stays thin.</td></tr>
+    <tr><td><strong>Sinks feel like a tax</strong></td><td>If recharge is resented rather than enjoyed, players stop rather than pay. Wear rates must be tuned generously and tested early.</td></tr>
+    <tr><td><strong>Locked balance grows unspent</strong></td><td>Add an expiry — unspent locked tokens lapse after 180 days and are destroyed. Only introduce this if hoarding actually appears.</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <span class="tag">The honest summary</span>
+    <p>The structure is sound and fails safely: supply is capped, the pool never grows with the player base, no sink creates a new earner, and the majority of every season's release can only ever be burned. <strong>The calibration is entirely ours.</strong> Roughly eight numbers here — participation rates, costs, the free/paid split — are estimates. The first city replaces them with measurements, and several will be wrong.</p>
+  </div>
+</div>
+
+<!-- SUMMARY -->
+<div class="page">
+  <div class="sec-num">Section 10</div>
+  <h2 class="sec">The whole thing, once</h2>
+  <div class="rule"></div>
+
+  <h3>Eight sentences</h3>
+  <ol style="font-size:11pt;line-height:1.6;">
+    <li><strong>Everyone earns the real token by moving</strong> — the first kilometre counts most, so a short daily walk is a genuine way to play.</li>
+    <li><strong>Free players' tokens are locked for ever</strong>: fully spendable inside the game, never sellable, never convertible.</li>
+    <li><strong>Buyers get the rights</strong> — voting, staking, tradable deeds and the marketplace — but no advantage inside the game.</li>
+    <li><strong>Six things to spend on</strong>: gear, recharge, upgrade, defend, protect, style. All recurring, all consumed.</li>
+    <li><strong>Everything spent is destroyed</strong>, so most of every season's release leaves the supply for good.</li>
+    <li><strong>The pool is a fixed schedule</strong> from a capped supply — twice the players never means twice the tokens.</li>
+    <li><strong>The more free players there are, the more deflationary it gets</strong>, which is the exact reverse of what killed StepN and Axie.</li>
+    <li><strong>No sink creates a new earner</strong> — gear wears out, charge drains, fortifications expire. Nothing buys more inflation.</li>
+  </ol>
+
+  <div class="grid3" style="margin-top:14px;">
+    <div class="kpi"><div class="n" style="color:var(--green);">4.8×</div><div class="l">Tokens destroyed for every token that can be sold</div></div>
+    <div class="kpi"><div class="n" style="color:var(--blue);">1B</div><div class="l">Hard cap. The pool never grows with the player base</div></div>
+    <div class="kpi"><div class="n" style="color:var(--violet);">43 yrs</div><div class="l">How long the reward reserve funds seasons</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gold);">20¢</div><div class="l">Monthly top-up a typical player might choose to buy</div></div>
+    <div class="kpi"><div class="n" style="color:var(--coral);">0</div><div class="l">Sinks that create a new earner</div></div>
+    <div class="kpi"><div class="n">11 / 12</div><div class="l">Systems this needs that already exist in the app</div></div>
+  </div>
+
+  <h3 style="margin-top:16px;">The three questions you will be asked</h3>
+  <div style="margin-bottom:9px;">
+    <div style="font-weight:700;font-size:10.6pt;">"If free players can't sell, is the reward real?"</div>
+    <div style="font-size:10pt;color:#333A47;">Completely. It buys everything in the game — gear, land, upgrades, defence, style. What it cannot do is leave. That is what protects the token for the people who did buy in, and it is stated plainly at signup.</div>
+  </div>
+  <div style="margin-bottom:9px;">
+    <div style="font-weight:700;font-size:10.6pt;">"Why won't this end like StepN?"</div>
+    <div style="font-size:10pt;color:#333A47;">Their supply grew with their player count and their main sink created new earners. Ours is a fixed schedule, and nothing you can buy makes more tokens. When their players lost confidence, minting carried on; when ours do, locked tokens keep burning anyway.</div>
+  </div>
+  <div>
+    <div style="font-weight:700;font-size:10.6pt;">"What stops someone farming free accounts?"</div>
+    <div style="font-size:10pt;color:#333A47;">Free accounts earn only locked tokens, which have no market value and never convert. There is nothing to farm. Selling requires a deed, which requires holding real land in a real place for sixty days.</div>
+  </div>
+
+  <div class="footer-note">
+    <strong>MovenRun Economy V6 · Final design.</strong> Confidential, prepared for partner review. Replaces versions 2 to 5. This is a design proposal requiring four new contracts, not a shipped system.
+    All figures are illustrative models of structure, not forecasts — there are no players, no revenue and no validated pricing. $MOVE does not trade anywhere; there has been no sale, listing or allocation.
+    Deeds are game assets, not property, and carry no income right. Nothing here is financial advice, an offer, or a promise of returns.
+  </div>
+</div>
+
+</body>
+</html>
