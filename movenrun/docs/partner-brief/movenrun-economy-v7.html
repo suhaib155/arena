@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MovenRun Economy V7</title>
+<style>
+:root{
+  --morning:#F8FAF7; --cloud:#FFFFFF; --mist:#F1F6F3; --pale:#EAF6FF;
+  --ink:#111827; --graphite:#5B6472; --silver:#A3AAB8;
+  --blue:#246BFE; --green:#18C987; --coral:#FF6B4A; --gold:#F7B955;
+  --violet:#7657FF; --red:#EF4444; --dust:#D0D5DD; --line:#E4EAEF;
+}
+@page { size:A4; margin:15mm 15mm 16mm 15mm; }
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{ font-family:"Liberation Sans","DejaVu Sans",Arial,sans-serif; color:var(--ink);
+  background:var(--cloud); font-size:10.8pt; line-height:1.52;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+h1,h2,h3,h4{margin:0;line-height:1.2;}
+p{margin:0 0 8pt;}
+.page{page-break-after:always;} .page:last-child{page-break-after:auto;}
+.nobreak{page-break-inside:avoid;} .pb{page-break-before:always;}
+
+.cover{height:299mm;display:flex;flex-direction:column;justify-content:space-between;
+  background:linear-gradient(160deg,#FFFFFF 0%,#EAF6FF 46%,#F1F6F3 100%);
+  margin:-15mm -15mm -16mm -15mm;padding:24mm 20mm 26mm;}
+.brandmark{display:flex;align-items:center;gap:11px;}
+.brandmark .name{font-size:17pt;font-weight:700;letter-spacing:-0.3px;}
+.cover h1{font-size:44pt;font-weight:700;letter-spacing:-1.6px;margin:0 0 12px;}
+.cover .sub{font-size:14.5pt;color:var(--graphite);max-width:140mm;line-height:1.45;}
+.eyebrow{display:inline-block;font-size:9pt;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--blue);background:rgba(36,107,254,.10);border:1px solid rgba(36,107,254,.22);
+  padding:6px 13px;border-radius:999px;}
+.cover-meta{display:flex;gap:26px;flex-wrap:wrap;border-top:1px solid rgba(17,24,39,.12);padding-top:14px;}
+.cover-meta div{font-size:9.4pt;color:var(--graphite);}
+.cover-meta strong{display:block;color:var(--ink);font-size:10.4pt;margin-bottom:2px;}
+
+.sec-num{font-size:9pt;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--blue);margin-bottom:5px;}
+h2.sec{font-size:21pt;font-weight:700;letter-spacing:-0.7px;margin:0 0 7px;}
+.sec-lede{font-size:11.6pt;color:var(--graphite);line-height:1.45;margin:0 0 13px;max-width:165mm;}
+.rule{height:3px;width:54px;background:var(--blue);border-radius:2px;margin:0 0 12px;}
+h3{font-size:12.6pt;font-weight:700;margin:13pt 0 5pt;letter-spacing:-0.2px;}
+h4{font-size:11pt;font-weight:700;margin:9pt 0 4pt;}
+ul,ol{margin:0 0 9pt;padding-left:17pt;} li{margin-bottom:4pt;} li::marker{color:var(--blue);}
+.small{font-size:9.6pt;color:var(--graphite);}
+
+.card{background:var(--cloud);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 10px;}
+.card.b{background:#F3F7FF;border-color:#D6E4FF;} .card.g{background:#F0FBF6;border-color:#C9EEDD;}
+.card.v{background:#F6F3FF;border-color:#DED4FF;} .card.o{background:#FFF9EF;border-color:#F5E3C0;}
+.card.r{background:#FFF4F1;border-color:#FBD8CD;}
+.card h4{margin-top:0;} .card p:last-child{margin-bottom:0;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+
+table{width:100%;border-collapse:collapse;margin:0 0 11px;font-size:10pt;}
+th{text-align:left;background:var(--mist);font-weight:700;padding:7px 10px;border-bottom:2px solid var(--line);
+  font-size:9.2pt;text-transform:uppercase;letter-spacing:.5px;}
+td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+tr:nth-child(even) td{background:#FBFCFD;}
+td.r,th.r{text-align:right;} .money{font-variant-numeric:tabular-nums;white-space:nowrap;}
+tr.tot td{background:#F3F7FF !important;font-weight:700;border-top:2px solid #D6E4FF;}
+
+.callout{border-left:4px solid var(--blue);background:#F3F7FF;border-radius:0 10px 10px 0;padding:11px 14px;margin:0 0 11px;}
+.callout.warn{border-left-color:var(--coral);background:#FFF4F1;}
+.callout.ok{border-left-color:var(--green);background:#F0FBF6;}
+.callout p:last-child{margin-bottom:0;}
+.callout .tag{font-size:8.6pt;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--blue);display:block;margin-bottom:4px;}
+.callout.warn .tag{color:#B03A1C;} .callout.ok .tag{color:#0E7A52;}
+.figure{margin:5px 0 12px;} .figure svg{display:block;width:100%;height:auto;}
+.figcap{font-size:9.2pt;color:var(--graphite);margin-top:5px;text-align:center;font-style:italic;}
+.kpi{border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:var(--cloud);}
+.kpi .n{font-size:20pt;font-weight:700;letter-spacing:-0.8px;line-height:1.1;}
+.kpi .l{font-size:9.2pt;color:var(--graphite);margin-top:3px;line-height:1.35;}
+.eq{background:#F3F7FF;border:1px solid #D6E4FF;border-radius:11px;padding:13px 15px;text-align:center;margin:0 0 11px;}
+.eq .f{font-size:12.5pt;font-weight:700;} .eq .n{font-size:9.4pt;color:var(--graphite);margin-top:5px;}
+.footer-note{margin-top:15px;padding-top:9px;border-top:1px solid var(--line);font-size:9pt;color:var(--silver);line-height:1.5;}
+</style></head>
+<body>
+
+<!-- COVER -->
+<div class="page">
+<div class="cover">
+  <div class="brandmark">
+    <svg width="36" height="40" viewBox="0 0 34 38"><polygon points="17,1 33,10 33,28 17,37 1,28 1,10" fill="#246BFE"/><polygon points="17,8 27,13.5 27,24.5 17,30 7,24.5 7,13.5" fill="#FFFFFF" opacity=".92"/><polygon points="17,13 23,16.2 23,22.8 17,26 11,22.8 11,16.2" fill="#18C987"/></svg>
+    <span class="name">MovenRun</span>
+  </div>
+  <div>
+    <span class="eyebrow">Economy V7 · Territory &amp; Tolls · Confidential</span>
+    <h1 style="margin-top:16px;">Run a loop.<br>Take the ground.<br>Charge the toll.</h1>
+    <p class="sub">The proven territory game underneath, an ownership layer on top. Attack, defend, upgrade, and get paid when people cross your land.</p>
+  </div>
+  <div>
+    <div class="figure" style="max-width:152mm;margin-bottom:16px;">
+      <svg viewBox="0 0 620 100">
+        <defs><marker id="cv" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#A3AAB8"/></marker></defs>
+        <g font-family="Liberation Sans,Arial" text-anchor="middle">
+          <rect x="2" y="24" width="132" height="52" rx="11" fill="#18C987"/>
+          <text x="68" y="46" font-size="11" font-weight="700" fill="#fff">LOOP IT</text>
+          <text x="68" y="63" font-size="8.4" fill="#E4F8EF">the inside is yours</text>
+          <line x1="140" y1="50" x2="164" y2="50" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cv)"/>
+          <rect x="170" y="24" width="132" height="52" rx="11" fill="#FF6B4A"/>
+          <text x="236" y="46" font-size="11" font-weight="700" fill="#fff">CUT THROUGH</text>
+          <text x="236" y="63" font-size="8.4" fill="#FFF4F1">take theirs</text>
+          <line x1="308" y1="50" x2="332" y2="50" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cv)"/>
+          <rect x="338" y="24" width="132" height="52" rx="11" fill="#7657FF"/>
+          <text x="404" y="46" font-size="11" font-weight="700" fill="#fff">MINT IT</text>
+          <text x="404" y="63" font-size="8.4" fill="#DED4FF">now it is protected</text>
+          <line x1="476" y1="50" x2="500" y2="50" stroke="#A3AAB8" stroke-width="1.8" marker-end="url(#cv)"/>
+          <rect x="506" y="24" width="112" height="52" rx="11" fill="#F7B955"/>
+          <text x="562" y="46" font-size="11" font-weight="700" fill="#fff">GET PAID</text>
+          <text x="562" y="63" font-size="8.4" fill="#FFF9EF">2% of every crosser</text>
+        </g>
+      </svg>
+    </div>
+    <div class="cover-meta">
+      <div><strong>Prepared for</strong>Partner review</div>
+      <div><strong>Version</strong>7.0</div>
+      <div><strong>Adds to</strong>V6 — combat, tolls, tiers</div>
+      <div><strong>Core loop</strong>Proven by INTVL</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- WHAT INTVL PROVED -->
+<div class="page">
+  <div class="sec-num">Section 1</div>
+  <h2 class="sec">Start from what already works</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">INTVL is a running app that reached the top fifteen in health &amp; fitness with a territory feature called Terra. Its mechanic is tested at scale. We take it as the foundation and build ownership on top.</p>
+
+  <h3>What INTVL does — and we adopt</h3>
+  <table>
+    <tr><th style="width:30%;">Mechanic</th><th>How it works</th></tr>
+    <tr><td><strong>Loop to claim</strong></td><td>Run or ride a closed loop and <em>the whole area inside it</em> becomes yours. Not tile-by-tile stepping — enclosure. Bigger, smarter routes take more map.</td></tr>
+    <tr><td><strong>Cut through to steal</strong></td><td>Territory stays yours until someone else runs those streets. No permission, no formal challenge — running through simply takes it.</td></tr>
+    <tr><td><strong>Re-run to defend</strong></td><td>Go back over ground you hold to keep it. Defence is the same action as exercise.</td></tr>
+    <tr><td><strong>Route planner</strong></td><td>Preview a route before you go: see whose land you would take and how much new ground you would gain. This turns a run into a plan.</td></tr>
+    <tr><td><strong>Layered leaderboards</strong></td><td>Suburb, city, country, world. Most people chase their own neighbourhood, not the globe.</td></tr>
+    <tr><td><strong>Area-weighted prize draws</strong></td><td>Every km² held is one entry in a monthly draw for real prizes. Rewards without printing anything.</td></tr>
+    <tr><td><strong>Tactics over speed</strong></td><td>Deliberately does not favour elite runners. A clever 3 km loop beats a fast 10 km line.</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">Why we start here rather than inventing</span>
+    <p>This loop has been tested on real runners and it worked — it is <strong>fun before it is financial</strong>, which is the one thing every failed move-to-earn game got backwards. Our job is not to redesign the game. It is to add ownership, tolls and a token economy <strong>without breaking what already works.</strong></p>
+  </div>
+
+  <h3>What we add on top</h3>
+  <div class="grid2">
+    <div class="card v">
+      <h4>Ownership that can be defended</h4>
+      <p style="margin-bottom:0;">In INTVL, anyone can take your land by running through it. That is exciting but nothing is ever really <em>yours</em>. We add <strong>minting</strong>: turn ground into a deed and it can no longer be taken by a casual pass — only by winning a contest.</p>
+    </div>
+    <div class="card o">
+      <h4>Land that pays you</h4>
+      <p style="margin-bottom:0;">Every runner crossing your minted land pays you a <strong>2% toll</strong>. Your territory stops being a score and starts being a small business — busy ground earns, empty ground does not.</p>
+    </div>
+  </div>
+  <p class="small">Sources: <a href="https://apps.apple.com/us/app/intvl/id6472631698">INTVL on the App Store</a> · <a href="https://play.google.com/store/apps/details?id=com.intvl.app&hl=en">Google Play</a> · <a href="https://nikmat.substack.com/p/intvl-the-running-app-that-turns">INTVL: The Running App That Turns Your City Into a Territory War</a> · <a href="https://fueledbylolz.com/2026/06/09/intvl-running-app-review/">FueledByLOLZ review</a></p>
+</div>
+
+<!-- ATTACK AND DEFEND -->
+<div class="page">
+  <div class="sec-num">Section 2</div>
+  <h2 class="sec">Attack and defence</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Two rules, depending on whether the land has been minted. Unminted land is fast and brutal. Minted land is property, and taking it is a proper fight.</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 216">
+      <g font-family="Liberation Sans,Arial">
+        <rect x="6" y="6" width="318" height="204" rx="12" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="24" y="30" font-size="9" font-weight="700" letter-spacing="1.2" fill="#0E7A52">UNMINTED GROUND</text>
+        <text x="24" y="53" font-size="14.5" font-weight="700" fill="#111827">Run through it. It's yours.</text>
+        <g font-size="10" fill="#111827">
+          <text x="24" y="82">·  No cost, no challenge, no waiting</text>
+          <text x="24" y="104">·  One run is enough — a single player</text>
+          <text x="38" y="120">can take a whole district in a morning</text>
+          <text x="24" y="142">·  You lose it the same way</text>
+          <text x="24" y="164">·  Defend by re-running your own loop</text>
+        </g>
+        <rect x="24" y="178" width="282" height="22" rx="6" fill="#fff" stroke="#C9EEDD"/>
+        <text x="34" y="193" font-size="9.4" font-weight="700" fill="#0E7A52">Fast, fluid, free. The INTVL game.</text>
+
+        <rect x="336" y="6" width="318" height="204" rx="12" fill="#F6F3FF" stroke="#DED4FF"/>
+        <text x="354" y="30" font-size="9" font-weight="700" letter-spacing="1.2" fill="#5A3FD6">MINTED GROUND — A DEED</text>
+        <text x="354" y="53" font-size="14.5" font-weight="700" fill="#111827">You have to win a siege.</text>
+        <g font-size="10" fill="#111827">
+          <text x="354" y="82">·  Running through pays a toll instead</text>
+          <text x="354" y="104">·  To take it: declare, stake, then a</text>
+          <text x="368" y="120">seven-day contest of who moves more</text>
+          <text x="354" y="142">·  Owner may fortify, up to three times</text>
+          <text x="354" y="164">·  Winner takes the deed. Loser's stake burns</text>
+        </g>
+        <rect x="354" y="178" width="282" height="22" rx="6" fill="#fff" stroke="#DED4FF"/>
+        <text x="364" y="193" font-size="9.4" font-weight="700" fill="#5A3FD6">Slow, costly, decisive. Real property.</text>
+      </g>
+    </svg>
+    <div class="figcap">Minting is the moment ground stops being a scoreboard and becomes something worth defending.</div>
+  </div>
+
+  <h3>The seven-day siege, step by step</h3>
+  <table>
+    <tr><th style="width:16%;">Step</th><th style="width:20%;">Cost</th><th>What happens</th></tr>
+    <tr><td><strong>Declare</strong></td><td class="money">30 tokens</td><td>You name the deed you want. The owner is notified. A seven-day window opens.</td></tr>
+    <tr><td><strong>Compete</strong></td><td class="money">free</td><td>Both sides record movement <em>inside that ground</em>. Counted once per person per day, so it is consistency not marathons.</td></tr>
+    <tr><td><strong>Fortify</strong></td><td class="money">28 each, max 3</td><td>The owner can add +20% to their score, three times. Burned whether they win or lose.</td></tr>
+    <tr><td><strong>Rally</strong></td><td class="money">free</td><td>Club mates who run the ground add to whichever side they support. One person, one contribution per day.</td></tr>
+    <tr><td><strong>Settle</strong></td><td class="money">—</td><td>Higher score takes the deed. It transfers automatically — <strong>the loser cannot refuse.</strong> The loser's stake is burned.</td></tr>
+    <tr><td><strong>Cool off</strong></td><td class="money">—</td><td>A beaten attacker cannot return for 30 days. A defender who just survived gets 14 days of peace.</td></tr>
+  </table>
+
+  <div class="callout">
+    <span class="tag">Why a single player can still win</span>
+    <p>Scoring counts <strong>distinct people per day</strong>, not total distance — but a determined solo runner who shows up every day for seven days beats a club of thirty who each turn up once. <strong>Nobody is locked out by not having friends</strong>, and nobody wins by buying anything: fortification helps, but it cannot beat a large gap in actual movement.</p>
+  </div>
+</div>
+
+<!-- THE TOLL -->
+<div class="page">
+  <div class="sec-num">Section 3</div>
+  <h2 class="sec">The toll</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Cross someone's minted land and 2% of what you earned <em>there</em> goes to them. Cross ten people's land and you still pay about 2% in total — it cannot pile up.</p>
+
+  <div class="eq">
+    <div class="f">You pay 2% of what you earned <em>inside each zone</em> — not 2% of your whole run.</div>
+    <div class="n">So the toll is bounded by how far you went, never by how many owners you passed.</div>
+  </div>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 176">
+      <g font-family="Liberation Sans,Arial">
+        <text x="6" y="16" font-size="10" font-weight="700" fill="#111827">One 60-token run crossing six zones, four of them owned</text>
+        <g>
+          <rect x="20" y="34" width="98" height="52" rx="8" fill="#EEF1F5" stroke="#D0D5DD"/>
+          <text x="69" y="56" font-size="9.6" font-weight="700" fill="#5B6472" text-anchor="middle">unowned</text>
+          <text x="69" y="72" font-size="9" fill="#8A93A0" text-anchor="middle">pay 0</text>
+          <rect x="126" y="34" width="98" height="52" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="175" y="56" font-size="9.6" font-weight="700" fill="#9A6B10" text-anchor="middle">owned</text>
+          <text x="175" y="72" font-size="9" fill="#9A6B10" text-anchor="middle">pay 0.20</text>
+          <rect x="232" y="34" width="98" height="52" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="281" y="56" font-size="9.6" font-weight="700" fill="#9A6B10" text-anchor="middle">owned</text>
+          <text x="281" y="72" font-size="9" fill="#9A6B10" text-anchor="middle">pay 0.20</text>
+          <rect x="338" y="34" width="98" height="52" rx="8" fill="#EEF1F5" stroke="#D0D5DD"/>
+          <text x="387" y="56" font-size="9.6" font-weight="700" fill="#5B6472" text-anchor="middle">unowned</text>
+          <text x="387" y="72" font-size="9" fill="#8A93A0" text-anchor="middle">pay 0</text>
+          <rect x="444" y="34" width="98" height="52" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="493" y="56" font-size="9.6" font-weight="700" fill="#9A6B10" text-anchor="middle">owned</text>
+          <text x="493" y="72" font-size="9" fill="#9A6B10" text-anchor="middle">pay 0.20</text>
+          <rect x="550" y="34" width="98" height="52" rx="8" fill="#FFF9EF" stroke="#F5E3C0"/>
+          <text x="599" y="56" font-size="9.6" font-weight="700" fill="#9A6B10" text-anchor="middle">owned</text>
+          <text x="599" y="72" font-size="9" fill="#9A6B10" text-anchor="middle">pay 0.20</text>
+        </g>
+        <rect x="20" y="104" width="404" height="34" rx="8" fill="#18C987"/>
+        <text x="222" y="126" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">runner keeps 59.20</text>
+        <rect x="432" y="104" width="210" height="34" rx="8" fill="#F7B955"/>
+        <text x="537" y="126" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">owners share 0.80</text>
+        <text x="330" y="160" font-size="9.4" fill="#5B6472" text-anchor="middle">Total toll: 1.3% of the run. Nothing new is minted — the toll is a transfer between players.</text>
+      </g>
+    </svg>
+    <div class="figcap">The runner barely notices. The owner of a busy path collects from hundreds of runners a week.</div>
+  </div>
+
+  <table>
+    <tr><th style="width:34%;">You cross…</th><th class="r">You pay</th><th>Why</th></tr>
+    <tr><td>6 zones, none owned</td><td class="r money">0%</td><td>Most of the map is unowned, especially early</td></tr>
+    <tr><td>6 zones, 4 owned</td><td class="r money">1.3%</td><td>Only the owned portions are charged</td></tr>
+    <tr><td>10 zones, all owned</td><td class="r money">2.0%</td><td>The ceiling in practice</td></tr>
+    <tr><td>20 zones, all owned</td><td class="r money">2.0%</td><td><strong>Still 2%</strong> — each zone is a smaller slice of the same run</td></tr>
+    <tr class="tot"><td>Hard cap, whatever happens</td><td class="r money">5%</td><td>So a bad route can never feel like a punishment</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">Three things the toll fixes at once</span>
+    <p><strong>It makes location matter</strong> — a deed on a popular path is worth far more than one in a dead cul-de-sac, so choosing ground becomes a real decision. <strong>It rewards owners without printing anything</strong> — every token an owner collects came from a runner, not from new supply. And <strong>it makes owners want more runners</strong>, which is exactly the incentive a growing network needs.</p>
+  </div>
+
+  <p class="small">Your own land is free to cross. Unminted ground charges nothing — another reason minting is worth paying for.</p>
+</div>
+
+<!-- TIERS -->
+<div class="page">
+  <div class="sec-num">Section 4</div>
+  <h2 class="sec">Land tiers, and the cap that stops whales</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Upgrading raises your share of every toll and your daily ceiling. It never creates income on its own — <strong>empty land earns nothing however much you spent on it.</strong></p>
+
+  <table>
+    <tr><th style="width:12%;">Tier</th><th class="r">Upgrade cost</th><th class="r">Toll share</th><th class="r">Daily ceiling</th><th>What else it gives</th></tr>
+    <tr><td><strong>1</strong></td><td class="r money">—</td><td class="r money">1.00×</td><td class="r money">40</td><td>Base ground</td></tr>
+    <tr><td><strong>2</strong></td><td class="r money">140</td><td class="r money">1.25×</td><td class="r money">100</td><td>One quest slot, custom colour</td></tr>
+    <tr><td><strong>3</strong></td><td class="r money">380</td><td class="r money">1.55×</td><td class="r money">220</td><td>+10% defence, banner</td></tr>
+    <tr><td><strong>4</strong></td><td class="r money">900</td><td class="r money">1.90×</td><td class="r money">440</td><td>+20% defence, sponsor-ready</td></tr>
+    <tr><td><strong>5</strong></td><td class="r money">2,000</td><td class="r money">2.30×</td><td class="r money">820</td><td>+30% defence, name on the map</td></tr>
+  </table>
+
+  <h3>Same tier, different street</h3>
+  <table>
+    <tr><th style="width:30%;">Where it is</th><th class="r">Tier 1 earns</th><th class="r">Tier 3 earns</th><th class="r">Tier 5 earns</th></tr>
+    <tr><td>Dead suburb — 2 crossers a day</td><td class="r money">0.40</td><td class="r money">0.62</td><td class="r money">0.92</td></tr>
+    <tr><td>Quiet street — 12 a day</td><td class="r money">2.40</td><td class="r money">3.72</td><td class="r money">5.52</td></tr>
+    <tr><td>Busy path — 45 a day</td><td class="r money">9.00</td><td class="r money">13.95</td><td class="r money">20.70</td></tr>
+    <tr><td>High street — 140 a day</td><td class="r money">28.00</td><td class="r money">43.40</td><td class="r money">64.40</td></tr>
+  </table>
+  <p class="small"><strong>A tier-1 plot on a high street beats a tier-5 plot in a dead suburb by thirty times.</strong> Spending cannot substitute for choosing the right ground and drawing people to it. That is what keeps this a territory game rather than a yield farm.</p>
+
+  <h3>The account cap</h3>
+  <div class="eq">
+    <div class="f">No account earns more than 900 tokens a day from land, ever.</div>
+    <div class="n">However many plots you hold, however high the tier.</div>
+  </div>
+  <table>
+    <tr><th style="width:40%;">Holdings</th><th class="r">Raw ceiling</th><th class="r">Actually paid</th></tr>
+    <tr><td>1 tier-5 plot</td><td class="r money">820</td><td class="r money">820</td></tr>
+    <tr><td>3 tier-5 plots</td><td class="r money">2,460</td><td class="r money"><strong>900</strong></td></tr>
+    <tr><td>20 tier-5 plots</td><td class="r money">16,400</td><td class="r money"><strong>900</strong></td></tr>
+  </table>
+  <p class="small">Past roughly one well-placed tier-5 plot, buying more land adds status, defence and district control — but not income. A whale who corners a city collects no more than a committed local. <strong>They still paid the upgrade costs, all of which were burned.</strong></p>
+</div>
+
+<!-- LOCKED TO LIQUID -->
+<div class="page">
+  <div class="sec-num">Section 5</div>
+  <h2 class="sec">The day your earnings become real</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Every player earns the same token. Whether it can be sold depends on one thing: have you minted your land?</p>
+
+  <div class="figure nobreak">
+    <svg viewBox="0 0 660 190">
+      <defs><marker id="t2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#7657FF"/></marker></defs>
+      <g font-family="Liberation Sans,Arial">
+        <rect x="14" y="26" width="250" height="60" rx="10" fill="#18C987"/>
+        <text x="139" y="50" font-size="11.5" font-weight="700" fill="#fff" text-anchor="middle">BEFORE YOU MINT</text>
+        <text x="139" y="68" font-size="9.4" fill="#E4F8EF" text-anchor="middle">everything you earn is locked</text>
+
+        <rect x="296" y="18" width="76" height="76" rx="38" fill="#7657FF"/>
+        <text x="334" y="50" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">MINT</text>
+        <text x="334" y="65" font-size="8.4" fill="#DED4FF" text-anchor="middle">the switch</text>
+
+        <rect x="404" y="26" width="250" height="60" rx="10" fill="#246BFE"/>
+        <text x="529" y="50" font-size="11.5" font-weight="700" fill="#fff" text-anchor="middle">FROM THAT DAY ON</text>
+        <text x="529" y="68" font-size="9.4" fill="#D6E4FF" text-anchor="middle">that land's earnings are liquid</text>
+
+        <path d="M270,56 L292,56" stroke="#7657FF" stroke-width="2.4" marker-end="url(#t2)"/>
+        <path d="M376,56 L400,56" stroke="#7657FF" stroke-width="2.4" marker-end="url(#t2)"/>
+
+        <rect x="14" y="108" width="250" height="66" rx="10" fill="#F0FBF6" stroke="#C9EEDD"/>
+        <text x="139" y="130" font-size="10.4" font-weight="700" fill="#0E7A52" text-anchor="middle">Your old balance</text>
+        <text x="139" y="148" font-size="9.2" fill="#111827" text-anchor="middle">stays staked for ever</text>
+        <text x="139" y="164" font-size="9.2" font-weight="700" fill="#0E7A52" text-anchor="middle">but it earns you a liquid yield</text>
+
+        <rect x="404" y="108" width="250" height="66" rx="10" fill="#F3F7FF" stroke="#D6E4FF"/>
+        <text x="529" y="130" font-size="10.4" font-weight="700" fill="#246BFE" text-anchor="middle">New earnings</text>
+        <text x="529" y="148" font-size="9.2" fill="#111827" text-anchor="middle">tolls, rewards, contests</text>
+        <text x="529" y="164" font-size="9.2" font-weight="700" fill="#246BFE" text-anchor="middle">tradable, votable, stakeable</text>
+      </g>
+    </svg>
+    <div class="figcap">Nothing you already earned is retroactively unlocked — that is what stops anyone farming free accounts and cashing out later.</div>
+  </div>
+
+  <h3>What a free player can already sell</h3>
+  <p>Being unminted does not mean earning nothing tradable. Three routes exist from day one, and none of them mints a single new token:</p>
+  <table>
+    <tr><th style="width:30%;">Route</th><th style="width:20%;">Sellable?</th><th>Where the tokens come from</th></tr>
+    <tr><td><strong>Staking your locked balance</strong></td><td class="r" style="color:#0E7A52;font-weight:700;">The yield is</td><td>Stakers share the toll pool. Your principal stays locked for ever; what it pays you is liquid.</td></tr>
+    <tr><td><strong>Sponsor challenges</strong></td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td><td>Sponsors deposit existing tokens. Win one as a free player and it is yours to sell.</td></tr>
+    <tr><td><strong>Monthly prize draws</strong></td><td class="r" style="color:#0E7A52;font-weight:700;">Yes</td><td>Every km² you hold is one entry. Prizes are real goods or sponsor-funded tokens.</td></tr>
+    <tr><td>Everyday movement rewards</td><td class="r" style="color:#B03A1C;font-weight:700;">No</td><td>Newly minted, so locked. This is the supply we protect.</td></tr>
+  </table>
+
+  <div class="callout ok">
+    <span class="tag">The rule underneath all of it</span>
+    <p><strong>Newly minted tokens are locked. Tokens that already existed are free to move.</strong> That single line explains every case: movement rewards are new, so they lock; toll income, staking yield, sponsor prizes and draw winnings are all transfers of tokens that already exist, so they don't. A free player can earn real, sellable value from day one — they just cannot mint it out of thin air.</p>
+  </div>
+</div>
+
+<!-- ECONOMY NUMBERS -->
+<div class="page">
+  <div class="sec-num">Section 6</div>
+  <h2 class="sec">Does it balance?</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Illustrative models of the structure, not forecasts. At 100,000 players with a fixed 6M season pool.</p>
+
+  <table>
+    <tr><th style="width:32%;">Where tokens go</th><th class="r">Who does it</th><th class="r">Cost</th><th class="r">Per player</th></tr>
+    <tr><td>Recharge land &amp; gear</td><td class="r money">80%</td><td class="r money">15</td><td class="r money">12.0</td></tr>
+    <tr><td>Upgrade to tier 2</td><td class="r money">8%</td><td class="r money">140</td><td class="r money">11.2</td></tr>
+    <tr><td>Upgrade to tier 3</td><td class="r money">3%</td><td class="r money">380</td><td class="r money">11.4</td></tr>
+    <tr><td>Upgrade to tier 4</td><td class="r money">1%</td><td class="r money">900</td><td class="r money">9.0</td></tr>
+    <tr><td>Upgrade to tier 5</td><td class="r money">0.25%</td><td class="r money">2,000</td><td class="r money">5.0</td></tr>
+    <tr><td>Mint a deed</td><td class="r money">2%</td><td class="r money">400</td><td class="r money">8.0</td></tr>
+    <tr><td>Attack a rival's deed</td><td class="r money">15%</td><td class="r money">30</td><td class="r money">4.5</td></tr>
+    <tr><td>Fortify a defence</td><td class="r money">18%</td><td class="r money">28</td><td class="r money">5.0</td></tr>
+    <tr><td>Style &amp; identity</td><td class="r money">40%</td><td class="r money">12</td><td class="r money">4.8</td></tr>
+    <tr class="tot"><td>Total spending</td><td class="r money"></td><td class="r money"></td><td class="r money">70.9</td></tr>
+    <tr class="tot"><td>Earned from the pool</td><td class="r money"></td><td class="r money"></td><td class="r money">60.0</td></tr>
+  </table>
+
+  <div class="grid3" style="margin-bottom:11px;">
+    <div class="kpi"><div class="n" style="color:var(--green);">7.09M</div><div class="l">Spent and destroyed per season</div></div>
+    <div class="kpi"><div class="n" style="color:var(--blue);">6.00M</div><div class="l">Released per season, fixed schedule</div></div>
+    <div class="kpi"><div class="n" style="color:var(--violet);">1.18×</div><div class="l">Destroyed for every token minted</div></div>
+  </div>
+
+  <p>Spending exceeds minting by about eleven tokens a player. That gap is the demand engine: it is filled by buying a small amount — roughly <strong>25 pence a month</strong> at a realistic price — or by earning tolls from land you own. <strong>Net supply falls every season, and it falls faster as more people play.</strong></p>
+
+  <h3>What each burn is for</h3>
+  <table>
+    <tr><th style="width:26%;">Burn</th><th>Why the player pays it willingly</th></tr>
+    <tr><td><strong>Recharge</strong></td><td>Small and frequent. Free if you visit your land instead — so it only ever charges absentees.</td></tr>
+    <tr><td><strong>Upgrade</strong></td><td>More toll share, more defence, more status. Never a guaranteed return, and we never quote one.</td></tr>
+    <tr><td><strong>Mint</strong></td><td>Turns fragile ground into a defended deed that collects tolls and pays in liquid tokens.</td></tr>
+    <tr><td><strong>Attack</strong></td><td>The cost of ambition. Refunded if you win; burned if you lose.</td></tr>
+    <tr><td><strong>Fortify</strong></td><td>The cost of keeping what you have. Burned either way.</td></tr>
+    <tr><td><strong>Style</strong></td><td>Pure enjoyment, pure sink. The easiest thing to sell to someone having fun.</td></tr>
+  </table>
+</div>
+
+<!-- ANTI ABUSE + SUMMARY -->
+<div class="page">
+  <div class="sec-num">Section 7</div>
+  <h2 class="sec">What stops it being gamed</h2>
+  <div class="rule"></div>
+  <p class="sec-lede">Adding tolls and combat creates new ways to cheat. Each has a specific answer.</p>
+
+  <table>
+    <tr><th style="width:32%;">The attack</th><th>Why it fails</th></tr>
+    <tr><td><strong>Run laps of my own land to farm tolls</strong></td><td>You never pay a toll on your own ground, so there is nothing to collect. Tolls only come from other people.</td></tr>
+    <tr><td><strong>Two accounts paying each other tolls</strong></td><td>A toll is 2% of a reward that was already capped and verified. Round-tripping loses 98% each way — it is pure loss.</td></tr>
+    <tr><td><strong>Buy every plot on a high street</strong></td><td>The 900/day account cap. Past about one good plot, more land adds no income at all.</td></tr>
+    <tr><td><strong>Club of thirty takes every deed</strong></td><td>Contests count distinct people per day with sharply diminishing returns, and clubs face a citywide deed limit.</td></tr>
+    <tr><td><strong>Farm free accounts, mint later, cash out</strong></td><td>Minting never unlocks old earnings. Everything before the mint stays staked for ever.</td></tr>
+    <tr><td><strong>Spoof GPS to claim loops</strong></td><td>Speed, accuracy and continuity checks; each route usable once; a signature required before anything is created.</td></tr>
+    <tr><td><strong>Endless attacks to grief one owner</strong></td><td>A beaten attacker is locked out of that deed for 30 days, and each attempt costs a stake that burns.</td></tr>
+    <tr><td><strong>Marathon farming</strong></td><td>Rewards flatten after 10 km and are capped at 4.0 Effort per person per day.</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <span class="tag">The one I would watch</span>
+    <p><strong>Deed sniping.</strong> If minting is cheap and popular ground is obvious, experienced players could mint the best paths before anyone else understands the game. Two guards: land must be held for a period before it can be minted, and minting requires the ground to have real crossing traffic already. <strong>This needs testing in the first city — it is the likeliest thing to need a parameter change.</strong></p>
+  </div>
+</div>
+
+<div class="page">
+  <div class="sec-num">Section 8</div>
+  <h2 class="sec">The whole thing, once</h2>
+  <div class="rule"></div>
+
+  <h3>Nine sentences</h3>
+  <ol style="font-size:11pt;line-height:1.6;">
+    <li><strong>Run a loop and the ground inside becomes yours</strong> — the mechanic INTVL already proved works.</li>
+    <li><strong>Cut through unminted ground and you take it</strong>, instantly and for free. A single player can take a district in a morning.</li>
+    <li><strong>Defend by running your own ground again</strong> — defence and exercise are the same action.</li>
+    <li><strong>Mint your land and it becomes a deed</strong>: no longer stealable by a casual pass, only by winning a seven-day siege.</li>
+    <li><strong>Every runner crossing your deed pays you 2%</strong> of what they earned there — capped so crossing many owners never compounds.</li>
+    <li><strong>Tiers raise your toll share and defence</strong>, but land in a dead street earns nothing however much you spent.</li>
+    <li><strong>No account earns more than 900 a day from land</strong>, so cornering a city buys status, not income.</li>
+    <li><strong>Minting is the day your earnings turn liquid</strong>; everything earned before it stays staked for ever, and its yield is liquid.</li>
+    <li><strong>Spending exceeds minting every season</strong>, so supply falls — and falls faster as more people play.</li>
+  </ol>
+
+  <div class="grid3" style="margin-top:14px;">
+    <div class="kpi"><div class="n" style="color:var(--green);">2%</div><div class="l">Toll per crossing — and 2% is also the practical ceiling</div></div>
+    <div class="kpi"><div class="n" style="color:var(--blue);">900</div><div class="l">Daily land income cap per account, whatever you hold</div></div>
+    <div class="kpi"><div class="n" style="color:var(--violet);">7 days</div><div class="l">A siege for a minted deed. Free ground changes hands in one run</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gold);">30×</div><div class="l">A tier-1 high street beats a tier-5 dead end</div></div>
+    <div class="kpi"><div class="n" style="color:var(--coral);">1.18×</div><div class="l">Burned for every token minted</div></div>
+    <div class="kpi"><div class="n">0</div><div class="l">Tokens minted by tolls, staking yield or prizes — all transfers</div></div>
+  </div>
+
+  <h3 style="margin-top:16px;">The three questions you will be asked</h3>
+  <div style="margin-bottom:9px;">
+    <div style="font-weight:700;font-size:10.6pt;">"Why would I mint if my land already works?"</div>
+    <div style="font-size:10pt;color:#333A47;">Because unminted ground is taken the moment somebody runs through it, earns you nothing from crossers, and pays only in locked tokens. Minting makes it defensible, toll-collecting and liquid.</div>
+  </div>
+  <div style="margin-bottom:9px;">
+    <div style="font-weight:700;font-size:10.6pt;">"If free players can't sell, why play?"</div>
+    <div style="font-size:10pt;color:#333A47;">They can. Staking yield, sponsor challenges and monthly prize draws all pay in tokens that already exist, so a free player can win sellable value from day one. Only newly minted movement rewards lock — and those buy everything in the game.</div>
+  </div>
+  <div>
+    <div style="font-weight:700;font-size:10.6pt;">"Won't a rich player just buy the map?"</div>
+    <div style="font-size:10pt;color:#333A47;">They can buy tiers, but not tolls. Land income is capped at 900 a day per account, deeds can only be taken by out-moving someone for a week, and money adds nothing to a contest score. Every token they spend trying is burned.</div>
+  </div>
+
+  <div class="footer-note">
+    <strong>MovenRun Economy V7 · Territory &amp; Tolls.</strong> Confidential, for partner review. Extends V6 with the capture, combat, toll and tier mechanics; the token rules in V6 are unchanged.
+    The core territory loop follows mechanics proven publicly by INTVL. All figures are illustrative models of structure, not forecasts — there are no players, no revenue and no validated pricing.
+    $MOVE does not trade anywhere; there has been no sale, listing or allocation. Deeds are game assets, not property, and carry no income right. Nothing here is financial advice, an offer, or a promise of returns.
+  </div>
+</div>
+
+</body>
+</html>
