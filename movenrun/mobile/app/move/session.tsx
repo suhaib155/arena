@@ -18,6 +18,7 @@ import {
 } from "@/lib/geo";
 import { createTracker, type TrackerMode } from "@/services/moveTracker";
 import { setLastSession } from "@/services/moveSession";
+import { newClientSessionId } from "@/lib/movementVerification";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 import type { IoniconName } from "@/types";
 
@@ -44,6 +45,13 @@ export default function MoveSessionScreen() {
   const finishedRef = useRef(false);
   const accumulatedRef = useRef(0);
   const resumedAtRef = useRef(Date.now());
+  /* This session's stable identity, minted once when the screen mounts — the
+     semantic start of the session. It survives pause/resume, every re-render,
+     finishing, the summary screen, and any later verification attempt. It is
+     deliberately NOT minted at finish, at save, or per network attempt: the
+     backend's idempotency is keyed on it. */
+  const clientSessionIdRef = useRef<string>("");
+  if (!clientSessionIdRef.current) clientSessionIdRef.current = newClientSessionId();
 
   /* Foreground tracking — subscribed once for the life of the screen. */
   useEffect(() => {
@@ -96,6 +104,7 @@ export default function MoveSessionScreen() {
       : accumulatedRef.current + (Date.now() - resumedAtRef.current);
     successFeedback();
     setLastSession({
+      clientSessionId: clientSessionIdRef.current,
       mode,
       points: pointsRef.current,
       distanceM: distanceRef.current,
