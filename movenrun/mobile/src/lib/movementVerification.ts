@@ -159,10 +159,25 @@ export type VerificationState =
    */
   | { kind: "pending"; reason: PendingReason };
 
+/**
+ * Why no verdict was obtained.
+ *
+ * These are kept distinct rather than collapsed into "it failed" because the
+ * retry layer has to tell them apart: `offline`/`timeout`/`server_error` are
+ * cases where the server never answered and asking again is exactly right,
+ * whereas `invalid_request` and `not_found` are the server having answered —
+ * it looked at the request and refused it, and identical bytes will be refused
+ * identically for as long as anyone cares to send them.
+ */
 export type PendingReason =
   | "offline"
   | "timeout"
   | "unauthenticated"
+  /** The server refused the payload (400/422). Sending it again cannot help. */
+  | "invalid_request"
+  /** The endpoint is not there (404). Also not a connectivity problem. */
+  | "not_found"
+  /** The server failed to answer (5xx). */
   | "server_error"
   | "malformed_response";
 

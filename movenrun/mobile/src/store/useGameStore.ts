@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { discardPendingVerifications } from "@/services/verificationQueue";
 import type { Quest, Zone } from "@/types";
 import type { RouteTrustRecord } from "@/lib/routeTrust";
 import { applyDefend, applyFortify, fortifiedToday } from "@/lib/territory";
@@ -351,7 +352,14 @@ export const useGameStore = create<GameState>()(
       // through account choice or the intro (see lib/firstRun.ts,
       // firstRunAfterProgressReset). Only an explicitly labelled full-app
       // reset may touch it.
-      reset: () =>
+      reset: () => {
+        /* A progress reset is the user saying "clear what this app knows about
+           me". Route observations queued for verification are the most
+           sensitive thing it knows, and they live outside this store (their own
+           key, their own retention policy), so clearing the store alone would
+           leave them behind — orphaned precise location belonging to an account
+           the user believes they have just wiped. */
+        discardPendingVerifications();
         set({
           totalXp: 0,
           streak: 0,
@@ -369,7 +377,8 @@ export const useGameStore = create<GameState>()(
           movementVerifications: [],
           viewedRoutePassport: false,
           viewedRouteProof: false,
-        }),
+        });
+      },
     }),
     {
       name: "movenrun-game-v1",
