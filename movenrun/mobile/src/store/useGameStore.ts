@@ -5,6 +5,10 @@ import type { Quest, Zone } from "@/types";
 import type { RouteTrustRecord } from "@/lib/routeTrust";
 import { applyDefend, applyFortify, fortifiedToday } from "@/lib/territory";
 import { getLevelInfo } from "@/lib/leveling";
+import {
+  mergeVerification,
+  type VerifiedMovementRecord,
+} from "@/lib/verifiedMovement";
 import { getLocalDateKey, daysBetween } from "@/lib/date";
 import {
   chooseLocalBeta as chooseLocalBetaFirstRun,
@@ -20,6 +24,9 @@ const EMPTY_IDS: readonly string[] = [];
 
 /** Cap on locally-kept route-review summaries (newest first). */
 const MAX_TRUST_HISTORY = 20;
+/** Verification records kept, newest first. Bounded like the trust history —
+ *  this is a record of past sessions, not an archive. */
+const MAX_VERIFICATIONS = 20;
 
 export interface CompletionRecord {
   questId: string;
@@ -79,6 +86,17 @@ interface GameState {
   /** Local route-review history — summary records only (no raw GPS, no
    *  coordinates, no path). Newest first, capped. Cleared on reset. */
   routeTrustHistory: RouteTrustRecord[];
+  /**
+   * Settled server verification results, newest first, capped, cleared on
+   * reset — keyed by the session's stable `clientSessionId`.
+   *
+   * This is a record of what the SERVER said about a movement session. It is
+   * not territory: it confers no zone, no ownership, no defence and no reward,
+   * and it holds a traversed-cell COUNT rather than the cells themselves, so it
+   * keeps the same no-location promise as `routeTrustHistory`. See
+   * lib/verifiedMovement.ts.
+   */
+  movementVerifications: VerifiedMovementRecord[];
   /** Onboarding-questline view flags (local only). Screen-view steps that
    *  can't be derived from other state. Cleared on reset. */
   viewedRoutePassport: boolean;
@@ -91,6 +109,15 @@ interface GameState {
   /** Hydration flag so the UI can wait for AsyncStorage before rendering. */
   _hydrated: boolean;
 
+  /**
+   * Record a settled verification for a session.
+   *
+   * Terminal-first: a session that already has a record keeps it, so a
+   * duplicate idempotent response converges instead of rewriting, and nothing
+   * can regress a settled result. Awards nothing, captures nothing, changes no
+   * zone — it only appends what the server said.
+   */
+  recordMovementVerification: (record: VerifiedMovementRecord) => void;
   completeQuest: (quest: Quest) => CompletionOutcome;
   /** Add a captured zone (or refresh it when already owned). Demo zones are
    *  rejected here as a final guard — they must never persist. */
@@ -141,6 +168,7 @@ export const useGameStore = create<GameState>()(
       lastTrustLabel: null,
       lastTrustAt: null,
       routeTrustHistory: [],
+      movementVerifications: [],
       viewedRoutePassport: false,
       viewedRouteProof: false,
       firstRun: { ...FRESH_FIRST_RUN },
@@ -288,6 +316,25 @@ export const useGameStore = create<GameState>()(
           };
         }),
 
+      recordMovementVerification: (record) =>
+        set((state) => {
+          const existing =
+            state.movementVerifications.find(
+              (r) => r.clientSessionId === record.clientSessionId,
+            ) ?? null;
+          const merged = mergeVerification(existing, record);
+          if (existing) {
+            // Already settled: converge on the held result, do not rewrite it.
+            return { movementVerifications: state.movementVerifications };
+          }
+          return {
+            movementVerifications: [merged, ...state.movementVerifications].slice(
+              0,
+              MAX_VERIFICATIONS,
+            ),
+          };
+        }),
+
       markViewedPassport: () => set({ viewedRoutePassport: true }),
       markViewedProof: () => set({ viewedRouteProof: true }),
 
@@ -319,6 +366,7 @@ export const useGameStore = create<GameState>()(
           lastTrustLabel: null,
           lastTrustAt: null,
           routeTrustHistory: [],
+          movementVerifications: [],
           viewedRoutePassport: false,
           viewedRouteProof: false,
         }),
@@ -326,7 +374,7 @@ export const useGameStore = create<GameState>()(
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 10,
+      version: 11,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
       // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
       // fields and shipped with defense 0; pre-clubs state (v4) lacks
@@ -368,6 +416,10 @@ export const useGameStore = create<GameState>()(
         }
         if (!Array.isArray(state.routeTrustHistory)) {
           state.routeTrustHistory = [];
+        }
+        // pre-verification state (v10) has no server verification records.
+        if (!Array.isArray(state.movementVerifications)) {
+          state.movementVerifications = [];
         }
         if (typeof state.viewedRoutePassport !== "boolean") {
           state.viewedRoutePassport = false;

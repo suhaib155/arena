@@ -422,11 +422,39 @@ test("saving still awards XP and captures locally exactly as before", () => {
 });
 
 test("verification state is its own axis, not a flag on completion", () => {
+  /* The invariant is that verification must never become a BIT ON completion,
+     XP, or a zone — not that the word may not appear in the store. Task 4 adds
+     a `movementVerifications` slice, which is the separation working rather
+     than failing: its own list, awarding nothing. So this asserts the shape
+     rather than banning an identifier. */
   const store = read(join(SRC, "store", "useGameStore.ts"));
-  for (const leaked of ["verificationState", "verified", "clientSessionId"]) {
+
+  // Nothing on the completion outcome may carry a verdict.
+  const outcome = store.slice(store.indexOf("interface CompletionOutcome"));
+  const outcomeBody = outcome.slice(0, outcome.indexOf("}"));
+  for (const leaked of ["verified", "verification", "clientSessionId"]) {
     assert.ok(
-      !new RegExp(`\\b${leaked}\\b`).test(store),
-      `the game store gained ${leaked} — completion and verification must stay separate`,
+      !new RegExp(`\\b${leaked}`, "i").test(outcomeBody),
+      `CompletionOutcome gained ${leaked} — completing a quest is not being verified`,
     );
   }
+
+  // Nor may a zone.
+  const types = read(join(SRC, "types.ts"));
+  const zone = types.slice(types.indexOf("interface Zone"));
+  const zoneBody = zone.slice(0, zone.indexOf("}"));
+  for (const leaked of ["verified", "verification", "clientSessionId"]) {
+    assert.ok(
+      !new RegExp(`\\b${leaked}`, "i").test(zoneBody),
+      `Zone gained ${leaked} — a zone is local simulation, not a server verdict`,
+    );
+  }
+
+  // And the XP path must not read verification at all.
+  const completeQuest = store.slice(store.indexOf("completeQuest: (quest)"));
+  const questBody = completeQuest.slice(0, completeQuest.indexOf("captureZone:"));
+  assert.ok(
+    !/verif/i.test(questBody),
+    "the XP award path reads verification state — reward authority has not moved",
+  );
 });
