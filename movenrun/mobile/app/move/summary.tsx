@@ -22,6 +22,7 @@ import {
 } from "@/services/moveSession";
 import { MovementApiClient } from "@/services/movementApi";
 import { submitCompletedSession } from "@/services/verifySession";
+import { toVerifiedRecord } from "@/lib/verifiedMovement";
 import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -59,6 +60,7 @@ export default function MoveSummaryScreen() {
   const addRouteTrustRecord = useGameStore((s) => s.addRouteTrustRecord);
   const completeQuest = useGameStore((s) => s.completeQuest);
   const captureZone = useGameStore((s) => s.captureZone);
+  const recordMovementVerification = useGameStore((s) => s.recordMovementVerification);
   const defendZones = useGameStore((s) => s.defendZones);
   const ownedZones = useGameStore((s) => s.zones);
   const totalXp = useGameStore((s) => s.totalXp);
@@ -145,6 +147,14 @@ export default function MoveSummaryScreen() {
         client: movementClient,
         readState: getVerificationState,
         writeState: setVerificationState,
+      }).then((state) => {
+        /* Keep only a settled verdict, addressed by THIS session's stable id.
+           `toVerifiedRecord` returns null for local/submitting/pending, so a
+           failed attempt records nothing rather than a row that looks like an
+           answer. Nothing here captures a zone or awards anything — the store
+           action only appends what the server said. */
+        const record = toVerifiedRecord(session.clientSessionId, state);
+        if (record) recordMovementVerification(record);
       });
     }
     /* Persist the route-trust *preview* summary only (score + label) — never
