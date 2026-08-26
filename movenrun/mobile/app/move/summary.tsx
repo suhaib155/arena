@@ -183,7 +183,7 @@ export default function MoveSummaryScreen() {
       if (outcome.captured) capturedId = outcome.zone.id;
     }
     /* Append a local route-review record — summary only (score/label/flags +
-       scalar distance/duration/outcome). No raw GPS, coordinates, or path.
+       scalar distance/duration/outcome). That record holds no coordinates or path.
        Demo and too-short routes never reach save(), so they never append. */
     if (trust) {
       addRouteTrustRecord({
@@ -418,9 +418,9 @@ export default function MoveSummaryScreen() {
               ) : null}
 
               <Text style={styles.trustNote}>
-                Preview only · does not affect rewards or ownership. No location is
-                sent anywhere — this helps MovenRun learn what a clean route looks
-                like.
+                Preview only · does not affect rewards or ownership. This score is
+                worked out on your device and the saved review keeps no coordinates
+                — it helps MovenRun learn what a clean route looks like.
               </Text>
             </View>
           </FadeSlideIn>
@@ -457,11 +457,22 @@ export default function MoveSummaryScreen() {
 
       <View style={styles.footer}>
         {showFooterSave ? (
-          <Button
-            label={captureEligible ? "Save + Capture Zone" : "Save session"}
-            icon={captureEligible ? "flag" : "bookmark"}
-            onPress={save}
-          />
+          <>
+            {/* Said at the moment of the action, not buried in a settings page.
+                Saving is what sends the route, so this is where the user finds
+                out — and it is shown only when signed in, because a local-beta
+                save genuinely uploads nothing. */}
+            {accountId ? (
+              <Text style={styles.uploadNote}>
+                Saving sends this session&apos;s route to MovenRun to verify the distance.
+              </Text>
+            ) : null}
+            <Button
+              label={captureEligible ? "Save + Capture Zone" : "Save session"}
+              icon={captureEligible ? "flag" : "bookmark"}
+              onPress={save}
+            />
+          </>
         ) : null}
         <Button
           label="Back to Today"
@@ -608,6 +619,14 @@ const styles = StyleSheet.create({
   chipGood: { backgroundColor: `${palette.pulseGreen}1A` },
   chipRisk: { backgroundColor: `${palette.heatCoral}1A` },
   chipText: { fontSize: 11, fontWeight: "700" },
+  uploadNote: {
+    ...type.body,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textDim,
+    textAlign: "center",
+    paddingHorizontal: spacing.sm,
+  },
   trustNote: { ...type.caption, fontSize: 11, lineHeight: 15, color: colors.textFaint },
   proofRow: {
     flexDirection: "row",

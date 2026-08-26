@@ -102,7 +102,14 @@ export function buildProof(input: RouteProofInput): RouteProof {
   if (input.zonesTouched != null) {
     lines.push(`Territory: ${zones} zone${zones === 1 ? "" : "s"} touched`);
   }
-  lines.push(`Proof: ${proofId}`, "", "No raw GPS. No route path.", "Local preview only · not on-chain.");
+  /* Scoped to THIS proof. It is shareable text, so an unscoped "no raw GPS"
+     would be the app making a claim about itself in someone else's chat. */
+  lines.push(
+    `Proof: ${proofId}`,
+    "",
+    "This proof contains no coordinates and no route path.",
+    "Local preview only · not on-chain.",
+  );
   const shareText = lines.join("\n");
 
   return { ...input, proofId, shareText };
