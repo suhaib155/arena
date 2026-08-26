@@ -131,10 +131,18 @@ export function resolveReadiness(input: ReadinessInput): Readiness {
     return {
       kind: "permission-required",
       title: "Allow location to start",
-      // Shown BEFORE the OS prompt (the prompt only appears once the user
-      // presses the primary action), so the rationale is never a surprise.
+      /* Shown BEFORE the OS prompt (the prompt only appears once the user
+         presses the primary action), so the rationale is never a surprise.
+
+         This has to describe what actually happens, including the part the app
+         would rather not mention. Server verification means a saved session's
+         route leaves the device, so "it stays on your device" — which is what
+         this said while the app was purely local — became false the moment
+         verification shipped. A permission rationale that is out of date is
+         worse than a blunt one: it is the screen the user reads to decide, and
+         being wrong there is not a copy bug. */
       message:
-        "MovenRun uses your location only during an active foreground movement session to calculate distance and territory activity. It stays on your device.",
+        "MovenRun uses your location only during an active foreground movement session, never in the background. When you're signed in, saving a session sends that session's route to MovenRun to verify the distance.",
       primaryLabel: "Allow Location",
       canStartGps: false,
       offerDemo: true,
