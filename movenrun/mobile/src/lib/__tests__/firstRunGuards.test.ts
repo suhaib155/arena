@@ -270,9 +270,38 @@ test("first-run completion has exactly one source of truth", () => {
 
 test("Reset progress preserves first-run state (and never signs the user out)", () => {
   const src = code(GAME_STORE);
-  const match = src.match(/reset:\s*\(\)\s*=>\s*set\(\{([\s\S]*?)\}\)/);
-  assert.ok(match, "found the reset patch");
-  const body = match![1];
+  /* Find the state patch `reset` applies, by brace-matching the `set({ ... })`
+     call inside the action rather than by matching one particular arrow shape.
+     The earlier form of this guard pinned `reset: () => set({...})` exactly, so
+     giving `reset` a block body — which it needs in order to also clear storage
+     that lives outside this store — made the guard stop finding the patch it was
+     supposed to be checking. A guard that silently loses its subject is worse
+     than no guard, so this one asserts the shape it cares about instead. */
+  /* Anchor on the IMPLEMENTATION, not on `reset: () => void;` in the state
+     interface — that declaration comes first in the file, and starting the
+     search there walked past `reset` entirely and brace-matched an unrelated
+     action's patch, which is how this guard came to be inspecting the wrong
+     object. */
+  const impl = /reset:\s*\(\)\s*=>\s*(\{|set\()/g;
+  const found = [...src.matchAll(impl)];
+  assert.equal(found.length, 1, "exactly one reset implementation must exist");
+  const action = found[0].index as number;
+  const open = src.indexOf("set({", action);
+  assert.ok(open >= 0, "reset must apply its patch through set({ ... })");
+  let depth = 0;
+  let end = -1;
+  for (let i = src.indexOf("{", open); i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}") {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  assert.ok(end > open, "found the reset patch");
+  const body = src.slice(open, end);
   assert.ok(!/firstRun/.test(body), "reset must not touch firstRun");
   assert.ok(!/signOut|clearSession/.test(body), "reset must not sign the user out");
 });

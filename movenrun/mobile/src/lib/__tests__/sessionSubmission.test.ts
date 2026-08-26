@@ -296,7 +296,15 @@ test("every transport failure leaves the session pending, never verified", async
     assert.deepEqual(result, { kind: "pending", reason }, `${error.kind} misclassified`);
     assert.notEqual(result.kind, "verified");
   }
-  assert.equal(pendingReasonFor(new MovementApiError("not_found", 404, "not_found")), "server_error");
+  /* 4xx is kept apart from 5xx: the server having READ the request and refused
+     it is a different fact from the server failing to answer, and the retry
+     layer added in the offline-retry work has to tell them apart or it will
+     resend a permanently invalid payload until its budget runs out. */
+  assert.equal(pendingReasonFor(new MovementApiError("not_found", 404, "not_found")), "not_found");
+  assert.equal(
+    pendingReasonFor(new MovementApiError("invalid_request", 422, "invalid_request")),
+    "invalid_request",
+  );
 });
 
 test("an unknown thrown value still cannot produce verified state", async () => {

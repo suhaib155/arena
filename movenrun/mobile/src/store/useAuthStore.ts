@@ -14,6 +14,7 @@
  * constructed — screens read `client` from here and never build their own.
  */
 import { create } from "zustand";
+import { discardPendingVerifications } from "@/services/verificationQueue";
 import {
   createIdentityApiClient,
   IdentityApiClient,
@@ -112,7 +113,7 @@ function isAuthLost(err: unknown): boolean {
   return err instanceof IdentityApiError && (err.status === 401 || err.code === "unauthenticated");
 }
 
-const SIGNED_OUT_STATE = {
+const SIGNED_OUT_BASE = {
   status: "signedOut" as AuthStatus,
   operation: "idle" as AuthOperation,
   user: null,
@@ -123,6 +124,31 @@ const SIGNED_OUT_STATE = {
   sessionsErrorCode: null,
   pendingSessionAction: null,
 };
+
+/**
+ * The one transition into signed-out.
+ *
+ * Every path that lands here — an explicit sign-out, sign-out-everywhere, a
+ * restore that resolved to "no session", and any 401 that means the credential
+ * is gone — must also discard queued movement-verification retries, because
+ * those hold precise route observations bound to the account that is leaving.
+ *
+ * Doing it in a helper rather than at each `set` site is the point: there were
+ * eight of those, and "remember to also clear the queue" at eight call sites is
+ * a policy that lasts until the ninth. A source guard asserts `SIGNED_OUT_BASE`
+ * is never spread anywhere but here.
+ *
+ * The policy is DISCARD, not retain-for-later. Keeping an unsent route across a
+ * sign-out would mean holding someone's location after they left the account,
+ * with only an ownership check standing between it and the next person to sign
+ * in on that device — and if the same person signs back in, all they have lost
+ * is a server measurement of a workout they still have. That is the cheaper
+ * mistake by a wide margin.
+ */
+function signedOut<T extends object>(patch: T): typeof SIGNED_OUT_BASE & T {
+  discardPendingVerifications();
+  return { ...SIGNED_OUT_BASE, ...patch };
+}
 
 /**
  * Monotonic session generation.
@@ -177,7 +203,7 @@ async function syncAccountState(
          the credentials, so runtime state falls closed too — this is the one
          enrichment failure that IS authoritative. */
       beginSessionGeneration();
-      set({ ...SIGNED_OUT_STATE, lastRestore: "rejected", accountErrorCode: codeOf(err) });
+      set(signedOut({ lastRestore: "rejected", accountErrorCode: codeOf(err) }));
       return;
     }
     /* Transient: the sign-in stands, the secure session stands, and the seeded
@@ -230,7 +256,7 @@ async function runRestore(
     return;
   }
   beginSessionGeneration();
-  set({ ...SIGNED_OUT_STATE, lastRestore: outcome.kind, restoreErrorCode: null });
+  set(signedOut({ lastRestore: outcome.kind, restoreErrorCode: null }));
 }
 
 /**
@@ -519,7 +545,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { sessions } = await client.listSessions();
       set({ sessions, sessionsStatus: "ready", sessionsErrorCode: null });
     } catch (err) {
-      if (isAuthLost(err)) return set({ ...SIGNED_OUT_STATE, accountErrorCode: codeOf(err) });
+      if (isAuthLost(err)) return set(signedOut({ accountErrorCode: codeOf(err) }));
       // Transient failure: keep whatever list we had — recoverable, not stale-
       // as-truth (the error state tells the user the list may be outdated).
       set({ sessionsStatus: "error", sessionsErrorCode: codeOf(err) });
@@ -536,7 +562,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { sessions } = await client.listSessions();
       set({ sessions, sessionsStatus: "ready", pendingSessionAction: null });
     } catch (err) {
-      if (isAuthLost(err)) return set({ ...SIGNED_OUT_STATE, accountErrorCode: codeOf(err) });
+      if (isAuthLost(err)) return set(signedOut({ accountErrorCode: codeOf(err) }));
       set({ pendingSessionAction: null, sessionsStatus: "error", sessionsErrorCode: codeOf(err) });
     }
   },
@@ -552,7 +578,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { sessions } = await client.listSessions();
       set({ sessions, sessionsStatus: "ready", pendingSessionAction: null });
     } catch (err) {
-      if (isAuthLost(err)) return set({ ...SIGNED_OUT_STATE, accountErrorCode: codeOf(err) });
+      if (isAuthLost(err)) return set(signedOut({ accountErrorCode: codeOf(err) }));
       set({ pendingSessionAction: null, sessionsStatus: "error", sessionsErrorCode: codeOf(err) });
     }
   },
@@ -564,11 +590,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     beginSessionGeneration();
     try {
       await client?.signOut();
-      set({ ...SIGNED_OUT_STATE, accountErrorCode: null });
+      set(signedOut({ accountErrorCode: null }));
     } catch (err) {
       // The UI state is cleared regardless, but a failed credential clear is
       // surfaced honestly — never silently reported as a clean sign-out.
-      set({ ...SIGNED_OUT_STATE, accountErrorCode: codeOf(err) });
+      set(signedOut({ accountErrorCode: codeOf(err) }));
     }
   },
 
@@ -577,9 +603,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     beginSessionGeneration();
     try {
       await client?.signOutEverywhere();
-      set({ ...SIGNED_OUT_STATE, accountErrorCode: null });
+      set(signedOut({ accountErrorCode: null }));
     } catch (err) {
-      set({ ...SIGNED_OUT_STATE, accountErrorCode: codeOf(err) });
+      set(signedOut({ accountErrorCode: codeOf(err) }));
     }
   },
 }));

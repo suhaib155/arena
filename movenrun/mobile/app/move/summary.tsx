@@ -69,6 +69,10 @@ export default function MoveSummaryScreen() {
      construct their own. The movement client rides its transport, so both
      domains share one bearer attachment and one single-flight refresh. */
   const identityClient = useAuthStore((s) => s.client);
+  /* Server-derived account id. Used only as the LOCAL owner key for a queued
+     retry — it is never sent to /movement/verify, which derives the user from
+     the bearer token and would be wrong to trust a client-supplied id. */
+  const accountId = useAuthStore((s) => (s.status === "signedIn" ? s.user?.id ?? null : null));
   const movementClient = useMemo(
     () => (identityClient ? new MovementApiClient(identityClient.transport) : null),
     [identityClient],
@@ -147,6 +151,11 @@ export default function MoveSummaryScreen() {
         client: movementClient,
         readState: getVerificationState,
         writeState: setVerificationState,
+        /* Who may retry this route if the request fails, taken from
+           authenticated session state and never from anything on the session
+           itself. Null when nobody is signed in, which means the failure stays
+           in memory and no coordinates are written to disk at all. */
+        ownerUserId: accountId,
       }).then((state) => {
         /* Keep only a settled verdict, addressed by THIS session's stable id.
            `toVerifiedRecord` returns null for local/submitting/pending, so a
