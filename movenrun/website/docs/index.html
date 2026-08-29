@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>MovenRun documentation — MovenRun Docs</title>
-<meta name="description" content="MovenRun is an onchain movement network on Base: move in the real world, verifiably own the territory you cover, and share in a community-governed economy — with an experience anyone can use, no crypto knowledge required." />
+<title>MovenRun documentation · MovenRun Docs</title>
+<meta name="description" content="MovenRun is a movement game: cover ground, claim the hexes you cross. What the app does today, and what the onchain layer on Base is designed to become." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="MovenRun documentation — MovenRun Docs" />
-<meta property="og:description" content="MovenRun is an onchain movement network on Base: move in the real world, verifiably own the territory you cover, and share in a community-governed economy — with an experience anyone can use, no crypto knowledge required." />
+<meta property="og:title" content="MovenRun documentation · MovenRun Docs" />
+<meta property="og:description" content="MovenRun is a movement game: cover ground, claim the hexes you cross. What the app does today, and what the onchain layer on Base is designed to become." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,36 +40,35 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li>Docs</li></ol></nav>
     
     <article class="darticle">
-
 <h1>MovenRun documentation</h1>
-<p class="lead">MovenRun is an onchain movement network. You move through the real world — walking, running, cycling — and the ground you cover becomes territory you verifiably own, trade, and govern. It runs on Base, and it is built so anyone can play in seconds, with no seed phrases, no gas, and no crypto experience required.</p>
+<p class="lead">MovenRun is a movement game. You walk, run, or cycle, and the ground you cover becomes territory on a shared hexagonal map. This documentation describes what the app does today and what the onchain layer is designed to become.</p>
 
-<div class="callout note"><p><strong>In one paragraph.</strong> Every session turns real movement into a cryptographic proof of activity that settles onchain. That proof lets you capture map zones, hold them as <a href="/docs/technology/zone-deeds/">Zone Deeds</a> you truly own, and earn <a href="/docs/technology/token-design/">$MOVE</a> — the asset that powers the whole economy. Clubs contest districts, cities run seasons, and the network itself is designed to be owned and governed by the people who move on it.</p></div>
+<div class="callout note"><p><strong>Where this stands.</strong> The app works, and so does the verification service behind it: a session is checked for plausibility and reduced to the zones it crossed, stored in Postgres. The app scores sessions on the device for now and talks to the server only for sign-in, so connecting those two is the current piece of work. The onchain layer is a separate, unfinished piece of work: eight contracts are deployed to Base Sepolia, which is Base's test network, and no <a href="/docs/technology/zone-deeds/">Zone Deed</a> has ever been minted. Everything here about ownership, <a href="/docs/technology/token-design/">$MOVE</a>, and governance describes a design rather than something you can use.</p></div>
 
-<h2 id="why">Why MovenRun is different</h2>
+<h2 id="why">What makes it worth building</h2>
 <div class="cardrow">
-<a class="dcard" href="/docs/product/core-loop/"><strong>You own what you cover</strong><span>Territory isn't a score in a database — it's an onchain asset with your name on it.</span></a>
-<a class="dcard" href="/docs/technology/backend/"><strong>Movement you can prove</strong><span>Real activity becomes a verifiable proof, so the map rewards effort, not spoofing.</span></a>
-<a class="dcard" href="/docs/technology/web3/"><strong>Crypto that disappears</strong><span>A wallet is created for you invisibly. No gas, no jargon — it just feels like a game.</span></a>
+<a class="dcard" href="/docs/product/core-loop/"><strong>You claim the hexes inside your route</strong><span>Every point you pass resolves to a cell on a global grid, and those cells go on your map.</span></a>
+<a class="dcard" href="/docs/technology/backend/"><strong>Movement gets checked</strong><span>Speed, accuracy, and continuity are validated, so the map answers to effort rather than to a spoofing app.</span></a>
+<a class="dcard" href="/docs/technology/web3/"><strong>Nothing crypto to get through</strong><span>No wallet, no gas, no jargon. There is also no onchain layer in the app yet, and those two facts are related.</span></a>
 </div>
 
 <h2 id="core-loop">The core loop</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/core-loop.svg" alt="The MovenRun core loop: Move produces a proof of activity, which lets you Capture a zone, which you Own as an onchain Zone Deed, which lets you Grow your territory and standing — and the cycle repeats." width="760" height="360" /><figcaption>Move → Capture → Own → Grow. Every loop deepens what you hold and what you can do with it.</figcaption></figure>
+<figure class="dfig"><img src="/docs/assets/diagrams/core-loop.svg" alt="The MovenRun core loop: Move produces a checked route, which lets you Capture the zones you crossed, which you Own as a Zone Deed once that layer ships, which lets you Grow your territory and standing, and the cycle repeats." width="760" height="360" /><figcaption>Move, capture, own, grow. The first two work today. The third is the part still being built.</figcaption></figure>
 <ol>
-<li><strong>Move</strong> — walk, run, or cycle. Your route becomes a verifiable proof of movement.</li>
-<li><strong>Capture</strong> — the zones you cross become claimable territory on a global hex map.</li>
-<li><strong>Own</strong> — claimed zones become Zone Deeds: onchain assets you hold, defend, and can transfer.</li>
-<li><strong>Grow</strong> — territory compounds into districts, clubs, seasons, $MOVE, and a vote in how the network runs.</li>
+<li><strong>Move.</strong> Walk, run, or cycle. Your route is recorded and then checked.</li>
+<li><strong>Capture.</strong> The zones your route crossed become yours on the map.</li>
+<li><strong>Own.</strong> Held zones are designed to become Zone Deeds you keep in your own wallet. That layer is not live.</li>
+<li><strong>Grow.</strong> Territory rolls up into districts, clubs, and seasons.</li>
 </ol>
 
-<h2 id="everyone">Built for everyone</h2>
-<p>MovenRun is fully onchain, but you would never know it unless you looked. Signing up takes a tap; a secure wallet is created for you in the background; transactions are sponsored so there is no gas to buy; and the interface speaks the language of a movement game, not a blockchain. Crypto-native players get real ownership and composability. Everyone else just gets a great game — that happens to make them true owners. See <a href="/docs/technology/web3/">Onchain, made invisible</a>.</p>
+<h2 id="everyone">Built for people who do not own a wallet</h2>
+<p>Most people will never write down a seed phrase, and a movement game that requires one has already lost them. The plan is an embedded wallet created in the background and gas paid for you, so the onchain part never surfaces. That plan is not built. No wallet provider has been chosen, and there is no gas sponsorship anywhere in the codebase. What is true today is simpler: you can play the whole game without a wallet, because there is nothing onchain to connect to. See <a href="/docs/technology/web3/">Onchain, made invisible</a>.</p>
 
 <h2 id="start-reading">Start here</h2>
 <div class="cardrow">
-<a class="dcard" href="/docs/whitepaper/"><strong>Read the whitepaper</strong><span>The full thesis, protocol, economy, and roadmap in one document.</span></a>
-<a class="dcard" href="/docs/executive-summary/"><strong>Executive summary</strong><span>The five-minute version of what MovenRun is and why it matters.</span></a>
-<a class="dcard" href="/docs/status/roadmap/"><strong>Roadmap</strong><span>Where the network is heading, from beta to a community-owned protocol.</span></a>
+<a class="dcard" href="/docs/whitepaper/"><strong>Read the whitepaper</strong><span>The thesis, the protocol, the economy, and the roadmap in one document.</span></a>
+<a class="dcard" href="/docs/executive-summary/"><strong>Executive summary</strong><span>The five-minute version, including where the build has actually got to.</span></a>
+<a class="dcard" href="/docs/status/roadmap/"><strong>Roadmap</strong><span>What is done, what is next, and what is a long way off.</span></a>
 </div>
 <ul>
 <li>New here? Start with the <a href="/docs/product/vision/">Vision</a> and the <a href="/docs/product/core-loop/">Core loop</a>.</li>
@@ -93,7 +92,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

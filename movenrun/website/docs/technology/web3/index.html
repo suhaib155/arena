@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Onchain, made invisible — MovenRun Docs</title>
-<meta name="description" content="Why MovenRun is onchain, and how embedded wallets, sponsored gas, and account abstraction make that power invisible — so anyone can play in seconds." />
+<title>Onchain, made invisible · MovenRun Docs</title>
+<meta name="description" content="Why MovenRun is designed to be onchain, what embedded wallets and sponsored gas are meant to do, and which parts of that have not been built yet." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/web3/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Onchain, made invisible — MovenRun Docs" />
-<meta property="og:description" content="Why MovenRun is onchain, and how embedded wallets, sponsored gas, and account abstraction make that power invisible — so anyone can play in seconds." />
+<meta property="og:title" content="Onchain, made invisible · MovenRun Docs" />
+<meta property="og:description" content="Why MovenRun is designed to be onchain, what embedded wallets and sponsored gas are meant to do, and which parts of that have not been built yet." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/web3/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,30 +40,29 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Onchain & wallets</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Onchain, made invisible</h1>
-<p class="lead">MovenRun is fully onchain — and you'd never know it unless you wanted to. That combination is the whole strategy: real ownership, zero friction, everyone welcome.</p>
+<p class="lead">The plan is real ownership with none of the crypto friction. The ownership half is deployed to a test network and unused. The friction-removal half has not been started.</p>
 
 <h2 id="why-onchain">Why onchain at all</h2>
-<p>Because ownership only means something if it's real. When your territory, your deeds, and your $MOVE live onchain under your keys, they're genuinely yours — portable, provable, and outside any single company's control. That's what turns a movement game into a movement <em>network</em>: an open economy players own, rather than a closed app they rent.</p>
+<p>Ownership only means something if it is real. Territory, deeds, and $MOVE held onchain under your own keys are portable, provable, and outside any one company's control, which is what would separate a movement network from a movement app you rent. Right now MovenRun is the second kind. Zones, battles, and balances live in a Postgres database the team runs and can rewrite.</p>
 
 <h2 id="invisible">Why you never see it</h2>
-<p>Onchain has historically meant seed phrases, gas tokens, network switching, and signature prompts — a wall most people never climb. MovenRun removes the wall:</p>
-<figure class="dfig"><img src="/docs/assets/diagrams/onboarding-flow.svg" alt="Invisible onchain onboarding: the player taps start; an embedded smart wallet is created automatically; gas is sponsored so there are no fees; the player moves and captures; ownership settles onchain — with keys the player controls but never has to manage manually." width="760" height="300" /><figcaption>Tap, move, own. The wallet, the gas, and the signatures are handled for you.</figcaption></figure>
+<p>Onchain has historically meant seed phrases, gas tokens, network switching, and signature prompts, and most people never climb that wall. MovenRun is designed to remove it. Here is each piece and where it actually is:</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/onboarding-flow.svg" alt="Planned onchain onboarding: the player taps start; an embedded smart wallet is created automatically; gas is sponsored so there are no fees; the player moves and captures; ownership settles onchain, with keys the player controls but never has to manage by hand." width="760" height="300" /><figcaption>The intended path. The wallet and the gas sponsorship in the middle of it do not exist yet.</figcaption></figure>
 <ul>
-<li><strong>Embedded wallets.</strong> A secure wallet is created for you at sign-up — no seed phrase to write down, no app to install.</li>
-<li><strong>Sponsored gas.</strong> Through account abstraction, transactions are paid for you. You never buy a gas token or think about fees.</li>
-<li><strong>Actions, not signatures.</strong> Complex onchain operations are batched behind ordinary game buttons.</li>
-<li><strong>One network.</strong> Everything happens on Base; there's nothing for you to configure.</li>
+<li><strong>Embedded wallets.</strong> Designed. No provider has been selected, so no wallet is created for anyone. The interfaces exist and every provider surface fails closed.</li>
+<li><strong>Sponsored gas.</strong> Designed. There is no paymaster and no account-abstraction code in the codebase.</li>
+<li><strong>Actions, not signatures.</strong> Designed. There are no onchain actions in the app to batch.</li>
+<li><strong>One network.</strong> Base Sepolia today, chain <code>84532</code>. Base mainnet is the target, and nothing has been deployed there.</li>
 </ul>
 
 <h2 id="native">Full control when you want it</h2>
-<p>Invisible doesn't mean locked in. Crypto-native players can connect an external wallet, export or take self-custody of their embedded wallet, and interact with their deeds and $MOVE like any other onchain asset. MovenRun meets you where you are: effortless for newcomers, fully open for power users.</p>
+<p>Once the wallet layer exists, a crypto-native player should be able to connect an external wallet, export or take self-custody of an embedded one, and treat deeds and $MOVE like any other onchain asset. That is the intent behind the wallet-linking work already in the backend. None of it is usable, because there is nothing onchain to link to yet.</p>
 
-<h2 id="base">Built on Base</h2>
-<p>MovenRun settles on <strong>Base</strong>, an Ethereum Layer 2. Base offers the low fees and fast confirmations a real-time game needs, a strong account-abstraction ecosystem for sponsored, wallet-light onboarding, and the security of settling to Ethereum. It's the chain that makes a mainstream onchain movement network practical.</p>
+<h2 id="base">Built for Base</h2>
+<p>MovenRun is written for <strong>Base</strong>, an Ethereum Layer 2, for the low fees and fast confirmations a real-time game needs and the account-abstraction ecosystem a wallet-light onboarding depends on. The eight contracts sit on Base Sepolia, Base's test network, and have not been used.</p>
 
-<div class="callout note"><p><strong>The takeaway.</strong> MovenRun gives you real onchain ownership with the ease of a normal app. Newcomers get a game; the game quietly makes them owners.</p></div>
+<div class="callout note"><p><strong>The short version.</strong> You can play MovenRun without knowing anything about crypto. That is currently true for the least interesting reason: there is no onchain layer in the app to know about.</p></div>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/architecture/"><span>Previous</span><strong>Architecture</strong></a><a class="pn next" href="/docs/technology/mobile/"><span>Next</span><strong>The app</strong></a></nav>
@@ -81,7 +80,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

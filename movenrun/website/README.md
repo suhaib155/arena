@@ -8,11 +8,12 @@ Two static surfaces, one folder, zero build steps:
    Technology / Roadmap / Resources, with client-side search, a responsive
    sidebar/drawer, right-rail table of contents, 14 original SVG diagrams, and
    a printable whitepaper (`/docs/whitepaper/`, print styles + a
-   Print/Save-as-PDF control). The docs present MovenRun as an onchain movement
-   network on Base — verifiable movement, true ownership, a real token economy,
-   and community governance — built so anyone can use it without crypto
-   knowledge. They are the project's source of truth and link to no external
-   references.
+   Print/Save-as-PDF control). The docs describe the movement game that exists
+   today and the onchain layer it is designed to grow into, and they are
+   explicit about which is which: the contracts are deployed to Base Sepolia,
+   nothing has been minted, and no wallet or gas sponsorship has been built.
+   See `docs/README.md` for the voice rules that keep it that way. They are
+   the project's source of truth and link to no external references.
 
 The docs are integrated into the landing page: a **Docs** link in desktop and
 mobile navigation, a **Read the docs** CTA in the final section, and
@@ -39,15 +40,19 @@ The site presents MovenRun **health-first**:
    consistency, personal goals, exploration, and wellbeing. No medical claims.
 2. **Territory and play** — the city as a movement playground: capturing and
    strengthening zones, streaks, clubs, and friendly city challenges.
-3. **Responsible Web3** — an optional, gradual, user-controlled ownership
-   layer on Base. Never required to play, never framed as income or a
-   financial return.
+3. **Responsible Web3** — a *planned* ownership layer on Base, described in
+   the future tense because it does not exist. The contracts are on Base
+   Sepolia, nothing has been minted, and no wallet or gas sponsorship has
+   been built. Never required to play, never framed as income or a financial
+   return.
 
-Public-facing copy deliberately avoids speculative or technical language:
-no earnings promises, no token/launch metrics, no grid or coordinate
-internals, no contract or testnet details, and no unverified numbers. The
-footer and the wellbeing/ownership sections carry explicit “no financial
-promises” disclaimers.
+Public-facing copy deliberately avoids speculative language: no earnings
+promises, no token or launch metrics, no grid or coordinate internals, and no
+unverified numbers. It does *not* avoid the testnet. Where the site mentions
+Base it says **Base Sepolia**, plainly and not in a footnote, because the
+alternative is a claim that the code contradicts. The footer and the
+wellbeing and ownership sections carry explicit “no financial promises”
+disclaimers.
 
 ## Run it
 

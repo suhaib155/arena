@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Risk factors — MovenRun Docs</title>
-<meta name="description" content="A candid look at the risks in building an onchain movement network — technical, economic, and regulatory — and how MovenRun's design mitigates them." />
+<title>Risk factors · MovenRun Docs</title>
+<meta name="description" content="A candid look at the risks in building MovenRun: single-key control of the contracts, movement spoofing, economic balance, adoption density, regulation, and location privacy." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/trust/risks/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Risk factors — MovenRun Docs" />
-<meta property="og:description" content="A candid look at the risks in building an onchain movement network — technical, economic, and regulatory — and how MovenRun's design mitigates them." />
+<meta property="og:title" content="Risk factors · MovenRun Docs" />
+<meta property="og:description" content="A candid look at the risks in building MovenRun: single-key control of the contracts, movement spoofing, economic balance, adoption density, regulation, and location privacy." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/trust/risks/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,29 +40,29 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Resources</li><li aria-current="page">Risk factors</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Risk factors</h1>
-<p class="lead">Building an onchain movement network is ambitious, and honesty about the risks is part of building it well. Here are the real ones — and how MovenRun's design addresses them.</p>
+<p class="lead">Being honest about the risks is part of building this well. Here are the real ones, including the one that matters most right now.</p>
+
+<h2 id="security">Smart-contract security and key control</h2>
+<p><strong>Risk:</strong> the immediate one is not a subtle bug. One account holds <code>DEFAULT_ADMIN_ROLE</code> on all eight contracts deployed to Base Sepolia, and the same account is the oracle operator, the keeper, and the treasury. There is no timelock deployed, so an admin action takes effect the instant it is sent. If that key were lost or stolen, everything the contracts govern would go with it. Internal review has also left open findings, among them a season-end payload that can be replayed.</p>
+<p><strong>Approach:</strong> the contracts hold nothing of value while they sit on a test network, which buys time rather than fixing anything. The work is to deploy the timelock, move admin behind it, and split the oracle, keeper, and treasury roles onto separate addresses before anything is deployed to mainnet. See <a href="/docs/technology/security/">Security</a>.</p>
 
 <h2 id="verification">Movement verification</h2>
-<p><strong>Risk:</strong> location can be faked, and an ownership economy built on movement must resist spoofing. <strong>Approach:</strong> layered verification — plausibility checks, deterministic proofs, deduplication, and an oracle that attests activity onchain — designed to keep hardening as the network grows. Verification integrity is treated as foundational. See <a href="/docs/technology/backend/">Movement verification</a>.</p>
+<p><strong>Risk:</strong> location can be faked, and territory that a spoofing app can claim is worth nothing. <strong>Approach:</strong> plausibility checks, deterministic proofs, and deduplication, built before anything that depends on them, and expected to keep hardening as more people play. See <a href="/docs/technology/backend/">Movement verification</a>.</p>
 
 <h2 id="economic">Economic balance</h2>
-<p><strong>Risk:</strong> movement economies have failed when incentives outran utility. <strong>Approach:</strong> MovenRun is designed utility-first — capped, decaying issuance; sinks and burns before incentives; ownership and demand woven through the game — so value has reasons to persist beyond emissions. Parameters are governed transparently onchain. See the <a href="/docs/technology/token-design/">$MOVE economy</a>.</p>
+<p><strong>Risk:</strong> movement economies have failed when incentives outran utility. <strong>Approach:</strong> capped and decaying issuance, sinks and caps designed ahead of incentives, and demand woven through the game rather than bolted on. None of it has been tested by real use, and one designed sink turns out to be a treasury transfer rather than a burn. See the <a href="/docs/technology/token-design/">$MOVE economy</a>.</p>
 
-<h2 id="security">Smart-contract security</h2>
-<p><strong>Risk:</strong> onchain systems are high-stakes and unforgiving of bugs. <strong>Approach:</strong> standards-based contracts, role-scoped permissions, timelocked governance, and defense in depth so no single failure is catastrophic. Security is designed in, not bolted on. See <a href="/docs/technology/security/">Security</a>.</p>
-
-<h2 id="adoption">Adoption &amp; density</h2>
-<p><strong>Risk:</strong> a territory game is best where there are neighbors to contest. <strong>Approach:</strong> effortless, crypto-free onboarding to reach a mainstream audience, a game that's rewarding solo, and a phased city-by-city rollout that builds density before it's needed.</p>
+<h2 id="adoption">Adoption and density</h2>
+<p><strong>Risk:</strong> a territory game is best where there are neighbours to contest, and thin in a town with three players. <strong>Approach:</strong> a game that is rewarding solo, onboarding that does not filter out non-crypto users, and a city-by-city rollout that builds density before the contest layer needs it.</p>
 
 <h2 id="regulatory">Regulatory landscape</h2>
-<p><strong>Risk:</strong> rules for onchain assets vary across jurisdictions and continue to evolve. <strong>Approach:</strong> a design centered on utility and ownership rather than financial return, transparent governance, and a phased rollout that adapts as the landscape develops.</p>
+<p><strong>Risk:</strong> rules for onchain assets vary by jurisdiction and keep changing. <strong>Approach:</strong> a design centred on utility and ownership rather than financial return, and a phased rollout that can adapt.</p>
 
 <h2 id="privacy">Location privacy</h2>
-<p><strong>Risk:</strong> movement data is inherently sensitive. <strong>Approach:</strong> privacy-first design — proofs over raw trails, data minimization, no third-party ad tracking, and user control over assets and keys. See <a href="/docs/product/privacy/">Privacy &amp; your data</a>.</p>
+<p><strong>Risk:</strong> movement data is inherently sensitive. <strong>Approach:</strong> proofs rather than raw trails, data minimisation, and no third-party ad tracking. See <a href="/docs/product/privacy/">Privacy &amp; your data</a>.</p>
 
-<div class="callout note"><p>MovenRun is a development-stage product; designs and timelines may change as the network matures. See <a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a>.</p></div>
+<div class="callout note"><p>MovenRun is a development-stage product, and designs and timelines change. See <a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a>.</p></div>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/glossary/"><span>Previous</span><strong>Glossary</strong></a><a class="pn next" href="/docs/trust/disclaimers/"><span>Next</span><strong>Legal & disclaimers</strong></a></nav>
@@ -80,7 +80,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

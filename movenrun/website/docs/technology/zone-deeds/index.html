@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Zone Deeds — MovenRun Docs</title>
-<meta name="description" content="Zone Deeds are the onchain ownership primitive: one deed per map zone, transferable, provable, with built-in defense, yield, and provenance." />
+<title>Zone Deeds · MovenRun Docs</title>
+<meta name="description" content="Zone Deeds are the planned ownership primitive: one deed per map zone, transferable, with defense, yield, and provenance. The contract is on Base Sepolia and no deed has been minted." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/zone-deeds/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Zone Deeds — MovenRun Docs" />
-<meta property="og:description" content="Zone Deeds are the onchain ownership primitive: one deed per map zone, transferable, provable, with built-in defense, yield, and provenance." />
+<meta property="og:title" content="Zone Deeds · MovenRun Docs" />
+<meta property="og:description" content="Zone Deeds are the planned ownership primitive: one deed per map zone, transferable, with defense, yield, and provenance. The contract is on Base Sepolia and no deed has been minted." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/zone-deeds/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,27 +40,27 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Zone Deeds</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Zone Deeds</h1>
-<p class="lead">Zone Deeds are MovenRun's ownership primitive — the onchain assets that make territory genuinely yours.</p>
+<p class="lead">A Zone Deed is the onchain asset that would make a captured zone genuinely yours. The contract is deployed to Base Sepolia. No deed has ever been minted, so everything on this page describes a design.</p>
 
 <h2 id="what">One deed, one zone</h2>
-<p>Each captured zone maps to a single Zone Deed: a unique onchain asset identified by that zone's place on the global grid. A deed is held under the owner's keys and behaves like real property inside the game — you can hold it, strengthen it, defend it, and transfer it, and its history is recorded onchain.</p>
-<figure class="dfig"><img src="/docs/assets/diagrams/zone-deed.svg" alt="A Zone Deed binds a hex map zone to an onchain record holding the owner, provenance, defensive strength, and accrued yield — controlled by the owner's keys." width="760" height="330" /><figcaption>A deed binds a place on the map to an asset the owner controls.</figcaption></figure>
+<p>Each captured zone maps to a single Zone Deed, identified by that zone's cell on the global grid. A deed is held under the owner's keys and is meant to behave like property inside the game: hold it, strengthen it, defend it, transfer it, with its history recorded alongside it. Today a captured zone is a row in MovenRun's database, and the deed layer is the plan for replacing that.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/zone-deed.svg" alt="A Zone Deed binds a hex map zone to an onchain record holding the owner, provenance, defensive strength, and accrued yield, controlled by the owner's keys." width="760" height="330" /><figcaption>A deed binds a place on the map to an asset the owner controls.</figcaption></figure>
 
-<h2 id="properties">What a deed carries</h2>
+<h2 id="properties">What a deed would carry</h2>
 <ul>
-<li><strong>Ownership &amp; provenance.</strong> Who holds it now, and the history of how it changed hands.</li>
-<li><strong>Defense.</strong> A strength that rises with active holding and fortification and is tested by challenges.</li>
-<li><strong>Yield &amp; loyalty.</strong> Active holders accrue in-game yield, with loyalty that rewards long-term stewardship.</li>
-<li><strong>Composability.</strong> Deeds group into districts and city power, and interoperate with the rest of the protocol.</li>
+<li><strong>Ownership and provenance.</strong> Who holds it now, and how it changed hands to get there.</li>
+<li><strong>Defense.</strong> A strength that rises with active holding and fortification, and that a challenge tests.</li>
+<li><strong>Yield and loyalty.</strong> Active holders accrue in-game yield, weighted by how long they have held. Nobody has accrued any.</li>
+<li><strong>Composability.</strong> Deeds group into districts and city power and connect to the rest of the protocol.</li>
 </ul>
 
 <h2 id="contest">Holding, defending, transferring</h2>
-<p>Deeds are living assets. A held zone can be challenged through the <a href="/docs/technology/contracts/">challenge system</a>: a challenger stakes to compete, movement is weighed, and the deed either holds or transfers based on the outcome — settled onchain, without any middleman deciding. Owners can also transfer deeds directly. Territory that survives a season of contests is territory that means something.</p>
+<p>A held zone can be challenged. A challenger stakes to compete, both sides' scores are weighed against the defender's loyalty multiplier and any boost they have active, and the deed either holds or moves.</p>
+<p>Calling that middleman-free would be wrong, and the gap is worth stating plainly. The losing defender has to have granted the challenge contract approval over their deeds before it can take one, so a defender who never approves cannot be beaten. The scores themselves come in through a signature from the oracle operator, which is a key the team controls. Closing both gaps is part of the work between here and a mainnet deployment. The mechanics are in <a href="/docs/technology/contracts/">Protocol &amp; contracts</a>.</p>
 
 <h2 id="easy">Owned by you, managed for you</h2>
-<p>Deeds are real onchain assets, but claiming and holding them requires nothing crypto from the player — the wallet, the gas, and the transactions are handled invisibly (see <a href="/docs/technology/web3/">Onchain, made invisible</a>). Crypto-native owners can self-custody and interact with their deeds directly; everyone else simply owns.</p>
+<p>The point of deeds is that claiming one should require nothing crypto from the player, with the wallet, the gas, and the transaction handled out of sight. That depends on an embedded wallet provider and sponsored gas, and neither has been built. Until then there is no deed to claim and no wallet to hide. See <a href="/docs/technology/web3/">Onchain, made invisible</a>.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/contracts/"><span>Previous</span><strong>Protocol & contracts</strong></a><a class="pn next" href="/docs/technology/token-design/"><span>Next</span><strong>Token & economy</strong></a></nav>
@@ -78,7 +78,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

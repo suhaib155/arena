@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Architecture — MovenRun Docs</title>
-<meta name="description" content="The MovenRun system: a consumer app, a movement-verification layer, and an onchain protocol on Base — designed so real-world activity settles into onchain ownership." />
+<title>Architecture · MovenRun Docs</title>
+<meta name="description" content="The MovenRun system: a mobile app, a movement-verification server with a Postgres system of record, and a protocol layer deployed to Base Sepolia that is not yet connected." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/architecture/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Architecture — MovenRun Docs" />
-<meta property="og:description" content="The MovenRun system: a consumer app, a movement-verification layer, and an onchain protocol on Base — designed so real-world activity settles into onchain ownership." />
+<meta property="og:title" content="Architecture · MovenRun Docs" />
+<meta property="og:description" content="The MovenRun system: a mobile app, a movement-verification server with a Postgres system of record, and a protocol layer deployed to Base Sepolia that is not yet connected." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/architecture/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,36 +40,35 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Architecture</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Architecture</h1>
-<p class="lead">MovenRun is three layers working as one: an effortless app, a verification layer that proves movement, and an onchain protocol on Base that settles ownership and value.</p>
+<p class="lead">Three layers. The app and the verification server run today, and the protocol layer is deployed to a test network and not connected to either.</p>
 
-<figure class="dfig"><img src="/docs/assets/diagrams/architecture.svg" alt="MovenRun architecture: the app with an embedded wallet talks to a verification layer that turns routes into movement proofs; the oracle relays proofs to Base protocol contracts — token, Zone Deeds, challenges, seasons, vault, governance — which hold ownership and value." width="760" height="430" /><figcaption>Solid, real-world movement flows up into onchain ownership on Base.</figcaption></figure>
+<figure class="dfig"><img src="/docs/assets/diagrams/architecture.svg" alt="MovenRun architecture: the mobile app talks to a verification layer that turns routes into movement proofs; the oracle is designed to relay proofs to the protocol contracts for token, Zone Deeds, challenges, seasons, vault, and governance." width="760" height="430" /><figcaption>Movement flows up from the street. The top two layers are live; the protocol layer is not wired in.</figcaption></figure>
 
 <h2 id="layers">The three layers</h2>
 <div class="tscroll"><table>
-<caption>What each layer does</caption>
+<caption>What each layer does, and whether it runs</caption>
 <thead><tr><th>Layer</th><th>Role</th></tr></thead>
 <tbody>
-<tr><td><strong>Experience</strong></td><td>The mobile app and its embedded wallet: onboarding, movement sessions, the territory map, clubs, and the game — with all crypto handled invisibly.</td></tr>
-<tr><td><strong>Verification</strong></td><td>Turns a recorded route into a validated, deterministic proof of movement and attests it via the oracle, so onchain actions can trust real-world activity.</td></tr>
-<tr><td><strong>Protocol</strong></td><td>The onchain contracts on Base: the $MOVE token, Zone Deeds, challenges, seasons, the staking vault, and governance — the system of record for ownership and value.</td></tr>
+<tr><td><strong>Experience</strong></td><td>The mobile app: onboarding, movement sessions, the territory map, clubs, and the game. Live, and running on the device. There is no wallet in it.</td></tr>
+<tr><td><strong>Verification</strong></td><td>Turns a recorded route into a validated, deterministic proof of movement and writes the resulting zones to Postgres. Built. The app does not submit movement to it yet.</td></tr>
+<tr><td><strong>Protocol</strong></td><td>Eight contracts on Base Sepolia: $MOVE, the oracle, Zone Deeds, gear, challenges, seasons, the vault, and the DAO. Deployed, unused, and not called by the backend.</td></tr>
 </tbody></table></div>
 
 <h2 id="flow">How activity becomes ownership</h2>
 <ol>
-<li>A player moves; the app records the route and requests a proof.</li>
-<li>The verification layer validates the route and produces a signed proof of movement.</li>
-<li>The oracle relays that attestation onchain.</li>
-<li>Protocol contracts settle the result — capturing a zone, minting $MOVE, updating a deed — under the player's keys.</li>
+<li>A player moves, and the app records and scores the route on the device.</li>
+<li>The verification layer validates a submitted route, produces a deterministic proof, and records the zones covered. It is built, and the app is not yet wired to it. This is where the pipeline ends.</li>
+<li><em>Planned:</em> the oracle attests that proof onchain.</li>
+<li><em>Planned:</em> the contracts settle the result, capturing a zone, minting $MOVE, or updating a deed, under the player's own keys.</li>
 </ol>
 
 <h2 id="principles">Design principles</h2>
 <ul>
-<li><strong>Onchain source of truth.</strong> Ownership and value live in contracts, not in an app database the operator can rewrite.</li>
-<li><strong>Trust-minimized inputs.</strong> The chain never takes movement on faith; it acts on verified proofs.</li>
-<li><strong>Invisible UX.</strong> Embedded wallets and sponsored gas keep the power of onchain without the friction.</li>
-<li><strong>Built on Base.</strong> Low fees, fast confirmation, and consumer-grade tooling make a mainstream onchain game viable.</li>
+<li><strong>Onchain source of truth.</strong> The goal. Today the database is the source of truth and the team can rewrite it, which is exactly what steps three and four are meant to fix.</li>
+<li><strong>Trust-minimized inputs.</strong> The contracts are written to act on signed attestations rather than raw client input. The signer is one operator key.</li>
+<li><strong>Low-friction UX.</strong> Embedded wallets and sponsored gas are the plan. Neither is built, and no wallet provider has been chosen.</li>
+<li><strong>Built for Base.</strong> Low fees, fast confirmation, and consumer-grade tooling, on Base Sepolia for now.</li>
 </ul>
 
     </article>
@@ -88,7 +87,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

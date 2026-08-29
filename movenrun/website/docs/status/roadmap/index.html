@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Roadmap — MovenRun Docs</title>
-<meta name="description" content="The MovenRun roadmap: from the movement beta to city-scale competition, onchain ownership on Base, and progressive decentralization of the network." />
+<title>Roadmap · MovenRun Docs</title>
+<meta name="description" content="What MovenRun has built, what is next, and what is a long way off: the movement loop, city competition, onchain ownership on Base, and decentralization." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/status/roadmap/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Roadmap — MovenRun Docs" />
-<meta property="og:description" content="The MovenRun roadmap: from the movement beta to city-scale competition, onchain ownership on Base, and progressive decentralization of the network." />
+<meta property="og:title" content="Roadmap · MovenRun Docs" />
+<meta property="og:description" content="What MovenRun has built, what is next, and what is a long way off: the movement loop, city competition, onchain ownership on Base, and decentralization." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/status/roadmap/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,30 +40,31 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Roadmap</li><li aria-current="page">Roadmap</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Roadmap</h1>
-<p class="lead">MovenRun is built in the right order: prove the movement loop, turn the map into a contest, bring ownership fully onchain, and hand the network to its community.</p>
+<p class="lead">Prove the movement loop, turn the map into a contest, bring ownership onchain, then hand the network over. MovenRun is in the first of those.</p>
 
-<figure class="dfig"><img src="/docs/assets/diagrams/roadmap.svg" alt="Roadmap phases left to right: movement and capture beta; clubs and city competition; onchain ownership and the live token economy on Base; progressive decentralization to community governance." width="760" height="300" /><figcaption>From a movement beta to a community-owned onchain network.</figcaption></figure>
+<div class="callout note"><p><strong>Today.</strong> The app plays and scores sessions on the device. The verification service and its Postgres store are built. Clubs are a local preview with seeded rivals. Eight contracts sit on Base Sepolia and nothing has been minted on them. No wallet provider has been chosen.</p></div>
 
-<h2 id="p1">Phase 1 — Movement &amp; capture</h2>
-<p>The foundation: fast onboarding, reliable movement sessions, verifiable proof of activity, and the capture loop that turns routes into territory. This phase proves the core experience feels great and that movement maps cleanly onto an ownable map.</p>
-<p><strong>Unlocks:</strong> sessions, route summaries, streaks, the territory map, and the first taste of owning the ground you cover.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/roadmap.svg" alt="Roadmap phases left to right: movement and capture beta; clubs and city competition; onchain ownership and the token economy on Base; progressive decentralization to community governance." width="760" height="300" /><figcaption>From a movement beta to a community-owned network.</figcaption></figure>
 
-<h2 id="p2">Phase 2 — Clubs &amp; city competition</h2>
-<p>The map becomes a contest. Clubs, crew missions, district control, city wars, and seasons turn individual holdings into team strategy and citywide rivalry, with the social depth that keeps a network alive.</p>
-<p><strong>Unlocks:</strong> clubs and leaderboards, shared territory, district mastery, and season-long city competition.</p>
+<h2 id="p1">Phase 1 · Movement and capture</h2>
+<p>The foundation: fast onboarding, reliable sessions, movement that gets checked, and the capture loop that turns routes into territory. This phase is about proving the loop feels good and that movement maps cleanly onto a map worth holding.</p>
+<p><strong>In this phase:</strong> sessions, route summaries, streaks, the territory map, district mastery, and the verification pipeline behind them.</p>
 
-<h2 id="p3">Phase 3 — Onchain ownership &amp; the $MOVE economy</h2>
-<p>Ownership goes fully onchain on Base. Zone Deeds become live assets under players' keys, the $MOVE economy comes online with verified-movement minting and its full set of sinks and utility, and embedded wallets plus sponsored gas keep the whole thing effortless.</p>
-<p><strong>Unlocks:</strong> live Zone Deeds, the $MOVE economy, the challenge and staking systems, and true ownership of territory.</p>
+<h2 id="p2">Phase 2 · Clubs and city competition</h2>
+<p>The map becomes a contest. Clubs, crew missions, district control, city wars, and seasons turn individual holdings into team strategy. The pieces exist in the app as a local preview, and what this phase adds is the shared server state that makes them real between players.</p>
+<p><strong>In this phase:</strong> clubs that sync, leaderboards, shared territory, and season-long city competition.</p>
 
-<h2 id="p4">Phase 4 — Progressive decentralization</h2>
-<p>The network becomes its community's. Onchain governance takes on protocol parameters and the treasury, and control moves — deliberately and safely — from active stewardship toward full community ownership.</p>
-<p><strong>Unlocks:</strong> onchain proposals and voting, community treasury control, and the path to a self-governing network.</p>
+<h2 id="p3">Phase 3 · Onchain ownership and the $MOVE economy</h2>
+<p>Ownership goes onchain. Zone Deeds become live assets under players' keys, the $MOVE economy comes online with its sinks and utility, and embedded wallets plus sponsored gas keep the whole thing out of the player's way. The contracts exist and are on a test network. The wallet and gas work has not started, and the provider decision is still open, so this phase is gated on more than an audit.</p>
+<p><strong>In this phase:</strong> live Zone Deeds on Base, the $MOVE economy, and the challenge and staking systems.</p>
+
+<h2 id="p4">Phase 4 · Progressive decentralization</h2>
+<p>The network becomes its community's. Onchain governance takes on parameters and the treasury, and control moves off a single administrative key. The first steps are concrete: deploy the timelock, move admin behind it, and split the oracle, keeper, and treasury roles onto separate addresses.</p>
+<p><strong>In this phase:</strong> onchain proposals and voting, community treasury control, and a network that no longer depends on one key.</p>
 
 <h2 id="how">How we ship</h2>
-<p>MovenRun advances on evidence, not on a countdown. Each phase builds on a foundation that works: movement has to feel great before ownership goes live, and the economy and verification have to be sound before they carry real value. That sequencing is deliberate — it's how you build an onchain network people can trust. Timing and details evolve as the network grows; this page reflects the current plan.</p>
+<p>MovenRun advances on evidence rather than on a countdown. Movement has to feel good before ownership goes live, and verification has to be sound before it carries anything of value. Timing and detail change as the work does, and this page reflects the current state rather than a promise.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/security/"><span>Previous</span><strong>Security</strong></a><a class="pn next" href="/docs/trust/faq/"><span>Next</span><strong>Frequently asked questions</strong></a></nav>
@@ -81,7 +82,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Protocol & contracts — MovenRun Docs</title>
-<meta name="description" content="The onchain protocol on Base: the token, zone-deed, challenge, season, vault, and governance contracts, and how verified movement drives them." />
+<title>Protocol &amp; contracts · MovenRun Docs</title>
+<meta name="description" content="The eight MovenRun contracts on Base Sepolia: the token, oracle, zone-deed, gear, vault, challenge, season, and DAO contracts, what each is for, and what is not yet true of them." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/contracts/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Protocol & contracts — MovenRun Docs" />
-<meta property="og:description" content="The onchain protocol on Base: the token, zone-deed, challenge, season, vault, and governance contracts, and how verified movement drives them." />
+<meta property="og:title" content="Protocol &amp; contracts · MovenRun Docs" />
+<meta property="og:description" content="The eight MovenRun contracts on Base Sepolia: the token, oracle, zone-deed, gear, vault, challenge, season, and DAO contracts, what each is for, and what is not yet true of them." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/contracts/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,36 +40,41 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Protocol architecture</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Protocol &amp; contracts</h1>
-<p class="lead">MovenRun's onchain protocol is a set of coordinated contracts on Base that turn verified movement into ownership, economy, and governance.</p>
+<p class="lead">Eight contracts, deployed to Base Sepolia on 27 May 2026. They are not connected to the app, and nothing has been minted on them.</p>
 
 <h2 id="overview">The protocol at a glance</h2>
-<p>The protocol is the system of record for everything that matters: who owns which zones, how much $MOVE exists and moves, how territory is contested, how seasons resolve, and how the community governs. Verified movement, attested by the oracle, is the input that drives it.</p>
-<figure class="dfig"><img src="/docs/assets/diagrams/contract-map.svg" alt="Protocol contract map: the oracle feeds verified movement to the token and Zone Deed contracts; the challenge contract contests deeds; the season controller schedules competition; the vault holds stake and treasury; governance controls parameters via a timelock." width="760" height="380" /><figcaption>How the contracts relate: movement flows in through the oracle; ownership, economy, and governance flow out.</figcaption></figure>
+<p>The Postgres database behind the app is the system of record today. It holds who covered which zones, the state of every battle, and every balance. These contracts are the design for moving that onchain, and until they are wired up and deployed to Base mainnet they describe an intention rather than a system.</p>
+<p>The deployment is on Base Sepolia, chain <code>84532</code>. Nothing is on Base mainnet. One account holds <code>DEFAULT_ADMIN_ROLE</code> on all eight contracts, and that same account is also the oracle operator, the keeper, and the treasury address.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/contract-map.svg" alt="Protocol contract map: the oracle feeds verified movement to the token and Zone Deed contracts; the challenge contract contests deeds; the season controller schedules competition; the vault holds stake and treasury; governance is designed to control parameters." width="760" height="380" /><figcaption>How the contracts are meant to relate. Movement flows in through the oracle; ownership and economy flow out.</figcaption></figure>
 
 <h2 id="contracts">The contracts</h2>
 <div class="tscroll"><table>
-<caption>The MovenRun protocol contracts and their roles</caption>
+<caption>The eight deployed contracts and what each is for</caption>
 <thead><tr><th>Contract</th><th>Role</th></tr></thead>
 <tbody>
-<tr><td><strong>$MOVE token</strong></td><td>The network's asset. Minted by verified movement within a capped schedule; used and burned across the game.</td></tr>
-<tr><td><strong>Zone Deeds</strong></td><td>The ownership primitive — one onchain deed per map zone, held under the owner's keys, with provenance, yield, and defense.</td></tr>
-<tr><td><strong>Challenge</strong></td><td>The contest system: challengers stake to compete for a held zone; movement is weighed and the deed holds or changes hands.</td></tr>
-<tr><td><strong>Season controller</strong></td><td>Schedules seasons and city competition, and coordinates periodic economic events.</td></tr>
-<tr><td><strong>Vault</strong></td><td>Staking and the community treasury — the economic reserve the network draws on.</td></tr>
-<tr><td><strong>Governance</strong></td><td>Onchain proposals and voting, secured by a timelock, controlling protocol parameters and the treasury.</td></tr>
-<tr><td><strong>Movement oracle</strong></td><td>Attests verified proofs of movement so the contracts above can act on real-world activity.</td></tr>
+<tr><td><strong>$MOVE token</strong></td><td>The network's asset. Designed to be minted by verified movement within a capped schedule, then spent and burned across the game. No supply has been minted.</td></tr>
+<tr><td><strong>Zone Deeds</strong></td><td>The ownership primitive. One deed per map zone, held under the owner's keys, carrying provenance, yield, and defensive strength. No deed has been minted.</td></tr>
+<tr><td><strong>Gear</strong></td><td>A second NFT contract for in-game gear, minted against $MOVE.</td></tr>
+<tr><td><strong>Challenge</strong></td><td>The contest system. A challenger stakes to compete for a held zone, scores are submitted, and the deed holds or changes hands.</td></tr>
+<tr><td><strong>Season controller</strong></td><td>Runs 90-day seasons, pauses minting before a season ends, and adjusts the emission rate afterwards.</td></tr>
+<tr><td><strong>Vault</strong></td><td>Staking and the treasury balance the network is designed to draw on.</td></tr>
+<tr><td><strong>DAO</strong></td><td>Onchain proposals and voting over protocol parameters and the treasury. Not in use.</td></tr>
+<tr><td><strong>Movement oracle</strong></td><td>Holds the operator key that signs movement attestations, so the contracts above can act on activity they did not observe.</td></tr>
 </tbody></table></div>
 
-<h2 id="design">Security-first design</h2>
+<h2 id="settlement">How challenge settlement actually works</h2>
+<p>It is worth being precise about this one, because it is easy to describe as more autonomous than it is. A challenge resolves when anyone calls <code>resolveChallenge</code> after the window closes. The contract compares the challenger's score against the defender's, adjusted for loyalty and any stronghold boost, and on a challenger win it calls <code>safeTransferFrom</code> to move the deed.</p>
+<p>Two things make that less trustless than it sounds. The transfer only succeeds if the losing defender had already granted the challenge contract approval over their deeds, so a defender who never approves cannot lose one. And the scores are not derived from movement by the contract; they arrive through <code>submitScore</code> backed by a signature from the oracle operator. Settlement therefore depends on a key the team holds. Both are known gaps rather than the intended end state.</p>
+
+<h2 id="design">Design intent, and where it is not met</h2>
 <ul>
-<li><strong>Trust-minimized.</strong> Contracts act on signed proofs of movement, never on unverified client input.</li>
-<li><strong>Role-scoped.</strong> Privileged actions are gated by explicit roles, not a single all-powerful key.</li>
-<li><strong>Timelocked.</strong> Sensitive changes pass through a delay, giving the community time to see and react.</li>
-<li><strong>Standards-based.</strong> The protocol builds on well-established onchain patterns for tokens, ownership, and governance.</li>
+<li><strong>Trust-minimized.</strong> The contracts act on signed attestations rather than raw client input. The signer is a single operator key.</li>
+<li><strong>Role-scoped.</strong> Privileged actions are gated by named roles. On this deployment one account holds all of them, so the separation exists in the code and not in practice.</li>
+<li><strong>Timelocked.</strong> Not yet. A timelock has been written but no timelock contract is deployed, so an admin change takes effect the moment it is sent.</li>
+<li><strong>Standards-based.</strong> Built on OpenZeppelin's AccessControl, ERC-20, and ERC-721 implementations rather than hand-rolled primitives.</li>
 </ul>
-<p>Details of the asset design are in the <a href="/docs/technology/token-design/">$MOVE economy</a>; ownership mechanics in <a href="/docs/technology/zone-deeds/">Zone Deeds</a>; community control in <a href="/docs/technology/governance/">Governance</a>.</p>
+<p>Asset design is in the <a href="/docs/technology/token-design/">$MOVE economy</a>, ownership mechanics in <a href="/docs/technology/zone-deeds/">Zone Deeds</a>, and the road to community control in <a href="/docs/technology/governance/">Governance</a>.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/territory-computation/"><span>Previous</span><strong>Territory computation</strong></a><a class="pn next" href="/docs/technology/zone-deeds/"><span>Next</span><strong>Zone Deeds</strong></a></nav>
@@ -87,7 +92,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

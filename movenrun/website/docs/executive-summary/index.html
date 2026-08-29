@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Executive summary — MovenRun Docs</title>
-<meta name="description" content="MovenRun in brief: the opportunity, the product, the onchain architecture, the token and governance model, and the roadmap to a fully community-owned movement network." />
+<title>Executive summary · MovenRun Docs</title>
+<meta name="description" content="MovenRun in brief: the opportunity, the product, how far the build has actually got, and the token and governance model it is working toward." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/executive-summary/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Executive summary — MovenRun Docs" />
-<meta property="og:description" content="MovenRun in brief: the opportunity, the product, the onchain architecture, the token and governance model, and the roadmap to a fully community-owned movement network." />
+<meta property="og:title" content="Executive summary · MovenRun Docs" />
+<meta property="og:description" content="MovenRun in brief: the opportunity, the product, how far the build has actually got, and the token and governance model it is working toward." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/executive-summary/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,32 +40,33 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Start here</li><li aria-current="page">Executive summary</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Executive summary</h1>
-<p class="lead">MovenRun makes the physical world ownable. It turns everyday movement into verifiable onchain territory — a global game of capture, ownership, and competition, wrapped in an experience anyone can pick up instantly.</p>
+<p class="lead">MovenRun turns everyday movement into territory on a shared map. The app and the verification behind it work. The onchain layer that would make that territory ownable is deployed to a test network and is not finished.</p>
 
 <h2 id="opportunity">The opportunity</h2>
-<p>Billions of people move every day, and that movement is one of the largest sources of untapped, real-world activity in the world. Fitness apps measure it and forget it. Earlier "move" tokens tied it to speculation and collapsed. MovenRun takes a different path: it gives movement a <em>durable</em> reason to matter by converting it into ownership — territory you hold, build on, and control — inside an economy designed to last rather than to pump.</p>
+<p>Billions of people move every day, and almost none of that movement leaves anything behind for the person doing it. Fitness apps measure it and forget it. The first wave of move-to-earn tokens tied it to speculation and collapsed when sentiment turned. MovenRun's bet is that ownership is a more durable reason to keep going than a payout: territory you hold, build on, and can lose to somebody else.</p>
 
 <h2 id="product">The product</h2>
-<p>You open MovenRun and start moving. Your route lights up a hexagonal map of the real world; the zones you cross become yours to capture. Hold a zone and it becomes a <strong>Zone Deed</strong> — an onchain asset you genuinely own. String zones into districts, join a club, contest a city, and climb from a single street to a citywide presence. Underneath, every claim is backed by a proof that you actually moved.</p>
+<p>You open MovenRun and start moving. Your route lights up a hexagonal map of the real world, and the zones you cross become yours. Hold enough of a neighbourhood and it becomes a district you have mastered. Every claim is backed by a check that you actually moved, which is the part that has to be right before anything else is worth building.</p>
 
-<h2 id="onchain">Onchain, made invisible</h2>
-<p>MovenRun runs on <strong>Base</strong>, and ownership is real: deeds, balances, and governance live onchain, not in a company database. But the crypto is invisible by design. Wallets are embedded and created automatically, gas is sponsored, and nothing asks a new player to understand blockchains. The result is a product that is simultaneously a serious onchain network and a game your least technical friend can play.</p>
-<figure class="dfig"><img src="/docs/assets/diagrams/product-layers.svg" alt="The MovenRun stack in three layers: a consumer app on top, a movement-verification layer in the middle turning GPS into proofs, and an onchain protocol on Base at the base holding ownership, the token, and governance." width="760" height="420" /><figcaption>Three layers: an effortless app, a verification layer that proves movement, and an onchain protocol that settles ownership and value.</figcaption></figure>
+<h2 id="onchain">Onchain, and how far along it is</h2>
+<p>Two of the three layers work. The mobile app records, scores, and saves sessions on the device. The backend has the verification service and a Postgres store holding routes, zones, and battles, and it is the system of record for anything that leaves the phone. Wiring the app's movement through it, rather than only its sign-in, is the current piece of work. Either way, no blockchain is involved.</p>
+<p>The third layer is deployed and idle. Eight contracts went to Base Sepolia, chain <code>84532</code>, on 27 May 2026: the token, the movement oracle, the zone and gear NFTs, the vault, the challenge system, the season controller, and the DAO. Nothing is on Base mainnet. No deed has been minted on any network by anyone, and nobody has accrued yield. One account holds <code>DEFAULT_ADMIN_ROLE</code> on all eight, and that same account is the oracle operator, the keeper, and the treasury. A timelock has been written but not deployed.</p>
+<p>The intent is that deeds and balances settle on Base rather than in a company database, and that a player never has to think about any of it. The second half of that needs an embedded wallet provider and sponsored gas. Neither exists: the provider decision is still open, and there is no paymaster or account-abstraction code in the repository. See <a href="/docs/technology/web3/">Onchain, made invisible</a>.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/product-layers.svg" alt="The MovenRun stack in three layers: a consumer app on top, a movement-verification layer in the middle turning GPS into checked proofs, and a protocol layer at the base holding ownership, the token, and governance once it is live." width="760" height="420" /><figcaption>Three layers. The app and the verification layer run today; the protocol layer sits on a test network.</figcaption></figure>
 
 <h2 id="economy">The economy</h2>
-<p>The network's asset is <strong>$MOVE</strong>. Movement is what mints it; utility is what gives it demand — capturing and upgrading zones, entering challenges, competing in seasons, and participating in governance all use it, and several of those uses permanently remove it from supply. Zone Deeds are the ownership layer on top. The design goal is a self-reinforcing loop where real activity, real ownership, and real utility support one another. See the <a href="/docs/technology/token-design/">$MOVE economy</a>.</p>
+<p>$MOVE is designed as the network's asset. Verified movement would mint it on a capped, decaying schedule; captures, upgrades, challenges, and seasons would spend it; several of those actions burn it outright. None of this has run, and no $MOVE has been minted. The design is set out in the <a href="/docs/technology/token-design/">$MOVE economy</a>.</p>
 
 <h2 id="governance">Community ownership</h2>
-<p>MovenRun is built to be handed to its community. Governance is onchain, secured by a timelock, and progressively decentralized: the people who move on the network shape its parameters, its treasury, and its direction. See <a href="/docs/technology/governance/">Governance &amp; the DAO</a>.</p>
+<p>MovenRun is meant to end up controlled by the people who move on it, and it is nowhere near that. Governance today is one key. What has to happen between here and onchain proposals, a deployed timelock, and community control of the treasury is set out in <a href="/docs/technology/governance/">Governance &amp; the DAO</a>.</p>
 
-<h2 id="why-win">Why MovenRun wins</h2>
+<h2 id="why-win">The argument</h2>
 <ul>
-<li><strong>Ownership, not points.</strong> Territory is a real asset, which makes progress meaningful in a way scores never are.</li>
-<li><strong>Proof, not trust.</strong> Verifiable movement keeps the game honest and the economy healthy.</li>
-<li><strong>Reach, not gatekeeping.</strong> Invisible onchain UX unlocks a mainstream audience most crypto products can't touch.</li>
-<li><strong>Durability, not hype.</strong> Utility and sinks are engineered before incentives, so the economy has reasons to exist beyond speculation.</li>
+<li><strong>Ownership holds attention longer than points.</strong> Territory somebody else can take off you is worth defending. A score that only goes up is not.</li>
+<li><strong>Verification is the hard part, so it got built first.</strong> An economy running on movement is worth exactly as much as its ability to reject movement that did not happen.</li>
+<li><strong>Reach depends on hiding the crypto.</strong> This is also the piece furthest from finished, and it gates everything downstream of it.</li>
+<li><strong>Sinks before incentives.</strong> The token design puts caps and sinks ahead of emissions, because the other order has been tried in public.</li>
 </ul>
 <p>The full argument, architecture, and roadmap are in the <a href="/docs/whitepaper/">whitepaper</a>.</p>
 
@@ -85,7 +86,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

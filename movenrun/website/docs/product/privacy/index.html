@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Privacy & your data — MovenRun Docs</title>
-<meta name="description" content="How MovenRun handles location: privacy-first movement, minimal data, verifiable proofs instead of raw trails, and clear user control." />
+<title>Privacy &amp; your data · MovenRun Docs</title>
+<meta name="description" content="How MovenRun handles location: proofs instead of stored trails, minimal retention, and what the app keeps on your device." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/privacy/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Privacy & your data — MovenRun Docs" />
-<meta property="og:description" content="How MovenRun handles location: privacy-first movement, minimal data, verifiable proofs instead of raw trails, and clear user control." />
+<meta property="og:title" content="Privacy &amp; your data · MovenRun Docs" />
+<meta property="og:description" content="How MovenRun handles location: proofs instead of stored trails, minimal retention, and what the app keeps on your device." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/privacy/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,32 +40,32 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Privacy</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Privacy &amp; your data</h1>
-<p class="lead">A movement network runs on location — which is exactly why MovenRun is built to prove your activity without hoarding your life.</p>
+<p class="lead">A movement game runs on location, which is exactly why MovenRun is built to check your activity without keeping a record of your life.</p>
 
 <h2 id="approach">Privacy-first by design</h2>
-<p>MovenRun's design goal is simple: keep as little sensitive data as possible, and turn movement into <em>proofs</em> rather than permanent trails. What the network needs is confidence that you really moved — not a searchable history of everywhere you've been. Verification is built around that principle.</p>
+<p>The design goal is to keep as little sensitive data as possible and to turn movement into proofs rather than permanent trails. What the game needs is confidence that you moved, not a searchable history of everywhere you have been. Verification is built around that.</p>
 
-<h2 id="what">What the network uses</h2>
+<h2 id="what">What the game uses</h2>
 <ul>
-<li><strong>Your route, to play.</strong> Location is read during an active session to draw your route and determine which zones you captured.</li>
-<li><strong>Proofs, to settle.</strong> Sessions are reduced to compact, deterministic proofs of movement; it's the proof — not a raw trail — that drives onchain capture.</li>
-<li><strong>Your holdings, onchain.</strong> Deeds and balances live onchain under your keys, as ownership records — not as a profile of your movements.</li>
+<li><strong>Your route, to play.</strong> Location is read during an active session to draw your route and work out which zones you crossed.</li>
+<li><strong>A proof, to settle it.</strong> A session reduces to a compact, deterministic proof of movement, which is a fingerprint rather than a stored trail.</li>
+<li><strong>Your territory.</strong> Your holdings are kept as a record of what you hold, not as a profile of where you go.</li>
 </ul>
 
 <h2 id="control">Your control</h2>
 <ul>
-<li>Your wallet and your deeds are yours; you can take full self-custody at any time.</li>
-<li>The experience is built to minimize what's collected and to favor summaries over granular location data.</li>
-<li>Data-retention and deletion controls are part of the network's design commitments as it scales.</li>
+<li>The app is built to minimise what it collects and to prefer summaries over granular location data.</li>
+<li>The Deed Preview in the app derives everything from local data. It never sends coordinates anywhere, and the district names it shows are fixed fictional labels rather than real places.</li>
+<li>Retention and deletion controls are design commitments for as the product scales, and they are not all built.</li>
+<li>Self-custody of a wallet is part of the ownership design, once there is a wallet.</li>
 </ul>
 
 <h2 id="not">What MovenRun is not</h2>
 <ul>
-<li>Not a data broker — your movement builds your assets, it isn't a product sold about you.</li>
+<li>Not a data broker. Your movement builds your territory and is not a product sold about you.</li>
 <li>No third-party ad tracking, and no selling of location profiles.</li>
-<li>No inference or exposure of other people's precise location.</li>
+<li>No inference or exposure of anyone else's precise location.</li>
 </ul>
 
     </article>
@@ -84,7 +84,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

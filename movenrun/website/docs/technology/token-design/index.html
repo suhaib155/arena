@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Token & economy — MovenRun Docs</title>
-<meta name="description" content="The $MOVE economy: how movement mints value, the utility that gives the token demand, the sinks that balance it, and the caps that keep it sustainable." />
+<title>Token & economy · MovenRun Docs</title>
+<meta name="description" content="The $MOVE design: capped issuance from verified movement, the utility meant to create demand, the sinks that balance it, and the fact that none of it has run." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/token-design/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Token & economy — MovenRun Docs" />
-<meta property="og:description" content="The $MOVE economy: how movement mints value, the utility that gives the token demand, the sinks that balance it, and the caps that keep it sustainable." />
+<meta property="og:title" content="Token & economy · MovenRun Docs" />
+<meta property="og:description" content="The $MOVE design: capped issuance from verified movement, the utility meant to create demand, the sinks that balance it, and the fact that none of it has run." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/token-design/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,39 +40,39 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">$MOVE economy</li></ol></nav>
     
     <article class="darticle">
-
 <h1>$MOVE economy</h1>
-<p class="lead">$MOVE is the asset that powers MovenRun. It's minted by movement, demanded by utility, and tightened by sinks — an economy engineered to reinforce itself.</p>
+<p class="lead">$MOVE is designed to be minted by movement, demanded by utility, and tightened by sinks. The token contract is on Base Sepolia and no supply has been minted, so this page is a design document.</p>
 
-<div class="callout note"><p>This page describes the $MOVE economic <em>design</em>. It is not financial advice, an offer, or a promise of returns, and it quotes no price or yield figure. Parameters are set and adjusted through <a href="/docs/technology/governance/">governance</a> and may evolve. See <a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a>.</p></div>
+<div class="callout note"><p>This describes the $MOVE economic <em>design</em>. It is not financial advice, an offer, or a promise of returns, and it quotes no price or yield figure. Parameters would be set through <a href="/docs/technology/governance/">governance</a> and may change. See <a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a>.</p></div>
 
 <h2 id="loop">The economic loop</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/token-economy.svg" alt="The $MOVE economy: verified movement mints capped $MOVE; players spend it on captures, upgrades, challenges, and seasons; those actions burn supply and reward active zone owners — reinforcing demand and ownership." width="760" height="360" /><figcaption>Movement mints, utility demands, sinks burn — a loop built to hold together.</figcaption></figure>
+<figure class="dfig"><img src="/docs/assets/diagrams/token-economy.svg" alt="The designed $MOVE economy: verified movement mints capped $MOVE; players spend it on captures, upgrades, challenges, and seasons; those actions burn supply and reward active zone owners." width="760" height="360" /><figcaption>The intended loop. Nothing in it has run.</figcaption></figure>
 
-<h2 id="mint">How $MOVE enters</h2>
-<p>$MOVE is minted by <strong>verified movement</strong> — real, proven activity, never a faucet. Emission follows a <strong>capped, decaying schedule</strong>: issuance is highest early and steps down over time, so the network can bootstrap without inflating forever. Per-period limits prevent any single account from dominating issuance.</p>
+<h2 id="mint">How $MOVE would enter</h2>
+<p>$MOVE is minted by <strong>verified movement</strong>, never by a faucet. Emission follows a <strong>capped, decaying schedule</strong>, highest early and stepping down over time, so the network can bootstrap without inflating forever. A daily cap per address prevents one account from dominating issuance, and it halves each epoch alongside the emission rate.</p>
 
-<h2 id="utility">Why $MOVE is wanted</h2>
-<p>Demand comes from utility woven through the game, not from speculation:</p>
+<h2 id="utility">Where demand would come from</h2>
+<p>Demand is meant to come from things players want to do, rather than from speculation:</p>
 <ul>
-<li><strong>Territory.</strong> Claiming premium zones, upgrading, and fortifying use $MOVE.</li>
-<li><strong>Competition.</strong> Entering challenges and seasonal contests requires it.</li>
-<li><strong>Staking.</strong> $MOVE can be staked in the <a href="/docs/technology/contracts/">vault</a> to back the network and participate in its economy.</li>
-<li><strong>Governance.</strong> Holding and staking $MOVE gives a voice in how the network runs.</li>
+<li><strong>Territory.</strong> Claiming zones, upgrading, and fortifying cost $MOVE.</li>
+<li><strong>Competition.</strong> Declaring a challenge and entering seasonal contests cost $MOVE.</li>
+<li><strong>Staking.</strong> $MOVE can be staked in the <a href="/docs/technology/contracts/">vault</a>.</li>
+<li><strong>Governance.</strong> Holding and staking gives a say in how parameters are set.</li>
 </ul>
 
 <h2 id="sinks">Sinks and balance</h2>
-<p>Several core actions <strong>burn</strong> $MOVE — permanently removing it from supply — so that as activity grows, supply tightens rather than dilutes. Zone taxes route value to active deed owners, and periodic seasonal mechanics reduce supply on schedule. The guiding rule is <strong>utility and sinks before incentives</strong>: the economy is designed to have reasons to exist beyond emissions.</p>
+<p>Several actions burn $MOVE outright, removing it from supply, so that activity tightens the float rather than diluting it. Minting a Zone Deed, declaring a challenge, boosting a stronghold, extending a challenge window, and minting gear all burn. A 2% zone tax on minted $MOVE routes value to the deed owner of the hex it came from, weighted by how long they have held it.</p>
+<p>One thing carries a misleading name. The season-end <strong>Great Burn</strong> takes 10% of the top zones' accumulated yield and transfers it to the treasury. Total supply does not change, so it is a treasury transfer rather than a burn, and it is tracked as something to fix rather than something to describe as a sink.</p>
 
 <h2 id="deeds">Ownership on top</h2>
-<p><a href="/docs/technology/zone-deeds/">Zone Deeds</a> are the ownership layer that sits above the token: active holders accrue standing and in-game yield, tying long-term participation to long-term ownership. Movement, token, and territory are designed as one reinforcing system.</p>
+<p><a href="/docs/technology/zone-deeds/">Zone Deeds</a> are the ownership layer above the token. Active holders would accrue standing and in-game yield, which ties long-term participation to long-term ownership. No deed exists, so no yield has accrued to anyone.</p>
 
 <h2 id="principles">Economic principles</h2>
 <ul>
-<li>Minted by proven activity, never by unverified claims.</li>
-<li>Capped and decaying issuance, with anti-concentration limits.</li>
-<li>Sinks and caps designed before incentives, for durability over hype.</li>
-<li>Parameters governed onchain by the community, transparently.</li>
+<li>Minted by checked activity, never by unverified claims.</li>
+<li>Capped and decaying issuance, with a per-address daily cap.</li>
+<li>Sinks and caps designed before incentives.</li>
+<li>Parameters set through governance once governance exists. Today one key sets them.</li>
 </ul>
 
     </article>
@@ -91,7 +91,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

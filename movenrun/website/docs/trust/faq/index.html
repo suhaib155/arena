@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Frequently asked questions — MovenRun Docs</title>
-<meta name="description" content="Straight answers about MovenRun: what it is, how ownership works, whether you need crypto experience, how movement is verified, and how the economy works." />
+<title>Frequently asked questions · MovenRun Docs</title>
+<meta name="description" content="Straight answers about MovenRun: what it is, whether you own your territory yet, what chain it is on, how movement is checked, and what is actually live." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/trust/faq/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Frequently asked questions — MovenRun Docs" />
-<meta property="og:description" content="Straight answers about MovenRun: what it is, how ownership works, whether you need crypto experience, how movement is verified, and how the economy works." />
+<meta property="og:title" content="Frequently asked questions · MovenRun Docs" />
+<meta property="og:description" content="Straight answers about MovenRun: what it is, whether you own your territory yet, what chain it is on, how movement is checked, and what is actually live." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/trust/faq/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,39 +40,38 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Resources</li><li aria-current="page">FAQ</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Frequently asked questions</h1>
-<p class="lead">Straight answers about what MovenRun is and how it works.</p>
+<p class="lead">Straight answers about what MovenRun is and how much of it exists.</p>
 
 <h2 id="what">What is MovenRun?</h2>
-<p>An onchain movement network on Base. You move in the real world, capture the zones you cross on a global hex map, and own that territory as onchain assets called <a href="/docs/technology/zone-deeds/">Zone Deeds</a>. A native token, <a href="/docs/technology/token-design/">$MOVE</a>, powers the economy, and the network is designed to be community-governed.</p>
+<p>A movement game. You move in the real world, and the zones you cross on a global hex map become yours. The design puts that territory onchain as assets called <a href="/docs/technology/zone-deeds/">Zone Deeds</a>, funded by a token called <a href="/docs/technology/token-design/">$MOVE</a> and eventually governed by the people who play. The game works. The onchain half does not exist yet.</p>
 
 <h2 id="own">Do I really own my territory?</h2>
-<p>Yes. Zone Deeds are onchain assets held under keys you control — not a row in a database the operator can revoke. You can hold, defend, and transfer them, and take full self-custody whenever you want.</p>
+<p>Not yet. Your zones are records in MovenRun's game, and the team can change them. Zone Deeds are what would make them yours onchain, under your own keys, and no deed has ever been minted. The contract is deployed to a test network and has never been used.</p>
 
 <h2 id="crypto">Do I need to know anything about crypto?</h2>
-<p>No. MovenRun creates a secure wallet for you automatically, covers gas fees, and hides all the blockchain machinery behind an ordinary game. You get real ownership without ever managing keys or buying a token first. See <a href="/docs/technology/web3/">Onchain, made invisible</a>.</p>
+<p>No, and right now you could not use any if you wanted to. There is no wallet in the app, nothing to sign, and nothing to buy. Keeping it that easy once the onchain layer arrives is what embedded wallets and sponsored gas are for, and neither has been built. See <a href="/docs/technology/web3/">Onchain, made invisible</a>.</p>
 
 <h2 id="buy">Do I have to buy anything to start?</h2>
-<p>No. You start by moving. There's nothing to purchase to play, and onboarding is a single tap.</p>
+<p>No. You start by moving. Onboarding is a single tap and there is nothing to purchase.</p>
 
 <h2 id="chain">What chain is it on?</h2>
-<p>Base — an Ethereum Layer 2 chosen for low fees, fast confirmation, and the account-abstraction tooling that makes wallet-light onboarding possible.</p>
+<p>Base Sepolia, chain <code>84532</code>, which is Base's test network. Eight contracts were deployed there on 27 May 2026. Nothing is on Base mainnet, and the app does not talk to either.</p>
 
 <h2 id="token">What is $MOVE for?</h2>
-<p>$MOVE is the network's asset. It's minted by verified movement and used across the game — capturing and upgrading territory, entering challenges and seasons, staking, and governance. Several of those uses burn it, tightening supply as activity grows. See the <a href="/docs/technology/token-design/">$MOVE economy</a>.</p>
+<p>$MOVE is designed as the network's asset: minted by verified movement, spent on capturing and upgrading territory, on challenges and seasons, on staking and governance, and burned by several of those actions. No $MOVE has been minted. The design is in the <a href="/docs/technology/token-design/">$MOVE economy</a>.</p>
 
 <h2 id="verify">How does MovenRun know I actually moved?</h2>
-<p>Every session is validated for physical plausibility and reduced to a verifiable proof of movement that the network's oracle attests before anything settles onchain. Effort is rewarded; spoofing is rejected. See <a href="/docs/technology/backend/">Movement verification</a>.</p>
+<p>A session is validated for physical plausibility, meaning realistic speed, sane accuracy, and continuous motion, and reduced to a deterministic proof. Duplicates and replays get rejected. That pipeline is built. Attesting the proof onchain, which is the step that would let a capture settle, is designed and not wired up. See <a href="/docs/technology/backend/">Movement verification</a>.</p>
 
 <h2 id="privacy">What happens to my location data?</h2>
-<p>MovenRun is built to prove your activity without hoarding it — turning sessions into compact proofs rather than permanent trails, minimizing what's kept, and keeping your holdings as ownership records, not a movement profile. See <a href="/docs/product/privacy/">Privacy &amp; your data</a>.</p>
+<p>Sessions are reduced to compact proofs rather than kept as trails, and the app is built to hold as little as it can. See <a href="/docs/product/privacy/">Privacy &amp; your data</a>.</p>
 
 <h2 id="govern">Who controls the network?</h2>
-<p>Governance is onchain and moving toward the community. Token holders propose and vote on parameters and the treasury, secured by a timelock, on a path of progressive decentralization. See <a href="/docs/technology/governance/">Governance &amp; the DAO</a>.</p>
+<p>One account. It holds admin on all eight deployed contracts and is also the oracle operator, the keeper, and the treasury, and there is no timelock deployed to slow any of that down. Onchain proposals and community control are the design, and getting off a single key is the first milestone on the way there. See <a href="/docs/technology/governance/">Governance &amp; the DAO</a>.</p>
 
 <h2 id="stage">Is everything live today?</h2>
-<p>MovenRun is a development-stage network being built in phases — movement and capture first, then city competition, then the full onchain economy, then progressive decentralization. The <a href="/docs/status/roadmap/">roadmap</a> lays out the sequence, and this documentation describes the protocol as designed.</p>
+<p>No, and it is worth being specific. Live: movement sessions, capture, streaks, the territory map, district mastery, and the verification pipeline. A local preview: clubs, crew missions, and city competition, which do not sync between players. Not built: Zone Deeds, $MOVE, staking, challenges in the app, wallets, sponsored gas, and governance. The <a href="/docs/status/roadmap/">roadmap</a> lays out the order.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/status/roadmap/"><span>Previous</span><strong>Roadmap</strong></a><a class="pn next" href="/docs/glossary/"><span>Next</span><strong>Glossary</strong></a></nav>
@@ -90,7 +89,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

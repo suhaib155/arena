@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Territory & ownership — MovenRun Docs</title>
-<meta name="description" content="How the world becomes an ownable hexagonal map: capture zones by moving, hold and fortify them, group them into districts, and own them as onchain assets." />
+<title>Territory &amp; ownership · MovenRun Docs</title>
+<meta name="description" content="How the world becomes a hexagonal map you can claim: capture zones by moving, hold and fortify them, group them into districts, and the onchain deed layer that is still to come." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/territory/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Territory & ownership — MovenRun Docs" />
-<meta property="og:description" content="How the world becomes an ownable hexagonal map: capture zones by moving, hold and fortify them, group them into districts, and own them as onchain assets." />
+<meta property="og:title" content="Territory &amp; ownership · MovenRun Docs" />
+<meta property="og:description" content="How the world becomes a hexagonal map you can claim: capture zones by moving, hold and fortify them, group them into districts, and the onchain deed layer that is still to come." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/territory/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,30 +40,29 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Territory</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Territory &amp; ownership</h1>
-<p class="lead">The world is a hexagonal map, and every hex is a piece of property waiting to be claimed. Move to capture it; hold it to own it; fortify it to keep it.</p>
+<p class="lead">The world is a hexagonal map, and every hex is a piece of ground waiting to be claimed. Move to capture it, come back to keep it.</p>
 
 <h2 id="zone">What a zone is</h2>
-<p>A zone is one hexagonal cell of the real world — the atom of MovenRun territory. Capture one and it becomes a <a href="/docs/technology/zone-deeds/">Zone Deed</a>, an onchain asset you hold under your own keys. Zones are consistent for everyone: two players standing on the same corner are in the same zone, everywhere on Earth. The grid comes from the open H3 system — explained simply in <a href="/docs/technology/territory-computation/">Territory computation</a>.</p>
+<p>A zone is one hexagonal cell of the real world, and it is the atom of MovenRun territory. Zones are the same for everyone: two players standing on the same corner are in the same zone, anywhere on Earth. The grid comes from the open H3 system, explained in <a href="/docs/technology/territory-computation/">Territory computation</a>. Capturing a zone is designed to mint a <a href="/docs/technology/zone-deeds/">Zone Deed</a> you hold under your own keys, and that part has not been built.</p>
 
 <h2 id="capture">Capturing and holding</h2>
-<p>Finishing a session claims the zones your route crossed. Holdings persist onchain and appear across your map, your profile, and each zone's detail view. The more you return, the stronger your claim.</p>
+<p>Finishing a session claims the zones your route crossed. Your holdings show up across the map, your profile, and each zone's detail view. The more often you come back, the stronger your claim gets. Those holdings live in MovenRun's records, not on a blockchain.</p>
 
 <h2 id="lifecycle">The life of a zone</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/territory-lifecycle.svg" alt="Zone lifecycle: unexplored to captured to held and stable; neglect moves a zone toward contested and at-risk; revisiting and fortifying restore strength; strong zones withstand challenges from other players." width="760" height="330" /><figcaption>Territory strengthens when you return and comes under pressure when you don't.</figcaption></figure>
+<figure class="dfig"><img src="/docs/assets/diagrams/territory-lifecycle.svg" alt="Zone lifecycle: unexplored to captured to held and stable; neglect moves a zone toward contested and at-risk; revisiting and fortifying restore strength; strong zones withstand challenges from other players." width="760" height="330" /><figcaption>Territory strengthens when you return and comes under pressure when you do not.</figcaption></figure>
 <ul>
-<li><strong>Captured → Held</strong> — the zone joins your portfolio as a deed.</li>
-<li><strong>Held → Contested</strong> — neglect leaves a zone open to challenge from other players.</li>
-<li><strong>Fortified</strong> — returning and fortifying raise a zone's defensive strength.</li>
-<li><strong>Defended</strong> — strong zones withstand challenges; weak ones can change hands.</li>
+<li><strong>Captured to held.</strong> The zone joins your territory.</li>
+<li><strong>Held to contested.</strong> Neglect leaves a zone open to a challenge.</li>
+<li><strong>Fortified.</strong> Returning and fortifying raise a zone's defensive strength.</li>
+<li><strong>Defended.</strong> Strong zones hold. Weak ones change hands.</li>
 </ul>
 
 <h2 id="districts">Districts and cities</h2>
-<p>Zones group into named <strong>districts</strong>, and districts into cities. Holding a critical mass of a district earns mastery and standing; controlling districts is how clubs and crews contest a city. Territory is a ladder — from a single street you own, to a district you dominate, to a city your club is fighting for. See <a href="/docs/product/clubs/">Clubs, cities &amp; competition</a>.</p>
+<p>Zones group into named <strong>districts</strong>, and districts into cities. Holding a critical mass of a district earns mastery and standing, and controlling districts is how clubs are meant to contest a city. Territory is a ladder: one street, then a district, then a city your club is fighting over. See <a href="/docs/product/clubs/">Clubs, cities &amp; competition</a>.</p>
 
 <h2 id="contest">Contesting territory</h2>
-<p>Zones aren't static. A held zone can be challenged through the onchain contest system: challengers stake to compete, both sides' movement is weighed, and the deed changes hands or holds based on the outcome. Defense, fortification, and loyalty all matter — the map is a living contest, not a checklist. The mechanics live in <a href="/docs/technology/contracts/">Protocol &amp; contracts</a>.</p>
+<p>Zones are not static. The design has a held zone challenged through an onchain contest: a challenger stakes, both sides' movement is weighed, and the deed holds or moves. The challenge contract is deployed to Base Sepolia and has never been used. It also has two known gaps, since a defender who never approves the contract cannot lose a zone to it, and the scores arrive by way of an oracle signature. The mechanics are in <a href="/docs/technology/contracts/">Protocol &amp; contracts</a>.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/product/movement/"><span>Previous</span><strong>Movement & proof of activity</strong></a><a class="pn next" href="/docs/product/progression/"><span>Next</span><strong>Progression & rewards</strong></a></nav>
@@ -81,7 +80,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

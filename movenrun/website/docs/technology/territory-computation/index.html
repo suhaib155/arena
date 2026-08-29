@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Territory computation — MovenRun Docs</title>
-<meta name="description" content="How routes become ownable zones: the H3 hexagonal grid explained simply, why hexagons, and how movement maps cleanly onto territory and districts." />
+<title>Territory computation · MovenRun Docs</title>
+<meta name="description" content="How a GPS route becomes territory: the H3 hexagonal grid, why hexagons, and how a path resolves to the ordered set of zones it crossed." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/territory-computation/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Territory computation — MovenRun Docs" />
-<meta property="og:description" content="How routes become ownable zones: the H3 hexagonal grid explained simply, why hexagons, and how movement maps cleanly onto territory and districts." />
+<meta property="og:title" content="Territory computation · MovenRun Docs" />
+<meta property="og:description" content="How a GPS route becomes territory: the H3 hexagonal grid, why hexagons, and how a path resolves to the ordered set of zones it crossed." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/territory-computation/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,30 +40,29 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Territory computation</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Territory computation</h1>
-<p class="lead">How a wandering GPS route becomes crisp, ownable territory: one global hex grid, and a clean way to turn movement into map.</p>
+<p class="lead">How a wandering GPS route becomes crisp territory: one global hex grid, and a clean way to turn a path into a set of zones.</p>
 
 <h2 id="grid">A single grid for the whole world</h2>
-<p>MovenRun models the planet with <strong>H3</strong>, an open hexagonal grid system that tiles the entire Earth into cells. Every location belongs to exactly one cell with a stable identifier, which gives the game a shared, precise definition of "a zone" — the same for every player, everywhere. That shared grid is what makes territory ownership consistent and composable.</p>
+<p>MovenRun models the planet with <strong>H3</strong>, an open hexagonal grid system that tiles the entire Earth. Every location belongs to exactly one cell with a stable identifier, which gives the game one definition of a zone that is the same for every player, everywhere. That shared grid is what would let territory ownership be consistent and composable later.</p>
 
 <h2 id="why-hex">Why hexagons</h2>
 <ul>
-<li><strong>Even neighbors.</strong> Every hexagon borders six others at equal distance, so adjacency — central to holding, spreading, and defending territory — behaves cleanly.</li>
-<li><strong>Natural fit to movement.</strong> Routes curve; hexagons approximate the reach around a path far better than squares.</li>
+<li><strong>Even neighbors.</strong> Every hexagon borders six others at equal distance, so adjacency behaves cleanly, and adjacency is central to holding and spreading territory.</li>
+<li><strong>A better fit to movement.</strong> Routes curve. Hexagons approximate the reach around a path considerably better than squares do.</li>
 <li><strong>Clean aggregation.</strong> Cells roll up into larger cells, which is how zones combine into districts and cities.</li>
 </ul>
 
 <h2 id="mapping">From route to territory</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/proof-of-movement.svg" alt="A route is validated, mapped onto the hexagonal grid to determine the zones it crossed, reduced to a proof, and settled onchain as captured territory." width="760" height="320" /><figcaption>Each point on a verified route resolves to a hex; the ordered set of hexes is the territory you captured.</figcaption></figure>
+<figure class="dfig"><img src="/docs/assets/diagrams/proof-of-movement.svg" alt="A route is validated, mapped onto the hexagonal grid to determine the zones it crossed, reduced to a proof, and recorded as captured territory." width="760" height="320" /><figcaption>Each point on a verified route resolves to a hex. The ordered set of hexes is what you captured.</figcaption></figure>
 <ol>
-<li>Each point on a verified route is resolved to its containing hex cell.</li>
-<li>Consecutive duplicates collapse into the ordered set of zones the route crossed.</li>
-<li>That set drives onchain capture — the zones become deeds you own.</li>
+<li>Each point on a verified route resolves to its containing hex cell.</li>
+<li>Consecutive duplicates collapse, leaving the ordered set of zones the route crossed.</li>
+<li>That set is recorded as the zones you covered. Turning it into onchain deeds is the planned next step.</li>
 </ol>
 
 <h2 id="scale">Zones, districts, cities</h2>
-<p>Because H3 cells nest, MovenRun composes territory at multiple scales: individual zones you capture, districts that group them into neighborhoods with their own mastery, and cities where clubs contest control. One grid underpins the entire game, from a single street to a citywide season.</p>
+<p>Because H3 cells nest, territory composes at several scales. Individual zones you capture, districts that group them into neighbourhoods with their own mastery, and cities where clubs contest control. One grid underpins the whole game, from a single street to a citywide season.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/backend/"><span>Previous</span><strong>Movement verification</strong></a><a class="pn next" href="/docs/technology/contracts/"><span>Next</span><strong>Protocol & contracts</strong></a></nav>
@@ -81,7 +80,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

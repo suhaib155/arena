@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Movement verification — MovenRun Docs</title>
-<meta name="description" content="How MovenRun proves real movement: signal validation, anti-spoofing checks, deterministic route proofs, deduplication, and an oracle that attests activity onchain." />
+<title>Movement verification · MovenRun Docs</title>
+<meta name="description" content="How MovenRun checks that a route really happened: plausibility validation, deterministic route proofs, deduplication, and the oracle attestation that is designed but not yet wired up." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/technology/backend/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Movement verification — MovenRun Docs" />
-<meta property="og:description" content="How MovenRun proves real movement: signal validation, anti-spoofing checks, deterministic route proofs, deduplication, and an oracle that attests activity onchain." />
+<meta property="og:title" content="Movement verification · MovenRun Docs" />
+<meta property="og:description" content="How MovenRun checks that a route really happened: plausibility validation, deterministic route proofs, deduplication, and the oracle attestation that is designed but not yet wired up." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/technology/backend/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,32 +40,32 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Technology</li><li aria-current="page">Verification</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Movement verification</h1>
-<p class="lead">Ownership is only as trustworthy as the movement behind it. MovenRun's verification layer turns a recorded route into a proof the whole economy can rely on.</p>
+<p class="lead">Territory is only worth holding if the movement behind it was real. This is the layer that got built first, and the pipeline below runs in MovenRun's backend today.</p>
 
 <h2 id="why">Why it matters</h2>
-<p>If territory is a real asset, the network can't reward movement it can't trust. Verification is what keeps the map fair, the economy healthy, and ownership meaningful — it's the difference between a game of effort and a game of exploits.</p>
+<p>An ownership economy cannot reward movement it cannot check. Verification is what keeps the map fair and the economy worth having, and it is the difference between a game of effort and a game of GPS spoofing apps.</p>
 
 <h2 id="pipeline">The proof-of-movement pipeline</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/proof-of-movement.svg" alt="Proof-of-movement pipeline: a submitted route is validated for plausibility, mapped to zones, reduced to a deterministic proof, and signed by the oracle for onchain settlement; invalid or duplicate routes are rejected." width="760" height="320" /><figcaption>A recorded route becomes a signed proof that onchain contracts can act on.</figcaption></figure>
+<figure class="dfig"><img src="/docs/assets/diagrams/proof-of-movement.svg" alt="Proof-of-movement pipeline: a submitted route is validated for plausibility, mapped to zones, reduced to a deterministic proof, and designed to be signed by the oracle for settlement; invalid or duplicate routes are rejected." width="760" height="320" /><figcaption>Steps one to three run on the server today. The last two are the design.</figcaption></figure>
 <ol>
-<li><strong>Validate.</strong> The route is checked for physical plausibility — realistic speed, sane accuracy, continuous motion, sane duration.</li>
-<li><strong>Map.</strong> The path is resolved to the ordered set of zones it crossed (see <a href="/docs/technology/territory-computation/">Territory computation</a>).</li>
-<li><strong>Reduce.</strong> The session is distilled into a compact, deterministic proof — a fingerprint of the movement, not a stored trail.</li>
-<li><strong>Attest.</strong> The oracle signs the proof so onchain contracts can settle capture and rewards without trusting the client.</li>
-<li><strong>Guard.</strong> Duplicate and replayed proofs are rejected, so the same movement can't be claimed twice.</li>
+<li><strong>Validate.</strong> The route is checked for physical plausibility: realistic speed, sane accuracy, continuous motion, a sane duration.</li>
+<li><strong>Map.</strong> The path resolves to the ordered set of zones it crossed. See <a href="/docs/technology/territory-computation/">Territory computation</a>.</li>
+<li><strong>Reduce.</strong> The session is distilled into a compact, deterministic proof, which is a fingerprint of the movement rather than a stored trail.</li>
+<li><strong>Guard.</strong> Duplicate and replayed submissions are rejected, so the same movement cannot be claimed twice.</li>
+<li><em>Planned:</em> the oracle signs the proof so contracts can settle capture and rewards without trusting the client.</li>
 </ol>
 
 <h2 id="oracle">The oracle</h2>
-<p>The oracle is the bridge between the physical world and the chain: it attests, with a network-held signing key, that a route passed verification, and its authority is scoped and rotatable. Onchain contracts require that attestation before acting on movement — so real-world activity can drive ownership without the chain ever trusting an app.</p>
+<p>The oracle is meant to be the bridge between the street and the chain, attesting with a network-held signing key that a route passed verification, with scoped and rotatable authority. The contract is deployed to Base Sepolia and holds an operator address. Nothing calls it. The backend reads from the chain and never writes to it, so verification ends at the database.</p>
 
 <h2 id="antispoof">Anti-spoofing and integrity</h2>
 <ul>
 <li><strong>Plausibility checks</strong> catch vehicles, teleports, and synthetic traces.</li>
-<li><strong>Deterministic proofs plus deduplication</strong> stop replays and double-claims.</li>
-<li><strong>Layered defense</strong> — verification is designed to keep hardening as the network grows, because integrity is the foundation the whole economy stands on.</li>
+<li><strong>Deterministic proofs and deduplication</strong> stop replays and double claims.</li>
+<li><strong>Layered defense.</strong> Verification is expected to keep hardening as more people play, because it is the foundation everything else would stand on.</li>
 </ul>
+<p>One caveat on scope. The mobile app scores its own sessions on the device and reaches the backend only for sign-in, so this pipeline is not yet in the path of a normal session. Putting it there is the next step.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/technology/mobile/"><span>Previous</span><strong>The app</strong></a><a class="pn next" href="/docs/technology/territory-computation/"><span>Next</span><strong>Territory computation</strong></a></nav>
@@ -83,7 +83,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

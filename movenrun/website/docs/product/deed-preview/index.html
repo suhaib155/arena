@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Digital ownership — MovenRun Docs</title>
-<meta name="description" content="Zone Deeds turn the places you move through into assets you genuinely own onchain — portable, provable, and yours, with no wallet friction to get started." />
+<title>Digital ownership · MovenRun Docs</title>
+<meta name="description" content="What a Zone Deed is designed to be, what the in-app Deed Preview actually is, and why the two are not the same thing yet." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/deed-preview/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Digital ownership — MovenRun Docs" />
-<meta property="og:description" content="Zone Deeds turn the places you move through into assets you genuinely own onchain — portable, provable, and yours, with no wallet friction to get started." />
+<meta property="og:title" content="Digital ownership · MovenRun Docs" />
+<meta property="og:description" content="What a Zone Deed is designed to be, what the in-app Deed Preview actually is, and why the two are not the same thing yet." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/deed-preview/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,24 +40,27 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Digital ownership</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Digital ownership</h1>
-<p class="lead">In most games, "your" territory is a row in someone else's database. In MovenRun, it's yours — an asset you hold onchain, provably, portably, permanently.</p>
+<p class="lead">In most games, your territory is a row in someone else's database. In MovenRun it is a row in ours, and the plan is to move it onchain so it stops being one.</p>
 
-<h2 id="what">What you own</h2>
-<p>Every captured zone can become a <strong>Zone Deed</strong>: a unique onchain asset representing that piece of the map, held under your own keys. A deed isn't a badge the game grants and can revoke — it's property you control. You can hold it, strengthen it, defend it, and transfer it, and its history travels with it.</p>
-<figure class="dfig"><img src="/docs/assets/diagrams/zone-deed.svg" alt="A Zone Deed links a hexagonal map zone to an onchain ownership record carrying the holder, provenance, defensive strength, and accrued yield — an asset the player controls with their own keys." width="760" height="330" /><figcaption>A Zone Deed binds a place on the map to an onchain asset you truly own.</figcaption></figure>
+<h2 id="what">What you would own</h2>
+<p>The design gives every captured zone a <strong>Zone Deed</strong>: a unique onchain asset for that piece of the map, held under your own keys. A deed the game cannot revoke, that you can hold, strengthen, defend, and transfer, with its history travelling with it.</p>
+<p>None of that has happened. The deed contract is deployed to Base Sepolia, Base's test network, and no deed has ever been minted, by anyone, on any network.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/zone-deed.svg" alt="A Zone Deed links a hexagonal map zone to an onchain ownership record carrying the holder, provenance, defensive strength, and accrued yield, an asset the player controls with their own keys." width="760" height="330" /><figcaption>A Zone Deed binds a place on the map to an asset the owner controls.</figcaption></figure>
 
-<h2 id="why">Why ownership changes the game</h2>
+<h2 id="preview">What the app shows you today</h2>
+<p>The app has a Deed Preview showroom, and it is worth being precise about what it is. It reads your local stats, captured zones, district mastery, and route signals, and shows what a future deed might look like. It is not real ownership, not a mint, not a claim, and not a marketplace. Nothing in it is tradable, it has no rarity or market value, it earns nothing, and it gates nothing else in the game. It is read-only and deterministic, and it never touches a chain or a wallet.</p>
+
+<h2 id="why">Why ownership would change the game</h2>
 <ul>
-<li><strong>It persists.</strong> Your territory is still yours tomorrow, next season, next year.</li>
-<li><strong>It compounds.</strong> Active deeds earn standing and in-game yield, and combine into districts and city power.</li>
-<li><strong>It's portable.</strong> Ownership lives onchain, under your keys — not locked inside one app's account.</li>
-<li><strong>It's provable.</strong> Anyone can verify what you hold and how you earned it.</li>
+<li><strong>It would persist.</strong> Your territory stays yours next season and next year, outside anyone's ability to reset it.</li>
+<li><strong>It would compound.</strong> Active deeds accrue standing and in-game yield and combine into districts and city power.</li>
+<li><strong>It would be portable.</strong> Ownership onchain under your keys, rather than locked inside one app's account.</li>
+<li><strong>It would be checkable.</strong> Anyone could verify what you hold and how you came by it.</li>
 </ul>
 
 <h2 id="easy">Ownership without the friction</h2>
-<p>Here's the part that makes it work for everyone: you get all of this without doing anything crypto. Your wallet is created for you, fees are covered, and claiming a deed feels like claiming a level in a game. If you're crypto-native, connect your own wallet and take full self-custody. If you're not, you'll own real assets and never have to think about how. See <a href="/docs/technology/web3/">Onchain, made invisible</a> and the technical detail in <a href="/docs/technology/zone-deeds/">Zone Deeds</a>.</p>
+<p>The part that would make this work for everyone is that you get it without doing anything crypto: a wallet created for you, fees covered, claiming a deed feeling like claiming a level. That depends on an embedded wallet provider and sponsored gas, and neither has been chosen or built. See <a href="/docs/technology/web3/">Onchain, made invisible</a> and the technical detail in <a href="/docs/technology/zone-deeds/">Zone Deeds</a>.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/product/clubs/"><span>Previous</span><strong>Clubs, cities & competition</strong></a><a class="pn next" href="/docs/product/wellbeing/"><span>Next</span><strong>Movement for everyone</strong></a></nav>
@@ -75,7 +78,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

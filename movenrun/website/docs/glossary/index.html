@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Glossary — MovenRun Docs</title>
-<meta name="description" content="Definitions for the MovenRun world: zones, capture, fortify, districts, Zone Deeds, $MOVE, proof of movement, oracle, H3, and more." />
+<title>Glossary · MovenRun Docs</title>
+<meta name="description" content="Definitions for the MovenRun world: zones, capture, fortify, districts, Zone Deeds, $MOVE, proof of movement, the oracle, H3, and more." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/glossary/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Glossary — MovenRun Docs" />
-<meta property="og:description" content="Definitions for the MovenRun world: zones, capture, fortify, districts, Zone Deeds, $MOVE, proof of movement, oracle, H3, and more." />
+<meta property="og:title" content="Glossary · MovenRun Docs" />
+<meta property="og:description" content="Definitions for the MovenRun world: zones, capture, fortify, districts, Zone Deeds, $MOVE, proof of movement, the oracle, H3, and more." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/glossary/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,35 +40,34 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Resources</li><li aria-current="page">Glossary</li></ol></nav>
     
     <article class="darticle">
-
 <h1>Glossary</h1>
-<p class="lead">The language of the MovenRun world, defined once.</p>
+<p class="lead">The language of the MovenRun world, defined once. Entries marked <em>planned</em> describe designs that have not been built.</p>
 
 <dl class="dgloss">
-<dt>Movement session</dt><dd>A recorded period of walking, running, or cycling — the fundamental action in MovenRun.</dd>
-<dt>Proof of movement</dt><dd>A verifiable, deterministic proof that a session really happened, attested by the oracle so onchain contracts can act on it.</dd>
-<dt>Zone</dt><dd>One hexagonal cell of the world map — the atom of territory. Every location belongs to exactly one zone.</dd>
-<dt>Territory</dt><dd>The set of zones a player owns and maintains.</dd>
-<dt>Capture</dt><dd>Claiming the zones a verified route crossed, turning them into owned territory.</dd>
-<dt>Zone Deed</dt><dd>The onchain asset representing ownership of a zone — one deed per zone, held under the owner's keys, carrying provenance, defense, and yield.</dd>
-<dt>Defense</dt><dd>A zone's resistance to being taken; it rises with active holding and fortification and is tested by challenges.</dd>
+<dt>Movement session</dt><dd>A recorded period of walking, running, or cycling. The fundamental action in MovenRun.</dd>
+<dt>Proof of movement</dt><dd>A deterministic proof that a session plausibly happened, produced by the verification pipeline. Attesting it onchain is planned.</dd>
+<dt>Zone</dt><dd>One hexagonal cell of the world map, and the atom of territory. Every location belongs to exactly one zone.</dd>
+<dt>Territory</dt><dd>The set of zones a player holds and maintains.</dd>
+<dt>Capture</dt><dd>Claiming the zones a verified route crossed.</dd>
+<dt>Zone Deed</dt><dd><em>Planned.</em> The onchain asset representing ownership of a zone, one per zone, held under the owner's keys, carrying provenance, defense, and yield. None has been minted.</dd>
+<dt>Defense</dt><dd>A zone's resistance to being taken. It rises with active holding and fortification, and a challenge tests it.</dd>
 <dt>Fortify</dt><dd>An action that strengthens a zone you hold.</dd>
-<dt>Challenge</dt><dd>The onchain contest by which one player competes for another's held zone; movement is weighed and the deed holds or changes hands.</dd>
-<dt>District</dt><dd>A group of zones forming a neighborhood, with its own mastery and role in city competition.</dd>
-<dt>City war</dt><dd>A season-long contest between clubs for control of a city's districts.</dd>
-<dt>Club</dt><dd>A team of players who pool territory and standing to compete at district and city scale.</dd>
+<dt>Challenge</dt><dd><em>Planned.</em> The onchain contest by which one player competes for another's held zone. The contract exists on a test network and has never been used.</dd>
+<dt>District</dt><dd>A group of zones forming a neighbourhood, with its own mastery and role in city competition.</dd>
+<dt>City war</dt><dd><em>Planned.</em> A season-long contest between clubs for control of a city's districts.</dd>
+<dt>Club</dt><dd>A team of players who pool territory and standing. Currently a local preview that does not sync between players.</dd>
 <dt>Crew mission</dt><dd>A shared, team-oriented objective for a club.</dd>
-<dt>$MOVE</dt><dd>The network's native asset: minted by verified movement, used across the game, and burned by core actions.</dd>
-<dt>Movement points</dt><dd>The in-game measure of your activity in a session.</dd>
-<dt>Season</dt><dd>A recurring period of competition with its own objectives, standings, and rewards.</dd>
-<dt>Oracle</dt><dd>The service that attests verified proofs of movement onchain, bridging real-world activity to the protocol.</dd>
-<dt>Vault</dt><dd>The staking and community-treasury contract — the network's economic reserve.</dd>
-<dt>Governance</dt><dd>Onchain, timelock-secured proposals and voting through which the community controls the network.</dd>
-<dt>Timelock</dt><dd>A mandatory delay between a governance decision passing and taking effect, giving the community time to react.</dd>
+<dt>$MOVE</dt><dd><em>Planned.</em> The network's native asset, designed to be minted by verified movement, spent across the game, and burned by core actions. None has been minted.</dd>
+<dt>Movement points</dt><dd>The in-game measure of your activity in a session. Unrelated to $MOVE.</dd>
+<dt>Season</dt><dd>A recurring period of competition with its own objectives and standings.</dd>
+<dt>Oracle</dt><dd>The contract holding the operator key that would attest movement proofs onchain. Deployed to Base Sepolia and not yet called.</dd>
+<dt>Vault</dt><dd>The staking and treasury contract. Deployed to Base Sepolia and unused.</dd>
+<dt>Governance</dt><dd><em>Planned.</em> Onchain proposals and voting through which the community would control the network. One account controls it today.</dd>
+<dt>Timelock</dt><dd><em>Planned.</em> A mandatory delay between a governance decision passing and taking effect. Written, but no timelock contract is deployed.</dd>
 <dt>H3</dt><dd>The open hexagonal grid system MovenRun uses to tile the world into zones.</dd>
-<dt>Embedded wallet</dt><dd>A secure wallet created for a player automatically, so ownership works without seed phrases or setup.</dd>
-<dt>Sponsored gas</dt><dd>Transaction fees paid on the player's behalf, so no one needs to hold a gas token to play.</dd>
-<dt>Base</dt><dd>The Ethereum Layer 2 network MovenRun settles on.</dd>
+<dt>Embedded wallet</dt><dd><em>Planned.</em> A wallet created for a player automatically, so ownership works without seed phrases. No provider has been chosen.</dd>
+<dt>Sponsored gas</dt><dd><em>Planned.</em> Transaction fees paid on the player's behalf. There is no paymaster in the codebase.</dd>
+<dt>Base</dt><dd>The Ethereum Layer 2 MovenRun is built for. The contracts are on its test network, Base Sepolia, and nothing is on Base mainnet.</dd>
 </dl>
 
     </article>
@@ -87,7 +86,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

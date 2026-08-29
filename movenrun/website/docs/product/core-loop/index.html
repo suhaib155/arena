@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>The core loop — MovenRun Docs</title>
-<meta name="description" content="Move, Capture, Own, Grow — how MovenRun turns every walk, run, and ride into verifiable territory you truly own and can build on." />
+<title>The core loop · MovenRun Docs</title>
+<meta name="description" content="Move, capture, own, grow. How MovenRun turns a walk into territory on a hex map, and which parts of the loop are live." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/product/core-loop/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="The core loop — MovenRun Docs" />
-<meta property="og:description" content="Move, Capture, Own, Grow — how MovenRun turns every walk, run, and ride into verifiable territory you truly own and can build on." />
+<meta property="og:title" content="The core loop · MovenRun Docs" />
+<meta property="og:description" content="Move, capture, own, grow. How MovenRun turns a walk into territory on a hex map, and which parts of the loop are live." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/product/core-loop/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,32 +40,31 @@
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li>Product</li><li aria-current="page">Core loop</li></ol></nav>
     
     <article class="darticle">
-
 <h1>The core loop</h1>
-<p class="lead">Move → Capture → Own → Grow. Four verbs that turn a walk into an asset — and an asset into a citywide presence.</p>
+<p class="lead">Move, capture, own, grow. Four verbs that take a walk and turn it into a foothold on the map.</p>
 
-<figure class="dfig"><img src="/docs/assets/diagrams/core-loop.svg" alt="The core loop: Move produces a proof of activity; Capture claims the zones you crossed; Own records them as onchain Zone Deeds; Grow compounds territory into districts, clubs, seasons, token, and governance — feeding back into Move." width="760" height="360" /><figcaption>A closed loop where every session makes the next one matter more.</figcaption></figure>
+<figure class="dfig"><img src="/docs/assets/diagrams/core-loop.svg" alt="The core loop: Move produces a checked route; Capture claims the zones you crossed; Own records them as Zone Deeds once that layer ships; Grow compounds territory into districts, clubs, seasons, token, and governance, feeding back into Move." width="760" height="360" /><figcaption>A closed loop where every session makes the next one matter more. The first two steps are live.</figcaption></figure>
 
 <h2 id="move">Move</h2>
-<p>Walk, run, or cycle — all three are first-class. Your session records a route and turns it into a verifiable <a href="/docs/technology/backend/">proof of movement</a>. There are no minimum speeds and nothing to stare at mid-session; the game rewards showing up and covering ground.</p>
+<p>Walk, run, or cycle. All three count equally. Your session records a route and checks it for plausibility, which is what <a href="/docs/technology/backend/">movement verification</a> exists to do. There are no minimum speeds and nothing to stare at mid-session. The game rewards showing up and covering ground.</p>
 
 <h2 id="capture">Capture</h2>
-<p>Your route intersects zones on a global hex map, and finishing a session claims them. Capture is the moment a walk becomes a foothold on the map — the first step from moving to owning.</p>
+<p>Your route intersects zones on a global hex map, and finishing a session claims them. You claim the hexes your route passed through, which is the moment a walk turns into a foothold.</p>
 
 <h2 id="own">Own</h2>
-<p>Captured zones become <a href="/docs/technology/zone-deeds/">Zone Deeds</a>: onchain assets held under your keys. Ownership is the heart of MovenRun — a deed is yours to keep, strengthen, defend against challengers, and transfer. This is what separates MovenRun from every scoreboard: the map remembers you because you actually own part of it.</p>
+<p>The design has captured zones becoming <a href="/docs/technology/zone-deeds/">Zone Deeds</a>: onchain assets held under your own keys, yours to strengthen, defend, and transfer. That is the part that would separate MovenRun from a scoreboard, and it is the part that does not exist. The deed contract is deployed to a test network and nothing has been minted on it. For now a captured zone is a record in the game.</p>
 
 <h2 id="grow">Grow</h2>
-<p>Ownership compounds. Zones form <a href="/docs/product/territory/">districts</a>; districts build <a href="/docs/product/clubs/">club and city</a> standing; active holding earns <a href="/docs/technology/token-design/">$MOVE</a> and in-game yield; and holding stake gives you a <a href="/docs/technology/governance/">vote</a> in the network. A year of morning walks becomes a portfolio of territory and a real voice in how the game runs.</p>
+<p>Ownership is meant to compound. Zones form <a href="/docs/product/territory/">districts</a>, districts build <a href="/docs/product/clubs/">club and city</a> standing, active holding earns <a href="/docs/technology/token-design/">$MOVE</a> and in-game yield, and stake carries a <a href="/docs/technology/governance/">vote</a>. Districts and mastery work today. Clubs run as a local preview. The token and the vote do not exist yet.</p>
 
 <h2 id="examples">The loop at three speeds</h2>
 <div class="tscroll"><table>
 <caption>The same loop works for walking, running, and cycling</caption>
-<thead><tr><th>Mode</th><th>A typical session</th><th>How ownership grows</th></tr></thead>
+<thead><tr><th>Mode</th><th>A typical session</th><th>How territory grows</th></tr></thead>
 <tbody>
-<tr><td>Walking</td><td>20–40 min neighborhood loop</td><td>Deep, durable ownership of home territory; strong streaks and district mastery</td></tr>
-<tr><td>Running</td><td>3–8 km route</td><td>Wider reach per session; ideal for reclaiming contested zones and pushing into new districts</td></tr>
-<tr><td>Cycling</td><td>10–25 km ride</td><td>Broad exploration; touches many zones — returning is what turns exploration into holdings</td></tr>
+<tr><td>Walking</td><td>20 to 40 minutes around the neighbourhood</td><td>Deep, durable hold on home territory, with strong streaks and district mastery</td></tr>
+<tr><td>Running</td><td>A 3 to 8 km route</td><td>Wider reach per session, good for reclaiming contested zones and pushing into new districts</td></tr>
+<tr><td>Cycling</td><td>A 10 to 25 km ride</td><td>Broad exploration that touches many zones. Returning is what turns exploration into holdings</td></tr>
 </tbody></table></div>
 
     </article>
@@ -84,7 +83,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term — for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>
