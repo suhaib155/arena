@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Territory and deeds · MovenRun Docs</title>
+<meta name="description" content="What a MovenRun cell is, how holding and decay work, how districts build out of held ground, and what a deed adds at launch." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/territory/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Territory and deeds · MovenRun Docs" />
+<meta property="og:description" content="What a MovenRun cell is, how holding and decay work, how districts build out of held ground, and what a deed adds at launch." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/territory/" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li><li><a href="/docs/how-it-works/">How it works</a></li></ul></details><details class="dgroup" open><summary>The game</summary><ul><li><a href="/docs/territory/" aria-current="page">Territory and deeds</a></li><li><a href="/docs/movement/">Movement and privacy</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Territory and deeds</li></ol></nav>
+
+    <article class="darticle">
+<h1>Territory and deeds</h1>
+<p class="lead">The world is a hexagonal map, and every cell on it is ground somebody can hold. Move to take it, come back to keep it.</p>
+
+<h2 id="cell">What a cell is</h2>
+<p>A cell is one hexagon of the real world, roughly 0.74 square kilometres, indexed with H3. Hexagons rather than squares because every hexagon borders six others at equal distance, so adjacency behaves the same in all directions. That matters in a game about spreading out from ground you already hold.</p>
+<p>Cells nest. A group of them makes a district, districts make a city, and one grid runs from a single street to a citywide season.</p>
+
+<h2 id="holding">Holding and losing</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/territory-lifecycle.svg" alt="Cell lifecycle: unexplored to captured to held and stable; neglect moves a cell toward contested and at risk; revisiting and fortifying restore strength; strong cells withstand challenges from other players." width="760" height="330" /><figcaption>Ground strengthens when you return and comes under pressure when you do not.</figcaption></figure>
+<p>Every held cell carries a defense meter and a control meter. Defense drains from the moment you stop visiting. Control only starts to drain once defense is empty, so a cell you visit even occasionally stays firmly yours. Push defense low enough and the cell is at risk; leave it long enough after that and it goes dormant and reopens.</p>
+<p>Defending restores defense and adds a little control. Fortifying is the cheaper, narrower action that raises defense alone. Both are deterministic, so the same cell in the same state always shows the same numbers.</p>
+
+<h2 id="districts">Districts and mastery</h2>
+<p>Districts are where holding turns into standing. Take enough of one and you earn mastery over it, which is the game's way of recognising that you are genuinely there rather than passing through. Clubs combine their members' districts to contest a city.</p>
+
+<h2 id="deeds">Deeds, at launch</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/zone-deed.svg" alt="A Zone Deed links a hexagonal map cell to an ownership record carrying the holder, provenance, defensive strength, and accrued tolls, held in the player's own wallet." width="760" height="330" /><figcaption>A deed binds a place on the map to an asset the holder controls.</figcaption></figure>
+<p>A deed is what a held cell becomes when the economy goes live. One deed per cell, held in your own wallet rather than in an account we control, carrying the cell's provenance and its defensive strength with it. Deeds are transferable, so ground can change hands directly as well as by contest.</p>
+<p>Holding a deed pays. Other players who cross your cell pay a toll, and the longer you have held the cell the better the rate you keep. That is the mechanism that makes a regular route worth something: the streets you walk every morning are also the streets other people walk. The full design, including supply, is in <a href="/docs/onchain/">Onchain</a>.</p>
+
+<h2 id="contest">Contesting ground</h2>
+<p>Ground can be taken. A challenger stakes against a cell they want, both sides' movement over the challenge window is weighed, and the deed either holds or moves. Defense, fortification, and how long the holder has held all count toward the defence. A cell you have kept through a season is genuinely harder to take than one claimed last week.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/how-it-works/"><span>Previous</span><strong>How it works</strong></a><a class="pn next" href="/docs/movement/"><span>Next</span><strong>Movement and privacy</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>
