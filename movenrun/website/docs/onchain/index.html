@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Onchain · MovenRun Docs</title>
+<meta name="description" content="The MovenRun deed, toll, and supply design: one deed per cell, tolls paid to holders, and a capped $MOVE schedule issued against verified movement." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/onchain/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Onchain · MovenRun Docs" />
+<meta property="og:description" content="The MovenRun deed, toll, and supply design: one deed per cell, tolls paid to holders, and a capped $MOVE schedule issued against verified movement." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/onchain/" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li><li><a href="/docs/how-it-works/">How it works</a></li></ul></details><details class="dgroup"><summary>The game</summary><ul><li><a href="/docs/territory/">Territory and deeds</a></li><li><a href="/docs/movement/">Movement and privacy</a></li></ul></details><details class="dgroup" open><summary>The network</summary><ul><li><a href="/docs/onchain/" aria-current="page">Onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Onchain</li></ol></nav>
+
+    <article class="darticle">
+<h1>Onchain</h1>
+<p class="lead">MovenRun's contracts run on Base Sepolia while the economy is tested. Mainnet at launch.</p>
+
+<p>What follows is the design those contracts implement.</p>
+
+<h2 id="deeds">Deeds</h2>
+<p>One deed per cell. A deed is held in the player's own wallet, carries the cell's provenance and defensive strength, and can be transferred directly. Holding it is what entitles you to the tolls the cell earns.</p>
+<p>Deeds are issued against ground already held in the game, so the supply of them is bounded by the map rather than by demand. A cell that goes dormant long enough is reclaimed and reopened, which keeps abandoned ground in circulation instead of permanently locked up by somebody who stopped playing.</p>
+
+<h2 id="tolls">Tolls</h2>
+<p>Every time $MOVE is issued for movement through a cell, a share of it goes to that cell's deed holder rather than to the mover. That is the toll, and it is what turns a held cell from a badge into a small piece of infrastructure.</p>
+<p>Length of tenure improves the rate the holder keeps. A cell held past thirty days earns more than one taken last week, and the rate keeps improving through ninety and a hundred and eighty days. Long, consistent holding is the behaviour the economy pays for. That is deliberate, because it is the same behaviour that makes somebody healthier.</p>
+<p>Holders can withdraw accumulated tolls at any time.</p>
+
+<h2 id="supply">$MOVE and the supply schedule</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/token-economy.svg" alt="The $MOVE design: verified movement issues capped $MOVE; players spend it on claims, upgrades, challenges, and seasons; those actions remove supply and pay tolls to deed holders." width="760" height="360" /><figcaption>Movement issues, utility demands, sinks remove. The loop the economy is built on.</figcaption></figure>
+<p>$MOVE is capped at one billion tokens. Nothing mints outside the schedule, and there is no faucet.</p>
+<p>Issuance is per kilometre of verified movement and halves roughly every six months. The first epoch pays ten $MOVE per kilometre against a daily ceiling of two hundred per account, and both numbers halve together at each step. The per account cap is what stops one very determined person absorbing an epoch.</p>
+<p>A weekly valve sits on top. If the rate at which $MOVE is being consumed falls too far behind the rate it is issued, the base rate steps down. The valve only ever reduces.</p>
+<div class="tscroll"><table>
+<caption>Issuance by epoch</caption>
+<thead><tr><th>Epoch</th><th>Approximate period</th><th>Rate</th><th>Daily cap</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>Months 1 to 6</td><td>10 $MOVE per km</td><td>200 $MOVE</td></tr>
+<tr><td>1</td><td>Months 7 to 12</td><td>5 $MOVE per km</td><td>100 $MOVE</td></tr>
+<tr><td>2</td><td>Months 13 to 18</td><td>2.5 $MOVE per km</td><td>50 $MOVE</td></tr>
+<tr><td>3</td><td>Months 19 to 24</td><td>1.25 $MOVE per km</td><td>25 $MOVE</td></tr>
+</tbody></table></div>
+
+<h2 id="sinks">Where it goes</h2>
+<p>Demand comes from things players want to do. Claiming a deed costs $MOVE, and the price scales with how many people are moving that week. Declaring a challenge costs $MOVE. So does fortifying a cell under pressure, extending a challenge window, and minting gear. Those costs are destroyed rather than recycled, so activity tightens supply instead of circulating it.</p>
+<p>The order matters. Sinks and caps were designed before the incentives, because the previous generation of movement economies did it the other way round and did not survive it.</p>
+
+<h2 id="governance">Governance</h2>
+<p>Parameters are meant to end up in the hands of the people playing, through onchain proposals and voting over the treasury and the emission settings. That handover is a later phase, and the <a href="/docs/roadmap/">roadmap</a> says where it sits.</p>
+
+<h2 id="addresses">Contract addresses</h2>
+<p>Published at mainnet launch, alongside the deed registry.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/movement/"><span>Previous</span><strong>Movement and privacy</strong></a><a class="pn next" href="/docs/roadmap/"><span>Next</span><strong>Roadmap</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

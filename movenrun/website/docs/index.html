@@ -4,13 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>MovenRun documentation · MovenRun Docs</title>
-<meta name="description" content="MovenRun is a movement game: cover ground, claim the hexes you cross. What the app does today, and what the onchain layer on Base is designed to become." />
+<meta name="description" content="MovenRun is a movement game. Cover ground on a hexagonal map of the real world, hold the cells you cross, and keep them by coming back." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="MovenRun documentation · MovenRun Docs" />
-<meta property="og:description" content="MovenRun is a movement game: cover ground, claim the hexes you cross. What the app does today, and what the onchain layer on Base is designed to become." />
+<meta property="og:description" content="MovenRun is a movement game. Cover ground on a hexagonal map of the real world, hold the cells you cross, and keep them by coming back." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/" />
+
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -32,55 +33,39 @@
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup" open><summary>Start here</summary><ul><li><a href="/docs/" aria-current="page">Overview</a></li><li><a href="/docs/executive-summary/">Executive summary</a></li><li><a href="/docs/whitepaper/">Whitepaper</a></li></ul></details><details class="dgroup"><summary>Product</summary><ul><li><a href="/docs/product/vision/">Vision</a></li><li><a href="/docs/product/core-loop/">Core loop</a></li><li><a href="/docs/product/movement/">Movement</a></li><li><a href="/docs/product/territory/">Territory</a></li><li><a href="/docs/product/progression/">Progression</a></li><li><a href="/docs/product/clubs/">Community</a></li><li><a href="/docs/product/deed-preview/">Digital ownership</a></li><li><a href="/docs/product/wellbeing/">Accessibility</a></li><li><a href="/docs/product/privacy/">Privacy</a></li></ul></details><details class="dgroup"><summary>Technology</summary><ul><li><a href="/docs/technology/architecture/">Architecture</a></li><li><a href="/docs/technology/web3/">Onchain & wallets</a></li><li><a href="/docs/technology/mobile/">The app</a></li><li><a href="/docs/technology/backend/">Verification</a></li><li><a href="/docs/technology/territory-computation/">Territory computation</a></li><li><a href="/docs/technology/contracts/">Protocol architecture</a></li><li><a href="/docs/technology/zone-deeds/">Zone Deeds</a></li><li><a href="/docs/technology/token-design/">$MOVE economy</a></li><li><a href="/docs/technology/governance/">Governance</a></li><li><a href="/docs/technology/security/">Security</a></li></ul></details><details class="dgroup"><summary>Roadmap</summary><ul><li><a href="/docs/status/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/trust/faq/">FAQ</a></li><li><a href="/docs/glossary/">Glossary</a></li><li><a href="/docs/trust/risks/">Risk factors</a></li><li><a href="/docs/trust/disclaimers/">Legal</a></li></ul></details>
+<details class="dgroup" open><summary>Start here</summary><ul><li><a href="/docs/" aria-current="page">Home</a></li><li><a href="/docs/how-it-works/">How it works</a></li></ul></details><details class="dgroup"><summary>The game</summary><ul><li><a href="/docs/territory/">Territory and deeds</a></li><li><a href="/docs/movement/">Movement and privacy</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
     <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li>Docs</li></ol></nav>
-    
+
     <article class="darticle">
-<h1>MovenRun documentation</h1>
-<p class="lead">MovenRun is a movement game. You walk, run, or cycle, and the ground you cover becomes territory on a shared hexagonal map. This documentation describes what the app does today and what the onchain layer is designed to become.</p>
+<h1>MovenRun</h1>
+<p class="lead">MovenRun is a movement game. You walk, run, or cycle, and the ground you cover becomes territory on a hexagonal map of the real world.</p>
 
-<div class="callout note"><p><strong>Where this stands.</strong> The app works, and so does the verification service behind it: a session is checked for plausibility and reduced to the zones it crossed, stored in Postgres. The app scores sessions on the device for now and talks to the server only for sign-in, so connecting those two is the current piece of work. The onchain layer is a separate, unfinished piece of work: eight contracts are deployed to Base Sepolia, which is Base's test network, and no <a href="/docs/technology/zone-deeds/">Zone Deed</a> has ever been minted. Everything here about ownership, <a href="/docs/technology/token-design/">$MOVE</a>, and governance describes a design rather than something you can use.</p></div>
-
-<h2 id="why">What makes it worth building</h2>
 <div class="cardrow">
-<a class="dcard" href="/docs/product/core-loop/"><strong>You claim the hexes inside your route</strong><span>Every point you pass resolves to a cell on a global grid, and those cells go on your map.</span></a>
-<a class="dcard" href="/docs/technology/backend/"><strong>Movement gets checked</strong><span>Speed, accuracy, and continuity are validated, so the map answers to effort rather than to a spoofing app.</span></a>
-<a class="dcard" href="/docs/technology/web3/"><strong>Nothing crypto to get through</strong><span>No wallet, no gas, no jargon. There is also no onchain layer in the app yet, and those two facts are related.</span></a>
+<a class="dcard" href="/docs/how-it-works/"><strong>How it works</strong><span>The loop, from a session to a district you hold.</span></a>
+<a class="dcard" href="/docs/territory/"><strong>Territory and deeds</strong><span>What a cell is, how holding works, and what a deed adds.</span></a>
+<a class="dcard" href="/docs/onchain/"><strong>Onchain</strong><span>The deed, toll, and supply design.</span></a>
 </div>
 
-<h2 id="core-loop">The core loop</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/core-loop.svg" alt="The MovenRun core loop: Move produces a checked route, which lets you Capture the zones you crossed, which you Own as a Zone Deed once that layer ships, which lets you Grow your territory and standing, and the cycle repeats." width="760" height="360" /><figcaption>Move, capture, own, grow. The first two work today. The third is the part still being built.</figcaption></figure>
-<ol>
-<li><strong>Move.</strong> Walk, run, or cycle. Your route is recorded and then checked.</li>
-<li><strong>Capture.</strong> The zones your route crossed become yours on the map.</li>
-<li><strong>Own.</strong> Held zones are designed to become Zone Deeds you keep in your own wallet. That layer is not live.</li>
-<li><strong>Grow.</strong> Territory rolls up into districts, clubs, and seasons.</li>
-</ol>
+<h2 id="loop">The loop</h2>
+<figure class="dfig"><img src="/docs/assets/diagrams/core-loop.svg" alt="The MovenRun core loop: Move covers ground, Capture claims the cells your route crossed, Hold strengthens them when you return, and Grow builds districts and standing, feeding back into Move." width="760" height="360" /><figcaption>Every session makes the next one matter more.</figcaption></figure>
+<p>Your route passes through hexagonal cells and claims them. Returning strengthens your hold. Stay away and the hold decays until somebody else can take the cell off you. Cells build into districts, and mastering a district means genuinely frequenting the neighbourhood rather than passing through once.</p>
+<p>Pace is not the point. A twenty minute walk you actually repeat beats a fast run you do once, which is what makes the map winnable by ordinary people. See <a href="/docs/how-it-works/">How it works</a>.</p>
 
-<h2 id="everyone">Built for people who do not own a wallet</h2>
-<p>Most people will never write down a seed phrase, and a movement game that requires one has already lost them. The plan is an embedded wallet created in the background and gas paid for you, so the onchain part never surfaces. That plan is not built. No wallet provider has been chosen, and there is no gas sponsorship anywhere in the codebase. What is true today is simpler: you can play the whole game without a wallet, because there is nothing onchain to connect to. See <a href="/docs/technology/web3/">Onchain, made invisible</a>.</p>
+<h2 id="real">Movement has to be real</h2>
+<p>Territory is worth holding only if the movement behind it happened. Every route is checked for plausible speed, usable accuracy, and continuous motion, and a route that repeats one already claimed is rejected. Your coordinates are never stored. See <a href="/docs/movement/">Movement and privacy</a>.</p>
 
-<h2 id="start-reading">Start here</h2>
-<div class="cardrow">
-<a class="dcard" href="/docs/whitepaper/"><strong>Read the whitepaper</strong><span>The thesis, the protocol, the economy, and the roadmap in one document.</span></a>
-<a class="dcard" href="/docs/executive-summary/"><strong>Executive summary</strong><span>The five-minute version, including where the build has actually got to.</span></a>
-<a class="dcard" href="/docs/status/roadmap/"><strong>Roadmap</strong><span>What is done, what is next, and what is a long way off.</span></a>
-</div>
-<ul>
-<li>New here? Start with the <a href="/docs/product/vision/">Vision</a> and the <a href="/docs/product/core-loop/">Core loop</a>.</li>
-<li>Curious how it works? See the <a href="/docs/technology/architecture/">Architecture</a> and <a href="/docs/technology/backend/">Movement verification</a>.</li>
-<li>Here for the economy? Read the <a href="/docs/technology/token-design/">$MOVE economy</a> and <a href="/docs/technology/governance/">Governance</a>.</li>
-</ul>
+<h2 id="launch">What comes at launch</h2>
+<p>Deeds turn a held cell into an asset you keep in your own wallet. Tolls pay the holder when another player crosses their ground. $MOVE is the asset both run on, issued against verified movement on a fixed schedule. The design is set out in <a href="/docs/onchain/">Onchain</a>, and the order of work is in the <a href="/docs/roadmap/">roadmap</a>.</p>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><span class="pn empty"></span><a class="pn next" href="/docs/executive-summary/"><span>Next</span><strong>Executive summary</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><span class="pn empty"></span><a class="pn next" href="/docs/how-it-works/"><span>Next</span><strong>How it works</strong></a></nav>
     <footer class="dfoot">
       <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
-      <p><a href="/docs/trust/disclaimers/">Legal &amp; disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
   <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>How it works · MovenRun Docs</title>
+<meta name="description" content="The MovenRun loop: cover ground, claim the cells your route crosses, hold them by coming back, and build districts out of what you keep." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/how-it-works/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="How it works · MovenRun Docs" />
+<meta property="og:description" content="The MovenRun loop: cover ground, claim the cells your route crosses, hold them by coming back, and build districts out of what you keep." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/how-it-works/" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup" open><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li><li><a href="/docs/how-it-works/" aria-current="page">How it works</a></li></ul></details><details class="dgroup"><summary>The game</summary><ul><li><a href="/docs/territory/">Territory and deeds</a></li><li><a href="/docs/movement/">Movement and privacy</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">How it works</li></ol></nav>
+
+    <article class="darticle">
+<h1>How it works</h1>
+<p class="lead">Cover ground, claim the cells you cross, and keep them by coming back. Four verbs, and the whole game sits on top of them.</p>
+
+<h2 id="move">Move</h2>
+<p>Walk, run, or cycle. All three count the same. Tap once and you are moving within seconds, with distance, time, and pace kept glanceable so your attention stays on the road. Pause and resume whenever you need to. There is no minimum speed and nothing to tap mid session.</p>
+<figure class="dfig"><img src="/docs/assets/diagrams/user-journey.svg" alt="A session end to end: open the map, start moving, follow your live route, finish, review your summary and what you claimed, then return or join a club, looping back to the next session." width="760" height="270" /><figcaption>One session, end to end. It loops back on returning, so tomorrow's walk starts here.</figcaption></figure>
+
+<h2 id="capture">Capture</h2>
+<p>The world is divided into hexagonal cells, each about 0.74 square kilometres, using H3. Every point on Earth falls in exactly one cell, and the cell is the same for every player. Two people standing on the same corner are standing in the same cell, in Lagos or in Leeds.</p>
+<p>Finishing a session claims the cells your route crossed. That is the moment a walk becomes a foothold.</p>
+
+<h2 id="hold">Hold</h2>
+<p>A claimed cell does not stay yours for free. Two meters govern it. Defense drains steadily from the day you last visited. Once defense is gone, control starts draining too, which is what eventually opens the cell to somebody else. Coming back restores both, and fortifying pushes defense higher still.</p>
+<p>The effect is that the map rewards routine. A cell on your regular route is close to untouchable. A cell you claimed once on holiday will not last the month.</p>
+<div class="tscroll"><table>
+<caption>How a cell moves through its states</caption>
+<thead><tr><th>State</th><th>What it means</th></tr></thead>
+<tbody>
+<tr><td><strong>Held</strong></td><td>Yours, defended, and stable.</td></tr>
+<tr><td><strong>At risk</strong></td><td>Defense has drained low. A visit restores it.</td></tr>
+<tr><td><strong>Contested</strong></td><td>Defense is gone and control is draining.</td></tr>
+<tr><td><strong>Dormant</strong></td><td>Left long enough that the cell is open again.</td></tr>
+</tbody></table></div>
+
+<h2 id="grow">Grow</h2>
+<p>Cells group into districts, and districts into cities. Holding a critical mass of a district earns mastery, which is the long arc of the game: the neighbourhoods you actually live in become visibly yours. Clubs pool their members' ground to compete at district and city scale.</p>
+<p>At launch, holding also starts paying. A held cell becomes a deed in your own wallet, and other players crossing it pay you a toll. See <a href="/docs/territory/">Territory and deeds</a>.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/"><span>Previous</span><strong>Home</strong></a><a class="pn next" href="/docs/territory/"><span>Next</span><strong>Territory and deeds</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>
