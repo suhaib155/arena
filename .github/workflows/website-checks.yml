@@ -1,0 +1,55 @@
+name: website-checks
+
+# Tests the website's serverless metadata functions. The website is a static
+# site with no build step and is not part of the Yarn workspace, so this job
+# deliberately installs nothing: the functions are zero-dependency CommonJS and
+# the tests run on Node's built-in runner.
+#
+# Deployment-free, like the contracts job: no Vercel token, no registry address,
+# no key of any kind is read here.
+on:
+  pull_request:
+    paths:
+      - "movenrun/website/**"
+      - ".github/workflows/website-checks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "movenrun/website/**"
+      - ".github/workflows/website-checks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    name: Website metadata tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: movenrun/website
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # No install step on purpose — a dependency here would have to be
+      # bundled into the serverless functions, and the metadata is deterministic
+      # enough not to need one.
+      # Explicit file arguments, not a directory: `node --test tests/` is
+      # resolved as a MODULE path on Node 22 and fails outright, and a pattern
+      # that matches nothing would otherwise pass vacuously. Count first, then
+      # run — a test job that silently tests nothing is worse than no job.
+      - name: Run metadata tests
+        run: |
+          count=$(ls tests/*.test.js 2>/dev/null | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "No website test files matched tests/*.test.js — refusing to pass vacuously."
+            exit 1
+          fi
+          echo "Running $count website test file(s)."
+          node --test tests/*.test.js
