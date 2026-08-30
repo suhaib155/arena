@@ -1,12 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 330" role="img" aria-labelledby="t">
-<title id="t">A Zone Deed binds a map zone to an onchain asset</title>
-<defs>
-<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker>
-<marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#246BFE"/></marker>
-<marker id="arrG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#18C987"/></marker>
-</defs>
-<rect width="760" height="330" rx="18" fill="#F8FAF7"/>
-<text x="40" y="46" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">A Zone Deed</text><polygon points="202.0,128.0 202.0,188.0 150.0,218.0 98.0,188.0 98.0,128.0 150.0,98.0" fill="#E2F8EF" stroke="#18C987" stroke-width="3"/><text x="150" y="246" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12.5" font-weight="700" fill="#111827">A place on the map</text><rect x="320" y="92" width="200" height="150" rx="16" fill="#FFFFFF" stroke="#7657FF" stroke-width="2"/><polygon points="440.8,122.0 440.8,146.0 420.0,158.0 399.2,146.0 399.2,122.0 420.0,110.0" fill="#F4F1FF" stroke="#7657FF" stroke-width="2"/><text x="420" y="182" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13" font-weight="700" fill="#111827">Zone Deed</text><text x="420" y="202" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="10.5" fill="#667085">owner · provenance</text><text x="420" y="218" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="10.5" fill="#667085">defense · yield</text><path d="M 214 158 L 316 158" fill="none" stroke="#7657FF" stroke-width="2" marker-end="url(#arr)"/><rect x="590" y="118" width="140" height="96" rx="14" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.6"/>
-<text x="660" y="160" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Your keys</text>
-<text x="660" y="181" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">planned: held onchain</text><path d="M 520 166 L 586 166" fill="none" stroke="#7657FF" stroke-width="2" marker-end="url(#arr)"/><text x="40" y="300" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">A deed would bind a place on the map to an asset you control.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 268" role="img" aria-labelledby="zonedeed-t zonedeed-d">
+<title id="zonedeed-t">What a Zone Deed records</title>
+<desc id="zonedeed-d">A cell you hold maps to one Zone Deed. The deed records which cell it is, who holds it, and how long it has been held, kept under the holder's own keys.</desc>
+<rect width="360" height="268" rx="18" fill="#F8FAF7"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker></defs>
+<text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">What a deed records</text>
+<polygon points="72,78 97.98,93.0 97.98,123.0 72,138 46.02,123.0 46.02,93.0" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<text x="72" y="158" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">A cell you hold</text>
+<path d="M 110 108 L 140 108" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="150" y="70" width="186" height="98" rx="12" fill="#F4F1FF" stroke="#7657FF" stroke-width="2"/>
+<text x="243" y="96" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Zone Deed</text>
+<text x="243" y="118" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">which cell, and who holds it</text>
+<text x="243" y="136" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">how long it has been held</text>
+<text x="243" y="154" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">kept under your own keys</text>
+<polygon points="34,189 40.06,192.5 40.06,199.5 34,203 27.94,199.5 27.94,192.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
+<text x="50" y="200" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">A cell you hold</text>
+<polygon points="202,189 208.06,192.5 208.06,199.5 202,203 195.94,199.5 195.94,192.5" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.8"/>
+<text x="218" y="200" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Planned</text>
+<text x="24" y="240" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">One deed per cell. A record of standing, nothing more.</text>
 </svg>

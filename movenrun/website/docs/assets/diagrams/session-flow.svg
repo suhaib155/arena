@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 432" role="img" aria-labelledby="sessionflow-t sessionflow-d">
+<title id="sessionflow-t">A session from start to save</title>
+<desc id="sessionflow-d">Four stages: tap start and the app checks location access, move while the screen shows distance, time and pace, finish and confirm, then save to claim a cell and bank XP.</desc>
+<rect width="360" height="432" rx="18" fill="#F8FAF7"/>
+<text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">A session, end to end</text>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker></defs>
+<rect x="74" y="64" width="212" height="56" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="90.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Tap start</text>
+<text x="180.0" y="108.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">the app checks location access</text>
+<path d="M 180.0 123 L 180.0 141" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="146" width="212" height="56" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="172.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Move</text>
+<text x="180.0" y="190.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">distance, time and pace, live</text>
+<path d="M 180.0 205 L 180.0 223" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="228" width="212" height="56" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="254.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Finish</text>
+<text x="180.0" y="272.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">confirm, then review the route</text>
+<path d="M 180.0 287 L 180.0 305" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="310" width="212" height="56" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="336.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Save</text>
+<text x="180.0" y="354.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">claims a cell and banks your XP</text>
+<text x="24" y="410" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Nothing is recorded until you save.</text>
+</svg>

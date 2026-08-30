@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Movement verification · MovenRun Docs</title>
+<meta name="description" content="How MovenRun checks that a route really happened, what gets rejected, and why no coordinates are stored." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/verification/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Movement verification · MovenRun Docs" />
+<meta property="og:description" content="How MovenRun checks that a route really happened, what gets rejected, and why no coordinates are stored." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/verification/" />
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup"><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup" open><summary>Trust</summary><ul><li><a href="/docs/verification/" aria-current="page">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Movement verification</li></ol></nav>
+
+    <article class="darticle">
+<h1>Movement verification</h1>
+<p class="lead">A game about covering ground has to know the ground was covered. It does not have to know where you live, and MovenRun is built so it cannot.</p>
+
+<h2 id="why">Why routes get checked</h2>
+<p>If a route that never happened could claim a cell, holding one would mean nothing, and the people it would stop rewarding first are the ones actually walking. Checking routes is what makes the map worth playing on.</p>
+
+<h2 id="checks">What gets checked</h2>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/verification.svg" alt="Four checks run on every route: speed, accuracy, continuity, and whether the route repeats one already claimed. A route that passes counts toward a cell and XP. A route that fails is rejected and banks nothing." width="360" height="452" /><figcaption>Every route runs all four checks.</figcaption></figure>
+<ul>
+<li><strong>Speed.</strong> A route has to move at speeds a person moves at. Anything implying a vehicle is thrown out.</li>
+<li><strong>Accuracy.</strong> Individual positions that are too imprecise are dropped, and a route made mostly of poor fixes is rejected rather than guessed at.</li>
+<li><strong>Continuity.</strong> A route needs enough positions, close enough together in time, to describe someone actually travelling. A jump across town does not pass.</li>
+<li><strong>Not a repeat.</strong> Each route reduces to a fingerprint. Submitting the same movement twice is caught, as is a route overlapping one already counted.</li>
+</ul>
+
+<h2 id="score">The signal score</h2>
+<p>Every finished session gets a score out of 100 for how clean its GPS was, along with the reasons behind it. Steady accuracy, a realistic pace and a good density of positions push it up. Weak signal, sparse positions or a speed spike pull it down, and the summary names which applied.</p>
+<p>The score is feedback rather than a gate. It does not change your XP, does not decide whether a cell is claimed, and does not affect anything you hold. It is there so you can tell the difference between a quiet session and a phone that had a bad time in a tunnel.</p>
+<p>Over several sessions those scores build into a readiness view, which is a trend line rather than a verdict.</p>
+
+<h2 id="privacy">Your coordinates are not stored</h2>
+<p>This is the part worth being exact about.</p>
+<p>While a session runs, your positions live in memory on your device. They are used for two things: working out whether the movement was plausible, and working out which cells you crossed. When you leave the summary they are gone.</p>
+<p>What is kept afterwards is the distance, the duration, which cells you touched, the signal score and its reasons. No latitude or longitude is written down at any point, so there is no history of where you went for anyone to read, lose or hand over. The fingerprint used to catch repeats is derived from the route and cannot be turned back into one.</p>
+<p>The same rule holds everywhere else in the app. Cell names are invented rather than looked up, districts are assigned by identifier rather than by location, and the weekly recap is built from counts. Nothing in MovenRun resolves your position to a real address, neighbourhood or landmark.</p>
+
+<h2 id="server">Where the checking runs</h2>
+<p>Today the checks run on your device, which is also why everything above stays there. A server-side version of the same pipeline is built and is planned to run alongside it, so that what counts toward a shared map is verified somewhere a device cannot influence. It is not connected to the app yet.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/progress/"><span>Previous</span><strong>Tasks, streaks, levels</strong></a><a class="pn next" href="/docs/points/"><span>Next</span><strong>Points</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

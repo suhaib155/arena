@@ -4,13 +4,15 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Frequently asked questions · MovenRun Docs</title>
-<meta name="description" content="Straight answers about MovenRun: what it is, how ground is held, what happens to your location data, and what arrives at launch." />
+<meta name="description" content="Straight answers about MovenRun: how ground is claimed and kept, what happens to your location data, and what is built versus planned." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/faq/" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Frequently asked questions · MovenRun Docs" />
-<meta property="og:description" content="Straight answers about MovenRun: what it is, how ground is held, what happens to your location data, and what arrives at launch." />
+<meta property="og:description" content="Straight answers about MovenRun: how ground is claimed and kept, what happens to your location data, and what is built versus planned." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/faq/" />
+
+
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,7 +35,7 @@
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li><li><a href="/docs/how-it-works/">How it works</a></li></ul></details><details class="dgroup"><summary>The game</summary><ul><li><a href="/docs/territory/">Territory and deeds</a></li><li><a href="/docs/movement/">Movement and privacy</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup" open><summary>Resources</summary><ul><li><a href="/docs/faq/" aria-current="page">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup"><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup" open><summary>Resources</summary><ul><li><a href="/docs/faq/" aria-current="page">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
@@ -42,45 +44,48 @@
 
     <article class="darticle">
 <h1>Frequently asked questions</h1>
-<p class="lead">Straight answers about what MovenRun is and how it works.</p>
+<p class="lead">Straight answers about what MovenRun is and how much of it exists.</p>
 
 <h2 id="what">What is MovenRun?</h2>
-<p>A movement game. You walk, run, or cycle, and the hexagonal cells your route crosses become ground you hold. Keep visiting and the ground stays yours. Stop, and somebody else takes it.</p>
+<p>A movement game. You walk, run or cycle, and the ground your route covers becomes cells you hold on a map. Keep visiting and the ground stays yours.</p>
 
-<h2 id="pace">Do I have to be fast?</h2>
-<p>No, and the design goes out of its way to make sure of it. Holding ground comes from returning to it rather than from pace or distance, so the strongest players are the most regular ones. A twenty minute walk on a Tuesday morning, every Tuesday morning, beats one long weekend run.</p>
+<h2 id="fast">Do I have to be fast?</h2>
+<p>No, and the design works against it. Ground is kept by returning rather than by pace or distance, only the first saved session each day counts, and XP is capped. A twenty minute walk every morning beats one long weekend run.</p>
 
-<h2 id="lose">Can I lose ground I have taken?</h2>
-<p>Yes. Every held cell has a defense meter that drains while you stay away, and once it empties your control over the cell starts draining too. Visiting restores it. That pressure is the point, because ground nobody can lose is not worth holding.</p>
+<h2 id="claim">How much do I claim per session?</h2>
+<p>One cell. Saving a session claims the first cell on your route that you did not already hold, however far you went. Cells you already held and crossed get their hold refreshed at the same time. See <a href="/docs/capture/">Capture and the map</a>.</p>
+
+<h2 id="lose">Can I lose ground?</h2>
+<p>Your hold on a cell fades while you stay away, and a cell left long enough goes dormant and drops off your active map. Walking it again brings it back. No other player can take a cell from you. See <a href="/docs/holding/">Holding your ground</a>.</p>
 
 <h2 id="location">What happens to my location data?</h2>
-<p>Your positions are used to check the route was plausible and to work out which cells you crossed, and then they are gone. We do not store coordinates. What is kept is the distance, the timing, the cells, and a fingerprint of the route that cannot be turned back into a path. See <a href="/docs/movement/">Movement and privacy</a>.</p>
+<p>Your positions are used during a session to check the movement was plausible and to work out which cells you crossed, and then they are gone. No latitude or longitude is stored. What is kept is distance, duration, which cells you touched, and a signal score. See <a href="/docs/verification/">Movement verification</a>.</p>
+
+<h2 id="background">Does it track me in the background?</h2>
+<p>No. Location is read only while a session is running and only in the foreground.</p>
 
 <h2 id="cheat">What stops people faking movement?</h2>
-<p>Routes are checked on our servers, not on the phone. Speeds that imply a vehicle are rejected, positions with poor accuracy are dropped, a route needs enough points to describe continuous motion, and any route that duplicates one already claimed is thrown out. See <a href="/docs/movement/">Movement and privacy</a>.</p>
+<p>Every route is checked for plausible speed, usable accuracy and continuous motion, and any route that repeats one already counted is rejected. See <a href="/docs/verification/">Movement verification</a>.</p>
 
 <h2 id="crypto">Do I need to know anything about crypto?</h2>
-<p>No. The game is a game. Deeds and $MOVE arrive at launch for players who want that layer, and the map works without it.</p>
+<p>No. There is no wallet in the app and nothing to connect. Deeds are a planned layer and are described in <a href="/docs/onchain/">Deeds and onchain</a>.</p>
 
-<h2 id="buy">Do I have to buy anything?</h2>
-<p>No. You start by moving, and there is nothing to purchase to play.</p>
+<h2 id="buy">Is there anything to buy?</h2>
+<p>No. There is no purchase anywhere in MovenRun and none is planned.</p>
 
-<h2 id="deeds">What is a deed?</h2>
-<p>At launch, a held cell becomes a deed you keep in your own wallet: one per cell, transferable, carrying the cell's history with it. Holding it pays you a toll when other players cross that ground. See <a href="/docs/territory/">Territory and deeds</a>.</p>
+<h2 id="points">What are Points worth?</h2>
+<p>Points are a planned in-game currency for strengthening ground you hold. They have no monetary value and cannot be exchanged for anything outside the game. See <a href="/docs/points/">Points</a>.</p>
 
-<h2 id="token">What is $MOVE for?</h2>
-<p>It is the asset the economy runs on. Verified movement issues it on a capped schedule that halves roughly every six months, claiming and challenging and fortifying consume it, and tolls route a share of it to the holder of the ground you moved through. The design is in <a href="/docs/onchain/">Onchain</a>.</p>
+<h2 id="clubs">Are clubs real?</h2>
+<p>Not yet. The club and city screens are a local preview built from seeded data and do not sync between players. Making them real is the next phase. See <a href="/docs/community/">Districts and clubs</a>.</p>
 
-<h2 id="chain">What chain is it on?</h2>
-<p>The contracts run on Base Sepolia while the economy is tested. Mainnet at launch, with the addresses published then.</p>
-
-<h2 id="live">What is live today?</h2>
-<p>The game: sessions, claiming, holding and decay, districts and mastery, and the verification behind them. The economy is not live. Deeds, tolls, $MOVE, and challenges arrive with launch, in the order set out in the <a href="/docs/roadmap/">roadmap</a>.</p>
+<h2 id="live">What is actually built?</h2>
+<p>Built: movement sessions, capture, holding and decay, districts and mastery, XP, levels, streaks, collections, the weekly recap, and route checking. A local preview: clubs, the city season board, rivals and sponsor zones. Planned: Points, deeds, and wallets. The <a href="/docs/roadmap/">roadmap</a> gives the order.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/roadmap/"><span>Previous</span><strong>Roadmap</strong></a><a class="pn next" href="/docs/disclaimers/"><span>Next</span><strong>Disclaimers</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
       <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
@@ -93,7 +98,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

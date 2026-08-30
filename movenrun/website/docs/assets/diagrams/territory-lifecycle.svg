@@ -1,12 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 330" role="img" aria-labelledby="t">
-<title id="t">Zone lifecycle from unexplored to fortified, with contest and defense</title>
-<defs>
-<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker>
-<marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#246BFE"/></marker>
-<marker id="arrG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#18C987"/></marker>
-</defs>
-<rect width="760" height="330" rx="18" fill="#F8FAF7"/>
-<text x="40" y="46" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">The life of a zone</text><polygon points="142.9,99.0 142.9,137.0 110.0,156.0 77.1,137.0 77.1,99.0 110.0,80.0" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2.5"/><text x="110" y="180" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12.5" font-weight="700" fill="#111827">Unexplored</text><polygon points="282.9,99.0 282.9,137.0 250.0,156.0 217.1,137.0 217.1,99.0 250.0,80.0" fill="#E2F8EF" stroke="#18C987" stroke-width="2.5"/><text x="250" y="180" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12.5" font-weight="700" fill="#111827">Captured</text><polygon points="422.9,99.0 422.9,137.0 390.0,156.0 357.1,137.0 357.1,99.0 390.0,80.0" fill="#E7F0FF" stroke="#246BFE" stroke-width="2.5"/><text x="390" y="180" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12.5" font-weight="700" fill="#111827">Held</text><polygon points="562.9,99.0 562.9,137.0 530.0,156.0 497.1,137.0 497.1,99.0 530.0,80.0" fill="#F4F1FF" stroke="#7657FF" stroke-width="2.5"/><text x="530" y="180" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12.5" font-weight="700" fill="#111827">Stable</text><path d="M 122 118 L 168 118" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#arr)"/><path d="M 262 118 L 308 118" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#arr)"/><path d="M 402 118 L 448 118" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#arr)"/><polygon points="702.9,99.0 702.9,137.0 670.0,156.0 637.1,137.0 637.1,99.0 670.0,80.0" fill="#FDECEC" stroke="#FF6B4A" stroke-width="2.5"/><text x="670" y="180" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12.5" font-weight="700" fill="#111827">Contested</text><path d="M 545 104 C 590 84 610 84 630 98" fill="none" stroke="#FF6B4A" stroke-width="2" marker-end="url(#arr)"/><text x="578" y="76" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">neglect</text><path d="M 632 140 C 610 156 588 156 546 136" fill="none" stroke="#18C987" stroke-width="2" marker-end="url(#arrG)"/><text x="590" y="170" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="10.5" fill="#0A8F60">return &amp; fortify</text><polygon points="559.4,233.0 559.4,267.0 530.0,284.0 500.6,267.0 500.6,233.0 530.0,216.0" fill="#E2F8EF" stroke="#18C987" stroke-width="2.5"/><text x="530" y="303" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" font-weight="700" fill="#111827">Fortified</text><path d="M 530 156 L 530 214" fill="none" stroke="#18C987" stroke-width="2" marker-end="url(#arrG)"/><rect x="600" y="232" width="142" height="52" rx="14" fill="#FFFFFF" stroke="#A3AAB8" stroke-width="1.6"/>
-<text x="671" y="252" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#667085">Challenged</text>
-<text x="671" y="273" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">won by movement</text><text x="40" y="300" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">Territory strengthens when you return and comes under pressure when you don't.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 454" role="img" aria-labelledby="lifecycle-t lifecycle-d">
+<title id="lifecycle-t">The life of a cell</title>
+<desc id="lifecycle-d">A held cell moves through at risk, contested and dormant as it is left alone. Visiting the cell at any of those stages returns it to held.</desc>
+<rect width="360" height="454" rx="18" fill="#F8FAF7"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker><marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#18C987"/></marker></defs>
+<text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">The life of a cell</text>
+<rect x="74" y="66" width="212" height="52" rx="12" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<text x="180.0" y="90.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Held</text>
+<text x="180.0" y="108.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">defense full</text>
+<path d="M 180.0 121 L 180.0 140" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="146" width="212" height="52" rx="12" fill="#FFF9EE" stroke="#F7B955" stroke-width="2"/>
+<text x="180.0" y="170.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">At risk</text>
+<text x="180.0" y="188.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">defense running down</text>
+<path d="M 180.0 201 L 180.0 220" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="226" width="212" height="52" rx="12" fill="#FDECEC" stroke="#FF6B4A" stroke-width="2"/>
+<text x="180.0" y="250.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Contested</text>
+<text x="180.0" y="268.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">defense gone, hold fading</text>
+<path d="M 180.0 281 L 180.0 300" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="306" width="212" height="52" rx="12" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2"/>
+<text x="180.0" y="330.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Dormant</text>
+<text x="180.0" y="348.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">dropped off your map</text>
+<path d="M 292 338 C 330 338 330 96 292 92" fill="none" stroke="#18C987" stroke-width="2" marker-end="url(#a)"/>
+<text x="344" y="227.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" font-weight="700" fill="#0A8F60">visit</text>
+<polygon points="34,373 40.06,376.5 40.06,383.5 34,387 27.94,383.5 27.94,376.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
+<text x="50" y="384" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Held</text>
+<polygon points="202,373 208.06,376.5 208.06,383.5 202,387 195.94,383.5 195.94,376.5" fill="#FFF9EE" stroke="#F7B955" stroke-width="1.8"/>
+<text x="218" y="384" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">At risk</text>
+<polygon points="34,397 40.06,400.5 40.06,407.5 34,411 27.94,407.5 27.94,400.5" fill="#FDECEC" stroke="#FF6B4A" stroke-width="1.8"/>
+<text x="50" y="408" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Contested</text>
+<polygon points="202,397 208.06,400.5 208.06,407.5 202,411 195.94,407.5 195.94,400.5" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.8"/>
+<text x="218" y="408" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Dormant</text>
+<text x="24" y="434" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Only time away moves a cell down this list.</text>
 </svg>

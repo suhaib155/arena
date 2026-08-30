@@ -3,14 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Onchain · MovenRun Docs</title>
-<meta name="description" content="The MovenRun deed, toll, and supply design: one deed per cell, tolls paid to holders, and a capped $MOVE schedule issued against verified movement." />
+<title>Deeds and onchain · MovenRun Docs</title>
+<meta name="description" content="Zone Deeds are the planned onchain record of which cells a player holds. What a deed would record, and where the contracts run today." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/onchain/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Onchain · MovenRun Docs" />
-<meta property="og:description" content="The MovenRun deed, toll, and supply design: one deed per cell, tolls paid to holders, and a capped $MOVE schedule issued against verified movement." />
+<meta property="og:title" content="Deeds and onchain · MovenRun Docs" />
+<meta property="og:description" content="Zone Deeds are the planned onchain record of which cells a player holds. What a deed would record, and where the contracts run today." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/onchain/" />
+
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,57 +34,40 @@
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li><li><a href="/docs/how-it-works/">How it works</a></li></ul></details><details class="dgroup"><summary>The game</summary><ul><li><a href="/docs/territory/">Territory and deeds</a></li><li><a href="/docs/movement/">Movement and privacy</a></li></ul></details><details class="dgroup" open><summary>The network</summary><ul><li><a href="/docs/onchain/" aria-current="page">Onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup"><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup" open><summary>The network</summary><ul><li><a href="/docs/onchain/" aria-current="page">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
-    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Onchain</li></ol></nav>
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Deeds and onchain</li></ol></nav>
 
     <article class="darticle">
-<h1>Onchain</h1>
-<p class="lead">MovenRun's contracts run on Base Sepolia while the economy is tested. Mainnet at launch.</p>
+<h1>Deeds and onchain</h1>
+<p class="lead">MovenRun's contracts run on Base Sepolia while the design is tested. Mainnet at launch.</p>
 
-<p>What follows is the design those contracts implement.</p>
+<h2 id="deeds">What a deed is</h2>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/zone-deed.svg" alt="A cell you hold maps to one Zone Deed. The deed records which cell it is, who holds it, and how long it has been held, kept under the holder's own keys." width="360" height="268" /><figcaption>One deed per cell. A record of standing, nothing more.</figcaption></figure>
+<p>A Zone Deed is a durable record of a cell you hold. One deed per cell. It records which cell, who holds it, and how long they have held it, and it is kept under the holder's own keys rather than in an account somebody else controls.</p>
+<p>What a deed is for is permanence. Everything you build in MovenRun today lives on your device, and a deed is how a long-held cell becomes a record that outlasts a reinstall.</p>
 
-<h2 id="deeds">Deeds</h2>
-<p>One deed per cell. A deed is held in the player's own wallet, carries the cell's provenance and defensive strength, and can be transferred directly. Holding it is what entitles you to the tolls the cell earns.</p>
-<p>Deeds are issued against ground already held in the game, so the supply of them is bounded by the map rather than by demand. A cell that goes dormant long enough is reclaimed and reopened, which keeps abandoned ground in circulation instead of permanently locked up by somebody who stopped playing.</p>
+<h2 id="standing">A record of standing</h2>
+<p>A deed is a record of standing in a game. It is not property, it is not an investment, and it is not designed to carry value. Holding one says you have held that cell, and nothing else.</p>
+<p>Length of holding is the thing a deed is designed to make legible. Ground held for a year reads differently from ground claimed last week, and that difference is the only ranking a deed expresses.</p>
 
-<h2 id="tolls">Tolls</h2>
-<p>Every time $MOVE is issued for movement through a cell, a share of it goes to that cell's deed holder rather than to the mover. That is the toll, and it is what turns a held cell from a badge into a small piece of infrastructure.</p>
-<p>Length of tenure improves the rate the holder keeps. A cell held past thirty days earns more than one taken last week, and the rate keeps improving through ninety and a hundred and eighty days. Long, consistent holding is the behaviour the economy pays for. That is deliberate, because it is the same behaviour that makes somebody healthier.</p>
-<p>Holders can withdraw accumulated tolls at any time.</p>
+<h2 id="where">Where the contracts are</h2>
+<p>The contracts are deployed to Base Sepolia, which is a test network, while the design is worked through. Nothing has been issued on them. Addresses go up at mainnet launch, alongside the deed registry itself.</p>
 
-<h2 id="supply">$MOVE and the supply schedule</h2>
-<figure class="dfig"><img src="/docs/assets/diagrams/token-economy.svg" alt="The $MOVE design: verified movement issues capped $MOVE; players spend it on claims, upgrades, challenges, and seasons; those actions remove supply and pay tolls to deed holders." width="760" height="360" /><figcaption>Movement issues, utility demands, sinks remove. The loop the economy is built on.</figcaption></figure>
-<p>$MOVE is capped at one billion tokens. Nothing mints outside the schedule, and there is no faucet.</p>
-<p>Issuance is per kilometre of verified movement and halves roughly every six months. The first epoch pays ten $MOVE per kilometre against a daily ceiling of two hundred per account, and both numbers halve together at each step. The per account cap is what stops one very determined person absorbing an epoch.</p>
-<p>A weekly valve sits on top. If the rate at which $MOVE is being consumed falls too far behind the rate it is issued, the base rate steps down. The valve only ever reduces.</p>
-<div class="tscroll"><table>
-<caption>Issuance by epoch</caption>
-<thead><tr><th>Epoch</th><th>Approximate period</th><th>Rate</th><th>Daily cap</th></tr></thead>
-<tbody>
-<tr><td>0</td><td>Months 1 to 6</td><td>10 $MOVE per km</td><td>200 $MOVE</td></tr>
-<tr><td>1</td><td>Months 7 to 12</td><td>5 $MOVE per km</td><td>100 $MOVE</td></tr>
-<tr><td>2</td><td>Months 13 to 18</td><td>2.5 $MOVE per km</td><td>50 $MOVE</td></tr>
-<tr><td>3</td><td>Months 19 to 24</td><td>1.25 $MOVE per km</td><td>25 $MOVE</td></tr>
-</tbody></table></div>
+<h2 id="wallet">Wallets</h2>
+<p>Holding a deed needs somewhere to keep it. The intent is that this is arranged for you and stays out of the way, so that the game does not begin with a setup task. That work has not started and no provider has been chosen.</p>
+<p>Until it does, MovenRun asks nothing of you on this front. There is no wallet in the app and nothing to connect.</p>
 
-<h2 id="sinks">Where it goes</h2>
-<p>Demand comes from things players want to do. Claiming a deed costs $MOVE, and the price scales with how many people are moving that week. Declaring a challenge costs $MOVE. So does fortifying a cell under pressure, extending a challenge window, and minting gear. Those costs are destroyed rather than recycled, so activity tightens supply instead of circulating it.</p>
-<p>The order matters. Sinks and caps were designed before the incentives, because the previous generation of movement economies did it the other way round and did not survive it.</p>
-
-<h2 id="governance">Governance</h2>
-<p>Parameters are meant to end up in the hands of the people playing, through onchain proposals and voting over the treasury and the emission settings. That handover is a later phase, and the <a href="/docs/roadmap/">roadmap</a> says where it sits.</p>
-
-<h2 id="addresses">Contract addresses</h2>
-<p>Published at mainnet launch, alongside the deed registry.</p>
+<h2 id="points">Deeds and Points</h2>
+<p>These are separate designs. <a href="/docs/points/">Points</a> are an in-game currency for strengthening ground. A deed is a record of which ground you hold. Neither converts into the other, and neither carries monetary value.</p>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/movement/"><span>Previous</span><strong>Movement and privacy</strong></a><a class="pn next" href="/docs/roadmap/"><span>Next</span><strong>Roadmap</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/points/"><span>Previous</span><strong>Points</strong></a><a class="pn next" href="/docs/roadmap/"><span>Next</span><strong>Roadmap</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
       <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
@@ -96,7 +80,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

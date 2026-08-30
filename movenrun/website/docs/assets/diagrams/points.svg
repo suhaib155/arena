@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" role="img" aria-labelledby="points-t points-d">
+<title id="points-t">How Points are designed to work</title>
+<desc id="points-d">Points are earned by saving a session, spent on strengthening a cell you hold, and a stronger cell fades more slowly. Points are planned and are an in-game currency with no monetary value.</desc>
+<rect width="360" height="360" rx="18" fill="#F8FAF7"/>
+<text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">Points, as designed</text>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker></defs>
+<rect x="74" y="64" width="212" height="54" rx="12" fill="#FFF9EE" stroke="#F7B955" stroke-width="2"/>
+<text x="180.0" y="89.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Move and save</text>
+<text x="180.0" y="107.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">a session earns Points</text>
+<path d="M 180.0 121 L 180.0 137" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="142" width="212" height="54" rx="12" fill="#FFF9EE" stroke="#F7B955" stroke-width="2"/>
+<text x="180.0" y="167.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Spend on ground</text>
+<text x="180.0" y="185.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">strengthen a cell you hold</text>
+<path d="M 180.0 199 L 180.0 215" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="220" width="212" height="54" rx="12" fill="#FFF9EE" stroke="#F7B955" stroke-width="2"/>
+<text x="180.0" y="245.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Hold longer</text>
+<text x="180.0" y="263.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">a stronger cell fades slower</text>
+<polygon points="34,307 40.06,310.5 40.06,317.5 34,321 27.94,317.5 27.94,310.5" fill="#FFF9EE" stroke="#F7B955" stroke-width="1.8"/>
+<text x="50" y="318" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Planned, not in the app yet</text>
+<text x="24" y="344" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">An in-game currency with no monetary value.</text>
+</svg>

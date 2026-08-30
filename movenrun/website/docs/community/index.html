@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Districts and clubs · MovenRun Docs</title>
+<meta name="description" content="How MovenRun cells feed districts, what mastering a district takes, and what the club and city layer is today." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/community/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Districts and clubs · MovenRun Docs" />
+<meta property="og:description" content="How MovenRun cells feed districts, what mastering a district takes, and what the club and city layer is today." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/community/" />
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup" open><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/" aria-current="page">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Districts and clubs</li></ol></nav>
+
+    <article class="darticle">
+<h1>Districts and clubs</h1>
+<p class="lead">Above individual cells sit districts, and above districts sits a city layer. The first is in the app. The second is a preview.</p>
+
+<h2 id="districts">Districts</h2>
+<p>There are eight districts, with fixed names: North Loop, Glass Quarter, Signal Yard, Riverline, Pulse Market, Beacon Park, Volt Junction and Dawn Grid.</p>
+<p>They are a flavour layer rather than places. Each cell you hold is assigned to one of the eight by its own identifier, so the grouping is stable and repeatable, and a district is not an area of your city. Nothing about a district reflects where you actually went. That is deliberate, and it is the same reason cells carry invented names rather than street names.</p>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/districts.svg" alt="Cells you hold are each assigned to one of eight fixed districts by the cell's own identifier rather than by geography. Holding enough cells in a district earns mastery of it." width="360" height="380" /><figcaption>Districts are eight fixed names, not map areas.</figcaption></figure>
+
+<h2 id="status">District status</h2>
+<p>A district takes its status from the cells inside it. A district with no cells is locked. One cell makes it emerging, two or more in good standing make it controlled, and a district holding cells that are at risk or dormant shows as needing attention.</p>
+<p>The city view sorts your districts by which of them needs a visit most, so the app can answer the only question that matters on the way out of the door.</p>
+
+<h2 id="mastery">Mastery</h2>
+<p>Mastery is the long arc. Each district carries a score built from how much of it you control, how well defended those cells are, how consistently you have been moving, and how clean your recent GPS signal has been.</p>
+<p>The score sorts a district into one of five bands: discovered, rising, fortified, and signature at the top, with locked for districts you have not reached. Getting to signature takes sustained holding rather than a single good week.</p>
+
+<h2 id="clubs">Clubs, as a preview</h2>
+<div class="callout note"><p><strong>Clubs are a local preview.</strong> The club list in the app is seeded data. The rival figures are fixed numbers rather than other people's activity, and nothing syncs between players. Your own club figures are real, because they are built from your own stats.</p></div>
+<p>The design is that joining a club pools the ground its members hold, and clubs then compete over districts across a season. The city view in the app shows the shape of that: a season board, district standing, and pressure on the districts you hold least well.</p>
+<p>Making it real needs shared state between players, which is the next substantial piece of work. Until then the club layer is best read as a mockup you can walk around in. The <a href="/docs/roadmap/">roadmap</a> puts it directly after the movement game.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/holding/"><span>Previous</span><strong>Holding your ground</strong></a><a class="pn next" href="/docs/progress/"><span>Next</span><strong>Tasks, streaks, levels</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

@@ -1,32 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 382" role="img" aria-labelledby="capture-t capture-d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 408" role="img" aria-labelledby="capture-t capture-d">
 <title id="capture-t">How a session claims one new cell</title>
-<desc id="capture-d">A route touches three cells: one already held and two not. Saving the session claims only the first cell that was not already held. The held cell it crossed has its hold refreshed, and the second unheld cell stays unclaimed.</desc>
-<rect width="360" height="382" rx="18" fill="#F8FAF7"/>
+<desc id="capture-d">A route touches three cells: one already held and two not. Saving the session claims only the first cell that was not already held. The held cell on the route has its hold refreshed, shown by a ring, and the second unheld cell stays unclaimed.</desc>
+<rect width="360" height="408" rx="18" fill="#F8FAF7"/>
 <text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">How a cell is claimed</text>
-
 <text x="24" y="72" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">While you move</text>
-
 <polygon points="90,95 111.65,107.5 111.65,132.5 90,145 68.35,132.5 68.35,107.5" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
 <polygon points="135,95 156.65,107.5 156.65,132.5 135,145 113.35,132.5 113.35,107.5" fill="#E2F8EF" stroke="#246BFE" stroke-width="2.5"/>
 <polygon points="180,95 201.65,107.5 201.65,132.5 180,145 158.35,132.5 158.35,107.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="2.5"/>
 <polygon points="225,95 246.65,107.5 246.65,132.5 225,145 203.35,132.5 203.35,107.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="2.5"/>
 <polygon points="270,95 291.65,107.5 291.65,132.5 270,145 248.35,132.5 248.35,107.5" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2"/>
-<path d="M 30 158 C 70 156 95 150 118 138 C 140 127 158 120 180 116 C 205 111 225 102 246 92" fill="none" stroke="#246BFE" stroke-width="2.5" stroke-linecap="round"/>
-
-<polygon points="34,170 40.06,173.5 40.06,180.5 34,184 27.94,180.5 27.94,173.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.6"/>
-<text x="50" y="181" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Ground you already hold</text>
-<polygon points="34,194 40.06,197.5 40.06,204.5 34,208 27.94,204.5 27.94,197.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="1.8"/>
-<text x="50" y="205" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Cells this route touches</text>
-
-<text x="24" y="250" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">When you save the session</text>
-
-<polygon points="90,263 111.65,275.5 111.65,300.5 90,313 68.35,300.5 68.35,275.5" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
-<polygon points="135,263 156.65,275.5 156.65,300.5 135,313 113.35,300.5 113.35,275.5" fill="#E2F8EF" stroke="#18C987" stroke-width="2.5"/>
-<polygon points="180,263 201.65,275.5 201.65,300.5 180,313 158.35,300.5 158.35,275.5" fill="#F4F1FF" stroke="#7657FF" stroke-width="2.5"/>
-<polygon points="225,263 246.65,275.5 246.65,300.5 225,313 203.35,300.5 203.35,275.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="2.5"/>
-<polygon points="270,263 291.65,275.5 291.65,300.5 270,313 248.35,300.5 248.35,275.5" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2"/>
-<path d="M 180 313 L 180 326" fill="none" stroke="#7657FF" stroke-width="2"/>
-
-<text x="24" y="350" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">One cell is claimed, the first you did not hold.</text>
-<text x="24" y="366" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">The held cell you crossed is refreshed.</text>
+<polyline points="34,162 66,156 96,148 118,138 135,128 156,122 180,116 205,112 226,108" fill="none" stroke="#246BFE" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="34" cy="162" r="3.5" fill="#246BFE"/>
+<circle cx="226" cy="108" r="3.5" fill="#246BFE"/>
+<text x="24" y="196" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">When you save the session</text>
+<polygon points="90,219 111.65,231.5 111.65,256.5 90,269 68.35,256.5 68.35,231.5" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<polygon points="135,214.5 160.55,229.25 160.55,258.75 135,273.5 109.45,258.75 109.45,229.25" fill="none" stroke="#18C987" stroke-width="1.4"/>
+<polygon points="135,219 156.65,231.5 156.65,256.5 135,269 113.35,256.5 113.35,231.5" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<polygon points="180,219 201.65,231.5 201.65,256.5 180,269 158.35,256.5 158.35,231.5" fill="#F4F1FF" stroke="#7657FF" stroke-width="2.5"/>
+<polygon points="225,219 246.65,231.5 246.65,256.5 225,269 203.35,256.5 203.35,231.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="2"/>
+<polygon points="270,219 291.65,231.5 291.65,256.5 270,269 248.35,256.5 248.35,231.5" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2"/>
+<path d="M 26 296 L 42 296" fill="none" stroke="#246BFE" stroke-width="2.5" stroke-linecap="round"/>
+<circle cx="26" cy="296" r="3" fill="#246BFE"/>
+<circle cx="42" cy="296" r="3" fill="#246BFE"/>
+<text x="50" y="300" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Your route</text>
+<polygon points="202,289 208.06,292.5 208.06,299.5 202,303 195.94,299.5 195.94,292.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="1.8"/>
+<text x="218" y="300" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Cell it touched</text>
+<polygon points="34,313 40.06,316.5 40.06,323.5 34,327 27.94,323.5 27.94,316.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
+<text x="50" y="324" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Ground you hold</text>
+<polygon points="202,309.5 211.09,314.75 211.09,325.25 202,330.5 192.91,325.25 192.91,314.75" fill="none" stroke="#18C987" stroke-width="1.4"/>
+<polygon points="202,314 207.2,317.0 207.2,323.0 202,326 196.8,323.0 196.8,317.0" fill="#E2F8EF" stroke="#18C987" stroke-width="1.6"/>
+<text x="218" y="324" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Hold refreshed</text>
+<polygon points="34,337 40.06,340.5 40.06,347.5 34,351 27.94,347.5 27.94,340.5" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.8"/>
+<text x="50" y="348" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Claimed this session</text>
+<text x="24" y="376" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">One cell is claimed, the first you did not hold.</text>
+<text x="24" y="392" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">The held cell on your route is refreshed.</text>
 </svg>
