@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Holding your ground · MovenRun Docs</title>
+<meta name="description" content="How a MovenRun cell stays yours: the defense and control meters, how fast a hold fades, and what returning and fortifying do." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/holding/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Holding your ground · MovenRun Docs" />
+<meta property="og:description" content="How a MovenRun cell stays yours: the defense and control meters, how fast a hold fades, and what returning and fortifying do." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/holding/" />
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup" open><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/" aria-current="page">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Holding your ground</li></ol></nav>
+
+    <article class="darticle">
+<h1>Holding your ground</h1>
+<p class="lead">Claiming a cell is the easy part. Every cell you hold has a grip that loosens while you stay away, and walking it again is what tightens it.</p>
+
+<h2 id="meters">Two meters</h2>
+<p>Each cell you hold carries two numbers. <strong>Defense</strong> is the buffer, and it starts at 40 out of 100 the moment you claim the cell. <strong>Control</strong> is your actual grip, and it starts full at 100.</p>
+<p>Defense drains by 12 points a day from your last visit. Control does not move at all while defense has anything left in it. Only once defense reaches zero does control start dropping, and then only by 6 points a day.</p>
+<p>The effect is a grace period. A freshly claimed cell has a bit over three days before your grip starts loosening, and a cell you visit regularly never loses any grip at all.</p>
+
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/hold-decay.svg" alt="A line chart over fourteen days. Defense starts at 40 percent and falls to zero after about three days, then stays at zero. Control holds at 100 percent until defense reaches zero, then falls more slowly to about 35 percent at fourteen days." width="360" height="370" /><figcaption>Visiting the cell resets both.</figcaption></figure>
+
+<h2 id="states">What the states mean</h2>
+<p>Those two numbers put every cell into one of four states, which is what the map colours.</p>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/territory-lifecycle.svg" alt="A cell moves from held, to at risk, to contested, to dormant as it is left alone. Visiting the cell at any of those stages returns it to held." width="360" height="470" /><figcaption>Only time away moves a cell down this list.</figcaption></figure>
+<div class="tscroll"><table>
+<caption>The four states a held cell can be in</caption>
+<thead><tr><th>State</th><th>When</th><th>What it means</th></tr></thead>
+<tbody>
+<tr><td><strong>Held</strong></td><td>Defense above 25</td><td>Solid. Nothing needed.</td></tr>
+<tr><td><strong>At risk</strong></td><td>Defense below 25</td><td>The buffer is nearly gone. One visit refills it.</td></tr>
+<tr><td><strong>Contested</strong></td><td>Defense at zero for about six days</td><td>The buffer has run out and your hold is fading. A visit still recovers it.</td></tr>
+<tr><td><strong>Dormant</strong></td><td>Control below 35, or twelve days away</td><td>The cell has dropped off your active map. Walking it again brings it back.</td></tr>
+</tbody></table></div>
+<p>Contested is a description of your own neglect rather than of anything happening around you. Nobody takes a cell off you in MovenRun. Time is the only thing that moves a cell down this list, and a visit is the only thing that moves it back up.</p>
+
+<h2 id="returning">Returning</h2>
+<p>When you save a session, every cell you already held that your route crossed gets refreshed automatically. Defense goes up by 40 and control by 10, both capped at 100, and the clock starts again from that moment.</p>
+<p>That is the main way ground stays yours, and it costs nothing beyond going for the walk. A regular route through your own neighbourhood keeps a dozen cells permanently solid without you ever thinking about it.</p>
+
+<h2 id="fortify">Fortifying</h2>
+<p>Fortifying is the deliberate version. From a cell's detail view you can add 25 to its defense without going anywhere, once per cell per day. It is free.</p>
+<p>Fortifying tops up the buffer and nothing else, so it buys time rather than grip. It is what you reach for when you know you will be away for a while.</p>
+
+<h2 id="reclaim">Bringing a dormant cell back</h2>
+<p>A dormant cell is not lost. It sits on your map in a faded state, and the next session whose route crosses it picks it straight back up. Long absences cost you position, not history.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/capture/"><span>Previous</span><strong>Capture and the map</strong></a><a class="pn next" href="/docs/community/"><span>Next</span><strong>Districts and clubs</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

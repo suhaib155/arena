@@ -187,6 +187,10 @@ h2:hover .hanchor, h3:hover .hanchor, .hanchor:focus-visible { opacity: 1; }
 /* Figures / diagrams */
 .dfig { margin: 20px 0 24px; background: #fff; border-radius: 20px; padding: 18px; box-shadow: 0 10px 30px rgba(16,24,40,0.07), inset 0 0 0 1px rgba(17,24,39,0.05); }
 .dfig img { width: 100%; height: auto; }
+/* Narrow-format diagrams are authored around a 360-unit viewBox so their
+   labels stay legible when the column shrinks to ~318px on a phone. Cap the
+   width on wide screens so they don't scale past their own type sizes. */
+.dfig-narrow img { max-width: 420px; margin: 0 auto; }
 .dfig figcaption { font: 500 12.5px/1.6 var(--font-body); color: var(--graphite); margin-top: 12px; }
 
 /* Cards */

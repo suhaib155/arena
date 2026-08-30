@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Points · MovenRun Docs</title>
+<meta name="description" content="Points are the planned in-game currency in MovenRun: what would earn them, what they would be spent on, and what they are not." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/points/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Points · MovenRun Docs" />
+<meta property="og:description" content="Points are the planned in-game currency in MovenRun: what would earn them, what they would be spent on, and what they are not." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/points/" />
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup"><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup" open><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/" aria-current="page">Points</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Points</li></ol></nav>
+
+    <article class="darticle">
+<h1>Points</h1>
+<p class="lead">Points are the planned in-game currency. They are not in the app, and this page describes a design rather than something you can hold.</p>
+
+<h2 id="what">What Points are for</h2>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/points.svg" alt="Points are earned by saving a session, spent on strengthening a cell you hold, and a stronger cell fades more slowly. Points are planned and are an in-game currency with no monetary value." width="360" height="330" /><figcaption>An in-game currency with no monetary value.</figcaption></figure>
+<p>The intent is a single in-game currency that connects moving to holding. Saving a session is designed to earn Points. Spending them is designed to strengthen ground you already hold, so that a cell you have invested in fades more slowly than one you have not.</p>
+<p>That gives the map a second lever. Today the only way to keep ground is to walk it. With Points there would also be a way to prepare for a week when you know you cannot.</p>
+
+<h2 id="earning">What would earn them</h2>
+<p>The same things that already earn XP: saving a movement session, and completing the daily tasks. Points are designed to sit alongside XP rather than replace it, with XP tracking how far you have come and Points being something you spend.</p>
+
+<h2 id="spending">What they would be spent on</h2>
+<ul>
+<li>Fortifying a cell beyond what the free daily action gives.</li>
+<li>Strengthening a district you are working toward mastering.</li>
+<li>Entering the seasonal city play once clubs sync between players.</li>
+</ul>
+
+<h2 id="not">What Points are not</h2>
+<p>Points have no monetary value. They cannot be bought, sold, cashed out or exchanged, and they are not designed to become any of those things later. There is no purchase anywhere in MovenRun and none is planned.</p>
+<p>Points and <a href="/docs/onchain/">deeds</a> are separate. A deed records which cells you hold. Points are spent inside the game. Neither is a holding of value.</p>
+
+<h2 id="when">When</h2>
+<p>Points come after clubs sync between players, because a currency is only interesting once there is something shared to spend it against. The order is in the <a href="/docs/roadmap/">roadmap</a>.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/verification/"><span>Previous</span><strong>Movement verification</strong></a><a class="pn next" href="/docs/onchain/"><span>Next</span><strong>Deeds and onchain</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>

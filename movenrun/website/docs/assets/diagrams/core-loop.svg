@@ -1,20 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" role="img" aria-labelledby="t">
-<title id="t">MovenRun core loop: Move, Capture, Own, Grow</title>
-<defs>
-<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker>
-<marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#246BFE"/></marker>
-<marker id="arrG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#18C987"/></marker>
-</defs>
-<rect width="760" height="360" rx="18" fill="#F8FAF7"/>
-<text x="40" y="46" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">The core loop</text><rect x="60" y="92" width="158" height="64" rx="14" fill="#E7F0FF" stroke="#246BFE" stroke-width="1.6"/>
-<text x="139" y="118" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Move</text>
-<text x="139" y="139" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">checked activity</text><rect x="300" y="92" width="158" height="64" rx="14" fill="#E2F8EF" stroke="#18C987" stroke-width="1.6"/>
-<text x="379" y="118" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Capture</text>
-<text x="379" y="139" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">claim the zones</text><rect x="300" y="240" width="158" height="64" rx="14" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.6"/>
-<text x="379" y="266" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Own</text>
-<text x="379" y="287" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">Zone Deeds, planned</text><rect x="60" y="240" width="158" height="64" rx="14" fill="#FDF3E1" stroke="#F7B955" stroke-width="1.6"/>
-<text x="139" y="266" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Grow</text>
-<text x="139" y="287" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">districts · token · vote</text><path d="M 218 124 L 296 124" fill="none" stroke="#246BFE" stroke-width="2" marker-end="url(#arrB)"/><path d="M 379 156 L 379 236" fill="none" stroke="#18C987" stroke-width="2" marker-end="url(#arrG)"/><path d="M 300 272 L 222 272" fill="none" stroke="#7657FF" stroke-width="2" marker-end="url(#arr)"/><path d="M 139 236 L 139 160" fill="none" stroke="#F7B955" stroke-width="2" marker-end="url(#arr)"/><rect x="520" y="150" width="196" height="96" rx="14" fill="#FFFFFF" stroke="#7657FF" stroke-width="1.6"/>
-<text x="618" y="192" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#111827">Planned layer</text>
-<text x="618" y="213" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11" fill="#667085">your territory, your keys</text><path d="M 458 210 L 516 200" fill="none" stroke="#7657FF" stroke-width="2"/><text x="40" y="336" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">Every loop deepens what you hold, and what you can do with it.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 432" role="img" aria-labelledby="coreloop-t coreloop-d">
+<title id="coreloop-t">The MovenRun core loop</title>
+<desc id="coreloop-d">Four steps in a cycle: move, capture a cell, hold it by returning, and grow your districts and streaks. The cycle then repeats from the top.</desc>
+<rect width="360" height="432" rx="18" fill="#F8FAF7"/>
+<text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">The core loop</text>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker></defs>
+<rect x="74" y="64" width="212" height="56" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="90.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Move</text>
+<text x="180.0" y="108.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">walk, run or cycle</text>
+<path d="M 180.0 123 L 180.0 141" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="146" width="212" height="56" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="172.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Capture</text>
+<text x="180.0" y="190.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">claim a cell you did not hold</text>
+<path d="M 180.0 205 L 180.0 223" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="228" width="212" height="56" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="254.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Hold</text>
+<text x="180.0" y="272.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">return before your hold fades</text>
+<path d="M 180.0 287 L 180.0 305" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="310" width="212" height="56" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="336.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Grow</text>
+<text x="180.0" y="354.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">districts, mastery, streaks</text>
+<text x="24" y="410" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Each session runs the loop once.</text>
 </svg>

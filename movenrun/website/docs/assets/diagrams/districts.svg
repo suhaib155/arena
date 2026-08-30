@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="districts-t districts-d">
+<title id="districts-t">How cells feed a district</title>
+<desc id="districts-d">Cells you hold are each assigned to one of eight fixed districts, chosen by the cell's own identifier rather than by geography. Holding enough cells in a district earns mastery of it.</desc>
+<rect width="360" height="380" rx="18" fill="#F8FAF7"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A3AAB8"/></marker></defs>
+<text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">How cells feed a district</text>
+<polygon points="66,80 83.32,90.0 83.32,110.0 66,120 48.68,110.0 48.68,90.0" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<polygon points="110,80 127.32,90.0 127.32,110.0 110,120 92.68,110.0 92.68,90.0" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<polygon points="154,80 171.32,90.0 171.32,110.0 154,120 136.68,110.0 136.68,90.0" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<polygon points="198,80 215.32,90.0 215.32,110.0 198,120 180.68,110.0 180.68,90.0" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<polygon points="242,80 259.32,90.0 259.32,110.0 242,120 224.68,110.0 224.68,90.0" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<path d="M 180 128 L 180 150" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="158" width="212" height="52" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="182.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">One of eight districts</text>
+<text x="180.0" y="200.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">chosen by the cell's own id</text>
+<path d="M 180 213 L 180 235" fill="none" stroke="#A3AAB8" stroke-width="2" marker-end="url(#a)"/>
+<rect x="74" y="243" width="212" height="52" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="267.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">District mastery</text>
+<text x="180.0" y="285.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">hold enough of one to master it</text>
+<polygon points="34,309 40.06,312.5 40.06,319.5 34,323 27.94,319.5 27.94,312.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
+<text x="50" y="320" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Cells you hold</text>
+<text x="24" y="352" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Districts are eight fixed names, not map areas.</text>
+</svg>

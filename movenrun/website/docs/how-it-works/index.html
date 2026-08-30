@@ -3,14 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>How it works · MovenRun Docs</title>
-<meta name="description" content="The MovenRun loop: cover ground, claim the cells your route crosses, hold them by coming back, and build districts out of what you keep." />
+<title>How a session works · MovenRun Docs</title>
+<meta name="description" content="What happens in a MovenRun session: starting, what the screen shows while you move, finishing, and what saving does." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/how-it-works/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="How it works · MovenRun Docs" />
-<meta property="og:description" content="The MovenRun loop: cover ground, claim the cells your route crosses, hold them by coming back, and build districts out of what you keep." />
+<meta property="og:title" content="How a session works · MovenRun Docs" />
+<meta property="og:description" content="What happens in a MovenRun session: starting, what the screen shows while you move, finishing, and what saving does." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/how-it-works/" />
+
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,46 +34,46 @@
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup" open><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li><li><a href="/docs/how-it-works/" aria-current="page">How it works</a></li></ul></details><details class="dgroup"><summary>The game</summary><ul><li><a href="/docs/territory/">Territory and deeds</a></li><li><a href="/docs/movement/">Movement and privacy</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup" open><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/" aria-current="page">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
   <main id="doc-main" class="dmain" tabindex="-1">
-    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">How it works</li></ol></nav>
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">How a session works</li></ol></nav>
 
     <article class="darticle">
-<h1>How it works</h1>
-<p class="lead">Cover ground, claim the cells you cross, and keep them by coming back. Four verbs, and the whole game sits on top of them.</p>
+<h1>How a session works</h1>
+<p class="lead">A session is one walk, run or ride. You start it, you move, you finish, and you decide whether to save it.</p>
 
-<h2 id="move">Move</h2>
-<p>Walk, run, or cycle. All three count the same. Tap once and you are moving within seconds, with distance, time, and pace kept glanceable so your attention stays on the road. Pause and resume whenever you need to. There is no minimum speed and nothing to tap mid session.</p>
-<figure class="dfig"><img src="/docs/assets/diagrams/user-journey.svg" alt="A session end to end: open the map, start moving, follow your live route, finish, review your summary and what you claimed, then return or join a club, looping back to the next session." width="760" height="270" /><figcaption>One session, end to end. It loops back on returning, so tomorrow's walk starts here.</figcaption></figure>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/session-flow.svg" alt="Four stages: tap start and the app checks location access, move while the screen shows distance, time and pace, finish and confirm, then save to claim a cell and bank XP." width="360" height="368" /><figcaption>Nothing is recorded until you save.</figcaption></figure>
 
-<h2 id="capture">Capture</h2>
-<p>The world is divided into hexagonal cells, each about 0.74 square kilometres, using H3. Every point on Earth falls in exactly one cell, and the cell is the same for every player. Two people standing on the same corner are standing in the same cell, in Lagos or in Leeds.</p>
-<p>Finishing a session claims the cells your route crossed. That is the moment a walk becomes a foothold.</p>
+<h2 id="starting">Starting</h2>
+<p>Before anything begins, the app checks whether it can read your location and tells you plainly what it found. If access has not been granted it asks. If it was refused earlier, or location is switched off on the device, the screen says which of those it is and takes you to the right settings page.</p>
+<p>Location is read only while a session is running, in the foreground. There is no background tracking, and the app does not record where you are between sessions.</p>
+<p>If you cannot or would rather not share location, a demo route is available. It draws a synthetic loop so you can see how the screens behave. It is labelled as a demo throughout and it never counts for anything.</p>
 
-<h2 id="hold">Hold</h2>
-<p>A claimed cell does not stay yours for free. Two meters govern it. Defense drains steadily from the day you last visited. Once defense is gone, control starts draining too, which is what eventually opens the cell to somebody else. Coming back restores both, and fortifying pushes defense higher still.</p>
-<p>The effect is that the map rewards routine. A cell on your regular route is close to untouchable. A cell you claimed once on holiday will not last the month.</p>
-<div class="tscroll"><table>
-<caption>How a cell moves through its states</caption>
-<thead><tr><th>State</th><th>What it means</th></tr></thead>
-<tbody>
-<tr><td><strong>Held</strong></td><td>Yours, defended, and stable.</td></tr>
-<tr><td><strong>At risk</strong></td><td>Defense has drained low. A visit restores it.</td></tr>
-<tr><td><strong>Contested</strong></td><td>Defense is gone and control is draining.</td></tr>
-<tr><td><strong>Dormant</strong></td><td>Left long enough that the cell is open again.</td></tr>
-</tbody></table></div>
+<h2 id="moving">While you move</h2>
+<p>The route draws itself as you go. Above it sit three numbers: distance, elapsed time and current pace. That is the whole screen, deliberately, so there is nothing worth looking down at.</p>
+<p>A signal indicator shows whether the app has a good fix, a weak one, or is still searching. Weak signal does not stop the session, it just tells you why the line might wander.</p>
+<p>You can pause and resume as often as you like. Paused time does not count toward your total. Nothing needs a tap while you are actually moving.</p>
 
-<h2 id="grow">Grow</h2>
-<p>Cells group into districts, and districts into cities. Holding a critical mass of a district earns mastery, which is the long arc of the game: the neighbourhoods you actually live in become visibly yours. Clubs pool their members' ground to compete at district and city scale.</p>
-<p>At launch, holding also starts paying. A held cell becomes a deed in your own wallet, and other players crossing it pay you a toll. See <a href="/docs/territory/">Territory and deeds</a>.</p>
+<h2 id="finishing">Finishing</h2>
+<p>Finishing asks you to confirm, so a session cannot end by accident, and the same confirmation catches the back button. Once confirmed, the app works out what the session was worth and shows you a summary before anything is written down.</p>
+<p>The summary carries the route, the distance, the time, the pace, which cells you crossed, and a score for how clean the GPS signal was. See <a href="/docs/verification/">Movement verification</a> for what that score means.</p>
+
+<h2 id="saving">Saving</h2>
+<p>Saving is a separate, deliberate press. Until you press it, the session has changed nothing.</p>
+<p>A session has to cover 200 metres or last five minutes before it can be saved. Below that the summary explains why the button is not there.</p>
+<p>Saving does three things at once. It banks the XP for the session, it claims one new cell, and it refreshes your hold on any cells you already held and crossed. The detail of the second and third is in <a href="/docs/capture/">Capture and the map</a> and <a href="/docs/holding/">Holding your ground</a>.</p>
+
+<h2 id="once">One saved session a day</h2>
+<p>Only the first session you save each day earns XP or affects the map. Later sessions still record and still show you a summary, and they bank nothing.</p>
+<p>This is a deliberate ceiling. It means the game cannot be won by having a free afternoon, and it means a person with twenty spare minutes a day is competitive with anyone.</p>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/"><span>Previous</span><strong>Home</strong></a><a class="pn next" href="/docs/territory/"><span>Next</span><strong>Territory and deeds</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/"><span>Previous</span><strong>Home</strong></a><a class="pn next" href="/docs/capture/"><span>Next</span><strong>Capture and the map</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
       <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
@@ -85,7 +86,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

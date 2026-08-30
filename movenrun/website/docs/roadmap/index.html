@@ -4,13 +4,15 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Roadmap · MovenRun Docs</title>
-<meta name="description" content="What MovenRun is building and in what order: the movement game, the deed registry on mainnet, the live economy, and community governance." />
+<meta name="description" content="What is built in MovenRun and what comes next: the movement game, clubs syncing between players, Points, and deeds on Base." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/roadmap/" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Roadmap · MovenRun Docs" />
-<meta property="og:description" content="What MovenRun is building and in what order: the movement game, the deed registry on mainnet, the live economy, and community governance." />
+<meta property="og:description" content="What is built in MovenRun and what comes next: the movement game, clubs syncing between players, Points, and deeds on Base." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/roadmap/" />
+
+
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,7 +35,7 @@
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li><li><a href="/docs/how-it-works/">How it works</a></li></ul></details><details class="dgroup"><summary>The game</summary><ul><li><a href="/docs/territory/">Territory and deeds</a></li><li><a href="/docs/movement/">Movement and privacy</a></li></ul></details><details class="dgroup" open><summary>The network</summary><ul><li><a href="/docs/onchain/">Onchain</a></li><li><a href="/docs/roadmap/" aria-current="page">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup"><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup" open><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/" aria-current="page">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
@@ -42,33 +44,33 @@
 
     <article class="darticle">
 <h1>Roadmap</h1>
-<p class="lead">Prove the game, put deeds on mainnet, turn the economy on, hand over the parameters. In that order, and for a reason.</p>
+<p class="lead">The game first, then the layers on top of it. That ordering decides everything below.</p>
 
-<figure class="dfig"><img src="/docs/assets/diagrams/roadmap.svg" alt="Roadmap phases left to right: the movement game, deeds on mainnet, the live economy with tolls, and community governance." width="760" height="300" /><figcaption>Each phase has to hold up before the next one is worth building.</figcaption></figure>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/roadmap.svg" alt="Four phases in order. The movement game is built. Clubs syncing between players, Points, and deeds on Base are planned and not built." width="360" height="426" /><figcaption>Order matters more than dates here.</figcaption></figure>
 
-<h2 id="p1">Phase 1 · The movement game</h2>
-<p>Sessions, claiming, the defense and control model, districts and mastery, and the verification that makes any of it mean something. This phase answers the only question that matters early: is walking the same streets every week actually fun, and does the map reward it properly.</p>
-<p><strong>In this phase:</strong> movement sessions, route summaries, streaks, the territory map, district mastery, and server side route verification.</p>
+<h2 id="p1">1 · The movement game</h2>
+<p>Sessions, capture, the hold and decay model, districts and mastery, XP, levels, streaks and collections, and the route checking behind all of it.</p>
+<p><strong>Status:</strong> built. This is what the app does today.</p>
 
-<h2 id="p2">Phase 2 · Deeds on mainnet</h2>
-<p>The deed registry goes to Base mainnet with a readable supply, and held ground starts becoming deeds players hold themselves. This is the phase where MovenRun stops being a game with a plan and starts being a game with an asset layer.</p>
-<p><strong>In this phase:</strong> the deed registry on mainnet, published contract addresses, and deeds issued against ground already held.</p>
+<h2 id="p2">2 · Clubs and city play</h2>
+<p>Clubs sync between players, so the ground a club holds is a real shared total and the season board reflects other people rather than seeded figures. This needs shared state, which is the largest single piece of work on this list.</p>
+<p><strong>Status:</strong> planned. The club and city screens exist in the app as a local preview.</p>
 
-<h2 id="p3">Phase 3 · The live economy</h2>
-<p>$MOVE issues against verified movement on the capped schedule, tolls start paying deed holders, and the sinks come online with claiming, challenges, fortification, and gear. Challenges open, so ground can change hands.</p>
-<p><strong>In this phase:</strong> $MOVE issuance, tolls to holders, the challenge system, and the full set of sinks.</p>
+<h2 id="p3">3 · Points</h2>
+<p>The in-game currency arrives: earned by moving, spent on strengthening ground. It comes after clubs because a currency needs something shared to be spent against. See <a href="/docs/points/">Points</a>.</p>
+<p><strong>Status:</strong> planned. Not in the app.</p>
 
-<h2 id="p4">Phase 4 · Community governance</h2>
-<p>Emission settings, treasury allocation, and protocol parameters move to onchain proposals and voting by the people holding ground.</p>
-<p><strong>In this phase:</strong> onchain proposals, voting, and community control of the treasury.</p>
+<h2 id="p4">4 · Deeds on Base</h2>
+<p>The deed registry moves to Base mainnet and held ground starts becoming a durable record kept under your own keys. Contract addresses are published at that point. See <a href="/docs/onchain/">Deeds and onchain</a>.</p>
+<p><strong>Status:</strong> planned. The contracts are on a test network while the design is worked through.</p>
 
-<h2 id="how">How we ship</h2>
-<p>Phases move on evidence rather than on dates. The game has to be worth playing before deeds are worth holding, and verification has to be sound before it carries value. Details change as the work does, and this page tracks where things stand.</p>
+<h2 id="how">How this changes</h2>
+<p>Phases move when the previous one holds up, rather than on a date. The game has to be worth playing before anything is worth building on top of it, and the route checking has to be sound before it decides anything shared. This page is updated as that happens.</p>
 
     </article>
-    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/onchain/"><span>Previous</span><strong>Onchain</strong></a><a class="pn next" href="/docs/faq/"><span>Next</span><strong>FAQ</strong></a></nav>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/onchain/"><span>Previous</span><strong>Deeds and onchain</strong></a><a class="pn next" href="/docs/faq/"><span>Next</span><strong>FAQ</strong></a></nav>
     <footer class="dfoot">
-      <p>MovenRun is a development-stage product. This documentation is informational and forward-looking; features, designs, and timing may change. Nothing here is financial advice or a promise of returns.</p>
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
       <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
     </footer>
   </main>
@@ -81,7 +83,7 @@
       <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
     </div>
     <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
-    <p class="dsearch-empty" hidden>No results. Try a different term, for example “zones”, “ownership”, or “token”.</p>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
     <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
   </div>
 </div>

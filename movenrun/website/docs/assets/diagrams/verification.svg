@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 434" role="img" aria-labelledby="verification-t verification-d">
+<title id="verification-t">What a route is checked for</title>
+<desc id="verification-d">Four checks run on every route: speed, accuracy, continuity and whether the route repeats one already claimed. A route that passes counts toward a cell and XP. A route that fails is rejected and banks nothing.</desc>
+<rect width="360" height="434" rx="18" fill="#F8FAF7"/>
+<text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">What gets checked</text>
+<rect x="74" y="66" width="212" height="50" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="89.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Speed</text>
+<text x="180.0" y="107.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">a person, not a vehicle</text>
+<rect x="74" y="124" width="212" height="50" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="147.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Accuracy</text>
+<text x="180.0" y="165.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">usable GPS fixes</text>
+<rect x="74" y="182" width="212" height="50" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="205.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Continuity</text>
+<text x="180.0" y="223.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">enough points, close together</text>
+<rect x="74" y="240" width="212" height="50" rx="12" fill="#E7F0FF" stroke="#246BFE" stroke-width="2"/>
+<text x="180.0" y="263.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Not a repeat</text>
+<text x="180.0" y="281.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">no route claimed twice</text>
+<rect x="24" y="306" width="150" height="50" rx="12" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<text x="99.0" y="329.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Counts</text>
+<text x="99.0" y="347.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">cell and XP</text>
+<rect x="186" y="306" width="150" height="50" rx="12" fill="#FDECEC" stroke="#FF6B4A" stroke-width="2"/>
+<text x="261.0" y="329.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Rejected</text>
+<text x="261.0" y="347.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">nothing banked</text>
+<polygon points="34,375 40.06,378.5 40.06,385.5 34,389 27.94,385.5 27.94,378.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
+<text x="50" y="386" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Passes every check</text>
+<polygon points="202,375 208.06,378.5 208.06,385.5 202,389 195.94,385.5 195.94,378.5" fill="#FDECEC" stroke="#FF6B4A" stroke-width="1.8"/>
+<text x="218" y="386" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Fails one or more</text>
+<text x="24" y="418" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Every route runs all four checks.</text>
+</svg>
