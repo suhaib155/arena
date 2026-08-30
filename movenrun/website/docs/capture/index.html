@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Capture and the map · MovenRun Docs</title>
+<meta name="description" content="How a MovenRun route becomes claimed ground: the hexagonal cell grid, what one session claims, and what the map shows you afterwards." />
+<meta name="theme-color" content="#F8FAF7" />
+<link rel="canonical" href="https://movenrun-website.vercel.app/docs/capture/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Capture and the map · MovenRun Docs" />
+<meta property="og:description" content="How a MovenRun route becomes claimed ground: the hexagonal cell grid, what one session claims, and what the map shows you afterwards." />
+<meta property="og:url" content="https://movenrun-website.vercel.app/docs/capture/" />
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/docs/assets/docs.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#doc-main">Skip to content</a>
+<header class="dhead">
+  <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <div class="dhead-actions">
+    <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
+    <a class="dhead-link" href="/">Website</a>
+    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
+  </div>
+</header>
+<div class="dscrim" hidden></div>
+<div class="dlayout">
+  <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
+    <div class="dsidebar-inner">
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup" open><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/" aria-current="page">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup"><summary>Resources</summary><ul><li><a href="/docs/faq/">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+    <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
+    </div>
+  </nav>
+  <main id="doc-main" class="dmain" tabindex="-1">
+    <nav class="dcrumbs" aria-label="Breadcrumb"><ol><li><a href="/docs/">Docs</a></li><li aria-current="page">Capture and the map</li></ol></nav>
+
+    <article class="darticle">
+<h1>Capture and the map</h1>
+<p class="lead">Finishing a session turns part of your route into ground you hold. One cell per session, and the map keeps the record.</p>
+
+<h2 id="cells">The cell grid</h2>
+<p>The map is a grid of hexagons. Every point on it falls inside exactly one cell, and a cell is the smallest piece of ground you can hold.</p>
+<p>Hexagons rather than squares because each one borders six neighbours at an equal distance. Ground spreads outward evenly, and there are no awkward diagonal corners where two cells meet at a point.</p>
+<p>Cells in the current build are roughly 300 metres across. The grid is generated on your device, so the same street always resolves to the same cell for you. Moving to a shared global grid, where the same corner is the same cell for every player, is planned and is what districts and clubs are waiting on.</p>
+
+<h2 id="claiming">What one session claims</h2>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/capture.svg" alt="A route crosses three hexagonal cells, two of which are already held. Saving the session claims the one touched cell that was not already held, and refreshes the hold on the two that were." width="360" height="378" /><figcaption>A session claims the first cell on your route that you did not already hold.</figcaption></figure>
+<p>Your route passes through a run of cells. When you save the session, the app walks that list in order and claims the first one you do not already hold. That is one new cell per saved session, however far you went.</p>
+<p>The rest of the touched cells are not wasted. Any that you already hold have their hold refreshed, which is the main way ground stays yours. A long route through your own neighbourhood might claim nothing new and still be the most useful session of the week.</p>
+<p>A session has to cover 200 metres or last five minutes before it can be saved at all. Below that it is treated as noise rather than a walk.</p>
+
+<h2 id="daily">One claim a day</h2>
+<p>Saving is limited to one session per calendar day. A second session that day still records and still shows you its summary, and it will not claim a cell or refresh a hold.</p>
+<p>The limit exists so the map rewards a habit rather than an afternoon. Someone who walks once a day for a month ends up with far more ground than someone who walks six times on a Sunday.</p>
+
+<h2 id="map">What the map shows</h2>
+<p>The territory map is the running record of everything you hold. Each cell is drawn in the state it is currently in, so you can see at a glance which ground is solid and which needs a visit.</p>
+<div class="tscroll"><table>
+<caption>What each cell state means on the map</caption>
+<thead><tr><th>State</th><th>What it means</th></tr></thead>
+<tbody>
+<tr><td><strong>Yours</strong></td><td>Held and defended. Nothing needed.</td></tr>
+<tr><td><strong>At risk</strong></td><td>Your hold has drained low. A visit restores it.</td></tr>
+<tr><td><strong>Contested</strong></td><td>Left long enough that the hold is gone and your grip is slipping.</td></tr>
+<tr><td><strong>Dormant</strong></td><td>Neglected long enough to drop off. Walking it again brings it back.</td></tr>
+</tbody></table></div>
+<p>Tapping a cell opens its detail view: how long you have held it, when you were last there, how strong your hold is, and what to do next. The numbers behind those states are set out in <a href="/docs/holding/">Holding your ground</a>.</p>
+
+<h2 id="names">Cell names</h2>
+<p>Cells carry short names like Riverside Loop or Signal Yard. They are generated from the cell's own identifier, so a given cell always shows the same name and it stays the same for as long as you hold it. They are labels for your own map rather than real place names, which is deliberate: the app never resolves your position to a real address, neighbourhood or landmark.</p>
+
+    </article>
+    <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/how-it-works/"><span>Previous</span><strong>How a session works</strong></a><a class="pn next" href="/docs/holding/"><span>Next</span><strong>Holding your ground</strong></a></nav>
+    <footer class="dfoot">
+      <p>MovenRun is in development. This documentation describes the product as designed; features and timing may change.</p>
+      <p><a href="/docs/disclaimers/">Disclaimers</a> · <a href="/">MovenRun website</a> · © 2026 MovenRun. All rights reserved.</p>
+    </footer>
+  </main>
+  <aside class="dtoc" aria-label="On this page"><p class="dtoc-title">On this page</p><ol data-toc></ol></aside>
+</div>
+<div class="dsearch" hidden>
+  <div class="dsearch-panel" role="dialog" aria-modal="true" aria-label="Search documentation">
+    <div class="dsearch-bar">
+      <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" />
+      <button type="button" class="dsearch-close" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="dsearch-results" role="listbox" aria-label="Search results"></ul>
+    <p class="dsearch-empty" hidden>No results. Try a different term, for example “cells”, “holding”, or “streaks”.</p>
+    <p class="dsearch-fail" hidden>Search is unavailable right now. Use the sidebar navigation instead.</p>
+  </div>
+</div>
+<script src="/docs/assets/docs.js" defer></script>
+</body>
+</html>
