@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
-import { categoryColor, colors, difficultyColor, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, categoryColor, colors, difficultyColor, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { useIsCompletedToday } from "@/store/useGameStore";
 import { tapFeedback } from "@/lib/haptics";
@@ -117,13 +117,7 @@ export default function QuestDetailScreen() {
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xl, gap: spacing.md },
   topBar: { paddingTop: spacing.sm, marginBottom: spacing.xs },
-  iconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconWrap: { ...avatar(72) },
   title: { ...type.display, fontSize: 28 },
   summary: { ...type.body, lineHeight: 22 },
   badges: { flexDirection: "row", gap: spacing.sm },
@@ -146,14 +140,7 @@ const styles = StyleSheet.create({
   },
   steps: { gap: spacing.md },
   step: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
-  stepNum: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  stepNum: { ...avatar(26), backgroundColor: colors.primaryDim },
   stepNumText: { color: colors.primary, fontSize: 13, fontWeight: "700" },
   stepText: { flex: 1, color: colors.textDim, fontSize: 15, lineHeight: 22 },
   footer: { paddingVertical: spacing.md, gap: spacing.sm },

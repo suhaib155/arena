@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 
 interface StatCardProps {
@@ -31,14 +31,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     ...shadows.card,
   },
-  iconTile: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 2,
-  },
+  iconTile: { ...iconTile(34), marginBottom: 2 },
   value: {
     ...type.title,
     fontSize: 24,

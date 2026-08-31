@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import {
   buildQuestline,
@@ -101,7 +101,7 @@ export default function QuestlineScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Questline</Text>
@@ -272,13 +272,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   stepReady: { backgroundColor: "#F6FAFF" },
-  stepIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  stepIcon: { ...iconTile(38) },
   stepBody: { flex: 1, gap: 5 },
   stepTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   stepTitle: { ...type.heading, fontSize: 14.5, flex: 1 },

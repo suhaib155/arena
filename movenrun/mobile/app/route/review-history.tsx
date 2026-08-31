@@ -5,7 +5,7 @@ import { Screen } from "@/components/Screen";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { tapFeedback } from "@/lib/haptics";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { formatDistance, formatDuration } from "@/lib/geo";
 import { trustTone, type RouteTrustRecord, type TrustTone } from "@/lib/routeTrust";
@@ -75,7 +75,7 @@ export default function RouteReviewHistoryScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Route Review</Text>
@@ -322,13 +322,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  scoreBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  scoreBubble: { ...avatar(44) },
   scoreBubbleText: { ...type.title, fontSize: 17, fontVariant: ["tabular-nums"] },
   rowBody: { flex: 1, gap: 3 },
   rowTitleLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
