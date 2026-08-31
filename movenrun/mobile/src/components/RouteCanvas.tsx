@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { colors, glow, palette, radius, spacing, type } from "@/theme";
 import { downsample, projectToBox, type TrackPoint } from "@/lib/geo";
@@ -19,7 +19,7 @@ const MAX_DOTS = 110;
  * Blue line over a pale, map-like panel with faint roads and hex accents —
  * the same route motif as the website and the Today screen.
  */
-export function RouteCanvas({ points, height = 240, live = false }: RouteCanvasProps) {
+function RouteCanvasView({ points, height = 240, live = false }: RouteCanvasProps) {
   const dots = useMemo(() => {
     const sampled = downsample(points, MAX_DOTS);
     return projectToBox(sampled);
@@ -75,6 +75,13 @@ export function RouteCanvas({ points, height = 240, live = false }: RouteCanvasP
     </View>
   );
 }
+
+/**
+ * Memoised: the canvas lays out up to MAX_DOTS absolutely-positioned views, and
+ * the live session screen ticks a clock every second. Without this, each tick
+ * reconciled all ~110 dots for a number the route does not use.
+ */
+export const RouteCanvas = memo(RouteCanvasView);
 
 const styles = StyleSheet.create({
   canvas: {

@@ -22,6 +22,7 @@ import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
+import { gapNotice, summarizeGaps } from "@/lib/trackPoints";
 import { resolveCompletion } from "@/lib/completionSummary";
 import type { Quest, IoniconName } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
@@ -70,6 +71,11 @@ export default function MoveSummaryScreen() {
       </Screen>
     );
   }
+
+  /* Foreground-only tracking stops when the app is backgrounded. If that
+     happened, the distance below is a floor, not a measurement — say so rather
+     than presenting an incomplete route as the truth. */
+  const gaps = gapNotice(summarizeGaps(session.gaps ?? [], session.durationMs));
 
   const km = session.distanceM / 1000;
   const xp = sessionXp(session.distanceM, session.durationMs);
@@ -182,6 +188,13 @@ export default function MoveSummaryScreen() {
           <Text style={styles.kicker}>{completion.kicker}</Text>
           <Text style={styles.title}>Every move{"\n"}leaves a mark.</Text>
         </View>
+
+        {gaps ? (
+          <View style={styles.gapNotice}>
+            <Ionicons name="alert-circle-outline" size={16} color={palette.moveGold} />
+            <Text style={styles.gapText}>{gaps}</Text>
+          </View>
+        ) : null}
 
         {/* Route closes — the map result leads */}
         <FadeSlideIn>
@@ -446,6 +459,15 @@ function completionIcon(kind: ReturnType<typeof resolveCompletion>["kind"]): Ion
 }
 
 const styles = StyleSheet.create({
+  gapNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: `${palette.moveGold}14`,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  gapText: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.text, flex: 1 },
   scroll: { paddingBottom: spacing.lg, gap: spacing.md },
   header: { paddingTop: spacing.lg, gap: spacing.xs },
   kicker: { ...type.kicker, color: colors.primary },
