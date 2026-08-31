@@ -6,6 +6,11 @@ Sepolia v1 contracts*, a different and older economy).
 
 **Date:** 31 August 2026 · **Chain:** Base · **Token:** one token, `$MOVE`
 
+**Revision 2** adds the three things asked for after the first draft: the **daily recharge**
+(one recurring bill, 50% of Charge per scoring session, paid out of that day's reward — §6.1),
+a **five-level tree for land and a five-level tree for the Kit** (§6.2–6.3), and **eleven new
+gamification mechanics, none of which issues a token** (§8).
+
 > This is intended design for a development-stage product. It is not financial,
 > investment, legal or tax advice, not an offer, and not a promise of returns.
 > `$MOVE` does not trade: no sale, no listing, no liquidity, no allocation.
@@ -53,7 +58,7 @@ counsel sign-off per market before Phase 3, and I would not launch it before the
 
 ---
 
-## 1. The eleven rules that never change
+## 1. The twelve rules that never change
 
 1. **Only verified movement creates `$MOVE`.** Not land, not staking, not spending, not referrals.
 2. **There will never be more than 1,000,000,000.** No function can raise it.
@@ -63,9 +68,10 @@ counsel sign-off per market before Phase 3, and I would not launch it before the
 6. **There is a ceiling on one session and a ceiling on one day**, and the day's ceiling is smaller than two sessions' worth.
 7. **Rewards settle once a day**, shared out among the people who actually moved that day.
 8. **Nothing you buy earns you anything.** Purchases buy defence, durability, identity and tools.
-9. **No sink may cost more than the reward that created the need for it.** Every core loop completes without ever topping up.
-10. **Free players' rewards are never sellable, and never become sellable retroactively.**
-11. **Your route never goes on-chain.** Not raw GPS, not cell lists, not ever.
+9. **There is one recurring bill: the daily recharge**, and it is always a share of what you earned that day — never a flat price, never payable with cash.
+10. **No sink may cost more than the reward that created the need for it.** Every core loop completes without ever topping up.
+11. **Free players' rewards are never sellable, and never become sellable retroactively.**
+12. **Your route never goes on-chain.** Not raw GPS, not cell lists, not ever.
 
 ---
 
@@ -167,49 +173,179 @@ Every held cell has a **strength**, 0–100, and exactly one holder.
 - **Visiting is free and instant.** Walk your own ground and it resets to 100. Defence and
   exercise are the same action — that is the whole health thesis in one line.
 
-**The skip penalty.** If you do not visit, you may pay to hold. This is your rule, and it
-is charged where it cannot fail: **auto-debited from your own reward at end-of-day
-settlement**, before anything reaches your balance.
+**The skip penalty.** If you do not visit, you may pay to hold. It is charged where it cannot
+fail: **auto-debited from your own reward at end-of-day settlement**, before anything reaches
+your balance.
+
+### The day-share — how every price in the game is quoted
+
+One idea makes the whole economy immune to the network growing, and it is worth understanding
+before the numbers below.
+
+> **A day-share is what the median active player earned that day.** It is computed at
+> settlement and published. Every price in MovenRun — upkeep, recharge, land levels, kit
+> levels, claim fees, contest entry — is set in day-shares, and the app shows you the figure
+> in tokens.
+
+A flat token price cannot survive growth. Season 1 with 3,000 players pays near the ceiling of
+20 a day; the same game with 100,000 players pays about 1 (§9.3). A 4-token fee is a fifth of
+a day at the start and four whole days later on. Priced in day-shares, **the same thing costs
+the same effort for ever**, at any population, at any token price.
+
+### What upkeep costs
 
 ```
-upkeepPerZonePerDay = 0.30 × (zonesHeld ^ 0.25)     # hypothesis
+upkeepOwed(day) = 0.03 day-shares × zonesHeld^0.25   per zone you did not visit
 ```
 
-| Zones held | Per zone / day | Total / day | Total / week |
+| Zones held | Per zone / day | All unvisited: per day | Per week |
 |---|---|---|---|
-| 1 | 0.30 | 0.30 | 2.1 |
-| 10 | 0.53 | 5.3 | 37 |
-| 30 | 0.70 | 21.1 | 148 |
-| 100 | 0.95 | 94.9 | 664 |
-| 250 | 1.19 | 298 | 2,088 |
+| 1 | 0.030 day-shares | 0.03 | 0.2 |
+| 6 | 0.047 | 0.28 | 2.0 |
+| **16** | 0.060 | **1.00 — one full day's earning** | 7.0 |
+| 30 | 0.070 | 2.11 | 14.8 |
+| 100 | 0.095 | 9.49 | 66 |
+| 250 | 0.119 | 29.8 | 209 |
 
-A consistent player earning near the ceiling brings in ~20/day (§9). **That sustains
-roughly 30 absentee zones and no more.** Want a whole city? You may have it — and you
-will spend everything you earn and more keeping it, and every coin of it is burned. This
-is the anti-whale limit, and it emerges from the game instead of being an arbitrary rule
-bolted on top. A committed local with six good zones never feels it.
+**About sixteen zones is what movement income alone sustains if you never visit any of them.**
+Visit them and the number is unlimited, because visiting is free. Own busy ground and the toll
+pays your upkeep for you — which is the design working exactly as intended: *land that people
+actually cross pays for itself; land you hoarded and abandoned does not.*
 
-**Free grace, always:** 14 days of away protection per season, free, announced in advance,
-one tap. You never pay to protect what you earned; you pay only to be absent beyond that.
+At 250 zones the bill is thirty days of earning, every day. You may own a whole city. You
+simply cannot keep it. **The anti-whale limit emerges from the game rather than being an
+arbitrary rule bolted on top**, everything spent is burned, and a committed local with six good
+zones never feels it.
 
-## 6. Fortifying and levelling
+### You are never asked for more than you have
 
-| | Buys | Never buys |
-|---|---|---|
-| **Fortify** (burned) | +30% decay resistance, −30% incoming erosion, 3 active per zone, each expires | A contest win: **capped at +15%** contest contribution |
-| **Kit level** (burned) | Repair speed, materials yield, extra away days, map tools, cosmetics | Any increase to token earnings, ever |
-| **XP / player level** (free) | Unlocks features, cosmetics, club roles | Any increase to token earnings, ever |
+Upkeep is *owed* per zone, but what is *taken* is bounded. At settlement the system pays what
+it can from the day's reward, up to the combined 60% ceiling on all automatic debits (§6.1).
+Anything still unpaid is **paid in condition instead**: those zones decay that day as though
+nothing had been paid on them.
 
-The +15% contest cap is the line between "pay to protect" and "pay to win". The integrity
-review wanted it at zero. It stays at 15% because protecting your land is a mechanic people
-understand and a real sink — **and it must be simulated against solo, small-club and
-large-club attackers before launch. If the simulation shows it decides contests, it goes to zero.**
+So the sequence for someone holding more than they can afford is: pay what today's run covers,
+lose condition on the rest, watch the stages arrive on the calendar — *at risk*, *contested*,
+*dormant* — and either go and walk them, or let them go back to the map. **You never go into
+debt, your balance never goes negative, and no zone is ever lost without warning.**
 
-**Recharge.** Your kit loses condition each session and is repaired with `$MOVE`. Bounded
-by rule 9: **repair for a session can never exceed 15% of what that session earned.** You
-always finish a session net positive. There is no version of this where you must top up to
-keep playing — that was the mechanic that killed the last generation of these games, and it
-is forbidden here, not merely discouraged.
+**Free grace, always:** 14 days of away protection per season, free, announced in advance, one
+tap. You never pay to protect what you earned; you pay only to be absent beyond that.
+
+## 6. Charge, the daily recharge, and levels
+
+### 6.1 Charge — the one bill in the game
+
+Your Kit holds **100% Charge**. Every session that *earns tokens* burns **50%**. You get two
+scoring sessions a day (§9.2), so a full day of play costs exactly one full charge. That is
+not a coincidence — it is what turns the two-session cap from an arbitrary rule into a
+resource you can see and plan around.
+
+**Once a day, at settlement, your Kit refills and the bill is taken out of that day's reward.**
+It is the only recurring expense in the game, and it is always affordable, because it is
+priced as a share of what you actually earned:
+
+```
+recharge(day) = chargeUsed(day) × recharge%(kit level) × grossReward(day)
+
+              100% used at Kit L1  →  25% of the day's gross
+               50% used at Kit L1  →  12.5%
+                0% used            →  nothing
+```
+
+| You ran | Charge used | Kit L1 pays | Kit L5 pays |
+|---|---|---|---|
+| Nothing | 0% | **0** | **0** |
+| One scoring session | 50% | 12.5% of the day's gross | 7.5% |
+| Two scoring sessions | 100% | 25% of the day's gross | 15% |
+
+**Why a percentage and not a flat number.** You asked for "a certain amount of token", and
+that is exactly what the player sees — the app shows the exact figure before you go out
+("Today's recharge: 3.40 $MOVE") and again on the receipt. Behind that figure it is a
+percentage, because a flat price cannot survive the network growing. At 100,000 daily
+players the average day pays about 1 $MOVE (§9.3); a flat 4-token recharge would quietly
+become a 400% tax. A percentage is the same felt cost at every scale, for ever.
+
+**Four rules that keep this from becoming the thing that killed the last generation:**
+
+| Rule | Why |
+|---|---|
+| **Charge is spent on credit and settled at day close** — earn first, then the bill | There is no state where you are too poor to recharge and therefore too uncharged to earn. The deadlock cannot happen |
+| **Running with an empty Kit is always allowed** | You get territory, XP, streak, materials, contracts — everything except tokens for that session. It also costs no charge. **Charge gates minting, never play, and never your land** |
+| **There is no cash top-up. Ever** | Recharge is paid in `$MOVE`, from your own earned balance, and there is no button that turns money into charge. That button is what made those games predatory |
+| **All automatic day-close debits together are capped at 60% of the day's gross** | Recharge plus skip penalty can never take more than that, and can never push a balance negative. Beyond the cap, land condition degrades instead |
+
+**Charge as a decision, not a chore.** You can mark any session *unscored* before you start.
+It costs no charge, earns no tokens, and still takes ground and feeds your streak. So the
+short morning dog-walk can be free and both charges saved for the evening loop you actually
+care about — or spent early on a route you want to bank before someone else runs it.
+
+**What the recharge does to the economy.** At full participation this burns roughly a quarter
+of everything issued, every day, automatically. It scales with issuance rather than against
+it, and unlike every other sink it needs no player decision to fire. It is the largest and
+most reliable sink in the design.
+
+### 6.2 Land levels — upgrade what you hold
+
+Every zone you hold has a level. Upgrading costs `$MOVE` (burned) plus time you have actually
+spent there. **Levels buy defence, capacity, identity and tools. Levels never buy income and
+never buy a contest.**
+
+| Lv | Name | Cost | Also requires | Decay resist | Erosion resist | Upkeep | Away | Forts | Unlocks |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | **Outpost** | — | claiming it | — | — | 1.00× | — | 1 | Name your zone |
+| 2 | **Camp** | 2 day-shares | 3 visits in 14 days | +8% | +5% | 1.00× | +2 | 1 | Banner, colour, zone photo |
+| 3 | **Holding** | 6 | 14 days held | +16% | +12% | 0.95× | +4 | 2 | **Rally beacon**, +10% materials, zone chat |
+| 4 | **Stronghold** | 18 | 30 days held, deeded | +24% | +20% | 0.90× | +7 | 3 | Sponsor tools, footfall analytics, leasing |
+| 5 | **Citadel** | 45 | 90 days held, survived a contest | +30% | +28% | 0.85× | +10 | 3 + 1 permanent | Landmark status, city-map icon, district vote weight |
+
+**The caps that keep levels honest:**
+
+- **Total decay resistance from level + fortification: +50% maximum.** Level 5 with three
+  fortifications would be +60% raw; it is capped. Land that survives a fortnight away is the
+  product. Land that survives for ever is not.
+- **Total erosion resistance: +40% maximum.** A Citadel is hard to walk through. It is never
+  impossible.
+- **Contest contribution from level: exactly zero.** The +15% ceiling on what money can add to
+  a contest score is *fortification only*. Levels add nothing to it. The pay-to-win line stays
+  precisely where §7 draws it, and no amount of upgrading moves it.
+- **Toll income at every level: 1.00×.** A Citadel on a dead-end street earns less than an
+  Outpost on the high street, for ever. **Location is the only thing that makes land valuable.**
+- **Lose the zone and it drops two levels.** Reclaim it within 14 days and it is restored in
+  full, with a Reconquest badge. That is the stake that makes an upgrade a decision instead of
+  a treadmill.
+
+### 6.3 Kit levels — upgrade what you carry
+
+The Kit is the player-side tree, and what it buys is a permanent reduction in your only
+recurring cost.
+
+| Lv | Name | Cost | Recharge | Also gives |
+|---|---|---|---|---|
+| 1 | **Starter** | — | 25% | — |
+| 2 | **Broken-in** | 3 day-shares | 23% | +10% materials |
+| 3 | **Trail** | 9 | 21% | Unused charge carries to tomorrow, up to 50% |
+| 4 | **Distance** | 22 | 18% | −1 day on every cooldown; full route planner |
+| 5 | **Veteran** | 50 | 15% | Ghost replays, +2 away days, veteran mark on the map |
+
+Kit level never raises charge capacity — a third scoring session is not for sale at any price.
+Kit level never touches token earnings, territory strength, or a contest.
+
+*All upgrade prices are calibration hypotheses, quoted in day-shares (§5) so they cost the
+same effort at any population. Fully levelling one zone is about 71 days of earning; fully
+levelling the Kit is about 84. These are long arcs on purpose — and every coin is burned.*
+
+### 6.4 Fortifying
+
+Fortification is the short-term, expiring layer on top of a level: +30% decay resistance and
+−30% incoming erosion while it lasts, up to 3 active at once, burned whether you win or lose.
+In a formal contest it contributes **at most +15%**, and that is the whole of what money can
+do to a contest.
+
+The integrity review wanted that at zero. It stays at 15% because protecting your land is a
+mechanic players understand and a real sink — **and it must be simulated against solo,
+small-club and large-club attackers before launch. If the simulation shows it decides
+contests, it goes to zero.**
 
 ## 7. Deeds and contests
 
@@ -232,39 +368,57 @@ your best 3 days count. Entry fee burned. Score = verified movement + capped clu
 holds the deed; anyone can trigger settlement; the loser cannot stall. Beaten attacker
 locked out of that deed 30 days; survivor gets 14 days of peace.
 
-## 8. The gamification layer — everything here costs the token supply nothing
+## 8. The gamification layer — none of it issues a token
 
-This is the "maximum gamification, but easy" half. Not one item below issues a token.
+This is the "maximum gamification, but easy" half. **Not one item below creates a single
+`$MOVE`.** Everything here either costs nothing, moves tokens sideways between players, or
+burns them.
 
-**In the moment**
-- The live trail and the seal — the core tension, present in every session.
-- **Live pool ticker:** today's pool, runners out right now, your projected share. Updates as you move.
-- **Cut the line** (Phase 3) — steal an unsealed trail.
-- Route planner: preview a loop, see whose deeds you'd cross and what the toll would be, before you go.
+### 8.1 The eleven mechanics
 
-**Every day**
-- Three daily contracts (e.g. *seal a loop over 1 km²*, *cross two deeds*, *reconquer a lost cell*).
-- Your city's map redrawn at settlement — the daily "who took what" moment.
+| # | Mechanic | How it works | Why it earns its place |
+|---|---|---|---|
+| 1 | **The seal** | Your trail is a bet until you close it (§3) | The core tension. Present in every session, free, and it is the whole game in one rule |
+| 2 | **Charge tactics** | Two charges a day. Mark a session *unscored* to save one (§6.1) | Turns a cap into a decision. The morning walk becomes free; the evening loop becomes a choice |
+| 3 | **Rally beacon** | Land L3+. Light your zone for 24h and anyone who crosses gets a contract tick and a materials bonus. Costs `$MOVE`, burned | **The only legitimate way to raise your toll income is to make people want to run there.** Perfect incentive alignment: landowners become promoters of their own neighbourhood |
+| 4 | **Bounties** | Pin your own `$MOVE` to any zone — "first three verified crossers this week split it." Disclosed, skill-based, player-funded | Players author their own missions. Zero issuance; tokens move sideways. It makes a quiet suburb interesting for a week |
+| 5 | **The Pincer** | Two players moving at the same time in the same city can seal the area *between* their two trails and split it | Physically social. The best reason to bring a friend, and it costs the supply nothing |
+| 6 | **Ghost of the holder** | Kit L5. Entering a contested zone, you race the previous holder's route as a ghost | Turns an abstract contest into a head-to-head you can feel |
+| 7 | **Streak shields** | Earned by hitting your own weekly goal. Spend one to protect a missed day. **Never purchasable** | Removes streak anxiety without removing streaks — and being un-buyable is what keeps it honest |
+| 8 | **The Atlas** | A permanent, non-tradable record of every district you have ever sealed: date, shape of the loop, who held it before you | Pure status, and genuinely beautiful. The thing a five-year player has that a new one cannot buy |
+| 9 | **Season pass — free track only** | 90-day objective ladder paying cosmetics, materials, shields and upgrade discounts. **There is no paid track** | All of the structure, none of the shakedown |
+| 10 | **Reconquest** | Retake a lost zone within 14 days and its level is restored in full, plus a badge | Losing becomes a story instead of a wall |
+| 11 | **Terrain and time** | Hills, parks, waterfront, night and rain change the *materials* drop table — never the token reward | Real reasons to vary your route, with zero effect on issuance |
 
-**Every week**
-- You choose your goal: 2–7 active days. Hitting *your own* target pays a bonus. A rest day never destroys anything.
-- Crew missions; club vs club district pushes.
+### 8.2 The rest of the loop
 
-**Every season (90 days)**
-- District and city wars; layered leaderboards — block, suburb, city, country, world — so nearly everyone competes somewhere they can actually win.
-- Permanent, non-tradable badges: *City Outline*, *Reconquest*, *District Mastery*, *Cartographer* (largest sealed loop of the season).
-- Season reset of standings; territory persists.
+**Every day** — three contracts (seal a loop over 1 km², cross two deeds, reconquer a lost
+cell); the **live pool ticker** showing today's pool, runners out right now and your projected
+share; and the city map redrawn at settlement, which is the daily who-took-what moment.
 
-**Always**
-- Gear crafted from materials that only drop in specific terrain — hills, parks, night walks, waterfront. Real reasons to go somewhere new.
-- Colours, map themes, banners, titles, share cards. Pure sink, zero advantage.
+**Every week** — you set your own goal of 2 to 7 active days and hitting *your* target pays a
+bonus; crew missions; club-versus-club district pushes.
 
-**Deliberately not shipping:** area-weighted prize draws. A chance-based reward tied to
-holdings is gambling-shaped and carries real app-store and legal exposure. Fixed, published
-sponsor rewards instead. If any draw mechanic ever ships it must be detached from payment,
-publish its odds, and clear legal review per market first.
+**Every season (90 days)** — district and city wars; leaderboards layered block, suburb, city,
+country and world so nearly everyone competes somewhere they can actually win; permanent
+non-tradable badges (*City Outline*, *Reconquest*, *District Mastery*, *Cartographer* for the
+largest sealed loop of the season); landmark cells auctioned with district vote weight
+attached.
 
----
+**Always** — gear crafted from terrain-gated materials, colours, map themes, banners, titles
+and share cards. Pure sink, zero advantage.
+
+### 8.3 Deliberately not shipping
+
+**Area-weighted prize draws.** Every km² held being an entry in a monthly draw rewards players
+without printing anything, which is attractive — but a chance-based reward tied to holdings is
+a gambling-shaped mechanic with real app-store and legal exposure. Fixed, published sponsor
+rewards instead. If any draw mechanic ever ships it must be detached from any payment, publish
+its odds, and clear legal review in each market first.
+
+**A paid season track, a cash charge top-up, and any purchasable streak protection.** These
+are the three levers that turn a fitness game into a shakedown, and none of them is worth what
+it earns.
 
 # PART TWO — THE MONEY
 
@@ -314,6 +468,16 @@ provisional(p)    = r(D) × dayPoints(p)
 gross(s)          = min( provisional(p) × points(s)/dayPoints(p), C_session )
 gross(p)          = min( Σ gross(s), C_day )
 clipped           = Σ (provisional − gross)   →  returns to the season pool
+
+then, in this exact order, from gross(p):
+  1. toll debit          §10   0–2% of each session
+  2. daily recharge      §6.1  chargeUsed × recharge% × gross
+  3. skip penalty        §5    only on zones you did not visit
+  4. any bounty you pinned or upgrade you queued
+  → net credited to the player
+
+  steps 2–4 combined can never exceed 60% of gross, and can never make a balance
+  negative. Past the cap, land condition degrades instead of the player going into debt.
 ```
 
 | Ceiling | Value (hypothesis) | Job |
@@ -465,8 +629,11 @@ flag, not a rewrite.
 
 | Sink | Frequency | Notes |
 |---|---|---|
-| **Skip penalty / upkeep** | Daily | The volume sink. Free if you visit instead — it only ever charges absentees. Scales with holdings (§5) |
-| **Recharge / kit repair** | Per session | Capped at 15% of that session's reward. Never a shortfall |
+| **Daily recharge** | Every day you played | **The largest sink in the design.** 25% of the day's gross at Kit L1, 15% at L5, pro-rated to the charge you used, auto-debited at settlement (§6.1). Scales with issuance, needs no player decision, and burns roughly a quarter of everything created |
+| **Skip penalty / upkeep** | Daily | The volume sink for landholders. Free if you visit instead — it only ever charges absentees. Scales with holdings (§5) |
+| **Land levels** | Rare, large | 2 → 45 day-shares per zone, burned. Buys defence, capacity, identity and tools; never income, never a contest (§6.2) |
+| **Kit levels** | Rare, large | 3 → 50 day-shares, burned. Buys a permanently cheaper recharge (§6.3) |
+| **Rally beacons** | Weekly-ish | Burned. Buys traffic to your zone, which is the only honest way to raise toll income |
 | **Fortify** | Weekly-ish | Burned whether you win or lose |
 | **Deed claim fee** | Rare, large | Scales with how busy the ground is |
 | **Contest entry** | Rare | Buys your place, never score |
@@ -477,7 +644,8 @@ flag, not a rewrite.
 | **Season burn** | Quarterly | A **real** burn. The deployed v1 contract transfers to treasury and calls it a burn — that must be rebuilt |
 
 **The rule that keeps the sinks honest:** *no sink may cost more than the reward that
-created the need for it.* Repair ≤ 15% of the session. Upkeep is debited from the day's
+created the need for it.* The recharge is a fixed share of the day's gross, and every
+automatic day-close debit together is capped at 60% of it. Upkeep is debited from the day's
 reward and cannot push a balance negative — it degrades your land instead. Every core loop
 completes with zero purchases. If revenue ever depends on a gap we designed into
 progression, we built the wrong business.
@@ -540,7 +708,7 @@ No rate, no APR, no payback period is ever quoted.
 | | On-chain? | How |
 |---|---|---|
 | Session reward | **Yes** | Batched into the day's settlement; provable from the root |
-| In-game spends (upkeep, repair, fortify, gear) | **Yes** | Same settlement, with a receipt naming what it paid for |
+| In-game spends (recharge, upkeep, levels, fortify, gear) | **Yes** | Same settlement, with a receipt naming what it paid for |
 | Toll runner → owner | **Yes** | Matched debit and credit in one settlement; must sum to zero |
 | Claiming what you're owed | **Yes** | One direct sponsored transaction per claim |
 | Deed creation / transfer | **Yes, immediately** | Its own transaction. Ownership is never batched |
@@ -562,6 +730,8 @@ may never move anyone's money).
 4. `0 ≤ tollDebit ≤ floor(0.02 × gross)`
 5. `Σ dayGross ≤ dailyBudget`, and `Σ seasonGross ≤ seasonAllocation`
 6. `gross(s) ≤ C_session` and `Σ gross(p, day) ≤ C_day`
+6a. `recharge + upkeep + queued spends ≤ 0.60 × gross(p, day)`, and no balance can go negative
+6b. Level and fortification together contribute `≤ +50%` decay resistance, `≤ +40%` erosion resistance, and `≤ +15%` to any contest score
 7. One session settles once; one city-day finalises once
 8. No path turns locked into liquid except: holding a deed at the time of earning, tolls, sponsor prizes
 9. `liquidIssued(period) ≤ revenueValveBudget(period)`
@@ -620,6 +790,20 @@ sharing are separate and revocable, and withdrawing is as easy as giving.
 | Player reward allocation | 400M over ~180 seasons | Fixed |
 | Season pool | 9M, −10%/season, 2M floor | Fixed |
 | **Daily pool, season 1** | **100,000 `$MOVE`** | Fixed |
+| **Charge per scoring session** | 50% of 100 | Fixed |
+| **Daily recharge price** | 25% of the day's gross at Kit L1, 15% at L5 | Hypothesis |
+| **All automatic day-close debits** | ≤ 60% of the day's gross, combined | Fixed |
+| **Cash top-up for charge** | Does not exist | Fixed |
+| **Running with an empty Kit** | Always allowed; earns everything except tokens | Fixed |
+| **Land levels** | 5, costing 2 → 45 day-shares, burned | Hypothesis |
+| **Kit levels** | 5, costing 3 → 50 day-shares, burned | Hypothesis |
+| **Decay resistance, level + fortify** | +50% combined maximum | Fixed |
+| **Erosion resistance, level + fortify** | +40% combined maximum | Fixed |
+| **Level contribution to a contest** | Zero. The +15% is fortification only | Fixed |
+| **Level effect on toll income** | 1.00× at every level | Fixed |
+| **Losing a zone** | Drops two levels; full restore if reclaimed in 14 days | Fixed |
+| **Charge capacity** | Not purchasable at any price | Fixed |
+| **Paid season track / purchasable streak shields** | Do not exist | Fixed |
 | **Per-session ceiling `C_session`** | **12 `$MOVE`** | Hypothesis |
 | **Per-day ceiling `C_day`** | **20 `$MOVE`** | Hypothesis |
 | `C_session : C_day` ratio | 0.6 — one session can never max a day | Fixed |
@@ -643,7 +827,9 @@ sharing are separate and revocable, and withdrawing is as easy as giving.
 | Shade deed eligibility | **Never** | Fixed |
 | Shade toll income | **Never** | Fixed |
 | Deeded cells | Cannot erode; contest only | Fixed |
-| Skip penalty | `0.30 × zones^0.25` per zone per day | Hypothesis |
+| Skip penalty | 0.03 day-shares × zones^0.25, per unvisited zone per day | Hypothesis |
+| Unpayable upkeep | Paid in condition, never in debt. Balances never go negative | Fixed |
+| All prices in the game | Quoted in day-shares, displayed in tokens | Fixed |
 | Away protection | 14 days per season, free | Fixed |
 | Repair cost | ≤ 15% of that session's reward | Fixed |
 | Fortifications active | 3 per zone, each expires | Fixed |
@@ -730,7 +916,7 @@ says whether anyone will pay for the audience that habit creates.
 
 ---
 
-## 22. The five sentences that hold the whole design
+## 22. The six sentences that hold the whole design
 
 1. **One source.** Only verified movement creates `$MOVE`, from a fixed daily pool that does not care how many people play.
 2. **Seal it or lose it.** Tokens are for showing up; land is for playing well, and nothing is claimed until you get back.
