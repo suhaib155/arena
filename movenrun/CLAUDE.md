@@ -76,7 +76,12 @@ The territory economy is **already substantially built**. Treat these as assets:
 - `docs/MOBILE_TO_TERRITORY_PLAN.md` — how the quest shell evolves into the
   territory map loop.
 - `docs/ARCHITECTURE.md` — contract interaction diagram and oracle flow.
-- `docs/TOKENOMICS.md` — emission schedule and burn sink details.
+- `docs/GAME_ECONOMY_V3.md` — **the decided game economy**: sealing, solid vs
+  shade territory, daily settlement, session/day earning ceilings, the 2% toll,
+  locked/liquid states, sinks, paymaster policy, and the full limits register.
+  Read before any economy or reward decision.
+- `docs/TOKENOMICS.md` — emission schedule and burn sinks **of the deployed v1
+  contracts** (historical record; superseded by `GAME_ECONOMY_V3.md`).
 - `mobile/README.md` — how to run the app.
 
 ## Working agreement

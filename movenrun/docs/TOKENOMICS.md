@@ -1,5 +1,16 @@
 # MovenRun Tokenomics — $MOVE
 
+> **Superseded for design purposes.** This file documents the economy of the
+> **deployed Base Sepolia v1 contracts** (per-km emission, halvings, mint-time
+> zone tax, treasury "Great Burn"). It is accurate as a record of what is on
+> chain today and should stay that way.
+>
+> The **decided forward design** is `docs/GAME_ECONOMY_V3.md` — sealed-loop
+> capture, solid vs shade territory, a fixed daily pool with per-session and
+> per-day ceilings, end-of-day settlement, and a 2.00% session toll split across
+> every deed crossed. Where the two disagree, V3 decides, and this file describes
+> code that must be rebuilt.
+
 ## Summary
 
 | Parameter | Value |
