@@ -65,6 +65,13 @@ Do not repeat that.
 `hex_activities` (nothing writes it), local mobile territory state, or an
 operator assertion that a route was verified.
 
+- [ ] Read **the claim CLI's environment section** in
+      `docs/DEED_DEPLOYMENT_RUNBOOK.md` before running `issueDeedClaim.ts`.
+      It needs `REDIS_URL` and `BASE_RPC_URL` to be *set* even though it never
+      connects to either — the shared config loader validates the whole schema.
+      A missing one exits with a validation dump that looks like a bug and is
+      not.
+
 ## Ready to report back
 
 When all of the above is true, report only:
