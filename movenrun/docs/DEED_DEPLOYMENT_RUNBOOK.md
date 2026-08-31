@@ -30,6 +30,65 @@ Configured locally, outside Git, in the deployment environment only.
 The deployment script reads no key itself. `DEPLOYER_PRIVATE_KEY` reaches
 Hardhat through its own config; the script never touches, prints, or records it.
 
+### The claim CLI's environment is not the deployment script's
+
+`issueDeedClaim.ts` is a backend process, so it loads the backend's shared
+configuration. That loader validates the **entire** application schema before
+returning, and the CLI's database bootstrap goes through it:
+
+```
+issueDeedClaim.ts → movementRepositoryResolver → DrizzleMovementVerificationRepository(getDb())
+                                                                        → getDb() → getConfig()
+```
+
+The practical consequence is that some variables must be **set** for the CLI to
+start even though it never uses the service behind them.
+
+**Directly used by the CLI** — these do real work, and changing them changes the
+output:
+
+| Variable | What it does here |
+|---|---|
+| `DATABASE_URL` | The database the verified movement record is read from |
+| `ORACLE_PRIVATE_KEY` | Signs the claim. A different key produces a different signer address, and the registry will reject a signature from a key it does not hold `ORACLE_SIGNER_ROLE` for |
+| `CHAIN_ID` | Bound into the EIP-712 domain. Defaults to `84532` (Base Sepolia) — **set it to `8453` for mainnet or the authorization will not verify** |
+| `DEED_REGISTRY_ADDRESS` | The registry the authorization is bound to (or `--registry`) |
+
+**Required only by shared configuration validation** — the CLI opens no
+connection to either, and a syntactically valid URL pointing at nothing is
+sufficient:
+
+| Variable | Why it is required |
+|---|---|
+| `REDIS_URL` | The shared schema marks it required for the server process. This CLI constructs no Redis client and connects to no Redis. Verified: the CLI completes normally with an unreachable host. |
+| `BASE_RPC_URL` | Same. The CLI makes no RPC call — the participant's wallet submits the claim transaction, not this tool. |
+
+This is a configuration coupling, not a security requirement and not good
+architecture. It is documented rather than worked around because splitting the
+config loader is a change to shared backend behaviour that this work does not
+justify making under deadline pressure.
+
+**Do not point these at a real production service to satisfy the check.** They
+are unused here, so a placeholder that is syntactically a URL is both sufficient
+and safer than naming infrastructure this command has no business touching.
+
+### If the CLI fails before it reaches the database
+
+Compare your environment against the backend's full config schema
+(`backend/src/config.ts`), not just the variables above. The CLI shares the
+global validator, so a variable it never uses can still stop it starting.
+
+The two failure shapes look different, which is the quickest way to tell them
+apart:
+
+- **A missing `DATABASE_URL`** produces a categorised refusal —
+  `Unavailable: database_not_configured` — because the resolver checks it before
+  configuration is loaded at all.
+- **A missing `REDIS_URL` or `BASE_RPC_URL`** produces
+  `Invalid environment: { … REDIS_URL: { _errors: [ 'Required' ] } }` and the
+  process exits immediately. That is the shared config validator calling
+  `process.exit(1)`; it is not a database problem and not a bug in the CLI.
+
 ## 1. Preflight — know these before broadcasting
 
 - deployer public address, and its balance on the target chain
