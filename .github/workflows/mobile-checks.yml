@@ -23,6 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # React Native 0.81 / Metro (Expo SDK 54) require Node >= 20.19.4.
+      # "20" resolves to the latest 20.x, which satisfies that floor — do not
+      # pin a lower 20.x patch here.
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:

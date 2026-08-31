@@ -29,8 +29,9 @@ the product.
 
 What actually ships and runs today:
 
-- A **running Android APK** (Expo SDK 51, React Native 0.74, Expo Router v3,
-  TypeScript, Zustand + AsyncStorage).
+- A **running Android APK** (Expo SDK 54, React Native 0.81, Expo Router v6,
+  TypeScript, Zustand + AsyncStorage), compiling and targeting **Android 16 /
+  API 36** as Google Play requires from 2026-08-31.
 - **Local mock quests** — a daily quest + browsable list, served through a
   service seam (`mobile/src/services/questService.ts`, backed by
   `mobile/src/data/quests.ts`).

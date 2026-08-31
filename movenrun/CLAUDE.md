@@ -22,7 +22,7 @@ and Base-native city wars / gasless badges.
 > sponsor/land demand.
 
 ## The quest APK is NOT the final product
-The app currently in `mobile/` (Expo SDK 51, RN 0.74, Expo Router v3, TS,
+The app currently in `mobile/` (Expo SDK 54, RN 0.81, Expo Router v6, TS,
 Zustand + AsyncStorage) is a **mobile shell**: local mock quests, a
 `start → active timer → finish → XP result` flow, XP/levels/streak, and a working
 **EAS APK build pipeline**. It exists to prove out build/release and on-device
@@ -86,10 +86,17 @@ The territory economy is **already substantially built**. Treat these as assets:
   production asset.
 - Every feature must serve **Move → Capture → Defend → Own**.
 - Package manager is **yarn workspaces**.
-- App is on **Expo SDK 51**; phone-test via the SDK 51 Android Expo Go + tunnel
-  (`mobile/README.md`). Any Expo SDK upgrade is a **separate PR** done where
-  `expo install --fix` / `expo-doctor` can run and be device-tested — never an
-  unverified bump.
+- App is on **Expo SDK 54** (RN 0.81, React 19); phone-test via the SDK 54
+  Android Expo Go + tunnel (`mobile/README.md`). Any Expo SDK upgrade is a
+  **separate PR** done where `expo install --fix` / `expo-doctor` can run and be
+  device-tested — never an unverified bump.
+- Android builds **compile and target API 36** (Android 16), which Google Play
+  requires for new apps and updates from 2026-08-31. The level is resolved from
+  the installed React Native version catalog, not written in the repo — see
+  "Android API level" in `mobile/README.md`, and the CI guard in
+  `mobile/src/lib/__tests__/androidTargetSdk.test.ts`. Do not downgrade
+  `react-native`/`expo` below that line, and do not pin a lower SDK level
+  through `expo-build-properties`.
 - For installable **Android APK** builds, use the **EAS GitHub Actions workflow**
   (`.github/workflows/eas-apk-build.yml`, preview profile). It authenticates with
   the **`EXPO_TOKEN`** GitHub Actions secret only. Never ask for the Expo

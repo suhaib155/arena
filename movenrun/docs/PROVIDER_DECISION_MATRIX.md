@@ -3,8 +3,17 @@
 Snapshot date: 2026-07-19. Legend: **V** = verified from an official source
 (see `PROVIDER_EVIDENCE_REGISTER.md`), **U** = Unverified (official source
 denied by the execution environment's egress policy — never inferred),
-**F** = verified FAIL at the current app baseline (Expo SDK ~51 /
-react-native 0.74.1 / react 18.2.0).
+**F** = verified FAIL at the app baseline *as of the snapshot date* (Expo SDK
+~51 / react-native 0.74.1 / react 18.2.0).
+
+> ⚠️ **Baseline moved (2026-08-14).** The app is now on **Expo SDK 54 /
+> react-native 0.81.5 / react 19.1.0** (Android API 36 readiness). Every
+> RN-version-dependent verdict below — in particular gate 1 ("Current React
+> Native support") and the Turnkey **F** for peer `react-native ^0.76.5` — was
+> evaluated against RN 0.74.1 and **must be re-verified** before ADR-0011 is
+> resolved. The rest of the matrix (custody model, export, pricing, compliance)
+> is unaffected. This note deliberately does not restate any verdict as passing:
+> nothing here has been re-verified.
 
 ## Hard gates by candidate
 
