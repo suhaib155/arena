@@ -5,6 +5,7 @@ import zonesRouter from "./routes/zones.js";
 import battlesRouter from "./routes/battles.js";
 import usersRouter from "./routes/users.js";
 import { createProductionIdentityRouter, createProductionWebhookRouter } from "./identity/http/productionRouter.js";
+import { createProductionMovementRouter } from "./movement/http/productionRouter.js";
 import { createCorsMiddleware, createSecurityHeadersMiddleware } from "./middleware/security.js";
 import { createGlobalRateLimiter } from "./middleware/rateLimit.js";
 
@@ -44,6 +45,12 @@ app.use("/users", usersRouter);
 // Identity & wallet foundation. Readiness (provider/config status) is exposed
 // at /identity/ready, separate from the liveness probe above.
 app.use("/identity", createProductionIdentityRouter());
+
+// Server-verified movement. Bearer-authenticated and keyed by user id — a
+// different principal and a different trust boundary from /gps above, which is
+// wallet-signature auth for the oracle/chain path. Neither one can stand in for
+// the other, and this route issues no signature and asserts no ownership.
+app.use("/movement", createProductionMovementRouter());
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
