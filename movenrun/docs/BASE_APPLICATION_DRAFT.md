@@ -66,7 +66,41 @@ Each of these is proven and can be pointed at:
 **Open PR code is not deployed product.** Say "implemented and tested, in
 review", never "live".
 
-## Evidence layer 2 — blocked until it exists
+## Evidence layer 2 — safe only once Base Sepolia is complete
+
+Sepolia is a **test network**. Completing it proves the path works; it proves
+nothing about mainnet, and the wording has to keep those apart. Use these only
+after the Sepolia evidence table is filled in and reviewed:
+
+- MovenRun has built and tested a standalone DeedRegistry.
+- It uses EIP-712 oracle-authorized claims, with admin and oracle held by
+  separate keys.
+- One H3 resolution-8 cell can map to only one deed, enforced by the contract.
+- A claim requires verified-movement eligibility; the cell must appear in the
+  server-derived traversal for that session.
+- No MOVE token is required to claim in the new registry design.
+- The full deed path has been exercised **on Base Sepolia**: deployment, a real
+  participant claim, replay rejection, duplicate-cell rejection, and transfer.
+- **Mainnet deployment remains pending.**
+
+Say "exercised on Base Sepolia", never "live". A reviewer who checks Basescan
+and finds a testnet address behind the word "live" has learned something worse
+about the project than a pending mainnet would have told them.
+
+## Evidence layer 3 — safe only after mainnet deployment
+
+One sentence, and only once it is on chain and verified:
+
+> The MovenRun DeedRegistry is deployed on Base mainnet at `<address>`.
+
+Do **not** imply the other eight contracts moved. They remain on Base Sepolia
+unless they are actually redeployed, and conflating the two would turn one true
+statement into a false one about the whole system.
+
+Supply and holder counts must be the exact on-chain numbers. Not rounded, not
+projected, not inclusive of wallets the project controls.
+
+## Evidence layer 4 — blocked until it exists
 
 Leave these as placeholders. Do not pre-write a number and try to make reality
 match it.
