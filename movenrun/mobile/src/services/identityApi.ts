@@ -18,6 +18,7 @@ import {
   type SecureSessionTokens,
 } from "../lib/secureSession";
 import type { RefreshOutcome, RestoreKind, UnavailableCode } from "../lib/authLifecycle";
+import { AuthedJsonTransport, type AuthedRequestInit } from "./authedTransport";
 
 export interface PublicUser {
   id: string;
@@ -142,61 +143,39 @@ export class IdentityApiClient {
   private readonly baseUrl: string;
   private readonly store: SecureSessionStore;
   /**
-   * The refresh currently in flight, shared by every caller that needs one.
-   *
-   * This is a security control, not an optimisation. The server rotates the
-   * refresh token on every use and treats a second presentation of the same
-   * token as a replay — it revokes the WHOLE session family and signs the user
-   * out everywhere (see backend SessionService.refresh). Two concurrent
-   * protected requests hitting 401 together (which `restoreSession` does by
-   * design: `me()` and `listWallets()` run in parallel) would otherwise present
-   * the same refresh token twice and destroy a perfectly valid session.
+   * The app's ONE authenticated transport, owned here because identity owns
+   * refresh. Exposed so other domain clients (see `movementApi.ts`) share this
+   * instance rather than building their own: a second transport would mean a
+   * second single-flight slot, and a concurrent 401 across two domains would
+   * present the same rotating refresh token twice — which the backend treats
+   * as a replay and answers by revoking the whole session family.
    */
-  private refreshInFlight: Promise<RefreshOutcome> | null = null;
+  readonly transport: AuthedJsonTransport;
 
   constructor(opts: { baseUrl?: string; store?: SecureSessionStore } = {}) {
     this.baseUrl = opts.baseUrl ?? resolveBaseUrl();
     this.store = opts.store ?? getSecureSessionStore();
+    this.transport = new AuthedJsonTransport({
+      baseUrl: this.baseUrl,
+      /* A keystore that cannot be READ is not the same as an empty keystore, so
+         loadTokens() throws rather than returning null — see below. */
+      loadAccessToken: async () => (await this.loadTokens())?.accessToken ?? null,
+      performRefresh: () => this.performRefresh(),
+      error: (status, code) => new IdentityApiError(status, code),
+      // No timeoutMs on purpose: the pre-extraction client had no timeout, and
+      // adding one here would change auth-lifecycle behaviour rather than
+      // refactor it. New callers opt in per request.
+    });
   }
 
-  private async request<T>(
-    path: string,
-    init: { method?: string; body?: unknown; auth?: boolean; retryOn401?: boolean } = {}
-  ): Promise<T> {
-    const headers: Record<string, string> = { "content-type": "application/json" };
-    if (init.auth) {
-      /* A keystore that cannot be READ is not the same as an empty keystore.
-         Treating it as 401 would let a transient read failure be classified as
-         a rejected session — and rejected sessions get deleted. It becomes a
-         recoverable client error instead, and never reaches the 401 path. */
-      const tokens = await this.loadTokens();
-      if (!tokens) throw new IdentityApiError(401, "unauthenticated");
-      headers.authorization = `Bearer ${tokens.accessToken}`;
-    }
-    const res = await this.send(this.baseUrl + path, {
-      method: init.method ?? "GET",
-      headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    });
-
-    if (res.status === 401 && init.auth && init.retryOn401 !== false) {
-      // One transparent refresh attempt, then retry the original call. The
-      // attempt is bounded: `retryOn401: false` makes the recursion depth 1,
-      // and there is no polling or backoff loop anywhere in this client.
-      // Concurrent 401s all await the SAME refresh (see refreshOnce), so the
-      // rotating refresh token is never presented twice.
-      const outcome = await this.refreshOnce();
-      if (outcome.kind === "refreshed") return this.request<T>(path, { ...init, retryOn401: false });
-      // A transient refresh failure must not be reported as "unauthenticated":
-      // that would let a network blip look like a revoked session.
-      if (outcome.kind === "unavailable") throw new IdentityApiError(0, outcome.code);
-    }
-
-    if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
-      throw new IdentityApiError(res.status, body?.error?.code ?? "request_failed");
-    }
-    return (await res.json()) as T;
+  /**
+   * Identity-domain request. Bearer attachment, single-flight refresh, the one
+   * bounded retry, JSON handling and error normalisation all belong to
+   * {@link AuthedJsonTransport}. This client no longer knows how any of that
+   * works, which is the point of the extraction.
+   */
+  private request<T>(path: string, init: AuthedRequestInit = {}): Promise<T> {
+    return this.transport.request<T>(path, init);
   }
 
   /**
@@ -216,53 +195,8 @@ export class IdentityApiClient {
   }
 
   /**
-   * Perform one HTTP call, converting a transport failure into a typed
-   * `service_unavailable` error. Raw exception text never escapes this client,
-   * and a network problem is never allowed to masquerade as an auth answer.
-   */
-  private async send(url: string, init: RequestInit): Promise<Response> {
-    try {
-      return await fetch(url, init);
-    } catch {
-      throw new IdentityApiError(0, "service_unavailable");
-    }
-  }
-
-  /**
-   * Single-flight wrapper around {@link performRefresh}.
-   *
-   * The first caller starts the refresh; every caller that arrives while it is
-   * running receives the SAME promise and therefore the same outcome. The slot
-   * is cleared once the operation settles — and only if it still holds that
-   * operation — so a later, genuinely independent expiry starts a fresh
-   * refresh. Nothing here polls, sleeps, or backs off.
-   *
-   * `performRefresh` never rejects (every failure is a typed outcome), so the
-   * shared promise cannot leave an unhandled rejection behind for the callers
-   * that merely awaited it.
-   */
-  private refreshOnce(): Promise<RefreshOutcome> {
-    const existing = this.refreshInFlight;
-    if (existing) return existing;
-
-    const operation = this.performRefresh().then(
-      (outcome) => {
-        if (this.refreshInFlight === operation) this.refreshInFlight = null;
-        return outcome;
-      },
-      (err: unknown) => {
-        if (this.refreshInFlight === operation) this.refreshInFlight = null;
-        throw err;
-      },
-    );
-
-    this.refreshInFlight = operation;
-    return operation;
-  }
-
-  /**
-   * The single bounded refresh attempt, with a typed outcome. Call it through
-   * {@link refreshOnce}, never directly.
+   * The single bounded refresh attempt, with a typed outcome. Invoked only through the
+   * transport's single-flight wrapper, never directly.
    *
    * The distinction matters for security: a server rejection means the
    * credentials are dead and must be cleared, while a network/backend failure
@@ -280,7 +214,7 @@ export class IdentityApiClient {
     if (!tokens) return { kind: "no-session" };
     let res: Response;
     try {
-      res = await this.send(this.baseUrl + "/identity/auth/refresh", {
+      res = await fetch(this.baseUrl + "/identity/auth/refresh", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ refreshToken: tokens.refreshToken }),

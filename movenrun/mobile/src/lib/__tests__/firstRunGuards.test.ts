@@ -29,6 +29,10 @@ const EMAIL_FORM = join(COMPONENTS, "EmailOtpForm.tsx");
 const GAME_STORE = join(SRC, "store", "useGameStore.ts");
 const AUTH_STORE = join(SRC, "store", "useAuthStore.ts");
 const IDENTITY_API = join(SRC, "services", "identityApi.ts");
+/* The bearer/refresh plumbing was extracted out of identityApi.ts so a second
+   domain client could reuse it. The invariants below did not change owner in
+   spirit — they moved file, and follow it here. */
+const AUTHED_TRANSPORT = join(SRC, "services", "authedTransport.ts");
 
 /** Every screen a user can see before they reach the app. */
 const FIRST_RUN_FILES = [WELCOME, INTRO, LEGACY_INTRO, EMAIL_FORM];
@@ -195,10 +199,22 @@ test("session restore is typed and bounded — no polling, no unbounded retry", 
   assert.match(src, /kind:\s*"unavailable"/, "transient failure is its own outcome");
   assert.match(src, /kind:\s*"rejected"/, "a server rejection is distinguishable");
   assert.ok(!/setInterval|setTimeout/.test(src), "no polling or backoff loop");
-  // The single transparent refresh stays single.
-  assert.match(src, /retryOn401:\s*false/);
   const store = code(AUTH_STORE);
   assert.ok(!/setInterval|setTimeout/.test(store), "the store does not poll either");
+
+  // The single transparent refresh stays single — now enforced where the retry
+  // actually lives.
+  const transport = code(AUTHED_TRANSPORT);
+  assert.match(transport, /retryOn401:\s*false/);
+  assert.ok(!/setInterval/.test(transport), "no polling loop in the transport");
+  /* The transport does use setTimeout, once, as an opt-in request deadline —
+     an abort timer, not a backoff. Pin it to exactly that: one timer, always
+     cleared, paired with an AbortController. A second one would be a retry
+     loop creeping in. */
+  const timers = transport.match(/setTimeout\(/g) ?? [];
+  assert.equal(timers.length, 1, "exactly one timer, and it is the abort deadline");
+  assert.match(transport, /new AbortController\(\)/);
+  assert.match(transport, /clearTimeout\(timer\)/, "the deadline is always cleared");
 });
 
 test("the store maps restore outcomes through the pure classifier", () => {
@@ -317,14 +333,30 @@ test("one auth request at a time, gated at the state layer", () => {
 // ---- single-flight refresh ---------------------------------------------------
 
 test("every refresh goes through the single-flight wrapper", () => {
-  const src = code(IDENTITY_API);
-  assert.match(src, /private refreshInFlight: Promise<RefreshOutcome> \| null/);
-  assert.match(src, /await this\.refreshOnce\(\)/, "requests await the shared refresh");
-  // performRefresh is the implementation and must never be called directly.
-  const directCalls = src.match(/this\.performRefresh\(\)/g) ?? [];
-  assert.equal(directCalls.length, 1, "performRefresh is invoked only by refreshOnce");
+  const transport = code(AUTHED_TRANSPORT);
+  assert.match(transport, /private refreshInFlight: Promise<RefreshOutcome> \| null/);
+  assert.match(transport, /await this\.refreshOnce\(\)/, "requests await the shared refresh");
+  // The injected refresh is the implementation and must only run via the slot.
+  const viaSlot = transport.match(/this\.opts\.performRefresh\(\)/g) ?? [];
+  assert.equal(viaSlot.length, 1, "performRefresh is invoked only by refreshOnce");
   // The slot is released so a later expiry can refresh again.
-  assert.match(src, /this\.refreshInFlight === operation/);
+  assert.match(transport, /this\.refreshInFlight === operation/);
+
+  /* identityApi supplies the refresh but must no longer implement the
+     single-flight itself — two implementations would mean two slots. */
+  const identity = code(IDENTITY_API);
+  assert.ok(!/refreshInFlight/.test(identity), "identity must not keep a second slot");
+  const wiring = identity.match(/this\.performRefresh\(\)/g) ?? [];
+  assert.equal(wiring.length, 1, "performRefresh is handed to the transport exactly once");
+
+  /* And the second domain client must SHARE that transport rather than build
+     one: a second transport is a second slot, and a concurrent 401 across two
+     domains would present the rotating refresh token twice. */
+  const movement = code(join(SRC, "services", "movementApi.ts"));
+  assert.ok(
+    !/new AuthedJsonTransport/.test(movement),
+    "movementApi must accept the shared transport, never construct its own",
+  );
 });
 
 test("the startup error state offers recovery and shows no raw error", () => {
