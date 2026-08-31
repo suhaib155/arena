@@ -111,6 +111,33 @@ A holder is a person who controls their own key, moved through the cell
 themselves, and sent their own claim transaction. The reportable number is the
 count of those, and if it is two, it is two.
 
+## Local end-to-end proof
+
+The whole path has been proven on a local chain, against the real pieces — the
+movement-verification repository, this branch's bridge and EIP-712 signer, and
+the registry contract. Nothing was stubbed past the repository, no contract
+internal was called directly, and the claim was submitted by the claimant
+account itself.
+
+22 of 22 checks passed:
+
+- a verified record authorizes exactly its own traversed cell,
+- the oracle holds `ORACLE_SIGNER_ROLE` and **not** `DEFAULT_ADMIN_ROLE`,
+- the claimant's own transaction mints the deed; `totalSupply()` becomes 1,
+- `tokenURI` resolves,
+- replaying the same authorization reverts,
+- a second claimant cannot take the same cell, even with a fresh authorization,
+- an expired authorization reverts,
+- the bridge refuses an untraversed cell, an unknown session, and another
+  user's session,
+- a V1 `personal_sign` signature is rejected on-chain,
+- the deed transfers, `totalSupply()` stays 1, and the cell cannot be reclaimed.
+
+**This is local infrastructure proof and nothing more.** It is not evidence of
+a Base deployment, and it must never be described as one. The integration
+branch that carried it was temporary and was deleted without being pushed,
+because it contained other open PRs' diffs.
+
 ## Current honest position
 
 | Claim | True today |
@@ -124,3 +151,4 @@ count of those, and if it is two, it is two.
 | Verified-movement backend on `main` | **No** — #73 is unmerged |
 | Traversed cells recorded server-side | **No** — no writer for `hex_activities` |
 | Pilot participants recruited | **No** |
+| Local end-to-end claim proven | Yes — local chain only |

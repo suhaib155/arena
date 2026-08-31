@@ -46,6 +46,39 @@ distance tracker.
 - No PvP, no live clubs, no enclosure capture.
 - No embedded wallets and no sponsored gas.
 
+## Evidence layer 1 — safe to state today
+
+Each of these is proven and can be pointed at:
+
+- A tested DeedRegistry implementation exists in an open pull request: one
+  permanent, transferable ERC-721 deed per H3 resolution-8 cell.
+- Claims are authorized by EIP-712 oracle signatures bound to claimant, cell,
+  a single-use claim id, a deadline, the chain and the deployment.
+- No MOVE token, balance, allowance or burn is required to claim.
+- No role can mint, seize, or destroy a deed; there is no reclaim path.
+- A deterministic ERC-721 metadata endpoint exists in an open pull request.
+- A correct EIP-712 backend signer and an operator claim-issuance bridge exist
+  in an open pull request.
+- The full path — verified movement record → eligible traversed cell →
+  EIP-712 authorization → minted, transferable deed — has been proven
+  end-to-end on a local chain.
+
+**Open PR code is not deployed product.** Say "implemented and tested, in
+review", never "live".
+
+## Evidence layer 2 — blocked until it exists
+
+Leave these as placeholders. Do not pre-write a number and try to make reality
+match it.
+
+- Base Sepolia DeedRegistry address
+- Base mainnet DeedRegistry address
+- Basescan verification URL and status
+- `totalSupply()`
+- unique holder count
+- pilot claim transaction hashes
+- transfer transaction hash
+
 ## Fields to leave blank until confirmed
 
 | Field | Fill in only when |
