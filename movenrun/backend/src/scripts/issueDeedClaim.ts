@@ -25,7 +25,10 @@
 import { ethers } from "ethers";
 import { DeedOracleService } from "../services/deedOracle.service.js";
 import { DeedClaimBridge, ClaimBridgeError } from "../services/deedClaimBridge.js";
-import type { VerifiedMovementLookup } from "../services/deedClaimBridge.js";
+import {
+  MovementRepositoryUnavailableError,
+  resolveMovementVerificationLookup,
+} from "../services/movementRepositoryResolver.js";
 
 interface Args {
   user: string;
@@ -66,38 +69,10 @@ function parseArgs(argv: string[]): Args {
   };
 }
 
-/**
- * The verification source.
- *
- * Wired to the real Drizzle-backed movement-verification repository once that
- * work merges. Until then this refuses rather than falling back to anything
- * weaker: a stub that returned a plausible record would make the tool appear
- * to work while authorizing deeds against nothing, which is the single worst
- * failure mode available to it.
- */
-async function resolveLookup(): Promise<VerifiedMovementLookup> {
-  try {
-    const mod = await import(
-      /* @vite-ignore */ "../movement/repositories/drizzle/store.js"
-    );
-    const factory =
-      (mod as Record<string, unknown>).createMovementVerificationRepository ??
-      (mod as Record<string, unknown>).movementVerificationRepository;
-    if (typeof factory === "function") {
-      return (factory as () => VerifiedMovementLookup)();
-    }
-    if (factory && typeof (factory as VerifiedMovementLookup).findByUserSession === "function") {
-      return factory as VerifiedMovementLookup;
-    }
-    throw new Error("no repository export found");
-  } catch {
-    throw new Error(
-      "No movement-verification repository is available in this build. The " +
-        "server-verified movement work is not merged yet, and this tool will not " +
-        "authorize a deed without a persisted verification record to read.",
-    );
-  }
-}
+/* The verification source is resolved by services/movementRepositoryResolver.ts,
+   which constructs the same `DrizzleMovementVerificationRepository(getDb())`
+   production uses. It is a separate module so this file stays a thin operator
+   entry point and the bridge stays free of any database dependency. */
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -107,7 +82,7 @@ async function main(): Promise<void> {
   }
 
   const oracle = new DeedOracleService({ registryAddress: args.registry });
-  const bridge = new DeedClaimBridge(oracle, await resolveLookup());
+  const bridge = new DeedClaimBridge(oracle, await resolveMovementVerificationLookup());
 
   const bundle = await bridge.issue({
     userId: args.user,
@@ -116,8 +91,17 @@ async function main(): Promise<void> {
     claimant: args.claimant,
   });
 
-  // The bundle, and only the bundle.
-  process.stdout.write(`${JSON.stringify(bundle, null, 2)}\n`);
+  /* The bundle, and only the bundle — awaited so it is flushed before exit.
+
+     `getDb()` opens a lazy singleton pool and the backend exposes no close
+     helper: it is written for a long-lived server process, not a one-shot
+     tool. Rather than invent a close API or reach into the pool, this exits
+     once the output is on the wire. Adding an unsafe teardown to make a CLI
+     tidy would be a worse change than an explicit exit. */
+  await new Promise<void>((resolve) => {
+    process.stdout.write(`${JSON.stringify(bundle, null, 2)}\n`, () => resolve());
+  });
+  process.exit(0);
 }
 
 main().catch((error: unknown) => {
@@ -125,6 +109,10 @@ main().catch((error: unknown) => {
      it does not echo the cell set, the record, or the request. */
   if (error instanceof ClaimBridgeError) {
     process.stderr.write(`Refused: ${error.reason}\n`);
+  } else if (error instanceof MovementRepositoryUnavailableError) {
+    /* A category, never a value. A pg failure can carry the connection string,
+       so the underlying error is deliberately not surfaced. */
+    process.stderr.write(`Unavailable: ${error.reason}\n`);
   } else {
     process.stderr.write(`${(error as Error).message}\n`);
   }
