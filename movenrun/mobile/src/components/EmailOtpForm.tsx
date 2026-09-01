@@ -21,7 +21,7 @@
 import { useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/Button";
-import { colors, radius, spacing, type } from "@/theme";
+import { colors, radius, softTint, spacing, type } from "@/theme";
 import {
   authErrorMessage,
   canSubmitEmail,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   sentTo: { ...type.body, fontSize: 14, lineHeight: 20, color: colors.textDim },
   sentEmail: { color: colors.text, fontWeight: "700" },
   errorBox: {
-    backgroundColor: `${colors.danger}14`,
+    backgroundColor: softTint(colors.danger),
     borderRadius: radius.md,
     padding: spacing.lg,
   },

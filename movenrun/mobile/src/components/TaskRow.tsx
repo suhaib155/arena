@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, iconTile, palette, radius, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, radius, softTint, spacing, type } from "@/theme";
 import type { Task } from "@/lib/tasks";
 import { Card } from "./Card";
 import { ScalePress } from "./ScalePress";
@@ -37,7 +37,7 @@ export function TaskRow({ task, onPress }: TaskRowProps) {
       accessibilityHint={done ? undefined : "Opens this task"}
     >
       <Card style={[styles.row, done ? styles.rowDone : null]}>
-        <View style={[styles.disc, { backgroundColor: `${tint}18` }]}>
+        <View style={[styles.disc, { backgroundColor: softTint(tint) }]}>
           <Ionicons name={done ? "checkmark" : task.icon} size={19} color={tint} />
         </View>
 
@@ -81,11 +81,11 @@ const styles = StyleSheet.create({
   titleDone: { color: colors.textDim },
   detail: { ...type.caption, fontSize: 12, color: colors.textFaint },
   reward: {
-    backgroundColor: `${palette.moveGold}1F`,
+    backgroundColor: softTint(palette.moveGold),
     borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
   },
   // Darkened MOVE Gold — the token itself doesn't clear 4.5:1 on its own tint.
-  rewardText: { ...type.mono, fontSize: 12, fontWeight: "700", color: "#B07908" },
+  rewardText: { ...type.mono, fontSize: 12, fontWeight: "700", color: ink.gold },
 });

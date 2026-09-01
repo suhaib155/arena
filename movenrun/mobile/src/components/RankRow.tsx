@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Hexagon } from "./Hexagon";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, ink, palette, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 
 export type RankTrend = "up" | "down" | "steady";
 
@@ -21,8 +21,8 @@ interface RankRowProps {
 }
 
 const TREND_META: Record<RankTrend, { icon: "chevron-up" | "chevron-down" | "remove"; color: string; label: string }> = {
-  up: { icon: "chevron-up", color: "#0A8F60", label: "rising" },
-  down: { icon: "chevron-down", color: "#C2492E", label: "slipping" },
+  up: { icon: "chevron-up", color: ink.green, label: "rising" },
+  down: { icon: "chevron-down", color: ink.coral, label: "slipping" },
   steady: { icon: "remove", color: colors.textFaint, label: "steady" },
 };
 
@@ -77,20 +77,20 @@ const styles = StyleSheet.create({
     minHeight: 60,
     ...shadows.card,
   },
-  rowMine: { backgroundColor: "#F2FBF7", shadowColor: palette.pulseGreen, shadowOpacity: 0.22 },
+  rowMine: { backgroundColor: tints.greenWash, shadowColor: palette.pulseGreen, shadowOpacity: 0.22 },
   rank: { ...type.title, fontSize: 18, width: 22, textAlign: "center", color: colors.textDim },
-  rankGold: { color: "#B07908" },
+  rankGold: { color: ink.gold },
   body: { flex: 1, gap: 2 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   name: { ...type.heading, fontSize: 14.5, flexShrink: 1 },
   meta: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
   youChip: {
-    backgroundColor: `${palette.pulseGreen}1A`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.pill,
     paddingVertical: 2,
     paddingHorizontal: spacing.sm,
   },
-  youChipText: { fontSize: 10.5, fontWeight: "800", color: "#0A8F60" },
+  youChipText: { fontSize: 10.5, fontWeight: "800", color: ink.green },
   scoreWrap: { alignItems: "flex-end", gap: 1 },
   score: { ...type.title, fontSize: 17, fontVariant: ["tabular-nums"] },
   trendRow: { flexDirection: "row", alignItems: "center", gap: 2 },

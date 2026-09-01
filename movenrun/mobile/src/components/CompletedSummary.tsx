@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, radius, softTint, spacing, strongTint, type } from "@/theme";
 import { ScalePress } from "./ScalePress";
 
 interface CompletedSummaryProps {
@@ -33,7 +33,7 @@ export function CompletedSummary({ count, expanded, onToggle, children, noun = "
         accessibilityHint={expanded ? "Collapse completed" : "Expand completed"}
       >
         <View style={styles.check}>
-          <Ionicons name="checkmark" size={15} color="#0A8F60" />
+          <Ionicons name="checkmark" size={15} color={ink.green} />
         </View>
         <Text style={styles.title}>
           {count} {noun}
@@ -55,20 +55,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: `${palette.pulseGreen}12`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     minHeight: 48,
   },
-  check: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: `${palette.pulseGreen}26`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { ...type.heading, fontSize: 14.5, flex: 1, color: "#0A8F60" },
+  check: { ...iconTile(24), backgroundColor: strongTint(palette.pulseGreen) },
+  title: { ...type.heading, fontSize: 14.5, flex: 1, color: ink.green },
   body: { gap: spacing.sm },
 });

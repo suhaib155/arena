@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { categoryColor, colors, difficultyColor, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
+import { categoryColor, colors, difficultyColor, iconTile, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import type { Quest } from "@/types";
 import { Badge } from "./Badge";
 import { ScalePress } from "./ScalePress";
@@ -30,7 +30,7 @@ export function QuestCard({ quest, onPress, featured, completed }: QuestCardProp
       style={[styles.card, featured ? styles.featured : {}, completed ? styles.completed : {}]}
     >
       <View style={styles.header}>
-        <View style={[styles.iconWrap, { backgroundColor: `${tint}1A` }]}>
+        <View style={[styles.iconWrap, { backgroundColor: softTint(tint) }]}>
           <Ionicons name={quest.icon} size={featured ? 26 : 22} color={tint} />
         </View>
         <View style={styles.headerText}>
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     alignSelf: "flex-start",
-    backgroundColor: `${palette.pulseGreen}1A`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.pill,
     paddingVertical: 3,
     paddingHorizontal: spacing.sm,
@@ -119,5 +119,5 @@ const styles = StyleSheet.create({
   spacer: { flex: 1 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { ...type.mono, fontSize: 12.5 },
-  metaXp: { color: "#B07908", fontWeight: "700" },
+  metaXp: { color: ink.gold, fontWeight: "700" },
 });

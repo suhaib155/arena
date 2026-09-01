@@ -12,7 +12,7 @@ import { RoutePath } from "@/components/RoutePath";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
-import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { getLevelInfo } from "@/lib/leveling";
@@ -27,7 +27,6 @@ import { buildWeeklyRecap } from "@/lib/weeklyRecap";
 import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { buildCityDistricts } from "@/lib/cityDistricts";
 import { buildProfileIdentity } from "@/lib/profileView";
-import type { IoniconName } from "@/types";
 import { tapFeedback } from "@/lib/haptics";
 
 function timeAgo(iso: string): string {
@@ -413,14 +412,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadows.card,
   },
-  moveIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: `${palette.moveGold}1A`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  moveIcon: { ...iconTile(40), backgroundColor: softTint(palette.moveGold) },
   moveText: { flex: 1, gap: 2 },
   moveValue: { ...type.heading, fontSize: 16 },
   moveNote: { ...type.caption, fontSize: 12, lineHeight: 16 },
@@ -436,18 +428,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  rowIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.pulseGreen}1A`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  rowIcon: { ...iconTile(30), backgroundColor: softTint(palette.pulseGreen) },
   rowText: { flex: 1 },
   rowTitle: { ...type.heading, fontSize: 14.5 },
   rowTime: { ...type.caption, fontSize: 12, color: colors.textFaint },
-  rowXp: { ...type.mono, fontSize: 13, color: "#B07908", fontWeight: "700" },
+  rowXp: { ...type.mono, fontSize: 13, color: ink.gold, fontWeight: "700" },
   resetBtn: { marginTop: spacing.xs, alignSelf: "center" },
   replayLink: { marginTop: spacing.lg, alignSelf: "center", paddingVertical: spacing.xs },
   replayText: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.primary },

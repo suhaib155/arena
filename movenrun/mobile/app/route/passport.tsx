@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { StatusPill } from "@/components/StatusPill";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { computePassport, readinessTone, type ReadinessTone } from "@/lib/routePassport";
 import { buildPassportStamps, type PassportStamp } from "@/lib/passportEntries";
@@ -15,11 +16,11 @@ import { tapFeedback } from "@/lib/haptics";
 function toneColor(tone: ReadinessTone): { bar: string; text: string } {
   switch (tone) {
     case "strong":
-      return { bar: palette.pulseGreen, text: "#0A8F60" };
+      return { bar: palette.pulseGreen, text: ink.green };
     case "clean":
       return { bar: palette.baseBlue, text: palette.baseBlue };
     case "building":
-      return { bar: palette.moveGold, text: "#B07908" };
+      return { bar: palette.moveGold, text: ink.gold };
     default:
       return { bar: palette.dustGray, text: colors.textDim };
   }
@@ -52,13 +53,7 @@ export default function RoutePassportScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Passport</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Passport" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Identity header */}
@@ -102,14 +97,14 @@ export default function RoutePassportScreen() {
               <View style={styles.statsRow}>
                 <Stat value={String(p.reviewedRouteCount)} label="routes" />
                 <View style={styles.statDivider} />
-                <Stat value={String(p.averageTrustScore)} label="avg trust" tint="#0A8F60" />
+                <Stat value={String(p.averageTrustScore)} label="avg trust" tint={ink.green} />
                 <View style={styles.statDivider} />
                 <Stat value={String(p.cleanRouteStreak)} label="clean streak" />
                 <View style={styles.statDivider} />
                 <Stat
                   value={String(p.recentRiskCount)}
                   label="recent risks"
-                  tint={p.recentRiskCount > 0 ? "#C2492E" : undefined}
+                  tint={p.recentRiskCount > 0 ? ink.coral : undefined}
                 />
               </View>
             </View>
@@ -241,16 +236,6 @@ function Stat({ value, label, tint }: { value: string; label: string; tint?: str
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -298,26 +283,19 @@ const styles = StyleSheet.create({
     minHeight: 56,
     ...shadows.card,
   },
-  stampDate: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.baseBlue}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  stampDate: { ...iconTile(34), backgroundColor: softTint(palette.baseBlue) },
   stampBody: { flex: 1, gap: 2 },
   stampTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   stampActivity: { ...type.heading, fontSize: 14 },
   stampDateText: { ...type.mono, fontSize: 11.5, color: colors.textFaint },
   stampMeta: { ...type.caption, fontSize: 11.5, color: colors.textDim },
   stampTrust: {
-    backgroundColor: `${palette.pulseGreen}14`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.pill,
     paddingVertical: 3,
     paddingHorizontal: spacing.sm,
   },
-  stampTrustText: { fontSize: 10.5, fontWeight: "800", color: "#0A8F60" },
+  stampTrustText: { fontSize: 10.5, fontWeight: "800", color: ink.green },
 
   emptyCard: {
     backgroundColor: colors.surface,
@@ -336,7 +314,7 @@ const styles = StyleSheet.create({
   checkText: { flex: 1, ...type.body, fontSize: 13.5, color: colors.textDim },
   checkTextDone: { color: colors.text, fontWeight: "600" },
 
-  privacyCard: { backgroundColor: `${palette.baseBlue}0D` },
+  privacyCard: { backgroundColor: softTint(palette.baseBlue) },
   privacyHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   privacyTitle: { ...type.heading, fontSize: 14 },
   privacyLine: { ...type.caption, fontSize: 12.5, color: colors.textDim },

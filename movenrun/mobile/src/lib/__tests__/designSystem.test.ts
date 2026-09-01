@@ -64,6 +64,23 @@ function pressableTags(src: string): string[] {
   return tags;
 }
 
+/** Style blocks, brace-aware so a nested `{ width, height }` doesn't end one. */
+function styleBlocks(src: string): [string, string][] {
+  const out: [string, string][] = [];
+  for (const m of src.matchAll(/(\w+):\s*\{/g)) {
+    let depth = 1;
+    const start = m.index! + m[0].length;
+    for (let i = start; i < src.length; i++) {
+      if (src[i] === "{") depth++;
+      else if (src[i] === "}" && --depth === 0) {
+        out.push([m[1], src.slice(start, i)]);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 // ---- shape ------------------------------------------------------------------
 
 test("icon tiles keep the same optical corner at every size", () => {
@@ -100,11 +117,27 @@ test("no screen hand-rolls a square icon container any more", () => {
   const offenders: string[] = [];
   let inspected = 0;
   for (const file of SCREENS) {
-    const src = read(file);
-    // A centred box with equal width/height and its own borderRadius is the
-    // shape iconTile()/avatar() exist to own.
-    const blocks = src.matchAll(/(\w+):\s*\{([^{}]*?)\}/gs);
-    for (const [, name, body] of blocks) {
+    /*
+     * This used to scan with /(\w+):\s*\{([^{}]*?)\}/gs, whose `[^{}]` can
+     * cross neither a `{` nor a `}` — so a style block containing a template
+     * literal was not merely mis-parsed, it was never matched at all:
+     *
+     *     missionIcon: {
+     *       width: 42, height: 42, borderRadius: radius.md,
+     *       backgroundColor: `${palette.baseBlue}14`,   // <- ends the match
+     *       alignItems: "center", justifyContent: "center",
+     *     }
+     *
+     * A tinted icon tile is the single most likely thing to be hand-rolled,
+     * and interpolating the tint is how you hand-roll one — so the rule was
+     * blind to precisely its own subject. Twenty real violations were sitting
+     * in the corpus while it reported none; they surfaced the moment those
+     * interpolations became `softTint(...)` calls.
+     *
+     * The brace-aware `styleBlocks()` a few lines up was already in this file,
+     * used by the card-radius rule. This one now uses it too.
+     */
+    for (const [name, body] of styleBlocks(read(file))) {
       inspected += 1;
       const w = body.match(/width:\s*(\d+)\s*,/);
       const h = body.match(/height:\s*(\d+)\s*,/);
@@ -122,23 +155,6 @@ test("no screen hand-rolls a square icon container any more", () => {
 });
 
 // ---- card surfaces ----------------------------------------------------------
-
-/** Style blocks, brace-aware so a nested `{ width, height }` doesn't end one. */
-function styleBlocks(src: string): [string, string][] {
-  const out: [string, string][] = [];
-  for (const m of src.matchAll(/(\w+):\s*\{/g)) {
-    let depth = 1;
-    const start = m.index! + m[0].length;
-    for (let i = start; i < src.length; i++) {
-      if (src[i] === "{") depth++;
-      else if (src[i] === "}" && --depth === 0) {
-        out.push([m[1], src.slice(start, i)]);
-        break;
-      }
-    }
-  }
-  return out;
-}
 
 test("anything that floats above the page uses a card radius", () => {
   // A shadow is the app saying "this is a card". Cards had drifted across four
@@ -201,17 +217,39 @@ test("no screen adds a border only in its selected state", () => {
 
 test("every Pressable gives press feedback", () => {
   const dead: string[] = [];
-  let total = 0;
+  let parsed = 0;
+  let naive = 0;
   for (const file of SCREENS) {
     // ScalePress is the component that owns the OTHER feedback mode (it
     // springs); the test below pins that it must not also fade.
     if (file.endsWith("ScalePress.tsx")) continue;
-    for (const tag of pressableTags(read(file))) {
-      total += 1;
+    const src = read(file);
+    naive += src.match(/<Pressable\b/g)?.length ?? 0;
+    for (const tag of pressableTags(src)) {
+      parsed += 1;
       if (!tag.includes("pressFade")) dead.push(`${file.replace(process.cwd(), "")}`);
     }
   }
-  assert.ok(total > 40, `expected the full pressable surface, saw ${total}`);
+  /*
+   * This used to read `assert.ok(total > 40)`, which was a real fail-closed
+   * property — an empty corpus produces an empty offender list, so the rule
+   * would otherwise pass hardest when discovery broke.
+   *
+   * But the threshold measured DUPLICATION, not coverage. Twenty-four screens
+   * each hand-rolled a back/close control; folding them into `ScreenHeader`
+   * removed 24 tags from the corpus and the guard went red for the one thing
+   * it should have been happy about. A number that only holds while the app
+   * repeats itself is the wrong invariant.
+   *
+   * So the fail-closed property is stated directly instead of proxied through
+   * a count: a naive regex and the brace-aware parser must agree. Both forms
+   * catch a broken parser — a count of 0 fails `> 40` too — but only this one
+   * keeps holding after the app is consolidated, because it compares the
+   * scanner against the corpus rather than against a number somebody once
+   * measured. Deleting duplication should not make a guard go red.
+   */
+  assert.ok(naive > 0, "no <Pressable> found anywhere — discovery is broken");
+  assert.equal(parsed, naive, "the brace-aware tag parser lost tags the naive scan can see");
   assert.deepEqual([...new Set(dead)], [], "wrap the style in pressFade()");
 });
 

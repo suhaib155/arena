@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, hairline, iconTile, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 
 export type ResultTone = "primary" | "green" | "warning" | "neutral" | "danger";
@@ -30,12 +30,12 @@ export function ResultCallout({ icon, kicker, headline, detail, tone = "primary"
   const accent = TONE[tone];
   return (
     <View
-      style={[styles.card, { borderColor: `${accent}33` }]}
+      style={[styles.card, { borderColor: hairline(accent) }]}
       accessibilityRole="summary"
       accessibilityLabel={`${kicker}. ${headline}. ${detail}`}
     >
       <View style={styles.head}>
-        <View style={[styles.iconTile, { backgroundColor: `${accent}16` }]}>
+        <View style={[styles.iconTile, { backgroundColor: softTint(accent) }]}>
           <Ionicons name={icon} size={20} color={accent} />
         </View>
         <View style={styles.headText}>

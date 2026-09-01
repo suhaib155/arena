@@ -3,8 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tones, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getLocalDateKey } from "@/lib/date";
 import {
@@ -13,14 +14,23 @@ import {
   type AlertSeverity,
   type TerritoryAlert,
 } from "@/lib/territoryAlerts";
+import type { ToneName } from "@/theme";
 import type { IoniconName } from "@/types";
 import { tapFeedback } from "@/lib/haptics";
 
-const SEVERITY: Record<AlertSeverity, { label: string; core: string; text: string; soft: string }> = {
-  urgent: { label: "Urgent", core: palette.heatCoral, text: "#C2492E", soft: `${palette.heatCoral}1A` },
-  caution: { label: "Caution", core: palette.moveGold, text: "#B07908", soft: `${palette.moveGold}1F` },
-  info: { label: "Info", core: palette.baseBlue, text: palette.baseBlue, soft: `${palette.baseBlue}14` },
-  success: { label: "Healthy", core: palette.pulseGreen, text: "#0A8F60", soft: `${palette.pulseGreen}1A` },
+/**
+ * Alert severity is domain vocabulary and stays here; the paint it resolves to
+ * is not, and no longer does. Note `info` in particular: it used to write its
+ * label in `palette.baseBlue`, the *brand* hue, at 4.56:1 on a white card but
+ * only 4.34:1 on the page and 4.19:1 on its own chip — the one severity that
+ * had never been given a hand-mixed readable variant. Going through `tones`
+ * fixes that without this screen having to know it was broken.
+ */
+const SEVERITY: Record<AlertSeverity, { label: string; tone: ToneName }> = {
+  urgent: { label: "Urgent", tone: "urgent" },
+  caution: { label: "Caution", tone: "caution" },
+  info: { label: "Info", tone: "info" },
+  success: { label: "Healthy", tone: "positive" },
 };
 
 const CATEGORY_ICON: Record<TerritoryAlert["category"], IoniconName> = {
@@ -70,13 +80,7 @@ export default function TerritoryAlertsScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Alerts</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Alerts" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -84,7 +88,7 @@ export default function TerritoryAlertsScreen() {
             <Text style={styles.heroKicker}>Territory Alerts</Text>
             <Text style={styles.heroTitle}>Local reminders for what needs attention next.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="phone-portrait-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>In-app only</Text>
               </View>
@@ -100,11 +104,11 @@ export default function TerritoryAlertsScreen() {
         <FadeSlideIn delay={STAGGER_MS}>
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
-              <Stat value={summary.urgent} label="urgent" tint={summary.urgent > 0 ? "#C2492E" : undefined} />
+              <Stat value={summary.urgent} label="urgent" tint={summary.urgent > 0 ? ink.coral : undefined} />
               <View style={styles.sumDivider} />
-              <Stat value={summary.caution} label="caution" tint={summary.caution > 0 ? "#B07908" : undefined} />
+              <Stat value={summary.caution} label="caution" tint={summary.caution > 0 ? ink.gold : undefined} />
               <View style={styles.sumDivider} />
-              <Stat value={summary.positive} label="healthy" tint="#0A8F60" />
+              <Stat value={summary.positive} label="healthy" tint={ink.green} />
             </View>
             {summary.topAction ? (
               <Text style={styles.summaryNext}>Next · {summary.topAction.title}</Text>
@@ -159,22 +163,23 @@ function Stat({ value, label, tint }: { value: number; label: string; tint?: str
 
 function AlertRow({ alert, onPress }: { alert: TerritoryAlert; onPress: () => void }) {
   const sev = SEVERITY[alert.severity];
+  const tone = tones[sev.tone];
   return (
     <View style={styles.alert}>
-      <View style={[styles.alertIcon, { backgroundColor: sev.soft }]}>
-        <Ionicons name={CATEGORY_ICON[alert.category]} size={18} color={sev.core} />
+      <View style={[styles.alertIcon, { backgroundColor: softTint(tone.core) }]}>
+        <Ionicons name={CATEGORY_ICON[alert.category]} size={18} color={tone.core} />
       </View>
       <View style={styles.alertBody}>
         <View style={styles.alertTitleRow}>
           <Text style={styles.alertTitle} numberOfLines={1}>{alert.title}</Text>
-          <View style={[styles.sevChip, { backgroundColor: sev.soft }]}>
-            <Text style={[styles.sevText, { color: sev.text }]}>{sev.label}</Text>
+          <View style={[styles.sevChip, { backgroundColor: softTint(tone.core) }]}>
+            <Text style={[styles.sevText, { color: tone.ink }]}>{sev.label}</Text>
           </View>
         </View>
         <Text style={styles.alertDesc}>{alert.description}</Text>
         <Pressable hitSlop={8} onPress={onPress} style={pressFade(styles.ctaBtn)}>
-          <Text style={[styles.ctaText, { color: sev.text }]}>{alert.ctaLabel}</Text>
-          <Ionicons name="chevron-forward" size={13} color={sev.text} />
+          <Text style={[styles.ctaText, { color: tone.ink }]}>{alert.ctaLabel}</Text>
+          <Ionicons name="chevron-forward" size={13} color={tone.ink} />
         </Pressable>
       </View>
     </View>
@@ -182,16 +187,6 @@ function AlertRow({ alert, onPress }: { alert: TerritoryAlert; onPress: () => vo
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },

@@ -1,10 +1,11 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import {
   buildQuestline,
@@ -68,8 +69,8 @@ const STATUS_META: Record<
   StepStatus,
   { label: string; color: string; soft: string }
 > = {
-  complete: { label: "Complete", color: "#0A8F60", soft: `${palette.pulseGreen}1A` },
-  ready: { label: "Ready", color: palette.baseBlue, soft: `${palette.baseBlue}14` },
+  complete: { label: "Complete", color: ink.green, soft: softTint(palette.pulseGreen) },
+  ready: { label: "Ready", color: palette.baseBlue, soft: softTint(palette.baseBlue) },
   locked: { label: "Locked", color: colors.textFaint, soft: colors.surfaceAlt },
 };
 
@@ -100,13 +101,7 @@ export default function QuestlineScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Questline</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Questline" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -114,11 +109,11 @@ export default function QuestlineScreen() {
             <Text style={styles.heroKicker}>MovenRun Questline</Text>
             <Text style={styles.heroTitle}>Learn the local beta loop step by step.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="phone-portrait-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local only</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="sparkles-outline" size={13} color={palette.deedViolet} />
                 <Text style={[styles.badgeText, { color: palette.deedViolet }]}>Preview beta</Text>
               </View>
@@ -184,7 +179,7 @@ function StepCard({ step, onPress }: { step: QuestlineStep; onPress: () => void 
     step.status === "complete" ? palette.pulseGreen : step.status === "locked" ? colors.textFaint : accent;
   return (
     <View style={[styles.step, step.status === "ready" ? styles.stepReady : null]}>
-      <View style={[styles.stepIcon, { backgroundColor: `${iconColor}14` }]}>
+      <View style={[styles.stepIcon, { backgroundColor: softTint(iconColor) }]}>
         <Ionicons name={step.icon as IoniconName} size={18} color={iconColor} />
       </View>
       <View style={styles.stepBody}>
@@ -207,7 +202,7 @@ function StepCard({ step, onPress }: { step: QuestlineStep; onPress: () => void 
             <Text
               style={[
                 styles.ctaText,
-                { color: step.status === "ready" ? "#FFFFFF" : colors.textDim },
+                { color: step.status === "ready" ? colors.surface : colors.textDim },
               ]}
             >
               {step.ctaLabel}
@@ -222,16 +217,6 @@ function StepCard({ step, onPress }: { step: QuestlineStep; onPress: () => void 
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -271,7 +256,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  stepReady: { backgroundColor: "#F6FAFF" },
+  stepReady: { backgroundColor: tints.blueWash },
   stepIcon: { ...iconTile(38) },
   stepBody: { flex: 1, gap: 5 },
   stepTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
@@ -287,7 +272,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   ctaText: { fontSize: 12.5, fontWeight: "800" },
-  stepProgress: { ...type.mono, fontSize: 11, color: "#0A8F60", fontWeight: "700" },
+  stepProgress: { ...type.mono, fontSize: 11, color: ink.green, fontWeight: "700" },
 
   safety: {
     flexDirection: "row",

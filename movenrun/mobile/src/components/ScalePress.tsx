@@ -24,6 +24,19 @@ interface ScalePressProps {
    *  is refused. Announcing without blocking would invite a double submit. */
   busy?: boolean;
   /**
+   * This control is a toggle, and it is currently on.
+   *
+   * A toggle that only changes colour is invisible to a screen reader, which
+   * announces "button" either way. `FloatingMapControl` documented that it
+   * exposed its selected state and did not: nothing here forwarded one, so the
+   * comment was the only place the promise existed. Pass `undefined` (the
+   * default) for a control that is not a toggle — `selected: false` says "a
+   * toggle, currently off", which is a different statement from "not a
+   * toggle", and announcing the wrong one on every button in the app would be
+   * worse than announcing nothing.
+   */
+  selected?: boolean;
+  /**
    * Extra tappable margin, in points, around a control that is deliberately
    * drawn smaller than {@link MIN_TOUCH_TARGET}.
    *
@@ -35,6 +48,29 @@ interface ScalePressProps {
    * that a control below the floor declares enough of it.
    */
   hitSlop?: number;
+}
+
+/**
+ * The accessibility state, or `undefined` when there is nothing to say.
+ *
+ * Kept separate because the three flags do not compose the way a single
+ * spread would suggest: `disabled` and `busy` are only meaningful while the
+ * control is inactive, whereas `selected` describes a toggle that is very much
+ * live. Emitting `{ selected: false }` on every non-toggle would mislabel the
+ * whole app as toggles, so an omitted `selected` stays omitted.
+ */
+function accessibilityState(
+  disabled: boolean | undefined,
+  busy: boolean | undefined,
+  selected: boolean | undefined,
+): { disabled?: boolean; busy?: boolean; selected?: boolean } | undefined {
+  const state: { disabled?: boolean; busy?: boolean; selected?: boolean } = {};
+  if (disabled || busy) {
+    state.disabled = Boolean(disabled);
+    state.busy = Boolean(busy);
+  }
+  if (selected !== undefined) state.selected = selected;
+  return Object.keys(state).length > 0 ? state : undefined;
 }
 
 /**
@@ -51,6 +87,7 @@ export function ScalePress({
   accessibilityHint,
   accessibilityRole,
   busy,
+  selected,
   hitSlop,
 }: ScalePressProps) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -69,7 +106,7 @@ export function ScalePress({
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
-      accessibilityState={inactive ? { disabled: Boolean(disabled), busy: Boolean(busy) } : undefined}
+      accessibilityState={accessibilityState(disabled, busy, selected)}
       onPressIn={() => !inactive && springTo(to)}
       onPressOut={() => springTo(1)}
     >

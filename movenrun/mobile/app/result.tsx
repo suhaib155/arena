@@ -8,7 +8,7 @@ import { CountUpText } from "@/components/CountUpText";
 import { RoutePath } from "@/components/RoutePath";
 import { ShareCard } from "@/components/ShareCard";
 import { Hexagon } from "@/components/Hexagon";
-import { avatar, colors, glow, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, glow, iconTile, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { useGameStore, type CompletionOutcome } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
@@ -81,19 +81,19 @@ export default function ResultScreen() {
         {/* Reward card: XP + Locked MOVE preview */}
         <View style={styles.rewardCard}>
           <View style={styles.rewardRow}>
-            <View style={[styles.rewardIcon, { backgroundColor: `${palette.moveGold}1F` }]}>
+            <View style={[styles.rewardIcon, { backgroundColor: softTint(palette.moveGold) }]}>
               <Ionicons name="flash" size={18} color={palette.moveGold} />
             </View>
             <Text style={styles.rewardLabel}>XP earned</Text>
             <CountUpText
               value={outcome.xpGained}
               prefix="+"
-              style={[styles.rewardValue, { color: "#B07908" }]}
+              style={[styles.rewardValue, { color: ink.gold }]}
             />
           </View>
           <View style={styles.rewardDivider} />
           <View style={styles.rewardRow}>
-            <View style={[styles.rewardIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+            <View style={[styles.rewardIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
               <Hexagon size={15} color={palette.deedViolet} />
             </View>
             <View style={styles.rewardLabelWrap}>
@@ -195,12 +195,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: `${palette.pulseGreen}14`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.pill,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  levelUpText: { color: "#0A8F60", fontSize: 14, fontWeight: "700" },
+  levelUpText: { color: ink.green, fontSize: 14, fontWeight: "700" },
   card: {
     alignSelf: "stretch",
     backgroundColor: colors.surface,

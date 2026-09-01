@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { ScalePress } from "@/components/ScalePress";
@@ -10,7 +11,7 @@ import { FloatingMapControl } from "@/components/FloatingMapControl";
 import { MapLegend, type LegendItem } from "@/components/MapLegend";
 import { ZoneSheet } from "@/components/ZoneSheet";
 import { healthVisual } from "@/components/ZoneCard";
-import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, canvas, colors, iconTile, ink, palette, radius, shadows, softTint, spacing, strongTint, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { HEALTH_LABEL } from "@/lib/territory";
 import { buildTerritoryOverview, type MapCell } from "@/lib/territoryMap";
@@ -90,20 +91,17 @@ export default function TerritoryMapScreen() {
 
   return (
     <Screen edgeTop>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Territory</Text>
-        {overview.total > 0 ? (
-          <View style={styles.headerStat}>
-            <Text style={styles.headerStatValue}>{overview.total}</Text>
-            <Text style={styles.headerStatLabel}>{overview.total === 1 ? "zone" : "zones"}</Text>
-          </View>
-        ) : (
-          <View style={styles.backBtn} />
-        )}
-      </View>
+      <ScreenHeader
+        title="Territory"
+        trailing={
+          overview.total > 0 ? (
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>{overview.total}</Text>
+              <Text style={styles.headerStatLabel}>{overview.total === 1 ? "zone" : "zones"}</Text>
+            </View>
+          ) : null
+        }
+      />
 
       {/* The board dominates the viewport */}
       <View style={styles.board}>
@@ -173,7 +171,7 @@ export default function TerritoryMapScreen() {
                       >
                         <Hexagon
                           size={44}
-                          color={cell.zone.isDeedPreview ? "#E1DAFF" : hv.fill}
+                          color={cell.zone.isDeedPreview ? tints.violet : hv.fill}
                           coreColor={cell.zone.isDeedPreview ? palette.deedViolet : hv.core}
                         />
                       </ScalePress>
@@ -315,16 +313,6 @@ function MapSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 17 },
   headerStat: { alignItems: "center", minWidth: 40 },
   headerStatValue: { ...type.heading, fontSize: 16, fontVariant: ["tabular-nums"] },
   headerStatLabel: { ...type.caption, fontSize: 9.5, textTransform: "uppercase", letterSpacing: 0.5 },
@@ -347,7 +335,7 @@ const styles = StyleSheet.create({
   boardRow: { flexDirection: "row", justifyContent: "center", gap: spacing.sm },
   boardRowOffset: { marginLeft: 26 },
   cell: { borderRadius: radius.pill, padding: 3 },
-  cellSelected: { backgroundColor: `${palette.baseBlue}24` },
+  cellSelected: { backgroundColor: strongTint(palette.baseBlue) },
 
   floatingControls: { position: "absolute", top: spacing.md, right: spacing.md, gap: spacing.sm },
   legendWrap: { position: "absolute", left: 0, right: 0, bottom: spacing.md, alignItems: "center" },
@@ -369,7 +357,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 50,
     borderRadius: radius.md,
-    backgroundColor: "#E4EAED",
+    backgroundColor: canvas.skeleton,
     opacity: 0.7,
   },
 
@@ -387,14 +375,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  priorityIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.heatCoral}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  priorityIcon: { ...iconTile(38), backgroundColor: softTint(palette.heatCoral) },
   priorityBody: { flex: 1, gap: 1 },
   priorityKicker: { ...type.kicker, color: palette.heatCoral, fontSize: 10 },
   priorityName: { ...type.heading, fontSize: 14.5 },
@@ -402,11 +383,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: `${palette.pulseGreen}12`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.lg,
     padding: spacing.md,
   },
-  allClearText: { flex: 1, ...type.caption, fontSize: 12.5, color: "#0A8F60", fontWeight: "600" },
+  allClearText: { flex: 1, ...type.caption, fontSize: 12.5, color: ink.green, fontWeight: "600" },
   quickRow: { flexDirection: "row", gap: spacing.sm, paddingRight: spacing.sm },
   quickLink: {
     flexDirection: "row",

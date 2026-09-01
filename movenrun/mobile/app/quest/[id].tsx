@@ -2,9 +2,10 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
-import { avatar, categoryColor, colors, difficultyColor, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, categoryColor, colors, difficultyColor, ink, palette, radius, shadows, spacing, strongTint, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { useIsCompletedToday } from "@/store/useGameStore";
 import { tapFeedback } from "@/lib/haptics";
@@ -43,16 +44,9 @@ export default function QuestDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.topBar}>
-          <Ionicons
-            name="chevron-back"
-            size={28}
-            color={colors.text}
-            onPress={() => router.back()}
-          />
-        </View>
+        <ScreenHeader title="Quest" />
 
-        <View style={[styles.iconWrap, { backgroundColor: `${tint}22` }]}>
+        <View style={[styles.iconWrap, { backgroundColor: strongTint(tint) }]}>
           <Ionicons name={quest.icon} size={40} color={tint} />
         </View>
 
@@ -73,7 +67,7 @@ export default function QuestDetailScreen() {
           <View style={styles.divider} />
           <View style={styles.stat}>
             <Ionicons name="flash" size={18} color={palette.moveGold} />
-            <Text style={[styles.statValue, { color: "#B07908" }]}>+{quest.xpReward}</Text>
+            <Text style={[styles.statValue, { color: ink.gold }]}>+{quest.xpReward}</Text>
             <Text style={styles.statLabel}>XP Reward</Text>
           </View>
         </View>
@@ -116,7 +110,6 @@ export default function QuestDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xl, gap: spacing.md },
-  topBar: { paddingTop: spacing.sm, marginBottom: spacing.xs },
   iconWrap: { ...avatar(72) },
   title: { ...type.display, fontSize: 28 },
   summary: { ...type.body, lineHeight: 22 },

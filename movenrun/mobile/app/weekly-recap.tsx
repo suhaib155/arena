@@ -1,19 +1,19 @@
 import { useMemo } from "react";
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { MovementMetric } from "@/components/MovementMetric";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, ink, palette, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { buildWeeklyRecap, type MomentumTone } from "@/lib/weeklyRecap";
 import { buildRecapView } from "@/lib/recapView";
-import type { IoniconName } from "@/types";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
 
 const MOMENTUM_TINT: Record<MomentumTone, string> = {
@@ -66,13 +66,7 @@ export default function WeeklyRecapScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Weekly Recap</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Weekly Recap" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -82,13 +76,13 @@ export default function WeeklyRecapScreen() {
             </Text>
             <Text style={styles.heroTitle}>Your week in motion.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.pulseGreen}14` }]}>
-                <Ionicons name="lock-closed-outline" size={13} color="#0A8F60" />
-                <Text style={[styles.badgeText, { color: "#0A8F60" }]}>No raw GPS</Text>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.pulseGreen) }]}>
+                <Ionicons name="lock-closed-outline" size={13} color={ink.green} />
+                <Text style={[styles.badgeText, { color: ink.green }]}>No raw GPS</Text>
               </View>
             </View>
           </View>
@@ -170,7 +164,7 @@ export default function WeeklyRecapScreen() {
                   </View>
                   {recap.clubName ? (
                     <View style={styles.clubPill}>
-                      <Hexagon size={16} color="#C9EEDE" coreColor={palette.pulseGreen} />
+                      <Hexagon size={16} color={tints.green} coreColor={palette.pulseGreen} />
                       <Text style={styles.clubPillText} numberOfLines={1}>
                         {recap.clubName}
                       </Text>
@@ -255,16 +249,6 @@ function TerritoryStat({ value, label, tint }: { value: number; label: string; t
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -302,14 +286,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadows.card,
   },
-  storyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.moveGold}1A`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  storyIcon: { ...iconTile(40), backgroundColor: softTint(palette.moveGold) },
   storyBody: { flex: 1, gap: 2 },
   storyKicker: { ...type.kicker, fontSize: 10.5, color: colors.textFaint },
   storyTitle: { ...type.heading, fontSize: 15.5 },
@@ -356,12 +333,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: `${palette.heatCoral}14`,
+    backgroundColor: softTint(palette.heatCoral),
     borderRadius: radius.pill,
     paddingVertical: 5,
     paddingHorizontal: spacing.md,
   },
-  streakPillText: { ...type.caption, fontSize: 12, fontWeight: "700", color: "#C2492E" },
+  streakPillText: { ...type.caption, fontSize: 12, fontWeight: "700", color: ink.coral },
   clubPill: {
     flexDirection: "row",
     alignItems: "center",

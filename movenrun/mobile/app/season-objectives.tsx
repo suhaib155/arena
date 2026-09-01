@@ -1,14 +1,15 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { ProgressHero } from "@/components/ProgressHero";
 import { CompletedSummary } from "@/components/CompletedSummary";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, hairline, iconTile, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -124,13 +125,7 @@ export default function SeasonObjectivesScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Season Objectives</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Season Objectives" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Editorial season context */}
@@ -141,7 +136,7 @@ export default function SeasonObjectivesScreen() {
             </Text>
             <Text style={styles.heroTitle}>Own your season.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
@@ -195,7 +190,7 @@ export default function SeasonObjectivesScreen() {
           <FadeSlideIn delay={STAGGER_MS * 2}>
             <View style={styles.currentCard}>
               <View style={styles.currentHead}>
-                <View style={[styles.currentIcon, { backgroundColor: `${view.current.accent}16` }]}>
+                <View style={[styles.currentIcon, { backgroundColor: softTint(view.current.accent) }]}>
                   <Ionicons name={view.current.icon as IoniconName} size={20} color={view.current.accent} />
                 </View>
                 <View style={styles.currentHeadText}>
@@ -204,7 +199,7 @@ export default function SeasonObjectivesScreen() {
                     {view.current.title}
                   </Text>
                 </View>
-                <View style={[styles.currentChip, { backgroundColor: `${view.current.accent}14` }]}>
+                <View style={[styles.currentChip, { backgroundColor: softTint(view.current.accent) }]}>
                   <Text style={[styles.currentChipText, { color: view.current.accent }]}>
                     {view.current.progressLabel}
                   </Text>
@@ -248,7 +243,7 @@ export default function SeasonObjectivesScreen() {
             >
               {view.completed.map((o) => (
                 <View key={o.id} style={styles.completedItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#0A8F60" />
+                  <Ionicons name="checkmark-circle" size={16} color={ink.green} />
                   <Text style={styles.completedText} numberOfLines={1}>
                     {o.title}
                   </Text>
@@ -271,7 +266,7 @@ function CategoryRow({ category, onPress }: { category: CategorySummary; onPress
   const tint = category.allComplete ? palette.pulseGreen : palette.baseBlue;
   const body = (
     <View style={styles.categoryRow}>
-      <View style={[styles.categoryIcon, { backgroundColor: `${tint}14` }]}>
+      <View style={[styles.categoryIcon, { backgroundColor: softTint(tint) }]}>
         <Ionicons name={category.icon as IoniconName} size={17} color={tint} />
       </View>
       <View style={styles.categoryBody}>
@@ -304,16 +299,6 @@ function CategoryRow({ category, onPress }: { category: CategorySummary; onPress
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -347,7 +332,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: `${palette.baseBlue}22`,
+    borderColor: hairline(palette.baseBlue),
     padding: spacing.lg,
     gap: spacing.sm,
     ...shadows.card,

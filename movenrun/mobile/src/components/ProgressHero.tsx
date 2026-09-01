@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 
 interface ProgressHeroProps {
   /** Dominant value, e.g. "2". */
@@ -35,7 +35,7 @@ export function ProgressHero({ value, outOf, label, percent, statement, accent =
           <Text style={styles.value}>{value}</Text>
           {outOf ? <Text style={styles.outOf}> {outOf}</Text> : null}
         </View>
-        <View style={[styles.pctChip, { backgroundColor: `${accent}1A` }]}>
+        <View style={[styles.pctChip, { backgroundColor: softTint(accent) }]}>
           <Text style={[styles.pctText, { color: accent }]}>{pct}%</Text>
         </View>
       </View>

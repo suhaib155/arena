@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, ink, palette, radius, shadows, spacing, type } from "@/theme";
 import { Hexagon } from "./Hexagon";
 
 interface ShareCardProps {
@@ -29,7 +29,7 @@ export function ShareCard({ questTitle, xpGained, level, streak }: ShareCardProp
 
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <Text style={[styles.statValue, { color: "#B07908" }]}>+{xpGained}</Text>
+          <Text style={[styles.statValue, { color: ink.gold }]}>+{xpGained}</Text>
           <Text style={styles.statLabel}>XP</Text>
         </View>
         <View style={styles.stat}>

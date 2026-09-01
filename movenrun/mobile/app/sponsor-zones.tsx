@@ -3,10 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -117,13 +118,7 @@ export default function SponsorZonesScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Sponsor Zones</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Sponsor Zones" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -131,11 +126,11 @@ export default function SponsorZonesScreen() {
             <Text style={styles.heroKicker}>Sponsor Zones</Text>
             <Text style={styles.heroTitle}>A fictional preview of future local sponsor activations.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="color-wand-outline" size={13} color={palette.deedViolet} />
                 <Text style={[styles.badgeText, { color: palette.deedViolet }]}>Fictional sponsors</Text>
               </View>
@@ -153,7 +148,7 @@ export default function SponsorZonesScreen() {
             <View style={styles.readyRow}>
               <Stat value={overview.previewSlots} label="preview slots" />
               <View style={styles.readyDivider} />
-              <Stat value={overview.activePreviewCount} label="active" tint="#0A8F60" />
+              <Stat value={overview.activePreviewCount} label="active" tint={ink.green} />
               <View style={styles.readyDivider} />
               <Stat value={overview.averageLocalFit} label="avg fit" tint={palette.deedViolet} />
             </View>
@@ -240,7 +235,7 @@ function SponsorRow({ sponsor, onPress }: { sponsor: SponsorZone; onPress: () =>
   const accent = locked ? colors.textFaint : sponsorAccent(sponsor.category);
   return (
     <View style={[styles.sponsor, locked ? styles.sponsorLocked : null]}>
-      <View style={[styles.sponsorIcon, { backgroundColor: `${accent}1A` }]}>
+      <View style={[styles.sponsorIcon, { backgroundColor: softTint(accent) }]}>
         <Ionicons name={sponsor.icon as IoniconName} size={20} color={accent} />
       </View>
       <View style={styles.sponsorBody}>
@@ -248,7 +243,7 @@ function SponsorRow({ sponsor, onPress }: { sponsor: SponsorZone; onPress: () =>
           <Text style={[styles.sponsorName, locked ? styles.sponsorNameLocked : null]} numberOfLines={1}>
             {sponsor.name}
           </Text>
-          <View style={[styles.statusChip, { backgroundColor: `${accent}1A` }]}>
+          <View style={[styles.statusChip, { backgroundColor: softTint(accent) }]}>
             <Text style={[styles.statusText, { color: accent }]}>
               {SPONSOR_STATUS_LABEL[sponsor.status]}
             </Text>
@@ -287,16 +282,6 @@ function ScorePill({ label, value, color }: { label: string; value: number; colo
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -377,14 +362,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  eventCtaIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  eventCtaIcon: { ...iconTile(36), backgroundColor: softTint(palette.deedViolet) },
   eventCtaBody: { flex: 1, gap: 1 },
   eventCtaName: { ...type.heading, fontSize: 14.5 },
   eventCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

@@ -3,10 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -25,9 +26,9 @@ import {
 import { tapFeedback } from "@/lib/haptics";
 
 const BALANCE_TINT: Record<WarBalance, string> = {
-  leading: "#0A8F60",
-  close: "#B07908",
-  "under-pressure": "#C2492E",
+  leading: ink.green,
+  close: ink.gold,
+  "under-pressure": ink.coral,
   rebuilding: colors.textDim,
 };
 
@@ -139,13 +140,7 @@ export default function CityWarScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>City War Board</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="City War Board" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -153,11 +148,11 @@ export default function CityWarScreen() {
             <Text style={styles.heroKicker}>{board.seasonTitle} · {board.weekLabel}</Text>
             <Text style={styles.heroTitle}>A fictional local season battle for your territory.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="color-wand-outline" size={13} color={palette.deedViolet} />
                 <Text style={[styles.badgeText, { color: palette.deedViolet }]}>Fictional</Text>
               </View>
@@ -179,7 +174,7 @@ export default function CityWarScreen() {
               </View>
               <View style={styles.scoreMid}>
                 <Text style={styles.vs}>vs</Text>
-                <View style={[styles.balanceChip, { backgroundColor: `${balanceTint}1A` }]}>
+                <View style={[styles.balanceChip, { backgroundColor: softTint(balanceTint) }]}>
                   <Text style={[styles.balanceText, { color: balanceTint }]}>{board.balanceLabel}</Text>
                 </View>
               </View>
@@ -394,7 +389,7 @@ function BattleRow({ battle, onPress }: { battle: DistrictBattle; onPress: () =>
     <View style={styles.battle}>
       <View style={styles.battleTitleRow}>
         <Text style={styles.battleName} numberOfLines={1}>{battle.name}</Text>
-        <View style={[styles.battleChip, { backgroundColor: `${tint}1A` }]}>
+        <View style={[styles.battleChip, { backgroundColor: softTint(tint) }]}>
           <Text style={[styles.battleChipText, { color: tint }]}>{BATTLE_LABEL[battle.status]}</Text>
         </View>
       </View>
@@ -424,16 +419,6 @@ function BattleRow({ battle, onPress }: { battle: DistrictBattle; onPress: () =>
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -489,14 +474,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  priorityIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  priorityIcon: { ...iconTile(38), backgroundColor: softTint(palette.deedViolet) },
   priorityBody: { flex: 1, gap: 1 },
   priorityKicker: { ...type.kicker, color: palette.deedViolet, fontSize: 10.5 },
   priorityText: { ...type.caption, fontSize: 12.5, color: colors.text },
@@ -553,14 +531,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  sponsorCtaIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  sponsorCtaIcon: { ...iconTile(36), backgroundColor: softTint(palette.deedViolet) },
   sponsorCtaBody: { flex: 1, gap: 1 },
   sponsorCtaName: { ...type.heading, fontSize: 14.5 },
   sponsorCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

@@ -3,10 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -188,13 +189,7 @@ export default function DistrictMasteryScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>District Mastery</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="District Mastery" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -202,7 +197,7 @@ export default function DistrictMasteryScreen() {
             <Text style={styles.heroKicker}>District Mastery</Text>
             <Text style={styles.heroTitle}>Long-term local progress across fictional districts.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
@@ -224,9 +219,9 @@ export default function DistrictMasteryScreen() {
             <View style={styles.summaryRow}>
               <Stat value={overview.mastered} label="signature" tint={palette.deedViolet} />
               <View style={styles.sumDivider} />
-              <Stat value={overview.fortified} label="fortified" tint="#0A8F60" />
+              <Stat value={overview.fortified} label="fortified" tint={ink.green} />
               <View style={styles.sumDivider} />
-              <Stat value={overview.rising} label="rising" tint="#B07908" />
+              <Stat value={overview.rising} label="rising" tint={ink.gold} />
               <View style={styles.sumDivider} />
               <Stat value={overview.locked} label="locked" tint={colors.textFaint} />
             </View>
@@ -253,14 +248,14 @@ export default function DistrictMasteryScreen() {
               <FadeSlideIn delay={STAGGER_MS * 2}>
                 <View style={styles.featuredCard}>
                   <View style={styles.featuredTop}>
-                    <View style={[styles.featuredIcon, { backgroundColor: `${top.accent}1A` }]}>
+                    <View style={[styles.featuredIcon, { backgroundColor: softTint(top.accent) }]}>
                       <Ionicons name="star" size={18} color={top.accent} />
                     </View>
                     <View style={styles.featuredBody}>
                       <Text style={styles.featuredKicker}>Top district</Text>
                       <Text style={styles.featuredName} numberOfLines={1}>{top.name}</Text>
                     </View>
-                    <View style={[styles.levelChip, { backgroundColor: `${top.accent}1A` }]}>
+                    <View style={[styles.levelChip, { backgroundColor: softTint(top.accent) }]}>
                       <Text style={[styles.levelChipText, { color: top.accent }]}>
                         {MASTERY_LEVEL_LABEL[top.level]}
                       </Text>
@@ -346,7 +341,7 @@ function MasteryRow({ district, onPress }: { district: DistrictMastery; onPress:
         <Text style={[styles.rowName, locked ? styles.rowNameLocked : null]} numberOfLines={1}>
           {district.name}
         </Text>
-        <View style={[styles.levelChip, { backgroundColor: `${district.accent}1A` }]}>
+        <View style={[styles.levelChip, { backgroundColor: softTint(district.accent) }]}>
           <Text style={[styles.levelChipText, { color: district.accent }]}>
             {MASTERY_LEVEL_LABEL[district.level]}
           </Text>
@@ -393,16 +388,6 @@ function MasteryRow({ district, onPress }: { district: DistrictMastery; onPress:
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -479,8 +464,8 @@ const styles = StyleSheet.create({
   scoreLine: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm, flexWrap: "wrap" },
   scoreValue: { ...type.title, fontSize: 20, fontVariant: ["tabular-nums"] },
   scoreUnit: { ...type.caption, fontSize: 11, color: colors.textFaint },
-  penalty: { ...type.caption, fontSize: 11, fontWeight: "700", color: "#C2492E" },
-  bonus: { ...type.caption, fontSize: 11, fontWeight: "700", color: "#0A8F60" },
+  penalty: { ...type.caption, fontSize: 11, fontWeight: "700", color: ink.coral },
+  bonus: { ...type.caption, fontSize: 11, fontWeight: "700", color: ink.green },
   nextTrack: { height: 6, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden" },
   nextFill: { height: 6, borderRadius: radius.pill },
   bars: { gap: 3, marginTop: 2 },
@@ -510,14 +495,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadows.card,
   },
-  deedCtaIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  deedCtaIcon: { ...iconTile(34), backgroundColor: softTint(palette.deedViolet) },
   deedCtaBody: { flex: 1, gap: 2 },
   deedCtaName: { ...type.heading, fontSize: 15 },
   deedCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

@@ -3,12 +3,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { ProgressHero } from "@/components/ProgressHero";
 import { StatusPill } from "@/components/StatusPill";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, hairline, iconTile, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -178,13 +179,7 @@ export default function DeedShowroomScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Deeds</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Deeds" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -349,7 +344,7 @@ function DeedArt({ card, size = 64 }: { card: DeedPreviewCard; size?: number }) 
   const previewId = card.id.slice(0, 10).toUpperCase();
   return (
     <View style={styles.deedArtWrap}>
-      <Hexagon size={size} color={`${card.accent}1F`} coreColor={card.ready ? card.accent : undefined} />
+      <Hexagon size={size} color={softTint(card.accent)} coreColor={card.ready ? card.accent : undefined} />
       <Text style={styles.deedArtId}>{previewId}</Text>
     </View>
   );
@@ -369,7 +364,7 @@ function FeaturedDeedCard({ card, onPress }: { card: DeedPreviewCard; onPress: (
             {card.districtName}
           </Text>
         </View>
-        <View style={[styles.tierChip, { backgroundColor: `${card.accent}1A` }]}>
+        <View style={[styles.tierChip, { backgroundColor: softTint(card.accent) }]}>
           <Text style={[styles.tierChipText, { color: card.accent }]}>{DEED_TIER_LABEL[card.visualTier]}</Text>
         </View>
       </View>
@@ -429,16 +424,6 @@ function DeedRow({ card, onPress }: { card: DeedPreviewCard; onPress: () => void
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -463,15 +448,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
+  emptyIcon: { ...iconTile(56), backgroundColor: softTint(palette.deedViolet), marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
   emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },
@@ -480,7 +457,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: `${palette.deedViolet}22`,
+    borderColor: hairline(palette.deedViolet),
     padding: spacing.lg,
     gap: spacing.md,
     ...shadows.card,

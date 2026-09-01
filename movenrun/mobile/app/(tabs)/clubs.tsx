@@ -8,7 +8,7 @@ import { Hexagon } from "@/components/Hexagon";
 import { ScalePress } from "@/components/ScalePress";
 import { RankRow } from "@/components/RankRow";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { canvas, colors, hairline, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { CLUBS, getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -25,13 +25,13 @@ import { successFeedback, tapFeedback } from "@/lib/haptics";
 /** Pre-blended pastel fill for a club color over the mist panel. */
 function pastelFor(color: string): string {
   const map: Record<string, string> = {
-    [palette.baseBlue]: "#D4E2FE",
-    [palette.heatCoral]: "#FFDCD2",
-    [palette.moveGold]: "#FBEACB",
-    [palette.deedViolet]: "#E1DAFF",
-    [palette.pulseGreen]: "#C9EEDE",
+    [palette.baseBlue]: tints.blue,
+    [palette.heatCoral]: tints.coral,
+    [palette.moveGold]: tints.gold,
+    [palette.deedViolet]: tints.violet,
+    [palette.pulseGreen]: tints.green,
   };
-  return map[color] ?? "#E8EDF0";
+  return map[color] ?? tints.neutral;
 }
 
 /**
@@ -159,7 +159,7 @@ function ClubHome({ club }: { club: Club }) {
           <CityWarMap ranked={ranked} />
 
           <View style={styles.heroIdentity}>
-            <Hexagon size={44} color="#C9EEDE" coreColor={palette.pulseGreen} />
+            <Hexagon size={44} color={tints.green} coreColor={palette.pulseGreen} />
             <View style={styles.heroIdentityBody}>
               <View style={styles.heroNameRow}>
                 <Text style={styles.heroName}>{club.name}</Text>
@@ -186,7 +186,7 @@ function ClubHome({ club }: { club: Club }) {
           <View style={styles.heroStats}>
             <HeroStat label="Rank" value={heroView.rankLabel} tint={heroView.rankAvailable ? palette.baseBlue : colors.textFaint} />
             <View style={styles.heroStatDivider} />
-            <HeroStat label="Your contribution" value={heroView.contributionLabel} tint={heroView.hasContribution ? "#0A8F60" : colors.textFaint} wide />
+            <HeroStat label="Your contribution" value={heroView.contributionLabel} tint={heroView.hasContribution ? ink.green : colors.textFaint} wide />
           </View>
           <Text style={styles.heroSummary}>
             {zones.length} zone{zones.length === 1 ? "" : "s"} · defended ×{timesDefended} ·{" "}
@@ -298,7 +298,7 @@ function CityWarMap({ ranked }: { ranked: RankedClub[] }) {
       }
     }
     while (out.length < WAR_CELLS) {
-      out.push({ color: "#E8EDF0", core: palette.dustGray, isUser: false });
+      out.push({ color: tints.neutral, core: palette.dustGray, isUser: false });
     }
     return out
       .map((c, i) => ({ c, k: (i * 7) % WAR_CELLS }))
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: `${palette.baseBlue}12`,
+    backgroundColor: softTint(palette.baseBlue),
     borderRadius: radius.pill,
     paddingVertical: 6,
     paddingHorizontal: spacing.md,
@@ -427,12 +427,12 @@ const styles = StyleSheet.create({
   heroMotto: { ...type.caption, fontSize: 12, fontStyle: "italic" },
   switchLink: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.primary },
   youChip: {
-    backgroundColor: `${palette.pulseGreen}1A`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.pill,
     paddingVertical: 2,
     paddingHorizontal: spacing.sm,
   },
-  youChipText: { fontSize: 10.5, fontWeight: "800", color: "#0A8F60" },
+  youChipText: { fontSize: 10.5, fontWeight: "800", color: ink.green },
 
   heroStats: {
     flexDirection: "row",
@@ -454,18 +454,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: `${palette.baseBlue}22`,
+    borderColor: hairline(palette.baseBlue),
     padding: spacing.lg,
     ...shadows.card,
   },
-  missionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.baseBlue}16`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  missionIcon: { ...iconTile(42), backgroundColor: softTint(palette.baseBlue) },
   missionBody: { flex: 1, gap: 3 },
   missionKicker: { ...type.kicker, fontSize: 10.5, color: palette.baseBlue },
   missionTitle: { ...type.heading, fontSize: 16 },
@@ -496,8 +489,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     gap: spacing.md,
   },
-  warRoad: { position: "absolute", left: 0, right: 0, height: 5, borderRadius: 3, backgroundColor: "#E2E8EC" },
-  warRoadV: { position: "absolute", top: 0, bottom: 0, width: 5, borderRadius: 3, backgroundColor: "#E6EBEF" },
+  warRoad: { position: "absolute", left: 0, right: 0, height: 5, borderRadius: 3, backgroundColor: canvas.road },
+  warRoadV: { position: "absolute", top: 0, bottom: 0, width: 5, borderRadius: 3, backgroundColor: canvas.roadCross },
   warHexGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

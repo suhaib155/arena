@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, AppState, BackHandler, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { RouteCanvas } from "@/components/RouteCanvas";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
-import { colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
   acceptPoint,
   distanceMeters,
@@ -195,18 +196,14 @@ export default function MoveSessionScreen() {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Pressable onPress={quit} hitSlop={12} style={pressFade(styles.quitBtn)}>
-          <Ionicons name="close" size={24} color={colors.textDim} />
-        </Pressable>
-        <View style={styles.statusWrap}>
-          <View
-            style={[styles.stateDot, { backgroundColor: paused ? palette.moveGold : palette.pulseGreen }]}
-          />
-          <Text style={styles.topTitle}>{paused ? "Paused" : "Moving"}</Text>
-        </View>
-        <GpsChip mode={mode} state={gpsState} />
-      </View>
+      <ScreenHeader
+        title={paused ? "Paused" : "Moving"}
+        action="dismiss"
+        onAction={quit}
+        actionLabel="End this movement session"
+        dotColor={paused ? palette.moveGold : palette.pulseGreen}
+        trailing={<GpsChip mode={mode} state={gpsState} />}
+      />
 
       {/* Live map/route dominates the top of the screen */}
       <RouteCanvas points={routePreview} height={248} live />
@@ -299,24 +296,6 @@ function GpsChip({ mode, state }: { mode: TrackerMode; state: GpsState }) {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  quitBtn: { padding: spacing.xs },
-  statusWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    flex: 1,
-    justifyContent: "center",
-  },
-  stateDot: { width: 9, height: 9, borderRadius: 5 },
-  topTitle: { ...type.heading, fontSize: 16 },
   demoBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -350,7 +329,7 @@ const styles = StyleSheet.create({
     ...type.kicker,
     fontSize: 10,
     color: palette.deedViolet,
-    backgroundColor: `${palette.deedViolet}12`,
+    backgroundColor: softTint(palette.deedViolet),
     paddingVertical: 3,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,

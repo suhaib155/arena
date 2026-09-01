@@ -10,7 +10,7 @@ import { Hexagon } from "@/components/Hexagon";
 import { MovementMetric } from "@/components/MovementMetric";
 import { ResultCallout } from "@/components/ResultCallout";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { formatDuration, formatPace } from "@/lib/geo";
 import {
   clearLastSession,
@@ -45,11 +45,11 @@ import { SESSION_QUEST_ID } from "@/lib/sessionQuest";
 function toneColor(tone: TrustTone): { bar: string; text: string } {
   switch (tone) {
     case "strong":
-      return { bar: palette.pulseGreen, text: "#0A8F60" };
+      return { bar: palette.pulseGreen, text: ink.green };
     case "good":
       return { bar: palette.baseBlue, text: palette.baseBlue };
     case "caution":
-      return { bar: palette.moveGold, text: "#B07908" };
+      return { bar: palette.moveGold, text: ink.gold };
     default:
       return { bar: palette.dustGray, text: colors.textDim };
   }
@@ -287,15 +287,15 @@ export default function MoveSummaryScreen() {
                 </View>
               ) : null}
               <View style={styles.rewardRow}>
-                <View style={[styles.rewardIcon, { backgroundColor: `${palette.moveGold}1F` }]}>
+                <View style={[styles.rewardIcon, { backgroundColor: softTint(palette.moveGold) }]}>
                   <Ionicons name="flash" size={18} color={palette.moveGold} />
                 </View>
                 <Text style={styles.rewardLabel}>XP</Text>
-                <CountUpText value={xp} prefix="+" style={[styles.rewardValue, { color: "#B07908" }]} />
+                <CountUpText value={xp} prefix="+" style={[styles.rewardValue, { color: ink.gold }]} />
               </View>
               <View style={styles.rewardDivider} />
               <View style={styles.rewardRow}>
-                <View style={[styles.rewardIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+                <View style={[styles.rewardIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
                   <Hexagon size={15} color={palette.deedViolet} />
                 </View>
                 <View style={styles.rewardLabelWrap}>
@@ -328,7 +328,7 @@ export default function MoveSummaryScreen() {
                   <Hexagon
                     key={t.id}
                     size={i === 0 ? 36 : 30}
-                    color={owned ? "#C9EEDE" : isCandidate ? "#D9F0E5" : "#E8EDF0"}
+                    color={owned ? tints.green : isCandidate ? tints.greenSoft : tints.neutral}
                     coreColor={
                       owned
                         ? palette.pulseGreen
@@ -414,8 +414,8 @@ export default function MoveSummaryScreen() {
                 <View style={styles.chipRow}>
                   {trust.positiveSignals.map((s) => (
                     <View key={s} style={[styles.chip, styles.chipGood]}>
-                      <Ionicons name="checkmark-circle" size={12} color="#0A8F60" />
-                      <Text style={[styles.chipText, { color: "#0A8F60" }]}>{s}</Text>
+                      <Ionicons name="checkmark-circle" size={12} color={ink.green} />
+                      <Text style={[styles.chipText, { color: ink.green }]}>{s}</Text>
                     </View>
                   ))}
                 </View>
@@ -426,7 +426,7 @@ export default function MoveSummaryScreen() {
                   {trust.riskFlags.map((f) => (
                     <View key={f} style={[styles.chip, styles.chipRisk]}>
                       <Ionicons name="alert-circle" size={12} color={palette.heatCoral} />
-                      <Text style={[styles.chipText, { color: "#C2492E" }]}>{f}</Text>
+                      <Text style={[styles.chipText, { color: ink.coral }]}>{f}</Text>
                     </View>
                   ))}
                 </View>
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.sm,
-    backgroundColor: `${palette.moveGold}14`,
+    backgroundColor: softTint(palette.moveGold),
     borderRadius: radius.lg,
     padding: spacing.md,
   },
@@ -585,16 +585,16 @@ const styles = StyleSheet.create({
   zoneEmpty: { ...type.caption, fontSize: 12.5, color: colors.textFaint },
   candidateRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   candidateBadge: {
-    backgroundColor: `${palette.pulseGreen}1A`,
+    backgroundColor: softTint(palette.pulseGreen),
     paddingVertical: 3,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
   },
-  candidateBadgeText: { fontSize: 11, fontWeight: "700", color: "#0A8F60" },
+  candidateBadgeText: { fontSize: 11, fontWeight: "700", color: ink.green },
   candidateName: { ...type.heading, fontSize: 14, flex: 1 },
   candidateHint: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
   zoneBeta: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
-  defendHint: { ...type.caption, fontSize: 12, color: "#0A8F60", fontWeight: "600" },
+  defendHint: { ...type.caption, fontSize: 12, color: ink.green, fontWeight: "600" },
   trustCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
   trustHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   trustTitle: { ...type.heading, fontSize: 15 },
   previewBadge: {
-    backgroundColor: `${palette.baseBlue}14`,
+    backgroundColor: softTint(palette.baseBlue),
     borderRadius: radius.pill,
     paddingVertical: 3,
     paddingHorizontal: spacing.sm,
@@ -634,8 +634,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: spacing.sm,
   },
-  chipGood: { backgroundColor: `${palette.pulseGreen}1A` },
-  chipRisk: { backgroundColor: `${palette.heatCoral}1A` },
+  chipGood: { backgroundColor: softTint(palette.pulseGreen) },
+  chipRisk: { backgroundColor: softTint(palette.heatCoral) },
   chipText: { fontSize: 11, fontWeight: "700" },
   uploadNote: {
     ...type.body,

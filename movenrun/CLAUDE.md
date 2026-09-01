@@ -37,8 +37,12 @@ GPS/territory data source. Each quest awards XP at most once per local day.
 and `mobile/src/lib/tasks.ts` is the single pure function that builds today's
 list. Screens decide nothing: they call a `lib/` function and render the result.
 Keep `lib/` free of runtime `react-native` imports so the suite stays testable
-on plain Node. New surfaces go through `<Card>`, `TaskRow` and the shape rules
-in `lib/shape.ts` — `src/lib/__tests__/designSystem.test.ts` enforces them.
+on plain Node. New surfaces go through `<Card>`, `TaskRow`, `<ScreenHeader>` and the shape
+rules in `lib/shape.ts`. Colour goes through `lib/tone.ts`: `palette` holds the
+brand hues, which are not readable as text, and `ink`/`tints`/`canvas` hold the
+values that are. No screen states a colour as a raw hex. See
+`docs/DESIGN_SYSTEM.md`; `designSystem.test.ts`, `uiGuards.test.ts`,
+`colorTokens.test.ts` and `screenHeader.test.ts` enforce it.
 
 ### Do NOT (unless a roadmap phase explicitly calls for it):
 - Add **AI quest features / AI APIs / AI provider keys** — they don't serve the

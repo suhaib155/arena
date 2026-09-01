@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, selectionRing, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, radius, selectionRing, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import {
   buildCityDistricts,
@@ -42,13 +43,7 @@ export default function CityDistrictsScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>City Districts</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="City Districts" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -56,7 +51,7 @@ export default function CityDistrictsScreen() {
             <Text style={styles.heroKicker}>{overview.cityLabel}</Text>
             <Text style={styles.heroTitle}>A local preview of your growing territory city.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="business-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
@@ -64,9 +59,9 @@ export default function CityDistrictsScreen() {
                 <Ionicons name="map-outline" size={13} color={colors.textDim} />
                 <Text style={[styles.badgeText, { color: colors.textDim }]}>Not a real map</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.pulseGreen}1A` }]}>
-                <Ionicons name="location-outline" size={13} color="#0A8F60" />
-                <Text style={[styles.badgeText, { color: "#0A8F60" }]}>No raw GPS</Text>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.pulseGreen) }]}>
+                <Ionicons name="location-outline" size={13} color={ink.green} />
+                <Text style={[styles.badgeText, { color: ink.green }]}>No raw GPS</Text>
               </View>
             </View>
           </View>
@@ -148,7 +143,7 @@ export default function CityDistrictsScreen() {
           <FadeSlideIn delay={STAGGER_MS / 2}>
             <View style={styles.selectedCard}>
               <View style={styles.selectedHeader}>
-                <View style={[styles.selectedIcon, { backgroundColor: `${selected.accent}1A` }]}>
+                <View style={[styles.selectedIcon, { backgroundColor: softTint(selected.accent) }]}>
                   <Ionicons name={selected.icon as IoniconName} size={18} color={selected.accent} />
                 </View>
                 <View style={styles.selectedTitleBox}>
@@ -228,7 +223,7 @@ export default function CityDistrictsScreen() {
                 router.push("/city-war");
               }}
             >
-              <View style={[styles.rivalCtaIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.rivalCtaIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="flag-outline" size={18} color={palette.deedViolet} />
               </View>
               <View style={styles.rivalCtaBody}>
@@ -250,7 +245,7 @@ export default function CityDistrictsScreen() {
                 router.push("/sponsor-zones");
               }}
             >
-              <View style={[styles.rivalCtaIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.rivalCtaIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="storefront-outline" size={18} color={palette.deedViolet} />
               </View>
               <View style={styles.rivalCtaBody}>
@@ -272,7 +267,7 @@ export default function CityDistrictsScreen() {
                 router.push("/event-zones");
               }}
             >
-              <View style={[styles.rivalCtaIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.rivalCtaIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="sparkles-outline" size={18} color={palette.deedViolet} />
               </View>
               <View style={styles.rivalCtaBody}>
@@ -294,7 +289,7 @@ export default function CityDistrictsScreen() {
                 router.push("/club-territory");
               }}
             >
-              <View style={[styles.rivalCtaIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.rivalCtaIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="map-outline" size={18} color={palette.deedViolet} />
               </View>
               <View style={styles.rivalCtaBody}>
@@ -316,7 +311,7 @@ export default function CityDistrictsScreen() {
                 router.push("/district-mastery");
               }}
             >
-              <View style={[styles.rivalCtaIcon, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.rivalCtaIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="ribbon-outline" size={18} color={palette.deedViolet} />
               </View>
               <View style={styles.rivalCtaBody}>
@@ -358,10 +353,10 @@ function DistrictCard({
       onPress={onPress}
     >
       <View style={styles.cardTopRow}>
-        <View style={[styles.cardIcon, { backgroundColor: `${district.accent}1A` }]}>
+        <View style={[styles.cardIcon, { backgroundColor: softTint(district.accent) }]}>
           <Ionicons name={district.icon as IoniconName} size={15} color={district.accent} />
         </View>
-        <View style={[styles.cardStatusChip, { backgroundColor: `${district.accent}1A` }]}>
+        <View style={[styles.cardStatusChip, { backgroundColor: softTint(district.accent) }]}>
           <Text style={[styles.cardStatusText, { color: district.accent }]}>
             {DISTRICT_STATUS_LABEL[district.status]}
           </Text>
@@ -400,16 +395,6 @@ function MiniBar({ label, pct, color }: { label: string; pct: number; color: str
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -438,12 +423,12 @@ const styles = StyleSheet.create({
   progressTotal: { ...type.title, fontSize: 18, color: colors.textFaint },
   progressSub: { ...type.caption, fontSize: 12 },
   pctWrap: {
-    backgroundColor: `${palette.moveGold}1A`,
+    backgroundColor: softTint(palette.moveGold),
     borderRadius: radius.pill,
     paddingVertical: 5,
     paddingHorizontal: spacing.md,
   },
-  pctValue: { ...type.heading, fontSize: 15, color: "#B07908" },
+  pctValue: { ...type.heading, fontSize: 15, color: ink.gold },
   track: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: "hidden" },
   fill: { height: 8, borderRadius: radius.pill },
   nextRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
@@ -510,14 +495,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  rivalCtaIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  rivalCtaIcon: { ...iconTile(36), backgroundColor: softTint(palette.deedViolet) },
   rivalCtaBody: { flex: 1, gap: 1 },
   rivalCtaName: { ...type.heading, fontSize: 14.5 },
   rivalCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

@@ -12,7 +12,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 import { SectionHeader } from "@/components/SectionHeader";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { PublicSessionSummary } from "@/services/identityApi";
 import {
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   spaced: { marginTop: spacing.sm },
   errorBox: {
-    backgroundColor: `${colors.danger}14`,
+    backgroundColor: softTint(colors.danger),
     borderRadius: radius.md,
     padding: spacing.lg,
   },

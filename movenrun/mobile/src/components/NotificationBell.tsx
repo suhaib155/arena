@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { avatar, colors, iconTile, palette, radius, shadows } from "@/theme";
+import { avatar, colors, palette, shadows } from "@/theme";
 import { ScalePress } from "./ScalePress";
 
 interface NotificationBellProps {
