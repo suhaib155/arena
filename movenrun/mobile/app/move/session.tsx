@@ -24,6 +24,7 @@ import {
   type TrackingGap,
 } from "@/lib/trackPoints";
 import { setLastSession } from "@/services/moveSession";
+import { newClientSessionId } from "@/lib/movementVerification";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 import type { IoniconName } from "@/types";
 
@@ -57,6 +58,13 @@ export default function MoveSessionScreen() {
   /** Spans where the app was backgrounded and no fixes arrived. */
   const gapsRef = useRef<TrackingGap[]>([]);
   const backgroundedAtRef = useRef<number | null>(null);
+  /* This session's stable identity, minted once when the screen mounts — the
+     semantic start of the session. It survives pause/resume, every re-render,
+     finishing, the summary screen, and any later verification attempt. It is
+     deliberately NOT minted at finish, at save, or per network attempt: the
+     backend's idempotency is keyed on it. */
+  const clientSessionIdRef = useRef<string>("");
+  if (!clientSessionIdRef.current) clientSessionIdRef.current = newClientSessionId();
 
   /* Foreground tracking — subscribed once for the life of the screen. */
   useEffect(() => {
@@ -136,6 +144,7 @@ export default function MoveSessionScreen() {
     const duration = readElapsed();
     successFeedback();
     setLastSession({
+      clientSessionId: clientSessionIdRef.current,
       mode,
       points: pointsRef.current,
       distanceM: distanceRef.current,

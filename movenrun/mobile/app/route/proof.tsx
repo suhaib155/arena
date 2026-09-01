@@ -239,7 +239,7 @@ export default function RouteProofScreen() {
                 <Ionicons name="ribbon-outline" size={13} color={palette.moveGold} />
                 <Text style={styles.proofId}>{proof.proofId}</Text>
               </View>
-              <Text style={styles.safety}>No raw GPS · No route path · Local preview</Text>
+              <Text style={styles.safety}>This proof holds no coordinates · No route path · Local preview</Text>
               <Text style={styles.safetyDim}>Not on-chain</Text>
             </View>
           </View>

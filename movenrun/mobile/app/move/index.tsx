@@ -177,7 +177,10 @@ export default function MoveStartScreen() {
         <FadeSlideIn delay={STAGGER_MS * 3}>
           <View style={styles.facts}>
             <Fact icon="phone-portrait-outline" text="Foreground only — no background tracking" />
-            <Fact icon="shield-checkmark-outline" text="Stays on your device. Nothing is uploaded" />
+            <Fact
+              icon="shield-checkmark-outline"
+              text="Signed in, saving sends the route to verify it"
+            />
           </View>
         </FadeSlideIn>
       </ScrollView>

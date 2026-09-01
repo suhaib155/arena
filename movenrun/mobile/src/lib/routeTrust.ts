@@ -4,9 +4,15 @@
  * Computes a deterministic, explainable "trust" score for a finished movement
  * session from data the app already has in memory (mode, accepted GPS points,
  * distance, duration). It is a *preview* of the kind of signal a future GPS
- * oracle would weigh — it does NOT affect rewards, XP, capture, or ownership,
- * and nothing is sent anywhere. No raw GPS points are persisted; callers store
- * only the small summary (score + label).
+ * oracle would weigh — it does NOT affect rewards, XP, capture, or ownership.
+ *
+ * Scoped claims only: *this module* computes on-device and sends nothing, and
+ * the record callers persist from it (score + label) holds no coordinates. That
+ * is not the same as "the app never uploads a route" — saving a session while
+ * signed in submits its observations for server verification, and a failed
+ * submission is held briefly on the device (see lib/pendingVerification.ts).
+ * The distinction matters because this comment was written when it WAS the
+ * app's whole privacy posture, and stopped being true without being edited.
  */
 import {
   distanceMeters,

@@ -29,7 +29,7 @@ function toneColor(tone: ReadinessTone): { bar: string; text: string } {
  * Route Passport — a local, on-device movement record and GPS-quality readiness
  * preview, derived from persisted route summaries. It is NOT government/legal
  * identity, blockchain finality, public/remote verification, or permanent
- * ownership — it is explicitly a local preview. No raw GPS, coordinates, or
+ * ownership — it is explicitly a local preview. This record holds no coordinates or
  * paths are shown or stored; it affects no rewards, capture, or ownership.
  */
 export default function RoutePassportScreen() {
@@ -177,8 +177,7 @@ export default function RoutePassportScreen() {
               <Text style={styles.privacyTitle}>Your data</Text>
             </View>
             <Text style={styles.privacyLine}>Only summary scores are saved.</Text>
-            <Text style={styles.privacyLine}>Raw GPS and paths are never stored.</Text>
-            <Text style={styles.privacyLine}>Nothing is sent anywhere.</Text>
+            <Text style={styles.privacyLine}>This passport holds no coordinates and no route path.</Text>
           </View>
         </FadeSlideIn>
 

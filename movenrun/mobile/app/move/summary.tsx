@@ -15,11 +15,17 @@ import { formatDuration, formatPace } from "@/lib/geo";
 import {
   clearLastSession,
   getLastSession,
+  getVerificationState,
   isSaveable,
   sessionXp,
+  setVerificationState,
 } from "@/services/moveSession";
+import { MovementApiClient } from "@/services/movementApi";
+import { submitCompletedSession } from "@/services/verifySession";
+import { toVerifiedRecord } from "@/lib/verifiedMovement";
 import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
 import { gapNotice, summarizeGaps } from "@/lib/trackPoints";
@@ -57,10 +63,23 @@ export default function MoveSummaryScreen() {
   const addRouteTrustRecord = useGameStore((s) => s.addRouteTrustRecord);
   const completeQuest = useGameStore((s) => s.completeQuest);
   const captureZone = useGameStore((s) => s.captureZone);
+  const recordMovementVerification = useGameStore((s) => s.recordMovementVerification);
   const defendZones = useGameStore((s) => s.defendZones);
   const ownedZones = useGameStore((s) => s.zones);
   const totalXp = useGameStore((s) => s.totalXp);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
+  /* THE identity client, built once by the auth store — screens never
+     construct their own. The movement client rides its transport, so both
+     domains share one bearer attachment and one single-flight refresh. */
+  const identityClient = useAuthStore((s) => s.client);
+  /* Server-derived account id. Used only as the LOCAL owner key for a queued
+     retry — it is never sent to /movement/verify, which derives the user from
+     the bearer token and would be wrong to trust a client-supplied id. */
+  const accountId = useAuthStore((s) => (s.status === "signedIn" ? s.user?.id ?? null : null));
+  const movementClient = useMemo(
+    () => (identityClient ? new MovementApiClient(identityClient.transport) : null),
+    [identityClient],
+  );
   const [saved, setSaved] = useState(false);
 
   if (!session) {
@@ -126,6 +145,35 @@ export default function MoveSummaryScreen() {
       instructions: [],
     };
     completeQuest(sessionQuest);
+    /* Server verification of the completed route.
+       Saving is the user's deliberate act of turning this session into
+       progress, and it is the only path that is already gated to real GPS
+       sessions long enough to be worth keeping — so it is the honest place for
+       the route to leave the device, and the only one.
+       Fire-and-forget on purpose: `submitCompletedSession` never throws, the
+       result is recorded against this session's stable id, and a slow or
+       failed verification must never delay or block a completion the user has
+       already earned. Nothing below depends on it. */
+    if (movementClient) {
+      void submitCompletedSession(session, {
+        client: movementClient,
+        readState: getVerificationState,
+        writeState: setVerificationState,
+        /* Who may retry this route if the request fails, taken from
+           authenticated session state and never from anything on the session
+           itself. Null when nobody is signed in, which means the failure stays
+           in memory and no coordinates are written to disk at all. */
+        ownerUserId: accountId,
+      }).then((state) => {
+        /* Keep only a settled verdict, addressed by THIS session's stable id.
+           `toVerifiedRecord` returns null for local/submitting/pending, so a
+           failed attempt records nothing rather than a row that looks like an
+           answer. Nothing here captures a zone or awards anything — the store
+           action only appends what the server said. */
+        const record = toVerifiedRecord(session.clientSessionId, state);
+        if (record) recordMovementVerification(record);
+      });
+    }
     /* Persist the route-trust *preview* summary only (score + label) — never
        raw GPS points, and it does not affect rewards or capture. */
     if (trust) setRouteTrust(trust.score, trust.label);
@@ -143,7 +191,7 @@ export default function MoveSummaryScreen() {
       if (outcome.captured) capturedId = outcome.zone.id;
     }
     /* Append a local route-review record — summary only (score/label/flags +
-       scalar distance/duration/outcome). No raw GPS, coordinates, or path.
+       scalar distance/duration/outcome). That record holds no coordinates or path.
        Demo and too-short routes never reach save(), so they never append. */
     if (trust) {
       addRouteTrustRecord({
@@ -385,9 +433,9 @@ export default function MoveSummaryScreen() {
               ) : null}
 
               <Text style={styles.trustNote}>
-                Preview only · does not affect rewards or ownership. No location is
-                sent anywhere — this helps MovenRun learn what a clean route looks
-                like.
+                Preview only · does not affect rewards or ownership. This score is
+                worked out on your device and the saved review keeps no coordinates
+                — it helps MovenRun learn what a clean route looks like.
               </Text>
             </View>
           </FadeSlideIn>
@@ -424,11 +472,22 @@ export default function MoveSummaryScreen() {
 
       <View style={styles.footer}>
         {showFooterSave ? (
-          <Button
-            label={captureEligible ? "Save + Capture Zone" : "Save session"}
-            icon={captureEligible ? "flag" : "bookmark"}
-            onPress={save}
-          />
+          <>
+            {/* Said at the moment of the action, not buried in a settings page.
+                Saving is what sends the route, so this is where the user finds
+                out — and it is shown only when signed in, because a local-beta
+                save genuinely uploads nothing. */}
+            {accountId ? (
+              <Text style={styles.uploadNote}>
+                Saving sends this session&apos;s route to MovenRun to verify the distance.
+              </Text>
+            ) : null}
+            <Button
+              label={captureEligible ? "Save + Capture Zone" : "Save session"}
+              icon={captureEligible ? "flag" : "bookmark"}
+              onPress={save}
+            />
+          </>
         ) : null}
         <Button
           label="Back to Today"
@@ -578,6 +637,14 @@ const styles = StyleSheet.create({
   chipGood: { backgroundColor: `${palette.pulseGreen}1A` },
   chipRisk: { backgroundColor: `${palette.heatCoral}1A` },
   chipText: { fontSize: 11, fontWeight: "700" },
+  uploadNote: {
+    ...type.body,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textDim,
+    textAlign: "center",
+    paddingHorizontal: spacing.sm,
+  },
   trustNote: { ...type.caption, fontSize: 11, lineHeight: 15, color: colors.textFaint },
   proofRow: {
     flexDirection: "row",
