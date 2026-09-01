@@ -3,10 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -33,8 +34,8 @@ import { tapFeedback } from "@/lib/haptics";
 const STATUS_TINT: Record<MissionStatus, string> = {
   locked: colors.textFaint,
   ready: palette.baseBlue,
-  "in-progress": "#B07908",
-  "complete-preview": "#0A8F60",
+  "in-progress": ink.gold,
+  "complete-preview": ink.green,
 };
 
 const STATUS_FILL: Record<MissionStatus, string> = {
@@ -212,13 +213,7 @@ export default function CrewMissionsScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Crew Missions</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Crew Missions" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -226,7 +221,7 @@ export default function CrewMissionsScreen() {
             <Text style={styles.heroKicker}>{board.title} · {board.weekLabel}</Text>
             <Text style={styles.heroTitle}>Local weekly goals for your territory.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
@@ -249,9 +244,9 @@ export default function CrewMissionsScreen() {
             <View style={styles.summaryRow}>
               <Stat value={board.ready} label="ready" tint={palette.baseBlue} />
               <View style={styles.sumDivider} />
-              <Stat value={board.inProgress} label="in progress" tint="#B07908" />
+              <Stat value={board.inProgress} label="in progress" tint={ink.gold} />
               <View style={styles.sumDivider} />
-              <Stat value={board.completePreview} label="complete" tint="#0A8F60" />
+              <Stat value={board.completePreview} label="complete" tint={ink.green} />
             </View>
           </View>
         </FadeSlideIn>
@@ -354,7 +349,7 @@ function MissionRow({ mission, onPress }: { mission: CrewMission; onPress: () =>
   const statusTint = STATUS_TINT[mission.status];
   return (
     <View style={[styles.mission, locked ? styles.missionLocked : null]}>
-      <View style={[styles.missionIcon, { backgroundColor: `${accent}1A` }]}>
+      <View style={[styles.missionIcon, { backgroundColor: softTint(accent) }]}>
         <Ionicons name={mission.icon as IoniconName} size={18} color={accent} />
       </View>
       <View style={styles.missionBody}>
@@ -362,7 +357,7 @@ function MissionRow({ mission, onPress }: { mission: CrewMission; onPress: () =>
           <Text style={[styles.missionTitle, locked ? styles.missionTitleLocked : null]} numberOfLines={1}>
             {mission.title}
           </Text>
-          <View style={[styles.statusChip, { backgroundColor: `${statusTint}1A` }]}>
+          <View style={[styles.statusChip, { backgroundColor: softTint(statusTint) }]}>
             <Text style={[styles.statusText, { color: statusTint }]}>
               {MISSION_STATUS_LABEL[mission.status]}
             </Text>
@@ -383,16 +378,6 @@ function MissionRow({ mission, onPress }: { mission: CrewMission; onPress: () =>
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -443,14 +428,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  priorityIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  priorityIcon: { ...iconTile(38), backgroundColor: softTint(palette.deedViolet) },
   priorityBody: { flex: 1, gap: 1 },
   priorityKicker: { ...type.kicker, color: palette.deedViolet, fontSize: 10.5 },
   priorityName: { ...type.heading, fontSize: 15 },
@@ -507,14 +485,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  masterCtaIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  masterCtaIcon: { ...iconTile(36), backgroundColor: softTint(palette.deedViolet) },
   masterCtaBody: { flex: 1, gap: 1 },
   masterCtaName: { ...type.heading, fontSize: 14.5 },
   masterCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, glow, palette, radius, spacing, type } from "@/theme";
+import { canvas, colors, glow, palette, radius, type } from "@/theme";
 import { downsample, projectToBox, type TrackPoint } from "@/lib/geo";
 import { Hexagon } from "./Hexagon";
 
@@ -38,10 +38,10 @@ function RouteCanvasView({ points, height = 240, live = false }: RouteCanvasProp
       <View style={[styles.roadV, { left: "74%" }]} />
       {/* hex accents */}
       <View style={styles.hexTL}>
-        <Hexagon size={34} color="#E9EEF1" />
+        <Hexagon size={34} color={canvas.cell} />
       </View>
       <View style={styles.hexBR}>
-        <Hexagon size={46} color="#E3F4EA" />
+        <Hexagon size={46} color={canvas.cellHeld} />
       </View>
 
       {dots.length < 2 ? (
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     right: 0,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "#E2E8EC",
+    backgroundColor: canvas.road,
   },
   roadV: {
     position: "absolute",
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 5,
     borderRadius: 3,
-    backgroundColor: "#E6EBEF",
+    backgroundColor: canvas.roadCross,
   },
   hexTL: { position: "absolute", top: 12, left: 14, opacity: 0.8 },
   hexBR: { position: "absolute", bottom: 14, right: 16, opacity: 0.8 },

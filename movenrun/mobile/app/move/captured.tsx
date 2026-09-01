@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
-import { colors, glow, palette, radius, shadows, spacing, type } from "@/theme";
+import { canvas, colors, glow, ink, palette, radius, shadows, spacing, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { clearLastSession } from "@/services/moveSession";
 import { successFeedback } from "@/lib/haptics";
@@ -115,9 +115,9 @@ export default function ZoneCapturedScreen() {
 
           {/* hex fills dust → pulse green */}
           <View style={styles.hexWrap}>
-            <Hexagon size={HEX} color="#E8EDF0" />
+            <Hexagon size={HEX} color={tints.neutral} />
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: fill }]}>
-              <Hexagon size={HEX} color="#C9EEDE" coreColor={palette.pulseGreen} />
+              <Hexagon size={HEX} color={tints.green} coreColor={palette.pulseGreen} />
             </Animated.View>
             {/* six vertices light clockwise */}
             {VERTEX_ANGLES.map((deg, i) => {
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     right: 0,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "#E2E8EC",
+    backgroundColor: canvas.road,
   },
   roadV: {
     position: "absolute",
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 5,
     borderRadius: 3,
-    backgroundColor: "#E6EBEF",
+    backgroundColor: canvas.roadCross,
   },
   routeRow: {
     position: "absolute",
@@ -295,13 +295,13 @@ const styles = StyleSheet.create({
   },
   stampText: {
     ...type.kicker,
-    color: "#0A8F60",
+    color: ink.green,
     fontSize: 12,
   },
   stampDefend: { borderColor: palette.baseBlue },
   stampTextDefend: { color: palette.baseBlue },
   kickerDefend: { color: palette.baseBlue },
-  alsoDefended: { ...type.caption, fontSize: 12.5, color: "#0A8F60", fontWeight: "600" },
+  alsoDefended: { ...type.caption, fontSize: 12.5, color: ink.green, fontWeight: "600" },
   title: { ...type.display, fontSize: 30 },
   sub: { ...type.body, fontSize: 14.5 },
   noteCard: {

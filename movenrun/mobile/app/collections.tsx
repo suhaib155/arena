@@ -3,11 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { ProgressHero } from "@/components/ProgressHero";
 import { CompletedSummary } from "@/components/CompletedSummary";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, hairline, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { zoneStatus } from "@/lib/territory";
 import { buildCollections, type Badge } from "@/lib/zoneCollections";
@@ -56,13 +57,7 @@ export default function CollectionsScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Collections</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Collections" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -70,7 +65,7 @@ export default function CollectionsScreen() {
             <Text style={styles.heroKicker}>Zone Collections</Text>
             <Text style={styles.heroTitle}>Your movement archive.</Text>
             <View style={styles.chipRow}>
-              <View style={[styles.chip, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.chip, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.chipText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
@@ -121,7 +116,7 @@ export default function CollectionsScreen() {
         {view.nextBadge ? (
           <FadeSlideIn delay={STAGGER_MS * 2}>
             <View style={styles.nearestCard}>
-              <View style={[styles.nearestIcon, { backgroundColor: `${palette.baseBlue}16` }]}>
+              <View style={[styles.nearestIcon, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name={view.nextBadge.icon as IoniconName} size={20} color={palette.baseBlue} />
               </View>
               <View style={styles.nearestBody}>
@@ -172,7 +167,7 @@ export default function CollectionsScreen() {
                     style={styles.groupRow}
                     accessibilityLabel={`${c.name}, ${c.unlocked} of ${c.total} unlocked`}
                   >
-                    <View style={[styles.groupIcon, { backgroundColor: `${tint}14` }]}>
+                    <View style={[styles.groupIcon, { backgroundColor: softTint(tint) }]}>
                       <Ionicons name={c.icon as IoniconName} size={16} color={tint} />
                     </View>
                     <Text style={styles.groupName}>{c.name}</Text>
@@ -201,7 +196,7 @@ export default function CollectionsScreen() {
             >
               {view.unlockedBadges.map((b) => (
                 <View key={b.id} style={styles.archiveItem}>
-                  <Ionicons name="checkmark-circle" size={16} color="#0A8F60" />
+                  <Ionicons name="checkmark-circle" size={16} color={ink.green} />
                   <Text style={styles.archiveText} numberOfLines={1}>
                     {b.title}
                   </Text>
@@ -293,16 +288,6 @@ function BadgeRow({ badge }: { badge: Badge }) {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -338,7 +323,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: `${palette.baseBlue}22`,
+    borderColor: hairline(palette.baseBlue),
     padding: spacing.lg,
     ...shadows.card,
   },
@@ -370,14 +355,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  badgeIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.baseBlue}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  badgeIcon: { ...iconTile(34), backgroundColor: softTint(palette.baseBlue) },
   badgeBody: { flex: 1, gap: 5 },
   badgeTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   badgeTitle: { ...type.heading, fontSize: 14, flexShrink: 1 },

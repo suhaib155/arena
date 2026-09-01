@@ -109,6 +109,43 @@ export {
 } from "./lib/shape";
 import { selectionRing as selectionRingRaw } from "./lib/shape";
 
+/* ── Colour roles ─────────────────────────────────────────────────────────
+ * `palette` above is the brand: hues tuned to be vivid on a white page. It is
+ * not a text palette — `pulseGreen` on white is 2.16:1. `lib/tone.ts` owns the
+ * readable `ink` variants, the opaque `tint` fills, and the one soft-tint
+ * alpha; it is platform-free so the contrast floor is testable off-device.
+ * Re-exported here so screens keep a single `@/theme` import. */
+export {
+  canvas,
+  hairline,
+  HAIRLINE_ALPHA,
+  ink,
+  SOFT_TINT_ALPHA,
+  softTint,
+  STRONG_TINT_ALPHA,
+  strongTint,
+  tints,
+} from "./lib/tone";
+export type { InkName, TintName, Tone, ToneName } from "./lib/tone";
+import { buildTones } from "./lib/tone";
+
+/**
+ * Status role → the paints that status needs.
+ *
+ * The brand hues come from `palette`; the pairing rules come from `lib/tone`.
+ * Screens that used to declare a private `{ urgent, caution, success }` map
+ * read from here instead, so a state cannot be one green on one screen and a
+ * different green on the next.
+ */
+export const tones = buildTones({
+  positive: palette.pulseGreen,
+  caution: palette.moveGold,
+  urgent: palette.heatCoral,
+  info: palette.baseBlue,
+  deed: palette.deedViolet,
+  neutral: palette.silverTrail,
+});
+
 /** Selection outline in the brand colour. See `lib/shape.ts`. */
 export function selectionRing(selected: boolean, color: string = colors.primary): ViewStyle {
   return selectionRingRaw(selected, color);

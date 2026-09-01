@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { radius, spacing } from "@/theme";
+import { radius, softTint, spacing } from "@/theme";
 
 interface BadgeProps {
   label: string;
@@ -9,7 +9,7 @@ interface BadgeProps {
 /** Soft tinted pill used for category and difficulty tags — no hard borders. */
 export function Badge({ label, color }: BadgeProps) {
   return (
-    <View style={[styles.badge, { backgroundColor: `${color}1C` }]}>
+    <View style={[styles.badge, { backgroundColor: softTint(color) }]}>
       <Text style={[styles.text, { color }]}>{label}</Text>
     </View>
   );

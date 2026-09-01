@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, palette, radius, spacing, type } from "@/theme";
+import { palette, radius, softTint, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 
 export type StatusTone = "primary" | "success" | "neutral" | "warning";
@@ -26,7 +26,7 @@ const TONE: Record<StatusTone, string> = {
 export function StatusPill({ icon, label, tone = "neutral" }: StatusPillProps) {
   const c = TONE[tone];
   return (
-    <View style={[styles.pill, { backgroundColor: `${c}16` }]} accessibilityRole="text" accessibilityLabel={label}>
+    <View style={[styles.pill, { backgroundColor: softTint(c) }]} accessibilityRole="text" accessibilityLabel={label}>
       <Ionicons name={icon} size={13} color={c} />
       <Text style={[styles.label, { color: c }]}>{label}</Text>
     </View>

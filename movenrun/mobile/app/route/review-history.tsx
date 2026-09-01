@@ -1,11 +1,12 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { tapFeedback } from "@/lib/haptics";
-import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { formatDistance, formatDuration } from "@/lib/geo";
 import { trustTone, type RouteTrustRecord, type TrustTone } from "@/lib/routeTrust";
@@ -26,11 +27,11 @@ function toneColor(tone: TrustTone): string {
 function toneText(tone: TrustTone): string {
   switch (tone) {
     case "strong":
-      return "#0A8F60";
+      return ink.green;
     case "good":
       return palette.baseBlue;
     case "caution":
-      return "#B07908";
+      return ink.gold;
     default:
       return colors.textDim;
   }
@@ -74,13 +75,7 @@ export default function RouteReviewHistoryScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Route Review</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Route Review" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -90,13 +85,13 @@ export default function RouteReviewHistoryScreen() {
               Local trust summaries help you understand GPS quality.
             </Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="phone-portrait-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local only</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.pulseGreen}1A` }]}>
-                <Ionicons name="location-outline" size={13} color="#0A8F60" />
-                <Text style={[styles.badgeText, { color: "#0A8F60" }]}>No raw GPS</Text>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.pulseGreen) }]}>
+                <Ionicons name="location-outline" size={13} color={ink.green} />
+                <Text style={[styles.badgeText, { color: ink.green }]}>No raw GPS</Text>
               </View>
             </View>
           </View>
@@ -146,12 +141,12 @@ export default function RouteReviewHistoryScreen() {
                   </View>
                   <View style={styles.trendDivider} />
                   <View style={styles.trendStat}>
-                    <Text style={[styles.trendValue, { color: "#0A8F60" }]}>{cleanCount}</Text>
+                    <Text style={[styles.trendValue, { color: ink.green }]}>{cleanCount}</Text>
                     <Text style={styles.trendLabel}>clean</Text>
                   </View>
                   <View style={styles.trendDivider} />
                   <View style={styles.trendStat}>
-                    <Text style={[styles.trendValue, { color: "#B07908" }]}>
+                    <Text style={[styles.trendValue, { color: ink.gold }]}>
                       {needsSignalCount}
                     </Text>
                     <Text style={styles.trendLabel}>needs signal</Text>
@@ -239,16 +234,6 @@ function ReviewRow({ rec, onPress }: { rec: RouteTrustRecord; onPress: () => voi
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -274,14 +259,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  passportIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  passportIcon: { ...iconTile(34), backgroundColor: softTint(palette.deedViolet) },
   passportBody: { flex: 1, gap: 2 },
   passportName: { ...type.heading, fontSize: 14.5 },
   passportNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
@@ -328,7 +306,7 @@ const styles = StyleSheet.create({
   rowTitleLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rowLabel: { ...type.heading, fontSize: 14.5, flexShrink: 1 },
   outcomeChip: {
-    backgroundColor: `${palette.baseBlue}12`,
+    backgroundColor: softTint(palette.baseBlue),
     borderRadius: radius.pill,
     paddingVertical: 2,
     paddingHorizontal: spacing.sm,
@@ -337,12 +315,12 @@ const styles = StyleSheet.create({
   rowMeta: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 2 },
   riskChip: {
-    backgroundColor: `${palette.heatCoral}1A`,
+    backgroundColor: softTint(palette.heatCoral),
     borderRadius: radius.pill,
     paddingVertical: 2,
     paddingHorizontal: spacing.sm,
   },
-  riskChipText: { fontSize: 10, fontWeight: "700", color: "#C2492E" },
+  riskChipText: { fontSize: 10, fontWeight: "700", color: ink.coral },
 
   footerNote: {
     ...type.mono,

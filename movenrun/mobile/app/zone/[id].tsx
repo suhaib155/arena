@@ -3,10 +3,11 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { healthVisual } from "@/components/ZoneCard";
-import { colors, glow, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, glow, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getLastSession } from "@/services/moveSession";
 import {
@@ -99,13 +100,7 @@ export default function ZoneDetailScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={pressFade()}>
-            <Ionicons name="chevron-back" size={26} color={colors.text} />
-          </Pressable>
-          <Text style={styles.topTitle}>Zone</Text>
-          <View style={{ width: 26 }} />
-        </View>
+        <ScreenHeader title="Zone" />
 
         {/* Emblem + fortify shield overlay */}
         <View style={styles.hero}>
@@ -141,7 +136,7 @@ export default function ZoneDetailScreen() {
           </View>
           <Text style={styles.name}>{zone.name}</Text>
           <View style={styles.chipsRow}>
-            <View style={[styles.chip, { backgroundColor: `${visual.core}1A` }]}>
+            <View style={[styles.chip, { backgroundColor: softTint(visual.core) }]}>
               <Text style={[styles.chipText, { color: visual.text }]}>
                 {HEALTH_LABEL[status.health]}
               </Text>
@@ -173,9 +168,9 @@ export default function ZoneDetailScreen() {
                 size={12}
                 color={
                   cmd.controlTrend === "rising"
-                    ? "#0A8F60"
+                    ? ink.green
                     : cmd.controlTrend === "slipping"
-                      ? "#C2492E"
+                      ? ink.coral
                       : colors.textDim
                 }
               />
@@ -210,7 +205,7 @@ export default function ZoneDetailScreen() {
             <Text
               style={[
                 styles.riskValue,
-                { color: status.risk >= 35 ? "#C2492E" : "#0A8F60" },
+                { color: status.risk >= 35 ? ink.coral : ink.green },
               ]}
             >
               {riskLabel(status.risk)} · {status.risk}%
@@ -335,7 +330,7 @@ function MeterRow({ title, value, color }: { title: string; value: number; color
 function TimeRow({ icon, tint, label, when }: { icon: IoniconName; tint: string; label: string; when: string }) {
   return (
     <View style={styles.timeRow}>
-      <View style={[styles.timeIcon, { backgroundColor: `${tint}14` }]}>
+      <View style={[styles.timeIcon, { backgroundColor: softTint(tint) }]}>
         <Ionicons name={icon} size={13} color={tint} />
       </View>
       <Text style={styles.timeLabel}>{label}</Text>
@@ -414,13 +409,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 16,
   },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: spacing.md,
-  },
-  topTitle: { ...type.heading, fontSize: 16 },
   hero: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
   emblemWrap: {
     width: SHIELD_SIZE + 28,
@@ -495,7 +483,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: `${palette.baseBlue}10`,
+    backgroundColor: softTint(palette.baseBlue),
     borderRadius: radius.md,
     padding: spacing.md,
   },

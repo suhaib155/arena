@@ -3,11 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { StatusPill } from "@/components/StatusPill";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import {
   BASE_SEPOLIA_STATUS,
   CATEGORY_META,
@@ -67,13 +68,7 @@ export default function NetworkStatusScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Network</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Network" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Dominant network state — text carries the meaning, not colour. */}
@@ -200,7 +195,7 @@ function ConnectionRow({ row }: { row: NetworkRowVM }) {
       accessibilityRole="text"
       accessibilityLabel={`${row.label}: ${row.value}`}
     >
-      <View style={[styles.connIcon, { backgroundColor: `${c}16` }]}>
+      <View style={[styles.connIcon, { backgroundColor: softTint(c) }]}>
         <Ionicons name={ROW_ICON[row.key] ?? "ellipse-outline"} size={16} color={c} />
       </View>
       <Text style={styles.connLabel}>{row.label}</Text>
@@ -247,7 +242,7 @@ function ContractRow({ contract }: { contract: ContractStatus }) {
       accessibilityHint={open ? "Collapse contract detail" : "Expand contract detail"}
     >
       <View style={styles.rowTop}>
-        <View style={[styles.rowIcon, { backgroundColor: `${accent}14` }]}>
+        <View style={[styles.rowIcon, { backgroundColor: softTint(accent) }]}>
           <Ionicons name={meta.icon} size={18} color={accent} />
         </View>
         <View style={styles.rowBody}>
@@ -290,16 +285,6 @@ function SafetyLine({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -374,13 +359,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: `${palette.pulseGreen}1A`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.pill,
     paddingVertical: 2,
     paddingHorizontal: spacing.sm,
   },
   deployedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.pulseGreen },
-  deployedText: { fontSize: 10, fontWeight: "800", color: "#0A8F60" },
+  deployedText: { fontSize: 10, fontWeight: "800", color: ink.green },
   rowAddr: { ...type.mono, fontSize: 11.5, color: colors.textFaint },
   rowDetail: {
     marginTop: spacing.md,
@@ -392,7 +377,7 @@ const styles = StyleSheet.create({
   rowPurpose: { ...type.body, fontSize: 13, lineHeight: 18, color: colors.text },
   rowCategory: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
 
-  safetyCard: { gap: spacing.sm, backgroundColor: "#FFF6F3" },
+  safetyCard: { gap: spacing.sm, backgroundColor: tints.coralWash },
   safetyHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   safetyTitle: { ...type.heading, fontSize: 15 },
   safetyLine: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },

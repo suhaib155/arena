@@ -3,10 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import {
   buildRivalGhosts,
@@ -48,13 +49,7 @@ export default function RivalGhostsScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Rival Ghosts</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Rival Ghosts" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -62,11 +57,11 @@ export default function RivalGhostsScreen() {
             <Text style={styles.heroKicker}>Rival Ghosts</Text>
             <Text style={styles.heroTitle}>Fictional pressure around your local territory.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="color-wand-outline" size={13} color={palette.deedViolet} />
                 <Text style={[styles.badgeText, { color: palette.deedViolet }]}>Fictional rivals</Text>
               </View>
@@ -87,10 +82,10 @@ export default function RivalGhostsScreen() {
               <Stat
                 value={overview.highPressure}
                 label="high pressure"
-                tint={overview.highPressure > 0 ? "#C2492E" : undefined}
+                tint={overview.highPressure > 0 ? ink.coral : undefined}
               />
               <View style={styles.sumDivider} />
-              <Stat value={overview.blocked} label="held off" tint="#0A8F60" />
+              <Stat value={overview.blocked} label="held off" tint={ink.green} />
             </View>
             <Text style={styles.summaryNext}>
               {overview.topResponse
@@ -182,13 +177,13 @@ function GhostRow({ ghost, onPress }: { ghost: RivalGhost; onPress: () => void }
   const where = ghost.districtName ?? ghost.zoneName ?? "your territory";
   return (
     <View style={styles.ghost}>
-      <View style={[styles.ghostAvatar, { backgroundColor: `${ghost.accent}1A` }]}>
+      <View style={[styles.ghostAvatar, { backgroundColor: softTint(ghost.accent) }]}>
         <Ionicons name={ghost.icon as IoniconName} size={20} color={ghost.accent} />
       </View>
       <View style={styles.ghostBody}>
         <View style={styles.ghostTitleRow}>
           <Text style={styles.ghostName} numberOfLines={1}>{ghost.name}</Text>
-          <View style={[styles.statusChip, { backgroundColor: `${ghost.accent}1A` }]}>
+          <View style={[styles.statusChip, { backgroundColor: softTint(ghost.accent) }]}>
             <Text style={[styles.statusText, { color: ghost.accent }]}>
               {GHOST_STATUS_LABEL[ghost.status]}
             </Text>
@@ -208,16 +203,6 @@ function GhostRow({ ghost, onPress }: { ghost: RivalGhost; onPress: () => void }
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -262,11 +247,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: `${palette.pulseGreen}12`,
+    backgroundColor: softTint(palette.pulseGreen),
     borderRadius: radius.lg,
     padding: spacing.md,
   },
-  calmBannerText: { flex: 1, ...type.caption, fontSize: 12.5, color: "#0A8F60", fontWeight: "600" },
+  calmBannerText: { flex: 1, ...type.caption, fontSize: 12.5, color: ink.green, fontWeight: "600" },
 
   list: { gap: spacing.sm },
   ghost: {
@@ -297,14 +282,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  warCtaIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  warCtaIcon: { ...iconTile(36), backgroundColor: softTint(palette.deedViolet) },
   warCtaBody: { flex: 1, gap: 1 },
   warCtaName: { ...type.heading, fontSize: 14.5 },
   warCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

@@ -3,11 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -31,7 +32,7 @@ const STANCE_TINT: Record<ClubStance, string> = {
   expanding: palette.baseBlue,
   defending: palette.heatCoral,
   rebuilding: colors.textDim,
-  holding: "#0A8F60",
+  holding: ink.green,
 };
 
 const BATTLE_TINT: Record<BattleStatus, string> = {
@@ -167,13 +168,7 @@ export default function ClubTerritoryScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Club Territory</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Club Territory" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -181,7 +176,7 @@ export default function ClubTerritoryScreen() {
             <Text style={styles.heroKicker}>Club Territory</Text>
             <Text style={styles.heroTitle}>Your local club command layer.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
@@ -205,7 +200,7 @@ export default function ClubTerritoryScreen() {
               style={styles.clubPrompt}
               onPress={() => go("clubs")}
             >
-              <Hexagon size={30} color="#E8EDF0" coreColor={palette.dustGray} />
+              <Hexagon size={30} color={tints.neutral} coreColor={palette.dustGray} />
               <View style={styles.clubPromptBody}>
                 <Text style={styles.clubPromptName}>Choose a local preview club</Text>
                 <Text style={styles.clubPromptNote}>Personalize this dashboard · local preview</Text>
@@ -221,12 +216,12 @@ export default function ClubTerritoryScreen() {
             <View style={styles.commandHeader}>
               <Hexagon
                 size={32}
-                color={board.hasClub ? "#C9EEDE" : "#E8EDF0"}
+                color={board.hasClub ? tints.green : tints.neutral}
                 coreColor={board.hasClub ? palette.pulseGreen : palette.dustGray}
               />
               <View style={styles.commandTitleBox}>
                 <Text style={styles.commandName} numberOfLines={1}>{board.clubLabel}</Text>
-                <View style={[styles.stanceChip, { backgroundColor: `${stanceTint}1A` }]}>
+                <View style={[styles.stanceChip, { backgroundColor: softTint(stanceTint) }]}>
                   <Text style={[styles.stanceText, { color: stanceTint }]}>{board.stanceLabel}</Text>
                 </View>
               </View>
@@ -234,7 +229,7 @@ export default function ClubTerritoryScreen() {
             <View style={styles.scoreRow}>
               <Score value={board.territoryScore} label="territory" tint={palette.baseBlue} />
               <View style={styles.scoreDivider} />
-              <Score value={board.defenseScore} label="defense" tint="#0A8F60" />
+              <Score value={board.defenseScore} label="defense" tint={ink.green} />
               <View style={styles.scoreDivider} />
               <Score value={board.activityScore} label="activity" tint={palette.moveGold} />
             </View>
@@ -366,7 +361,7 @@ function DistrictRow({ district, onPress }: { district: ClubDistrictPresence; on
     <ScalePress to={0.99} style={styles.district} onPress={onPress}>
       <View style={styles.districtTop}>
         <Text style={styles.districtName} numberOfLines={1}>{district.name}</Text>
-        <View style={[styles.districtChip, { backgroundColor: `${tint}1A` }]}>
+        <View style={[styles.districtChip, { backgroundColor: softTint(tint) }]}>
           <Text style={[styles.districtChipText, { color: tint }]}>{BATTLE_LABEL[district.status]}</Text>
         </View>
       </View>
@@ -391,7 +386,7 @@ function DistrictRow({ district, onPress }: { district: ClubDistrictPresence; on
 function ZoneRow({ zone, onPress }: { zone: ClubZoneContribution; onPress: () => void }) {
   return (
     <ScalePress to={0.99} style={styles.zone} onPress={onPress}>
-      <Hexagon size={26} color="#C9EEDE" coreColor={palette.pulseGreen} />
+      <Hexagon size={26} color={tints.green} coreColor={palette.pulseGreen} />
       <View style={styles.zoneBody}>
         <Text style={styles.zoneName} numberOfLines={1}>{zone.name}</Text>
         <Text style={styles.zoneMeta}>
@@ -404,16 +399,6 @@ function ZoneRow({ zone, onPress }: { zone: ClubZoneContribution; onPress: () =>
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -535,14 +520,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  activationIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  activationIcon: { ...iconTile(36), backgroundColor: softTint(palette.deedViolet) },
   activationBody: { flex: 1, gap: 1 },
   activationName: { ...type.heading, fontSize: 14.5 },
   activationNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

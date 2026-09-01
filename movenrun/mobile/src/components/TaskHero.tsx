@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, iconTile, palette, spacing, type } from "@/theme";
+import { colors, iconTile, palette, softTint, spacing, type } from "@/theme";
 import { TASK_ACTION_ICON, type Task, type TodayBoard } from "@/lib/tasks";
 import { Button } from "./Button";
 import { Card } from "./Card";
@@ -38,7 +38,7 @@ export function TaskHero({ board, onStart, onMoveAnyway }: TaskHeroProps) {
   return (
     <Card variant="hero">
       <View style={styles.head}>
-        <View style={[styles.disc, { backgroundColor: `${tint}18` }]}>
+        <View style={[styles.disc, { backgroundColor: softTint(tint) }]}>
           <Ionicons
             name={task ? task.icon : "checkmark-done"}
             size={22}

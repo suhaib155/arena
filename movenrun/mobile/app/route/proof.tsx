@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from "react";
-import { type DimensionValue, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { type DimensionValue, Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn } from "@/components/FadeSlideIn";
-import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, canvas, colors, ink, palette, radius, shadows, spacing, tints, type } from "@/theme";
 import { formatPace } from "@/lib/geo";
 import { useGameStore } from "@/store/useGameStore";
 import { computePassport } from "@/lib/routePassport";
@@ -81,7 +82,7 @@ function TerritoryHero({ seed, zones }: { seed: number; zones: number }) {
         <View key={i} style={[styles.node, { left: n.left, top: n.top }]}>
           <Hexagon
             size={n.size}
-            color={n.teal ? "#CFF6E6" : "#C9EEDE"}
+            color={n.teal ? tints.greenSoft : tints.green}
             coreColor={n.teal ? palette.voltMint : palette.pulseGreen}
           />
         </View>
@@ -95,7 +96,7 @@ function TerritoryHero({ seed, zones }: { seed: number; zones: number }) {
       </View>
 
       <View style={styles.heroTag}>
-        <Ionicons name="navigate" size={11} color="#0A8F60" />
+        <Ionicons name="navigate" size={11} color={ink.green} />
         <Text style={styles.heroTagText}>Captured territory</Text>
       </View>
     </View>
@@ -159,19 +160,13 @@ export default function RouteProofScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Route Proof</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Route Proof" />
 
       <View style={styles.body}>
         <FadeSlideIn>
           <View style={styles.card}>
             <View style={styles.brandRow}>
-              <Hexagon size={15} color="#C9EEDE" coreColor={palette.pulseGreen} />
+              <Hexagon size={15} color={tints.green} coreColor={palette.pulseGreen} />
               <Text style={styles.brand}>MovenRun</Text>
               <View style={{ flex: 1 }} />
               <Text style={styles.previewTag}>Route Proof Preview</Text>
@@ -182,7 +177,7 @@ export default function RouteProofScreen() {
             {/* stat strip */}
             <View style={styles.stripRow}>
               <View style={styles.stripStat}>
-                <Text style={[styles.stripValue, { color: "#0A8F60" }]}>{zones}</Text>
+                <Text style={[styles.stripValue, { color: ink.green }]}>{zones}</Text>
                 <Text style={styles.stripLabel}>zones touched</Text>
               </View>
               <View style={styles.stripDivider} />
@@ -255,16 +250,6 @@ export default function RouteProofScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   body: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
 
   card: {
@@ -285,8 +270,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     overflow: "hidden",
   },
-  road: { position: "absolute", left: 0, right: 0, height: 5, backgroundColor: "#E2E8EC" },
-  roadV: { position: "absolute", top: 0, bottom: 0, width: 5, backgroundColor: "#E6EBEF" },
+  road: { position: "absolute", left: 0, right: 0, height: 5, backgroundColor: canvas.road },
+  roadV: { position: "absolute", top: 0, bottom: 0, width: 5, backgroundColor: canvas.roadCross },
   territoryBlob: {
     position: "absolute",
     left: "20%",
@@ -323,7 +308,7 @@ const styles = StyleSheet.create({
     marginLeft: -13,
     marginTop: -13,
   },
-  markerRing: { ...avatar(26), backgroundColor: "#FFFFFF", ...shadows.card },
+  markerRing: { ...avatar(26), backgroundColor: colors.surface, ...shadows.card },
   markerDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: palette.baseBlue },
   heroTag: {
     position: "absolute",
@@ -337,7 +322,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: spacing.sm,
   },
-  heroTagText: { fontSize: 11, fontWeight: "700", color: "#0A8F60" },
+  heroTagText: { fontSize: 11, fontWeight: "700", color: ink.green },
 
   /* stat strip */
   stripRow: { flexDirection: "row", alignItems: "center" },
@@ -371,7 +356,7 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderWidth: 3,
     borderColor: colors.text,
   },

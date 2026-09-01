@@ -3,10 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -134,13 +135,7 @@ export default function EventZonesScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Event Zones</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader title="Event Zones" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
@@ -148,11 +143,11 @@ export default function EventZonesScreen() {
             <Text style={styles.heroKicker}>Event Zones</Text>
             <Text style={styles.heroTitle}>A fictional preview of future city activity.</Text>
             <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: `${palette.baseBlue}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
                 <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: `${palette.deedViolet}14` }]}>
+              <View style={[styles.badge, { backgroundColor: softTint(palette.deedViolet) }]}>
                 <Ionicons name="color-wand-outline" size={13} color={palette.deedViolet} />
                 <Text style={[styles.badgeText, { color: palette.deedViolet }]}>Fictional events</Text>
               </View>
@@ -170,7 +165,7 @@ export default function EventZonesScreen() {
             <View style={styles.readyRow}>
               <Stat value={overview.previewEvents} label="preview events" />
               <View style={styles.readyDivider} />
-              <Stat value={overview.activePreviewCount} label="active" tint="#0A8F60" />
+              <Stat value={overview.activePreviewCount} label="active" tint={ink.green} />
               <View style={styles.readyDivider} />
               <Stat value={overview.averageReadiness} label="avg readiness" tint={palette.deedViolet} />
             </View>
@@ -279,7 +274,7 @@ function EventRow({ event, onPress }: { event: EventZone; onPress: () => void })
   const accent = event.accent;
   return (
     <View style={[styles.event, locked ? styles.eventLocked : null]}>
-      <View style={[styles.eventIcon, { backgroundColor: `${accent}1A` }]}>
+      <View style={[styles.eventIcon, { backgroundColor: softTint(accent) }]}>
         <Ionicons name={event.icon as IoniconName} size={20} color={accent} />
       </View>
       <View style={styles.eventBody}>
@@ -287,7 +282,7 @@ function EventRow({ event, onPress }: { event: EventZone; onPress: () => void })
           <Text style={[styles.eventName, locked ? styles.eventNameLocked : null]} numberOfLines={1}>
             {event.name}
           </Text>
-          <View style={[styles.statusChip, { backgroundColor: `${accent}1A` }]}>
+          <View style={[styles.statusChip, { backgroundColor: softTint(accent) }]}>
             <Text style={[styles.statusText, { color: accent }]}>
               {EVENT_STATUS_LABEL[event.status]}
             </Text>
@@ -326,16 +321,6 @@ function ScorePill({ label, value, color }: { label: string; value: number; colo
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  headerTitle: { ...type.heading, fontSize: 16 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 48, gap: spacing.lg },
 
   hero: { gap: spacing.sm, paddingTop: spacing.sm },
@@ -416,14 +401,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  clubCtaIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: `${palette.deedViolet}14`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  clubCtaIcon: { ...iconTile(36), backgroundColor: softTint(palette.deedViolet) },
   clubCtaBody: { flex: 1, gap: 1 },
   clubCtaName: { ...type.heading, fontSize: 14.5 },
   clubCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

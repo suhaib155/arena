@@ -1,6 +1,6 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, iconTile, palette, radius, shadows } from "@/theme";
+import { colors, iconTile, palette, shadows } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 
@@ -9,8 +9,8 @@ interface FloatingMapControlProps {
   /** Required — the control is icon-only, so it must describe itself. */
   accessibilityLabel: string;
   onPress: () => void;
-  /** Toggle/filter controls expose their selected state (not colour-only: the
-   *  a11y state is also set). */
+  /** Toggle/filter controls expose their selected state through
+   *  `accessibilityState.selected`, so the toggle is not colour-only. */
   active?: boolean;
 }
 
@@ -24,6 +24,7 @@ export function FloatingMapControl({ icon, accessibilityLabel, onPress, active =
       style={[styles.button, active && styles.active]}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      selected={active}
     >
       <Ionicons name={icon} size={20} color={active ? colors.surface : colors.text} />
     </ScalePress>

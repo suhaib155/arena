@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
-import { avatar, categoryColor, colors, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, categoryColor, colors, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 
@@ -81,13 +82,12 @@ export default function ActiveQuestScreen() {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Pressable onPress={quit} hitSlop={12} style={pressFade(styles.quitBtn)}>
-          <Ionicons name="close" size={24} color={colors.textDim} />
-        </Pressable>
-        <Text style={styles.questName}>{quest.title}</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <ScreenHeader
+        title={quest.title}
+        action="dismiss"
+        onAction={quit}
+        actionLabel="End this quest"
+      />
 
       <View style={styles.center}>
         <View style={[styles.ring, { borderColor: tint }]}>
@@ -128,14 +128,6 @@ export default function ActiveQuestScreen() {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: spacing.md,
-  },
-  quitBtn: { padding: spacing.xs },
-  questName: { ...type.heading, fontSize: 16 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.xl },
   ring: { ...avatar(240), borderWidth: 6, backgroundColor: colors.surface, gap: spacing.sm, ...shadows.float },
   timer: { ...type.display, fontSize: 56, fontVariant: ["tabular-nums"] },

@@ -17,7 +17,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { EmailOtpForm } from "@/components/EmailOtpForm";
 import { Hexagon } from "@/components/Hexagon";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, palette, radius, shadows, spacing, tints, type } from "@/theme";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useGameStore } from "@/store/useGameStore";
 import { isBackendConfigured } from "@/services/identityApi";
@@ -67,7 +67,7 @@ export default function WelcomeScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.brandRow}>
-          <Hexagon size={20} color="#C9EEDE" coreColor={palette.pulseGreen} />
+          <Hexagon size={20} color={tints.green} coreColor={palette.pulseGreen} />
           <Text style={styles.brand}>MovenRun</Text>
         </View>
 

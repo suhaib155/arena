@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { avatar, colors, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, palette, radius, shadows, spacing, type } from "@/theme";
 import { Button } from "./Button";
 import { ScalePress } from "./ScalePress";
 

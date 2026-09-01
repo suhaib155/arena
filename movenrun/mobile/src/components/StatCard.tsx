@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, iconTile, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, radius, shadows, softTint, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 
 interface StatCardProps {
@@ -13,7 +13,7 @@ interface StatCardProps {
 export function StatCard({ icon, value, label, tint = colors.primary }: StatCardProps) {
   return (
     <View style={styles.card}>
-      <View style={[styles.iconTile, { backgroundColor: `${tint}1A` }]}>
+      <View style={[styles.iconTile, { backgroundColor: softTint(tint) }]}>
         <Ionicons name={icon} size={18} color={tint} />
       </View>
       <Text style={styles.value}>{value}</Text>

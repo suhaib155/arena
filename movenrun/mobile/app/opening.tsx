@@ -22,7 +22,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn } from "@/components/FadeSlideIn";
-import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { useGameStore } from "@/store/useGameStore";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
@@ -116,7 +116,7 @@ export default function IntroScreen() {
     <Screen>
       <View style={styles.top}>
         <View style={styles.brandRow}>
-          <Hexagon size={18} color="#C9EEDE" coreColor={palette.pulseGreen} />
+          <Hexagon size={18} color={tints.green} coreColor={palette.pulseGreen} />
           <Text style={styles.brand}>MovenRun</Text>
         </View>
         <Pressable
@@ -151,7 +151,7 @@ export default function IntroScreen() {
             AFTER state has changed and never drives it. Reduced motion swaps
             it for a plain view. */}
         <StepBody key={reducedMotion ? `static-${step}` : `motion-${step}`} animated={!reducedMotion}>
-          <View style={[styles.iconCircle, { backgroundColor: `${tint}1A` }]}>
+          <View style={[styles.iconCircle, { backgroundColor: softTint(tint) }]}>
             <Ionicons name={content.icon as IoniconName} size={52} color={tint} />
           </View>
           <Text style={styles.title} accessibilityRole="header">

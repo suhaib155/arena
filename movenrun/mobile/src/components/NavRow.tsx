@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, iconTile, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, radius, shadows, softTint, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 
@@ -30,7 +30,7 @@ export function NavRow({ icon, title, subtitle, trailing, onPress, tint = colors
       accessibilityRole="button"
       accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
     >
-      <View style={[styles.iconTile, { backgroundColor: `${tint}14` }]}>
+      <View style={[styles.iconTile, { backgroundColor: softTint(tint) }]}>
         <Ionicons name={icon} size={18} color={tint} />
       </View>
       <View style={styles.body}>
