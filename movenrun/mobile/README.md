@@ -58,8 +58,10 @@ ids completed on the current local day (`getLocalDateKey()`), so:
 
 ## Stack
 
-- Expo SDK 51 / React Native 0.74 / React 18
-- Expo Router v3 (file-based routing in `app/`)
+- Expo SDK 54 / React Native 0.81 / React 19
+- Android builds compile and target **API 36** (Android 16), min SDK 24 — see
+  "Android API level" below
+- Expo Router v6 (file-based routing in `app/`)
 - TypeScript (strict)
 - Zustand for state, persisted with AsyncStorage
 - `expo-haptics` for tactile feedback; React Native `Share` for the share sheet
@@ -92,7 +94,7 @@ CI runs this type-check automatically on every PR and on pushes to `main`
 
 The dev server runs in the cloud (Codespaces) and your phone connects over an
 Expo **tunnel** — no shared Wi‑Fi/LAN and no port forwarding required. This is
-the supported phone-only path for the current **Expo SDK 51** app.
+the supported phone-only path for the current **Expo SDK 54** app.
 
 ### 1. Open the repo in a Codespace
 - From the GitHub repo (mobile browser is fine): **Code ▸ Codespaces ▸ Create
@@ -114,11 +116,11 @@ yarn workspace @movenrun/mobile start --tunnel --clear
 - `--clear` clears the Metro cache.
 - **If it prompts to install `@expo/ngrok`, answer `y` (yes).**
 
-### 3. Install Expo Go for SDK 51 on Android
-> ⚠️ Use the **SDK 51** Expo Go APK — **not** the latest Play Store Expo Go (the
-> latest version can't open an SDK 51 project).
-- Download/install the SDK 51 Android client from:
-  `https://expo.dev/go?sdkVersion=51&platform=android&device=true`
+### 3. Install Expo Go for SDK 54 on Android
+> ⚠️ Use an Expo Go build that matches **SDK 54**. If the Play Store Expo Go has
+> moved past SDK 54, it can't open this project.
+- Download/install the SDK 54 Android client from:
+  `https://expo.dev/go?sdkVersion=54&platform=android&device=true`
 
 ### 4. Open the app in Expo Go
 After Metro starts, the terminal prints a QR code and an `exp://…` tunnel URL.
@@ -138,7 +140,7 @@ After Metro starts, the terminal prints a QR code and an `exp://…` tunnel URL.
 - **Restart the Codespace** — if the tunnel won't establish or the URL is stale.
 - **Re-run `yarn install`** — if a module appears missing after pulling changes.
 - **Use `--tunnel`, not LAN** — localhost/LAN cannot reach a cloud Codespace.
-- **Confirm the SDK 51 Expo Go APK** — not the latest Play Store Expo Go; an SDK
+- **Confirm the SDK 54 Expo Go APK** — an SDK
   mismatch shows "Project is incompatible with this version of Expo Go".
 
 ### iPhone & SDK notes
@@ -256,6 +258,64 @@ _legacy/             Earlier GPS/blockchain mobile scaffold, parked out of the b
 - The share card is a **mock**: it shares a text blurb (the on-screen card is not
   yet captured as an image).
 - App icon/splash use Expo defaults (no custom art committed yet).
-- The app targets **Expo SDK 51**. Phone testing uses the **SDK 51** Expo Go
-  (Android) — see "Test on your Android phone" above. iPhone-via-App-Store Expo
-  Go needs a later SDK upgrade (tracked separately).
+- The app targets **Expo SDK 54**. Phone testing uses the **SDK 54** Expo Go
+  (Android) — see "Test on your Android phone" above.
+
+## Android API level
+
+Google Play requires new apps and app updates to target **Android 16 (API 36)**
+from 2026-08-31 ([Play target API requirements][play-target]). This project is
+managed/CNG — there is no committed `android/` directory — so the API level is
+never written down here. It is resolved at build time:
+
+```
+android/settings.gradle  → expoAutolinking.useExpoVersionCatalog()
+expo-modules-autolinking → ExpoRootProjectPlugin.kt reads the catalog
+react-native/gradle/libs.versions.toml → compileSdk / targetSdk / minSdk
+```
+
+With Expo SDK 54 / React Native 0.81.5 that catalog resolves to **compileSdk 36,
+targetSdk 36, minSdk 24** (buildTools 36.0.0, AGP 8.11.0, Kotlin 2.1.20, NDK
+27.1.12297006, Gradle 8.14.3). Verify locally with:
+
+```bash
+yarn workspace @movenrun/mobile exec expo prebuild --platform android --no-install --clean
+grep -E "targetSdk|compileSdk|minSdk" ../node_modules/react-native/gradle/libs.versions.toml
+rm -rf android      # generated, never committed
+```
+
+`src/lib/__tests__/androidTargetSdk.test.ts` guards this in CI: it reads the same
+version catalog Gradle does and fails if the effective level drops below 36.
+The product invariants that ride alongside it — foreground-only tracking, the
+declared runtime architecture, and the light canvas — are guarded separately in
+`src/lib/__tests__/androidRuntimePolicy.test.ts`.
+
+### Runtime architecture
+
+`app.json` declares `"newArchEnabled": false`, so the app runs on React Native's
+**legacy architecture**. This is written down rather than inherited: the default
+moved underneath this project (SDK 51 resolved to legacy; SDK 53 changed the
+default to the New Architecture), so without an explicit value the upgrade to
+SDK 54 would silently switch the runtime with nothing in the diff to review.
+
+The API level does not depend on it. Prebuilding SDK 54 both ways produces
+byte-identical `AndroidManifest.xml`, `styles.xml`, `colors.xml` and
+`app/build.gradle`, and the same 36/36/24 — the only difference is the single
+`newArchEnabled` line in the generated `gradle.properties`.
+
+Keeping legacy here is a *deferral, not a decision to stay*: **SDK 54 is the last
+Expo SDK in which the New Architecture can be disabled** ([New Architecture
+guide][new-arch]). Migrating is its own task, and it needs a device pass —
+flipping this flag changes runtime behaviour that nothing in this repo's
+offline suite can observe.
+
+Two Android 16 behaviours to keep in mind when testing on a device:
+
+- **Edge-to-edge is mandatory** for apps targeting API 36 — the opt-out is gone.
+  Every screen goes through `src/components/Screen.tsx`, which applies the
+  safe-area insets, and `MovenTabBar` applies the bottom inset.
+- **Orientation locks are ignored on large screens** (`sw >= 600dp`), so the
+  portrait lock still holds on phones but not on tablets/foldables.
+
+[play-target]: https://developer.android.com/google/play/requirements/target-sdk
+[new-arch]: https://docs.expo.dev/guides/new-architecture/

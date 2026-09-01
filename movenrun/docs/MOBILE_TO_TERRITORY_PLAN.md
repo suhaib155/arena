@@ -12,7 +12,7 @@ commitment to ship everything at once. Each step is its own branch + PR.
 
 ## Where we are today
 
-`mobile/` (Expo SDK 51, Expo Router v3) is a **quest/profile shell**:
+`mobile/` (Expo SDK 54, Expo Router v6) is a **quest/profile shell**:
 
 - Daily quest + quest list (`mobile/src/services/questService.ts` over mock data).
 - `start → active timer → finish → XP result` session flow
