@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -118,7 +118,7 @@ export default function SponsorZonesScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Sponsor Zones</Text>
@@ -265,7 +265,7 @@ function SponsorRow({ sponsor, onPress }: { sponsor: SponsorZone; onPress: () =>
           </View>
         ) : null}
         <Text style={styles.sponsorRec}>{sponsor.recommendation}</Text>
-        <Pressable hitSlop={8} onPress={onPress} style={styles.ctaBtn}>
+        <Pressable hitSlop={8} onPress={onPress} style={pressFade(styles.ctaBtn)}>
           <Text style={[styles.ctaText, { color: locked ? colors.primary : accent }]}>{sponsor.ctaLabel}</Text>
           <Ionicons name="chevron-forward" size={13} color={locked ? colors.primary : accent} />
         </Pressable>
@@ -350,13 +350,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   sponsorLocked: { backgroundColor: colors.surfaceAlt, shadowOpacity: 0.04 },
-  sponsorIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  sponsorIcon: { ...iconTile(42) },
   sponsorBody: { flex: 1, gap: 4 },
   sponsorTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   sponsorName: { ...type.heading, fontSize: 14.5, flex: 1 },

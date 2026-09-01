@@ -4,9 +4,15 @@
  * Computes a deterministic, explainable "trust" score for a finished movement
  * session from data the app already has in memory (mode, accepted GPS points,
  * distance, duration). It is a *preview* of the kind of signal a future GPS
- * oracle would weigh — it does NOT affect rewards, XP, capture, or ownership,
- * and nothing is sent anywhere. No raw GPS points are persisted; callers store
- * only the small summary (score + label).
+ * oracle would weigh — it does NOT affect rewards, XP, capture, or ownership.
+ *
+ * Scoped claims only: *this module* computes on-device and sends nothing, and
+ * the record callers persist from it (score + label) holds no coordinates. That
+ * is not the same as "the app never uploads a route" — saving a session while
+ * signed in submits its observations for server verification, and a failed
+ * submission is held briefly on the device (see lib/pendingVerification.ts).
+ * The distinction matters because this comment was written when it WAS the
+ * app's whole privacy posture, and stopped being true without being edited.
  */
 import {
   distanceMeters,
@@ -14,6 +20,7 @@ import {
   type TrackPoint,
 } from "@/lib/geo";
 import { isSaveable, type FinishedSession } from "@/services/moveSession";
+import { summarizeGaps } from "./trackPoints";
 
 export type TrustLabel =
   | "Strong"
@@ -155,6 +162,20 @@ export function scoreRoute(session: FinishedSession): RouteTrust {
     riskFlags.push("Speed spike");
   } else if (overallMs >= 0.4 && overallMs <= 6.5) {
     positiveSignals.push("Realistic pace");
+  }
+
+  /* Untracked time. Foreground-only tracking stops when the app is
+     backgrounded, so part of the route was never recorded — the distance is a
+     floor, not a measurement, and a route with a hole in it must not be able
+     to score as "Clean". This is the only signal here we *know* rather than
+     infer: it comes from app lifecycle transitions, not from point spacing
+     (standing at a traffic light produces identical silence). */
+  const gaps = summarizeGaps(session.gaps ?? [], durationMs);
+  if (gaps.significant) {
+    score -= 20;
+    riskFlags.push("Tracking gap");
+  } else if (gaps.count > 0) {
+    score -= 5;
   }
 
   // Amount of movement.

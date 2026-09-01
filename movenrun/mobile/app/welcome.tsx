@@ -137,8 +137,17 @@ export default function WelcomeScreen() {
         <View style={styles.footer}>
           <Text style={styles.footerHeading}>Privacy</Text>
           <Text style={styles.footerText}>
-            Your route stays on your device. Raw GPS is never uploaded and is not kept in your
-            progress history.
+            Location is used only during an active movement session, never in the background.
+          </Text>
+          <Text style={styles.footerText}>
+            In the local beta nothing leaves your device. If you sign in, saving a session sends
+            that session&apos;s route to MovenRun to verify the distance — and if that can&apos;t
+            be done right away, the route is kept on this device so it can be retried, for up to
+            seven days, then deleted.
+          </Text>
+          <Text style={styles.footerText}>
+            Your progress history, route reviews and passport never contain coordinates or a
+            route path.
           </Text>
           <Text style={styles.footerHeading}>Terms</Text>
           <Text style={styles.footerText}>

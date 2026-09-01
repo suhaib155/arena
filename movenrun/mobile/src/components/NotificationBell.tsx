@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, palette, radius, shadows } from "@/theme";
+import { avatar, colors, iconTile, palette, radius, shadows } from "@/theme";
 import { ScalePress } from "./ScalePress";
 
 interface NotificationBellProps {
@@ -40,15 +40,7 @@ export function NotificationBell({
 }
 
 const styles = StyleSheet.create({
-  button: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.card,
-  },
+  button: { ...avatar(44), backgroundColor: colors.surface, ...shadows.card },
   dot: {
     position: "absolute",
     top: 10,

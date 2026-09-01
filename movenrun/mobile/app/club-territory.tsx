@@ -7,7 +7,7 @@ import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -168,7 +168,7 @@ export default function ClubTerritoryScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Club Territory</Text>
@@ -240,7 +240,7 @@ export default function ClubTerritoryScreen() {
             </View>
             <Pressable
               hitSlop={8}
-              style={styles.recRow}
+              style={pressFade(styles.recRow)}
               onPress={() => go(board.recommendedAction.action)}
             >
               <Ionicons name="flash-outline" size={15} color={palette.deedViolet} />
@@ -292,13 +292,13 @@ export default function ClubTerritoryScreen() {
             {/* Club pressure */}
             <FadeSlideIn delay={STAGGER_MS * 4}>
               <View style={styles.pressureCard}>
-                <Pressable hitSlop={6} style={styles.pressureRow} onPress={() => go(board.rivalSummary.action)}>
+                <Pressable hitSlop={6} style={pressFade(styles.pressureRow)} onPress={() => go(board.rivalSummary.action)}>
                   <Ionicons name="color-wand-outline" size={16} color={palette.heatCoral} />
                   <Text style={styles.pressureText} numberOfLines={2}>{board.rivalSummary.label}</Text>
                   <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
                 </Pressable>
                 <View style={styles.pressureDivider} />
-                <Pressable hitSlop={6} style={styles.pressureRow} onPress={() => go(board.cityWarSummary.action)}>
+                <Pressable hitSlop={6} style={pressFade(styles.pressureRow)} onPress={() => go(board.cityWarSummary.action)}>
                   <Ionicons name="flag-outline" size={16} color={palette.deedViolet} />
                   <Text style={styles.pressureText} numberOfLines={2}>{board.cityWarSummary.label}</Text>
                   <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
   },

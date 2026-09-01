@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, palette, radius, shadows } from "@/theme";
+import { colors, iconTile, palette, radius, shadows } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 
@@ -31,14 +31,6 @@ export function FloatingMapControl({ icon, accessibilityLabel, onPress, active =
 }
 
 const styles = StyleSheet.create({
-  button: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.float,
-  },
+  button: { ...iconTile(44), backgroundColor: colors.surface, ...shadows.float },
   active: { backgroundColor: palette.baseBlue },
 });

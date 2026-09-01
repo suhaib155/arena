@@ -1,6 +1,7 @@
 /**
  * Local geo math for movement sessions. Everything here is computed on-device
- * from foreground GPS samples — nothing is sent anywhere.
+ * from foreground GPS samples. This module itself performs no I/O; what the app
+ * does with a finished route is decided elsewhere (see services/verifySession.ts).
  */
 
 export interface TrackPoint {

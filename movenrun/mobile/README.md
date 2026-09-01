@@ -1,37 +1,75 @@
-# MovenRun — Mobile (MVP)
+# MovenRun — Mobile
 
-An AI movement-quest app (MVP slice). First-launch onboarding, pick a daily
-movement quest, run a timer, finish it, earn XP toward levels and a daily
-streak, then share your win.
+The app. Sign in, open Home, and do what today's board asks: move, run a warmup
+quest, defend ground you already hold. Movement earns XP toward levels and a
+daily streak, and captures zones on your local territory map.
 
-> **MVP scope:** quests come from a local mock service (`src/services/questService.ts`,
-> backed by `src/data/quests.ts`). No AI API calls, no auth, no wallet/blockchain,
-> no Supabase/backend. Progress (XP, level, streak, history, onboarding) is stored
-> locally on-device via AsyncStorage.
+> **Current scope:** territory, zones and clubs are an on-device simulation —
+> quests come from a local mock service (`src/services/questService.ts`) and
+> progress lives in AsyncStorage. Accounts and sessions are real: email OTP
+> against the backend, with tokens in `expo-secure-store` (never in Zustand or
+> AsyncStorage). No wallet connection and no liquid token economy.
+
+## Home is a task board
+
+Everything the app asks of you is one noun — a **task** — and one pure function
+builds today's list:
+
+```ts
+const board = buildTodayBoard({ movedToday, atRiskZoneCount, zonesOwned, … });
+// → { focus, tasks, doneCount, totalCount, progressLabel, progress, allDone }
+```
+
+`focus` is the single spotlight task and owns the screen's only primary button;
+`tasks` is the rest of the checklist and never repeats the spotlight. Tasks come
+in three flavours, and the distinction is the whole design:
+
+| Flavour | Tasks | Behaviour |
+| --- | --- | --- |
+| Daily | `move`, `quest` | Always on the board; reset each local day |
+| Conditional | `resume`, `defend` | Present only while the condition holds, and outrank everything when they are |
+| Milestone | `capture`, `club` | Present until achieved, then gone for good |
+
+All of it is in `src/lib/tasks.ts` with its rules pinned in
+`src/lib/__tests__/tasks.test.ts`. Home renders the result and decides nothing.
 
 ## Design system — Daylight Cartography
 
-The UI follows the **Daylight Cartography** design language shared with the
-marketing site (`movenrun/website/`): bright Morning White light mode, soft
-white cards with layered shadows, hex-zone identity, and the territory accents
-(Base Blue / Pulse Green / Deed Violet / Heat Coral / MOVE Gold).
+Bright Morning White light mode, soft white cards with layered shadows, hex-zone
+identity, and the territory accents (Base Blue / Pulse Green / Deed Violet /
+Heat Coral / MOVE Gold), shared with the marketing site in `movenrun/website/`.
 
-- All tokens live in **`src/theme.ts`**: `palette`, semantic `colors`,
-  `zoneColors`, `gradients`, `spacing`, `radius`, `shadows` + `glow()`,
-  the `type` scale, and `motion` timing. Never hardcode hex values in screens.
-- Motion uses core `Animated` only (`ScalePress`, `FadeSlideIn`,
-  `CountUpText`) — no animation libraries.
-- The hex motif (`Hexagon`, `TerritoryPreview`) is plain Views — no SVG/map
-  dependency yet. The territory card is explicitly a **non-functional preview**
-  ("Territory map coming next").
-- **Locked MOVE is a display preview only** (`src/lib/lockedMove.ts`): a value
-  derived from XP, always labeled "preview · in-app progress, not a payout".
-  No balance is stored and no earning is implied.
-- **Fonts follow-up:** the `type` scale targets Sora (display), Plus Jakarta
-  Sans (body) and Space Grotesk (numeric) with platform-sans fallbacks today.
-  A future PR should add `expo-font` + `@expo-google-fonts/sora`,
-  `@expo-google-fonts/plus-jakarta-sans`, `@expo-google-fonts/space-grotesk`
-  and set `fontFamily` in `src/theme.ts` once the build is device-verified.
+Tokens live in **`src/theme.ts`** — `palette`, semantic `colors`, `zoneColors`,
+`gradients`, `spacing`, `radius`, `shadows` + `glow()`, the `type` scale, and
+`motion` timing. Never hardcode a hex value in a screen.
+
+Four rules are enforced by `src/lib/__tests__/designSystem.test.ts`, because
+each one had already been broken by hand at least once:
+
+- **Corner radius is optical, not absolute.** `iconTile(size)` for functional
+  icons, `avatar(size)` for identity and illustration. A fixed 16px radius reads
+  as a circle at 24px and a square at 48px — which is exactly how the same
+  control ended up round on one screen and square on the next.
+- **Anything that floats above the page is a card**, and uses `radius.lg`,
+  `radius.xl` or `radius.pill`. `<Card>` owns the three surfaces — `standard`,
+  `hero`, `flat` — so cards can't drift apart again. One `hero` per screen at
+  most: the thing the screen is about.
+- **A selection outline never resizes what it outlines.** `selectionRing()`
+  always reserves its border and changes only the colour.
+- **Every tappable surface answers a touch** — `pressFade()` on a plain
+  `Pressable`, or `ScalePress`, which springs instead. Never both.
+
+Motion uses core `Animated` only (`ScalePress`, `FadeSlideIn`, `CountUpText`) —
+no animation libraries. The hex motif (`Hexagon`) is plain Views, no SVG.
+
+**Locked MOVE is a display preview only** (`src/lib/lockedMove.ts`): a value
+derived from XP, always labeled "preview · in-app progress, not a payout". No
+balance is stored and no earning is implied.
+
+**Fonts follow-up:** the `type` scale targets Sora (display), Plus Jakarta Sans
+(body) and Space Grotesk (numeric) with platform-sans fallbacks today. A future
+PR should add `expo-font` + the matching `@expo-google-fonts/*` packages and set
+`fontFamily` in `src/theme.ts` once the build is device-verified.
 
 ## Quest data: always go through `questService`
 
@@ -50,7 +88,8 @@ import the raw quest arrays. This is the single seam where a future
 Each quest awards XP **at most once per local day**. The store records the quest
 ids completed on the current local day (`getLocalDateKey()`), so:
 
-- Home marks finished quests "Done today" and the daily card shows a done state.
+- The board marks today's quest task done, and the quest library shows a done
+  state on every quest already completed this day.
 - The Quest detail **Start** button becomes a disabled "Completed today" once a
   quest has been done that day.
 - Replaying a quest is idempotent in the store (0 XP, no streak/history change) —
@@ -58,8 +97,10 @@ ids completed on the current local day (`getLocalDateKey()`), so:
 
 ## Stack
 
-- Expo SDK 51 / React Native 0.74 / React 18
-- Expo Router v3 (file-based routing in `app/`)
+- Expo SDK 54 / React Native 0.81 / React 19
+- Android builds compile and target **API 36** (Android 16), min SDK 24 — see
+  "Android API level" below
+- Expo Router v6 (file-based routing in `app/`)
 - TypeScript (strict)
 - Zustand for state, persisted with AsyncStorage
 - `expo-haptics` for tactile feedback; React Native `Share` for the share sheet
@@ -92,7 +133,7 @@ CI runs this type-check automatically on every PR and on pushes to `main`
 
 The dev server runs in the cloud (Codespaces) and your phone connects over an
 Expo **tunnel** — no shared Wi‑Fi/LAN and no port forwarding required. This is
-the supported phone-only path for the current **Expo SDK 51** app.
+the supported phone-only path for the current **Expo SDK 54** app.
 
 ### 1. Open the repo in a Codespace
 - From the GitHub repo (mobile browser is fine): **Code ▸ Codespaces ▸ Create
@@ -114,11 +155,11 @@ yarn workspace @movenrun/mobile start --tunnel --clear
 - `--clear` clears the Metro cache.
 - **If it prompts to install `@expo/ngrok`, answer `y` (yes).**
 
-### 3. Install Expo Go for SDK 51 on Android
-> ⚠️ Use the **SDK 51** Expo Go APK — **not** the latest Play Store Expo Go (the
-> latest version can't open an SDK 51 project).
-- Download/install the SDK 51 Android client from:
-  `https://expo.dev/go?sdkVersion=51&platform=android&device=true`
+### 3. Install Expo Go for SDK 54 on Android
+> ⚠️ Use an Expo Go build that matches **SDK 54**. If the Play Store Expo Go has
+> moved past SDK 54, it can't open this project.
+- Download/install the SDK 54 Android client from:
+  `https://expo.dev/go?sdkVersion=54&platform=android&device=true`
 
 ### 4. Open the app in Expo Go
 After Metro starts, the terminal prints a QR code and an `exp://…` tunnel URL.
@@ -138,7 +179,7 @@ After Metro starts, the terminal prints a QR code and an `exp://…` tunnel URL.
 - **Restart the Codespace** — if the tunnel won't establish or the URL is stale.
 - **Re-run `yarn install`** — if a module appears missing after pulling changes.
 - **Use `--tunnel`, not LAN** — localhost/LAN cannot reach a cloud Codespace.
-- **Confirm the SDK 51 Expo Go APK** — not the latest Play Store Expo Go; an SDK
+- **Confirm the SDK 54 Expo Go APK** — an SDK
   mismatch shows "Project is incompatible with this version of Expo Go".
 
 ### iPhone & SDK notes
@@ -216,46 +257,134 @@ cleanly on EAS.
 > Security: the workflow uses **only** the `EXPO_TOKEN` GitHub Actions secret.
 > Never commit Expo tokens, passwords, or `.env` files.
 
-## Screens & flow
+## First run and navigation
 
 ```
-onboarding     First-launch intro carousel (3 slides) → Get started
-(tabs)/index   Home — daily quest + list, level/XP, streak, "moved today" state
-(tabs)/profile Profile — level, XP bar, streak, completed count, recent activity
-quest/[id]     Quest detail — description, steps, reward → Start
-active         Active quest — countdown timer, pause/resume, finish (haptics)
-result         XP result — animated, level-up, streak, share card → Share / Done
+opening        Branded startup while persisted state hydrates
+welcome        Account choice — email OTP sign-in / create account
+onboarding     Redirect only; the real intro lives in `opening`
+(tabs)/index   Home — today's task board
+(tabs)/clubs   Clubs — city ranking and your club
+(tabs)/profile Profile — stats, and the directory of every other screen
+move/*         The movement session: start → session → summary → captured
+quest/[id]     Quest detail → active timer → XP result
+quests         The warmup quest library
+territory/*    Local territory map and alerts
 ```
 
-Navigation: onboarding gates first launch (redirect happens after persisted
-state hydrates, behind a branded splash). Tabs for Home/Profile; the quest flow
-(`detail → active → result`) is a stack. Finishing pops back to Home.
+The bottom bar carries the five destinations that matter — Home, Territory,
+**Move**, Clubs, Profile — with Move as the elevated centre action. Everything
+else is reachable from the Profile directory, so Home never has to be a menu.
 
 ## Project layout
 
 ```
-app/                 Expo Router routes (incl. onboarding + root hydration gate)
-src/components/       Reusable UI — Button, QuestCard, Badge, XPBar, StatCard,
-                     Screen, SectionHeader, EmptyState, ShareCard
-src/services/        questService — the quest access seam (mock today)
-src/data/quests.ts   Mock quest catalogue (raw data only)
-src/hooks/           useSessionStart — daily quest + completed-today session state
-src/store/           Zustand game store (XP / streak / history / onboarding /
-                     completed-today, persisted; selectors + hooks)
-src/lib/             Leveling, date, and haptics helpers
-src/theme.ts         Design tokens
-_legacy/             Earlier GPS/blockchain mobile scaffold, parked out of the build
-                     (see _legacy/README.md — do not delete without approval)
+app/            Expo Router routes. One file = one screen. No business logic.
+src/
+  components/   Presentational only. Card, TaskRow, TaskHero, StatTrio, Button,
+                Screen, SectionHeader, NavRow, ScalePress, EmptyState, …
+  lib/          Pure functions. No React, no I/O — every decision lives here.
+                tasks.ts (the board), shape.ts (geometry), territory.ts,
+                leveling.ts, secureSession.ts, date.ts, haptics.ts, …
+  services/     Everything that talks to the outside world:
+                identityApi (auth), questService (the quest seam), moveTracker
+  store/        Zustand. useGameStore (progress) and useAuthStore (session).
+  data/         Raw mock catalogues — quests, clubs. Data only, no logic.
+  theme.ts      Design tokens, and the re-export point for shape.ts
+_legacy/        Parked GPS/blockchain scaffold, out of the build
+                (see _legacy/README.md — do not delete without approval)
 ```
+
+**The rule that keeps this readable:** a screen never decides anything. It calls
+one function from `lib/`, gets a plain object back, and renders it. That is why
+the whole suite runs on plain Node in about four seconds with no simulator —
+and why `lib/` must never import from `react-native` at runtime. (Type-only
+imports are fine; they're erased. `theme.ts` imports `Platform` as a *value*,
+which is why the shape rules live in `lib/shape.ts` instead.)
+
+```bash
+yarn workspace @movenrun/mobile lint   # tsc --noEmit
+yarn workspace @movenrun/mobile test   # node --test
+```
+
+## Quest data: always go through `questService`
+
+All quest access goes through **`src/services/questService.ts`** — screens never
+import the raw arrays. This is the single seam where a future server-side quest
+source plugs in. Don't bypass it, and never ship AI provider keys in the app.
 
 ## Known limitations
 
-- Quests are mock data; there is no AI generation or backend sync yet.
-- Progress is local-only (AsyncStorage) and not synced across devices.
-- The timer is a simple countdown — it does not use device motion/GPS sensors.
-- The share card is a **mock**: it shares a text blurb (the on-screen card is not
-  yet captured as an image).
-- App icon/splash use Expo defaults (no custom art committed yet).
-- The app targets **Expo SDK 51**. Phone testing uses the **SDK 51** Expo Go
-  (Android) — see "Test on your Android phone" above. iPhone-via-App-Store Expo
-  Go needs a later SDK upgrade (tracked separately).
+- Territory, zones and clubs are a **local simulation** — no sync, no ownership
+  beyond this device.
+- Quests are mock data.
+- A finished route lives in memory during the summary flow. If server
+  verification fails, that session's route observations are held on the device
+  so the request can be retried — bounded to one account, a few attempts and a
+  short retention window, and deleted once it settles. Nothing else persists a
+  route, and the board's `resume` task still never fires.
+- The timer is a countdown — it does not read motion or GPS sensors.
+- The share card shares a text blurb; the on-screen card isn't captured as an
+  image yet.
+- App icon and splash are Expo defaults.
+- The app targets **Expo SDK 54**. Phone testing uses the **SDK 54** Expo Go
+  (Android) — see "Test on your Android phone" above.
+
+## Android API level
+
+Google Play requires new apps and app updates to target **Android 16 (API 36)**
+from 2026-08-31 ([Play target API requirements][play-target]). This project is
+managed/CNG — there is no committed `android/` directory — so the API level is
+never written down here. It is resolved at build time:
+
+```
+android/settings.gradle  → expoAutolinking.useExpoVersionCatalog()
+expo-modules-autolinking → ExpoRootProjectPlugin.kt reads the catalog
+react-native/gradle/libs.versions.toml → compileSdk / targetSdk / minSdk
+```
+
+With Expo SDK 54 / React Native 0.81.5 that catalog resolves to **compileSdk 36,
+targetSdk 36, minSdk 24** (buildTools 36.0.0, AGP 8.11.0, Kotlin 2.1.20, NDK
+27.1.12297006, Gradle 8.14.3). Verify locally with:
+
+```bash
+yarn workspace @movenrun/mobile exec expo prebuild --platform android --no-install --clean
+grep -E "targetSdk|compileSdk|minSdk" ../node_modules/react-native/gradle/libs.versions.toml
+rm -rf android      # generated, never committed
+```
+
+`src/lib/__tests__/androidTargetSdk.test.ts` guards this in CI: it reads the same
+version catalog Gradle does and fails if the effective level drops below 36.
+The product invariants that ride alongside it — foreground-only tracking, the
+declared runtime architecture, and the light canvas — are guarded separately in
+`src/lib/__tests__/androidRuntimePolicy.test.ts`.
+
+### Runtime architecture
+
+`app.json` declares `"newArchEnabled": false`, so the app runs on React Native's
+**legacy architecture**. This is written down rather than inherited: the default
+moved underneath this project (SDK 51 resolved to legacy; SDK 53 changed the
+default to the New Architecture), so without an explicit value the upgrade to
+SDK 54 would silently switch the runtime with nothing in the diff to review.
+
+The API level does not depend on it. Prebuilding SDK 54 both ways produces
+byte-identical `AndroidManifest.xml`, `styles.xml`, `colors.xml` and
+`app/build.gradle`, and the same 36/36/24 — the only difference is the single
+`newArchEnabled` line in the generated `gradle.properties`.
+
+Keeping legacy here is a *deferral, not a decision to stay*: **SDK 54 is the last
+Expo SDK in which the New Architecture can be disabled** ([New Architecture
+guide][new-arch]). Migrating is its own task, and it needs a device pass —
+flipping this flag changes runtime behaviour that nothing in this repo's
+offline suite can observe.
+
+Two Android 16 behaviours to keep in mind when testing on a device:
+
+- **Edge-to-edge is mandatory** for apps targeting API 36 — the opt-out is gone.
+  Every screen goes through `src/components/Screen.tsx`, which applies the
+  safe-area insets, and `MovenTabBar` applies the bottom inset.
+- **Orientation locks are ignored on large screens** (`sw >= 600dp`), so the
+  portrait lock still holds on phones but not on tablets/foldables.
+
+[play-target]: https://developer.android.com/google/play/requirements/target-sdk
+[new-arch]: https://docs.expo.dev/guides/new-architecture/

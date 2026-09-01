@@ -6,28 +6,72 @@
  * (distance/time → XP record) via the existing game store.
  */
 import type { TrackPoint } from "@/lib/geo";
+import type { TrackingGap } from "@/lib/trackPoints";
 import type { TrackerMode } from "./moveTracker";
+import { INITIAL_VERIFICATION, type VerificationState } from "@/lib/movementVerification";
 
 export interface FinishedSession {
+  /**
+   * This session's stable identity, minted once when the session begins and
+   * never regenerated — not on re-render, not when the summary is reopened,
+   * and above all not when a network attempt fails. The backend's idempotency
+   * is keyed on (authenticated user, clientSessionId), so a fresh id per
+   * attempt would turn every retry into a second verification.
+   */
+  clientSessionId: string;
   mode: TrackerMode;
   points: TrackPoint[];
   distanceM: number;
   durationMs: number;
   finishedAt: number;
+  /** Spans where the app was backgrounded and no fixes arrived, so the summary
+   *  can say the distance is incomplete instead of presenting it as the truth.
+   *  Optional: older callers and demo sessions simply have none. */
+  gaps?: TrackingGap[];
 }
 
 let last: FinishedSession | null = null;
 
+/**
+ * Verification state for the session in `last`, held beside it rather than in
+ * the game store.
+ *
+ * The game store is where *completion* lives — XP, history, local zones — and
+ * putting verification there would invite the two to be read as one fact. This
+ * is also why it is not persisted: Task 3 makes one attempt for a session the
+ * user is looking at. Durable retry across restarts is a later, separate
+ * design (it needs account scoping and a retention bound), and pretending to
+ * have it here would leave GPS observations sitting in storage with no policy.
+ */
+let lastVerification: VerificationState = INITIAL_VERIFICATION;
+
 export function setLastSession(session: FinishedSession): void {
   last = session;
+  lastVerification = INITIAL_VERIFICATION;
 }
 
 export function getLastSession(): FinishedSession | null {
   return last;
 }
 
+/** Verification state for the session currently held, or `local` when none. */
+export function getVerificationState(): VerificationState {
+  return last ? lastVerification : INITIAL_VERIFICATION;
+}
+
+/**
+ * Record a transition. Ignored when it names a session that is no longer the
+ * one held, so a response arriving after the user has started a new session
+ * can never label the new one with the old one's verdict.
+ */
+export function setVerificationState(clientSessionId: string, state: VerificationState): void {
+  if (!last || last.clientSessionId !== clientSessionId) return;
+  lastVerification = state;
+}
+
 export function clearLastSession(): void {
   last = null;
+  lastVerification = INITIAL_VERIFICATION;
 }
 
 /**

@@ -10,10 +10,11 @@ import { FloatingMapControl } from "@/components/FloatingMapControl";
 import { MapLegend, type LegendItem } from "@/components/MapLegend";
 import { ZoneSheet } from "@/components/ZoneSheet";
 import { healthVisual } from "@/components/ZoneCard";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { HEALTH_LABEL } from "@/lib/territory";
 import { buildTerritoryOverview, type MapCell } from "@/lib/territoryMap";
+import { buildTerritoryIntro } from "@/lib/territoryIntro";
 import { tapFeedback } from "@/lib/haptics";
 
 function lastDefendedText(iso: string, now: number): string {
@@ -40,12 +41,30 @@ const LEGEND: LegendItem[] = [
 export default function TerritoryMapScreen() {
   const router = useRouter();
   const zones = useGameStore((s) => s.zones);
+  const history = useGameStore((s) => s.history);
+  const routeTrustHistory = useGameStore((s) => s.routeTrustHistory);
   const hydrated = useGameStore((s) => s._hydrated);
   const now = Date.now();
   const overview = useMemo(() => buildTerritoryOverview(zones, now), [zones, now]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
+
+  /* Zero-zone guidance is derived, never stored — see lib/territoryIntro.ts.
+     `null` once the user holds ground, so an established player cannot be shown
+     beginner education. The board branches on this rather than on
+     `overview.total === 0`: the two are the same condition (`total` IS
+     `zones.length`), but this one narrows, so the guidance cannot be rendered
+     half-empty. */
+  const intro = useMemo(
+    () =>
+      buildTerritoryIntro({
+        zonesOwned: zones.length,
+        historyCount: history.length,
+        routeTrustCount: routeTrustHistory.length,
+      }),
+    [zones.length, history.length, routeTrustHistory.length],
+  );
 
   const selected = overview.cells.find((c) => c.zone.id === selectedId) ?? null;
   const rows = useMemo(() => {
@@ -72,7 +91,7 @@ export default function TerritoryMapScreen() {
   return (
     <Screen edgeTop>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Territory</Text>
@@ -90,18 +109,40 @@ export default function TerritoryMapScreen() {
       <View style={styles.board}>
         {!hydrated ? (
           <MapSkeleton />
-        ) : overview.total === 0 ? (
-          <View style={styles.empty}>
+        ) : intro ? (
+          <ScrollView
+            contentContainerStyle={styles.empty}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.emptyIcon}>
               <Ionicons name="map-outline" size={30} color={colors.primary} />
             </View>
-            <Text style={styles.emptyTitle}>No territory yet</Text>
-            <Text style={styles.emptyText}>
-              Start Move to capture your first zone. Your captured tiles appear
-              here as a live local board.
-            </Text>
+            <Text style={styles.emptyTitle}>{intro.title}</Text>
+            <Text style={styles.emptyText}>{intro.body}</Text>
+
+            {/* The core loop, in the app's own words. Rendered from CORE_LOOP so
+                the wording has exactly one owner and cannot drift. Empty for a
+                returning player — they get the next action, not a tutorial. */}
+            {intro.steps.length ? (
+              <View style={styles.loop}>
+                {intro.steps.map((step, i) => (
+                  <View key={step.key} style={styles.loopStep}>
+                    <View style={styles.loopIcon}>
+                      <Ionicons name={step.icon} size={18} color={colors.primary} />
+                    </View>
+                    <View style={styles.loopBody}>
+                      <Text style={styles.loopLabel}>
+                        {i + 1}. {step.label}
+                      </Text>
+                      <Text style={styles.loopDetail}>{step.detail}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             <Button
-              label="Start Move"
+              label={intro.ctaLabel}
               icon="walk"
               onPress={() => {
                 tapFeedback();
@@ -109,7 +150,7 @@ export default function TerritoryMapScreen() {
               }}
               style={styles.emptyCta}
             />
-          </View>
+          </ScrollView>
         ) : (
           <>
             <ScrollView
@@ -311,16 +352,14 @@ const styles = StyleSheet.create({
   floatingControls: { position: "absolute", top: spacing.md, right: spacing.md, gap: spacing.sm },
   legendWrap: { position: "absolute", left: 0, right: 0, bottom: spacing.md, alignItems: "center" },
 
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.xl },
-  emptyIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
+  empty: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.xl },
+  loop: { alignSelf: "stretch", marginTop: spacing.md, gap: spacing.md },
+  loopStep: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
+  loopIcon: { ...iconTile(36), backgroundColor: colors.primaryDim },
+  loopBody: { flex: 1, gap: 2 },
+  loopLabel: { ...type.heading, fontSize: 14 },
+  loopDetail: { ...type.body, fontSize: 12.5, lineHeight: 18, color: colors.textDim },
+  emptyIcon: { ...avatar(60), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 17 },
   emptyText: { ...type.body, fontSize: 13.5, textAlign: "center", color: colors.textDim },
   emptyCta: { marginTop: spacing.md, alignSelf: "stretch" },

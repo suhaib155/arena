@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -213,7 +213,7 @@ export default function CrewMissionsScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Crew Missions</Text>
@@ -277,7 +277,7 @@ export default function CrewMissionsScreen() {
                     <Text style={styles.priorityKicker}>Do this next</Text>
                     <Text style={styles.priorityName} numberOfLines={1}>{board.topPriority.title}</Text>
                   </View>
-                  <Pressable hitSlop={8} onPress={() => go(board.topPriority!.action)} style={styles.priorityCta}>
+                  <Pressable hitSlop={8} onPress={() => go(board.topPriority!.action)} style={pressFade(styles.priorityCta)}>
                     <Text style={styles.priorityCtaText}>{board.topPriority.ctaLabel}</Text>
                   </Pressable>
                 </View>
@@ -299,7 +299,7 @@ export default function CrewMissionsScreen() {
               <View style={styles.linksCard}>
                 <Text style={styles.linksTitle}>Linked systems</Text>
                 {LINKS.map((l) => (
-                  <Pressable key={l.action} hitSlop={6} style={styles.linkRow} onPress={() => go(l.action)}>
+                  <Pressable key={l.action} hitSlop={6} style={pressFade(styles.linkRow)} onPress={() => go(l.action)}>
                     <Ionicons name={l.icon} size={15} color={palette.deedViolet} />
                     <Text style={styles.linkText}>{l.label}</Text>
                     <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
@@ -373,7 +373,7 @@ function MissionRow({ mission, onPress }: { mission: CrewMission; onPress: () =>
           <View style={[styles.fill, { width: `${mission.progress}%`, backgroundColor: STATUS_FILL[mission.status] }]} />
         </View>
         <Text style={styles.missionRec}>{mission.recommendation}</Text>
-        <Pressable hitSlop={8} onPress={onPress} style={styles.ctaBtn}>
+        <Pressable hitSlop={8} onPress={onPress} style={pressFade(styles.ctaBtn)}>
           <Text style={[styles.ctaText, { color: locked ? colors.primary : accent }]}>{mission.ctaLabel}</Text>
           <Ionicons name="chevron-forward" size={13} color={locked ? colors.primary : accent} />
         </Pressable>
@@ -473,13 +473,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   missionLocked: { backgroundColor: colors.surfaceAlt, shadowOpacity: 0.04 },
-  missionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  missionIcon: { ...iconTile(40) },
   missionBody: { flex: 1, gap: 4 },
   missionTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   missionTitle: { ...type.heading, fontSize: 14.5, flex: 1 },

@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { colors, glow, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, glow, iconTile, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 import { tapFeedback } from "@/lib/haptics";
@@ -155,18 +155,7 @@ const styles = StyleSheet.create({
   },
   tabLabel: { ...type.caption, fontSize: 10.5 },
   moveSlot: { width: 72, alignItems: "center", justifyContent: "center" },
-  moveButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginTop: -22,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 4,
-    borderColor: colors.bg,
-    ...glow(colors.primary),
-  },
+  moveButton: { ...avatar(56), marginTop: -22, backgroundColor: colors.primary, borderWidth: 4, borderColor: colors.bg, ...glow(colors.primary) },
   moveLabel: {
     ...type.caption,
     fontSize: 10.5,

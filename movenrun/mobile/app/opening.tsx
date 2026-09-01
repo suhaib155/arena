@@ -22,7 +22,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { useGameStore } from "@/store/useGameStore";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
@@ -124,7 +124,7 @@ export default function IntroScreen() {
           onPress={skip}
           accessibilityRole="button"
           accessibilityLabel="Skip the introduction"
-          style={styles.skipBtn}
+          style={pressFade(styles.skipBtn)}
         >
           <Text style={styles.skip}>Skip</Text>
         </Pressable>
@@ -222,14 +222,7 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   bodyContent: { flexGrow: 1, justifyContent: "center", paddingVertical: spacing.lg },
   step: { alignItems: "center", gap: spacing.lg },
-  iconCircle: {
-    width: 116,
-    height: 116,
-    borderRadius: radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.card,
-  },
+  iconCircle: { ...avatar(116), ...shadows.card },
   title: { ...type.display, fontSize: 26, lineHeight: 32, textAlign: "center" },
   text: {
     ...type.body,

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { Button } from "./Button";
 
@@ -38,15 +38,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
+  iconCircle: { ...avatar(56), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
   title: { ...type.heading },
   message: {
     ...type.body,

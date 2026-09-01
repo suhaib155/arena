@@ -23,6 +23,18 @@ interface ScalePressProps {
   /** An action is in flight — announced as busy, and (like disabled) the press
    *  is refused. Announcing without blocking would invite a double submit. */
   busy?: boolean;
+  /**
+   * Extra tappable margin, in points, around a control that is deliberately
+   * drawn smaller than {@link MIN_TOUCH_TARGET}.
+   *
+   * Compact glyph buttons — a 32pt sheet dismiss, a header back chevron — are
+   * a real visual decision, and inflating them to 44pt would distort the
+   * layout they sit in. Growing the *hit area* instead is the platform answer,
+   * and it belongs here rather than in each caller so the shared wrapper can
+   * be held to the contract. `src/lib/__tests__/uiGuards.test.ts` enforces
+   * that a control below the floor declares enough of it.
+   */
+  hitSlop?: number;
 }
 
 /**
@@ -39,6 +51,7 @@ export function ScalePress({
   accessibilityHint,
   accessibilityRole,
   busy,
+  hitSlop,
 }: ScalePressProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const inactive = Boolean(disabled || busy);
@@ -52,6 +65,7 @@ export function ScalePress({
       // never gates or delays this handler.
       onPress={onPress}
       disabled={inactive}
+      hitSlop={hitSlop}
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}

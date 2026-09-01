@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { StatusPill } from "@/components/StatusPill";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { computePassport, readinessTone, type ReadinessTone } from "@/lib/routePassport";
 import { buildPassportStamps, type PassportStamp } from "@/lib/passportEntries";
@@ -29,7 +29,7 @@ function toneColor(tone: ReadinessTone): { bar: string; text: string } {
  * Route Passport — a local, on-device movement record and GPS-quality readiness
  * preview, derived from persisted route summaries. It is NOT government/legal
  * identity, blockchain finality, public/remote verification, or permanent
- * ownership — it is explicitly a local preview. No raw GPS, coordinates, or
+ * ownership — it is explicitly a local preview. This record holds no coordinates or
  * paths are shown or stored; it affects no rewards, capture, or ownership.
  */
 export default function RoutePassportScreen() {
@@ -53,7 +53,7 @@ export default function RoutePassportScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Passport</Text>
@@ -177,8 +177,7 @@ export default function RoutePassportScreen() {
               <Text style={styles.privacyTitle}>Your data</Text>
             </View>
             <Text style={styles.privacyLine}>Only summary scores are saved.</Text>
-            <Text style={styles.privacyLine}>Raw GPS and paths are never stored.</Text>
-            <Text style={styles.privacyLine}>Nothing is sent anywhere.</Text>
+            <Text style={styles.privacyLine}>This passport holds no coordinates and no route path.</Text>
           </View>
         </FadeSlideIn>
 
@@ -328,15 +327,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
+  emptyIcon: { ...avatar(56), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 16, textAlign: "center" },
   emptyText: { ...type.body, fontSize: 13, lineHeight: 18, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },

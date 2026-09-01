@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, AppState, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -7,7 +7,7 @@ import { RouteCanvas } from "@/components/RouteCanvas";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import {
   acceptPoint,
   distanceMeters,
@@ -17,7 +17,14 @@ import {
   type TrackPoint,
 } from "@/lib/geo";
 import { createTracker, type TrackerMode } from "@/services/moveTracker";
+import {
+  pushPoint,
+  recordGap,
+  shouldRefreshPreview,
+  type TrackingGap,
+} from "@/lib/trackPoints";
 import { setLastSession } from "@/services/moveSession";
+import { newClientSessionId } from "@/lib/movementVerification";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 import type { IoniconName } from "@/types";
 
@@ -31,19 +38,33 @@ export default function MoveSessionScreen() {
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const mode: TrackerMode = modeParam === "demo" ? "demo" : "gps";
 
-  const [points, setPoints] = useState<TrackPoint[]>([]);
+  /* The drawn route is a throttled *snapshot* of the buffer, not the buffer
+     itself: the canvas draws ~110 dots, so refreshing on every fix reconciles
+     them for a change nobody can see. */
+  const [routePreview, setRoutePreview] = useState<TrackPoint[]>([]);
   const [distanceM, setDistanceM] = useState(0);
-  const [elapsedMs, setElapsedMs] = useState(0);
   const [paused, setPaused] = useState(false);
   const [gpsState, setGpsState] = useState<GpsState>("waiting");
 
   /* Refs mirror state the tracker callback needs without re-subscribing. */
   const pausedRef = useRef(false);
+  /** Mutated in place — appending must not copy the whole route per fix. */
   const pointsRef = useRef<TrackPoint[]>([]);
+  const acceptedRef = useRef(0);
   const distanceRef = useRef(0);
   const finishedRef = useRef(false);
   const accumulatedRef = useRef(0);
   const resumedAtRef = useRef(Date.now());
+  /** Spans where the app was backgrounded and no fixes arrived. */
+  const gapsRef = useRef<TrackingGap[]>([]);
+  const backgroundedAtRef = useRef<number | null>(null);
+  /* This session's stable identity, minted once when the screen mounts — the
+     semantic start of the session. It survives pause/resume, every re-render,
+     finishing, the summary screen, and any later verification attempt. It is
+     deliberately NOT minted at finish, at save, or per network attempt: the
+     backend's idempotency is keyed on it. */
+  const clientSessionIdRef = useRef<string>("");
+  if (!clientSessionIdRef.current) clientSessionIdRef.current = newClientSessionId();
 
   /* Foreground tracking — subscribed once for the life of the screen. */
   useEffect(() => {
@@ -55,23 +76,46 @@ export default function MoveSessionScreen() {
         else setGpsState("locked");
         const prev = pointsRef.current[pointsRef.current.length - 1] ?? null;
         if (!acceptPoint(prev, p)) return;
+        /* Distance accumulates incrementally, so it stays exact even after the
+           buffer decimates — it is never recomputed from the thinned route. */
         if (prev) distanceRef.current += distanceMeters(prev, p);
-        pointsRef.current = [...pointsRef.current, p];
-        setPoints(pointsRef.current);
+        pushPoint(pointsRef.current, p);
+        acceptedRef.current += 1;
         setDistanceM(distanceRef.current);
+        if (shouldRefreshPreview(acceptedRef.current)) {
+          setRoutePreview(pointsRef.current.slice());
+        }
       })
       .catch(() => setGpsState("weak"));
     return () => tracker.stop();
   }, [mode]);
 
-  /* Pausable session clock. */
+  /** Elapsed time, read on demand. Kept out of this component's state so the
+   *  once-a-second tick re-renders only the clock, not the route canvas. */
+  const readElapsed = useCallback(
+    () =>
+      pausedRef.current
+        ? accumulatedRef.current
+        : accumulatedRef.current + (Date.now() - resumedAtRef.current),
+    [],
+  );
+
+  /* Foreground-only tracking means backgrounding silently stops the fixes:
+     distance stops growing while the clock keeps running, so the summary would
+     under-report distance and over-report pace as though that were the truth.
+     Record the span instead, and let the summary say so. */
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (!pausedRef.current && !finishedRef.current) {
-        setElapsedMs(accumulatedRef.current + (Date.now() - resumedAtRef.current));
+    const sub = AppState.addEventListener("change", (next) => {
+      if (finishedRef.current) return;
+      if (next === "active") {
+        const startedAt = backgroundedAtRef.current;
+        if (startedAt != null) recordGap(gapsRef.current, startedAt, Date.now());
+        backgroundedAtRef.current = null;
+      } else if (backgroundedAtRef.current == null) {
+        backgroundedAtRef.current = Date.now();
       }
-    }, 1000);
-    return () => clearInterval(timer);
+    });
+    return () => sub.remove();
   }, []);
 
   const togglePause = useCallback(() => {
@@ -91,19 +135,25 @@ export default function MoveSessionScreen() {
   const finish = useCallback(() => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    const duration = pausedRef.current
-      ? accumulatedRef.current
-      : accumulatedRef.current + (Date.now() - resumedAtRef.current);
+    /* Close an open background span so a session finished right after
+       returning still accounts for the time it missed. */
+    if (backgroundedAtRef.current != null) {
+      recordGap(gapsRef.current, backgroundedAtRef.current, Date.now());
+      backgroundedAtRef.current = null;
+    }
+    const duration = readElapsed();
     successFeedback();
     setLastSession({
+      clientSessionId: clientSessionIdRef.current,
       mode,
       points: pointsRef.current,
       distanceM: distanceRef.current,
       durationMs: duration,
       finishedAt: Date.now(),
+      gaps: gapsRef.current,
     });
     router.replace("/move/summary");
-  }, [mode, router]);
+  }, [mode, readElapsed, router]);
 
   const quit = useCallback(() => {
     Alert.alert("End session?", "This session won't be saved if you leave now.", [
@@ -140,14 +190,13 @@ export default function MoveSessionScreen() {
     return () => sub.remove();
   }, [quit]);
 
-  const pace = formatPace(distanceM, elapsedMs);
   const zoneProgress = Math.min(1, (distanceM % ZONE_PREVIEW_M) / ZONE_PREVIEW_M);
   const zonesPassed = Math.floor(distanceM / ZONE_PREVIEW_M);
 
   return (
     <Screen>
       <View style={styles.topBar}>
-        <Pressable onPress={quit} hitSlop={12} style={styles.quitBtn}>
+        <Pressable onPress={quit} hitSlop={12} style={pressFade(styles.quitBtn)}>
           <Ionicons name="close" size={24} color={colors.textDim} />
         </Pressable>
         <View style={styles.statusWrap}>
@@ -160,7 +209,7 @@ export default function MoveSessionScreen() {
       </View>
 
       {/* Live map/route dominates the top of the screen */}
-      <RouteCanvas points={points} height={248} live />
+      <RouteCanvas points={routePreview} height={248} live />
 
       {mode === "demo" ? (
         <View style={styles.demoBanner}>
@@ -173,9 +222,7 @@ export default function MoveSessionScreen() {
       <View style={styles.metrics}>
         <MovementMetric value={formatDistance(distanceM)} label="distance" size="hero" />
         <View style={styles.metricRow}>
-          <MovementMetric value={formatDuration(elapsedMs)} label="time" />
-          <View style={styles.metricDivider} />
-          <MovementMetric value={pace ?? "—"} label="pace /km" />
+          <SessionClock readElapsed={readElapsed} distanceM={distanceM} paused={paused} />
         </View>
       </View>
 
@@ -200,6 +247,38 @@ export default function MoveSessionScreen() {
         <MovementControlBar paused={paused} onPauseResume={togglePause} onFinish={confirmFinish} />
       </View>
     </Screen>
+  );
+}
+
+/**
+ * Time and pace, on their own once-a-second tick.
+ *
+ * Elapsed time is the only thing in this screen that changes every second.
+ * Holding it in the parent re-rendered the whole session — route canvas
+ * included — 3,600 times an hour for a number the canvas does not use.
+ */
+function SessionClock({
+  readElapsed,
+  distanceM,
+  paused,
+}: {
+  readElapsed: () => number;
+  distanceM: number;
+  paused: boolean;
+}) {
+  const [elapsedMs, setElapsedMs] = useState(readElapsed);
+  useEffect(() => {
+    setElapsedMs(readElapsed());
+    if (paused) return;
+    const timer = setInterval(() => setElapsedMs(readElapsed()), 1000);
+    return () => clearInterval(timer);
+  }, [readElapsed, paused]);
+  return (
+    <>
+      <MovementMetric value={formatDuration(elapsedMs)} label="time" />
+      <View style={styles.metricDivider} />
+      <MovementMetric value={formatPace(distanceM, elapsedMs) ?? "—"} label="pace /km" />
+    </>
   );
 }
 

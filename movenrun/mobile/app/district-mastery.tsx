@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -189,7 +189,7 @@ export default function DistrictMasteryScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>District Mastery</Text>
@@ -267,7 +267,7 @@ export default function DistrictMasteryScreen() {
                     </View>
                   </View>
                   <Text style={styles.featuredNote}>{top.recommendation}</Text>
-                  <Pressable hitSlop={8} style={styles.featuredCta} onPress={() => go(top.action)}>
+                  <Pressable hitSlop={8} style={pressFade(styles.featuredCta)} onPress={() => go(top.action)}>
                     <Text style={styles.featuredCtaText}>{top.ctaLabel}</Text>
                     <Ionicons name="chevron-forward" size={13} color={colors.primary} />
                   </Pressable>
@@ -382,7 +382,7 @@ function MasteryRow({ district, onPress }: { district: DistrictMastery; onPress:
             <Bar label="Signal" value={district.signalContribution} color={palette.deedViolet} />
           </View>
           <Text style={styles.rowRec}>{district.recommendation}</Text>
-          <Pressable hitSlop={8} onPress={onPress} style={styles.ctaBtn}>
+          <Pressable hitSlop={8} onPress={onPress} style={pressFade(styles.ctaBtn)}>
             <Text style={styles.ctaText}>{district.ctaLabel}</Text>
             <Ionicons name="chevron-forward" size={13} color={colors.primary} />
           </Pressable>
@@ -452,13 +452,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   featuredTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  featuredIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  featuredIcon: { ...iconTile(38) },
   featuredBody: { flex: 1, gap: 1 },
   featuredKicker: { ...type.kicker, color: colors.textFaint, fontSize: 10.5 },
   featuredName: { ...type.heading, fontSize: 16 },

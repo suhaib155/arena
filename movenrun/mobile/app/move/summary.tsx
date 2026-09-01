@@ -10,27 +10,36 @@ import { Hexagon } from "@/components/Hexagon";
 import { MovementMetric } from "@/components/MovementMetric";
 import { ResultCallout } from "@/components/ResultCallout";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { formatDuration, formatPace } from "@/lib/geo";
 import {
   clearLastSession,
   getLastSession,
+  getVerificationState,
   isSaveable,
   sessionXp,
+  setVerificationState,
 } from "@/services/moveSession";
+import { MovementApiClient } from "@/services/movementApi";
+import { submitCompletedSession } from "@/services/verifySession";
+import { toVerifiedRecord } from "@/lib/verifiedMovement";
 import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
+import { gapNotice, summarizeGaps } from "@/lib/trackPoints";
 import { resolveCompletion } from "@/lib/completionSummary";
 import type { Quest, IoniconName } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
+/* One owner for this id: the Home board filters history by it to tell a real
+   movement session apart from an indoor warmup quest. */
+import { SESSION_QUEST_ID } from "@/lib/sessionQuest";
 
 /**
  * One synthetic quest id per local day gates session XP through the store's
  * existing once-per-day award logic — saving repeatedly can't farm XP.
  */
-const SESSION_QUEST_ID = "move-session";
 
 /** Map a trust tone to its Daylight Cartography bar/text colors. */
 function toneColor(tone: TrustTone): { bar: string; text: string } {
@@ -54,10 +63,23 @@ export default function MoveSummaryScreen() {
   const addRouteTrustRecord = useGameStore((s) => s.addRouteTrustRecord);
   const completeQuest = useGameStore((s) => s.completeQuest);
   const captureZone = useGameStore((s) => s.captureZone);
+  const recordMovementVerification = useGameStore((s) => s.recordMovementVerification);
   const defendZones = useGameStore((s) => s.defendZones);
   const ownedZones = useGameStore((s) => s.zones);
   const totalXp = useGameStore((s) => s.totalXp);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
+  /* THE identity client, built once by the auth store — screens never
+     construct their own. The movement client rides its transport, so both
+     domains share one bearer attachment and one single-flight refresh. */
+  const identityClient = useAuthStore((s) => s.client);
+  /* Server-derived account id. Used only as the LOCAL owner key for a queued
+     retry — it is never sent to /movement/verify, which derives the user from
+     the bearer token and would be wrong to trust a client-supplied id. */
+  const accountId = useAuthStore((s) => (s.status === "signedIn" ? s.user?.id ?? null : null));
+  const movementClient = useMemo(
+    () => (identityClient ? new MovementApiClient(identityClient.transport) : null),
+    [identityClient],
+  );
   const [saved, setSaved] = useState(false);
 
   if (!session) {
@@ -70,6 +92,11 @@ export default function MoveSummaryScreen() {
       </Screen>
     );
   }
+
+  /* Foreground-only tracking stops when the app is backgrounded. If that
+     happened, the distance below is a floor, not a measurement — say so rather
+     than presenting an incomplete route as the truth. */
+  const gaps = gapNotice(summarizeGaps(session.gaps ?? [], session.durationMs));
 
   const km = session.distanceM / 1000;
   const xp = sessionXp(session.distanceM, session.durationMs);
@@ -118,6 +145,35 @@ export default function MoveSummaryScreen() {
       instructions: [],
     };
     completeQuest(sessionQuest);
+    /* Server verification of the completed route.
+       Saving is the user's deliberate act of turning this session into
+       progress, and it is the only path that is already gated to real GPS
+       sessions long enough to be worth keeping — so it is the honest place for
+       the route to leave the device, and the only one.
+       Fire-and-forget on purpose: `submitCompletedSession` never throws, the
+       result is recorded against this session's stable id, and a slow or
+       failed verification must never delay or block a completion the user has
+       already earned. Nothing below depends on it. */
+    if (movementClient) {
+      void submitCompletedSession(session, {
+        client: movementClient,
+        readState: getVerificationState,
+        writeState: setVerificationState,
+        /* Who may retry this route if the request fails, taken from
+           authenticated session state and never from anything on the session
+           itself. Null when nobody is signed in, which means the failure stays
+           in memory and no coordinates are written to disk at all. */
+        ownerUserId: accountId,
+      }).then((state) => {
+        /* Keep only a settled verdict, addressed by THIS session's stable id.
+           `toVerifiedRecord` returns null for local/submitting/pending, so a
+           failed attempt records nothing rather than a row that looks like an
+           answer. Nothing here captures a zone or awards anything — the store
+           action only appends what the server said. */
+        const record = toVerifiedRecord(session.clientSessionId, state);
+        if (record) recordMovementVerification(record);
+      });
+    }
     /* Persist the route-trust *preview* summary only (score + label) — never
        raw GPS points, and it does not affect rewards or capture. */
     if (trust) setRouteTrust(trust.score, trust.label);
@@ -135,7 +191,7 @@ export default function MoveSummaryScreen() {
       if (outcome.captured) capturedId = outcome.zone.id;
     }
     /* Append a local route-review record — summary only (score/label/flags +
-       scalar distance/duration/outcome). No raw GPS, coordinates, or path.
+       scalar distance/duration/outcome). That record holds no coordinates or path.
        Demo and too-short routes never reach save(), so they never append. */
     if (trust) {
       addRouteTrustRecord({
@@ -182,6 +238,13 @@ export default function MoveSummaryScreen() {
           <Text style={styles.kicker}>{completion.kicker}</Text>
           <Text style={styles.title}>Every move{"\n"}leaves a mark.</Text>
         </View>
+
+        {gaps ? (
+          <View style={styles.gapNotice}>
+            <Ionicons name="alert-circle-outline" size={16} color={palette.moveGold} />
+            <Text style={styles.gapText}>{gaps}</Text>
+          </View>
+        ) : null}
 
         {/* Route closes — the map result leads */}
         <FadeSlideIn>
@@ -370,9 +433,9 @@ export default function MoveSummaryScreen() {
               ) : null}
 
               <Text style={styles.trustNote}>
-                Preview only · does not affect rewards or ownership. No location is
-                sent anywhere — this helps MovenRun learn what a clean route looks
-                like.
+                Preview only · does not affect rewards or ownership. This score is
+                worked out on your device and the saved review keeps no coordinates
+                — it helps MovenRun learn what a clean route looks like.
               </Text>
             </View>
           </FadeSlideIn>
@@ -381,7 +444,7 @@ export default function MoveSummaryScreen() {
         {trust && session.mode === "gps" ? (
           <FadeSlideIn delay={STAGGER_MS * 6}>
             <Pressable
-              style={styles.proofRow}
+              style={pressFade(styles.proofRow)}
               onPress={() => {
                 tapFeedback();
                 router.push({
@@ -409,11 +472,22 @@ export default function MoveSummaryScreen() {
 
       <View style={styles.footer}>
         {showFooterSave ? (
-          <Button
-            label={captureEligible ? "Save + Capture Zone" : "Save session"}
-            icon={captureEligible ? "flag" : "bookmark"}
-            onPress={save}
-          />
+          <>
+            {/* Said at the moment of the action, not buried in a settings page.
+                Saving is what sends the route, so this is where the user finds
+                out — and it is shown only when signed in, because a local-beta
+                save genuinely uploads nothing. */}
+            {accountId ? (
+              <Text style={styles.uploadNote}>
+                Saving sends this session&apos;s route to MovenRun to verify the distance.
+              </Text>
+            ) : null}
+            <Button
+              label={captureEligible ? "Save + Capture Zone" : "Save session"}
+              icon={captureEligible ? "flag" : "bookmark"}
+              onPress={save}
+            />
+          </>
         ) : null}
         <Button
           label="Back to Today"
@@ -446,6 +520,15 @@ function completionIcon(kind: ReturnType<typeof resolveCompletion>["kind"]): Ion
 }
 
 const styles = StyleSheet.create({
+  gapNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: `${palette.moveGold}14`,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  gapText: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.text, flex: 1 },
   scroll: { paddingBottom: spacing.lg, gap: spacing.md },
   header: { paddingTop: spacing.lg, gap: spacing.xs },
   kicker: { ...type.kicker, color: colors.primary },
@@ -481,13 +564,7 @@ const styles = StyleSheet.create({
   },
   pendingText: { ...type.caption, fontSize: 11, fontWeight: "600", color: colors.textDim },
   rewardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  rewardIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  rewardIcon: { ...iconTile(38) },
   rewardLabel: { ...type.heading, fontSize: 15, flex: 1 },
   rewardLabelWrap: { flex: 1, gap: 1 },
   rewardLabelPlain: { ...type.heading, fontSize: 15 },
@@ -560,6 +637,14 @@ const styles = StyleSheet.create({
   chipGood: { backgroundColor: `${palette.pulseGreen}1A` },
   chipRisk: { backgroundColor: `${palette.heatCoral}1A` },
   chipText: { fontSize: 11, fontWeight: "700" },
+  uploadNote: {
+    ...type.body,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textDim,
+    textAlign: "center",
+    paddingHorizontal: spacing.sm,
+  },
   trustNote: { ...type.caption, fontSize: 11, lineHeight: 15, color: colors.textFaint },
   proofRow: {
     flexDirection: "row",

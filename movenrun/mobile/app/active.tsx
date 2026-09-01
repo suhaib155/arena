@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { categoryColor, colors, radius, shadows, spacing, type } from "@/theme";
+import { avatar, categoryColor, colors, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 
@@ -82,7 +82,7 @@ export default function ActiveQuestScreen() {
   return (
     <Screen>
       <View style={styles.topBar}>
-        <Pressable onPress={quit} hitSlop={12} style={styles.quitBtn}>
+        <Pressable onPress={quit} hitSlop={12} style={pressFade(styles.quitBtn)}>
           <Ionicons name="close" size={24} color={colors.textDim} />
         </Pressable>
         <Text style={styles.questName}>{quest.title}</Text>
@@ -137,17 +137,7 @@ const styles = StyleSheet.create({
   quitBtn: { padding: spacing.xs },
   questName: { ...type.heading, fontSize: 16 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.xl },
-  ring: {
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    borderWidth: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    gap: spacing.sm,
-    ...shadows.float,
-  },
+  ring: { ...avatar(240), borderWidth: 6, backgroundColor: colors.surface, gap: spacing.sm, ...shadows.float },
   timer: { ...type.display, fontSize: 56, fontVariant: ["tabular-nums"] },
   status: { ...type.body },
   progressTrack: {

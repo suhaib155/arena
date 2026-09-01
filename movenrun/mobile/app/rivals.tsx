@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import {
   buildRivalGhosts,
@@ -49,7 +49,7 @@ export default function RivalGhostsScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Rival Ghosts</Text>
@@ -198,7 +198,7 @@ function GhostRow({ ghost, onPress }: { ghost: RivalGhost; onPress: () => void }
           {GHOST_PRESSURE_LABEL[ghost.pressure]} pressure · {where}
         </Text>
         <Text style={styles.ghostRec}>{ghost.recommendation}</Text>
-        <Pressable hitSlop={8} onPress={onPress} style={styles.ctaBtn}>
+        <Pressable hitSlop={8} onPress={onPress} style={pressFade(styles.ctaBtn)}>
           <Text style={[styles.ctaText, { color: ghost.accent }]}>{ghost.ctaLabel}</Text>
           <Ionicons name="chevron-forward" size={13} color={ghost.accent} />
         </Pressable>
@@ -277,13 +277,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  ghostAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  ghostAvatar: { ...avatar(42) },
   ghostBody: { flex: 1, gap: 3 },
   ghostTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   ghostName: { ...type.heading, fontSize: 14.5, flex: 1 },

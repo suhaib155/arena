@@ -9,6 +9,7 @@
  */
 import * as Location from "expo-location";
 import type { TrackPoint } from "@/lib/geo";
+import { SESSION_WATCH } from "@/lib/trackingConfig";
 
 export type TrackerMode = "gps" | "demo";
 
@@ -67,11 +68,14 @@ export class GpsTracker implements MoveTracker {
   private sub: Location.LocationSubscription | null = null;
 
   async start(onPoint: (p: TrackPoint) => void): Promise<void> {
+    /* Accuracy and intervals live in lib/trackingConfig.ts, with the reasoning
+       for each number. They are the biggest lever on battery life in the app,
+       so they are chosen once, in a unit-tested module, rather than inline. */
     this.sub = await Location.watchPositionAsync(
       {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 2000,
-        distanceInterval: 3,
+        accuracy: SESSION_WATCH.accuracy as Location.Accuracy,
+        timeInterval: SESSION_WATCH.timeInterval,
+        distanceInterval: SESSION_WATCH.distanceInterval,
       },
       (loc) => {
         onPoint({

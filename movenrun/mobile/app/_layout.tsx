@@ -11,11 +11,18 @@ import { useAppBootstrap } from "@/hooks/useAppBootstrap";
 import { authErrorMessage } from "@/lib/emailAuth";
 import { isDecidingStartup, type StartupRoute } from "@/lib/startupDecision";
 import { installExpoSecureSessionStore } from "@/lib/secureSessionExpo";
+import { installAsyncVerificationQueueStore } from "@/services/verificationQueueStorage";
+import { useVerificationRetry } from "@/hooks/useVerificationRetry";
 
 // Install the OS-keystore session store before anything can touch auth state.
 // Until this runs, getSecureSessionStore() throws — there is no insecure
 // fallback (see src/lib/secureSession.ts, ADR-0012).
 installExpoSecureSessionStore();
+
+// The retry queue's durable backing. Installed before any screen can queue a
+// failed verification; without it the feature degrades to in-memory only rather
+// than throwing (see services/verificationQueue.ts).
+installAsyncVerificationQueueStore();
 
 /** Branded loading view shown until persisted state has hydrated. */
 function SplashView() {
@@ -101,6 +108,10 @@ function useStartupRouting(route: StartupRoute): boolean {
 
 function RootNavigator() {
   const decision = useAppBootstrap();
+  // Foreground-only, authenticated-only retry of queued verifications. Mounted
+  // at the root because it belongs to the app lifecycle, not to a screen — but
+  // it does nothing at all until an account is resolved.
+  useVerificationRetry();
   const retryRestore = useAuthStore((s) => s.retryRestore);
   const acknowledgeRestoreError = useAuthStore((s) => s.acknowledgeRestoreError);
   const navigationPending = useStartupRouting(decision.route);
@@ -120,6 +131,7 @@ function RootNavigator() {
         <Stack.Screen name="welcome" options={{ animation: "fade" }} />
         <Stack.Screen name="opening" options={{ animation: "fade" }} />
         <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
+        <Stack.Screen name="quests" />
         <Stack.Screen name="quest/[id]" />
         <Stack.Screen name="move/index" />
         <Stack.Screen name="move/session" options={{ gestureEnabled: false }} />
