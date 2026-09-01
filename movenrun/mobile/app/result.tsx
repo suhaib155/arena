@@ -8,7 +8,7 @@ import { CountUpText } from "@/components/CountUpText";
 import { RoutePath } from "@/components/RoutePath";
 import { ShareCard } from "@/components/ShareCard";
 import { Hexagon } from "@/components/Hexagon";
-import { colors, glow, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, glow, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { useGameStore, type CompletionOutcome } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
@@ -171,16 +171,7 @@ export default function ResultScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1 },
   content: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
-  badge: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    backgroundColor: palette.pulseGreen,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-    ...glow(palette.pulseGreen),
-  },
+  badge: { ...avatar(92), backgroundColor: palette.pulseGreen, marginBottom: spacing.sm, ...glow(palette.pulseGreen) },
   title: { ...type.display, fontSize: 28 },
   questName: { ...type.body, fontSize: 16 },
   rewardCard: {
@@ -193,13 +184,7 @@ const styles = StyleSheet.create({
     ...shadows.float,
   },
   rewardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  rewardIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  rewardIcon: { ...iconTile(38) },
   rewardLabelWrap: { flex: 1, gap: 1 },
   rewardLabel: { ...type.heading, fontSize: 15, flex: 1 },
   rewardLabelPlain: { ...type.heading, fontSize: 15 },

@@ -1,37 +1,75 @@
-# MovenRun — Mobile (MVP)
+# MovenRun — Mobile
 
-An AI movement-quest app (MVP slice). First-launch onboarding, pick a daily
-movement quest, run a timer, finish it, earn XP toward levels and a daily
-streak, then share your win.
+The app. Sign in, open Home, and do what today's board asks: move, run a warmup
+quest, defend ground you already hold. Movement earns XP toward levels and a
+daily streak, and captures zones on your local territory map.
 
-> **MVP scope:** quests come from a local mock service (`src/services/questService.ts`,
-> backed by `src/data/quests.ts`). No AI API calls, no auth, no wallet/blockchain,
-> no Supabase/backend. Progress (XP, level, streak, history, onboarding) is stored
-> locally on-device via AsyncStorage.
+> **Current scope:** territory, zones and clubs are an on-device simulation —
+> quests come from a local mock service (`src/services/questService.ts`) and
+> progress lives in AsyncStorage. Accounts and sessions are real: email OTP
+> against the backend, with tokens in `expo-secure-store` (never in Zustand or
+> AsyncStorage). No wallet connection and no liquid token economy.
+
+## Home is a task board
+
+Everything the app asks of you is one noun — a **task** — and one pure function
+builds today's list:
+
+```ts
+const board = buildTodayBoard({ movedToday, atRiskZoneCount, zonesOwned, … });
+// → { focus, tasks, doneCount, totalCount, progressLabel, progress, allDone }
+```
+
+`focus` is the single spotlight task and owns the screen's only primary button;
+`tasks` is the rest of the checklist and never repeats the spotlight. Tasks come
+in three flavours, and the distinction is the whole design:
+
+| Flavour | Tasks | Behaviour |
+| --- | --- | --- |
+| Daily | `move`, `quest` | Always on the board; reset each local day |
+| Conditional | `resume`, `defend` | Present only while the condition holds, and outrank everything when they are |
+| Milestone | `capture`, `club` | Present until achieved, then gone for good |
+
+All of it is in `src/lib/tasks.ts` with its rules pinned in
+`src/lib/__tests__/tasks.test.ts`. Home renders the result and decides nothing.
 
 ## Design system — Daylight Cartography
 
-The UI follows the **Daylight Cartography** design language shared with the
-marketing site (`movenrun/website/`): bright Morning White light mode, soft
-white cards with layered shadows, hex-zone identity, and the territory accents
-(Base Blue / Pulse Green / Deed Violet / Heat Coral / MOVE Gold).
+Bright Morning White light mode, soft white cards with layered shadows, hex-zone
+identity, and the territory accents (Base Blue / Pulse Green / Deed Violet /
+Heat Coral / MOVE Gold), shared with the marketing site in `movenrun/website/`.
 
-- All tokens live in **`src/theme.ts`**: `palette`, semantic `colors`,
-  `zoneColors`, `gradients`, `spacing`, `radius`, `shadows` + `glow()`,
-  the `type` scale, and `motion` timing. Never hardcode hex values in screens.
-- Motion uses core `Animated` only (`ScalePress`, `FadeSlideIn`,
-  `CountUpText`) — no animation libraries.
-- The hex motif (`Hexagon`, `TerritoryPreview`) is plain Views — no SVG/map
-  dependency yet. The territory card is explicitly a **non-functional preview**
-  ("Territory map coming next").
-- **Locked MOVE is a display preview only** (`src/lib/lockedMove.ts`): a value
-  derived from XP, always labeled "preview · in-app progress, not a payout".
-  No balance is stored and no earning is implied.
-- **Fonts follow-up:** the `type` scale targets Sora (display), Plus Jakarta
-  Sans (body) and Space Grotesk (numeric) with platform-sans fallbacks today.
-  A future PR should add `expo-font` + `@expo-google-fonts/sora`,
-  `@expo-google-fonts/plus-jakarta-sans`, `@expo-google-fonts/space-grotesk`
-  and set `fontFamily` in `src/theme.ts` once the build is device-verified.
+Tokens live in **`src/theme.ts`** — `palette`, semantic `colors`, `zoneColors`,
+`gradients`, `spacing`, `radius`, `shadows` + `glow()`, the `type` scale, and
+`motion` timing. Never hardcode a hex value in a screen.
+
+Four rules are enforced by `src/lib/__tests__/designSystem.test.ts`, because
+each one had already been broken by hand at least once:
+
+- **Corner radius is optical, not absolute.** `iconTile(size)` for functional
+  icons, `avatar(size)` for identity and illustration. A fixed 16px radius reads
+  as a circle at 24px and a square at 48px — which is exactly how the same
+  control ended up round on one screen and square on the next.
+- **Anything that floats above the page is a card**, and uses `radius.lg`,
+  `radius.xl` or `radius.pill`. `<Card>` owns the three surfaces — `standard`,
+  `hero`, `flat` — so cards can't drift apart again. One `hero` per screen at
+  most: the thing the screen is about.
+- **A selection outline never resizes what it outlines.** `selectionRing()`
+  always reserves its border and changes only the colour.
+- **Every tappable surface answers a touch** — `pressFade()` on a plain
+  `Pressable`, or `ScalePress`, which springs instead. Never both.
+
+Motion uses core `Animated` only (`ScalePress`, `FadeSlideIn`, `CountUpText`) —
+no animation libraries. The hex motif (`Hexagon`) is plain Views, no SVG.
+
+**Locked MOVE is a display preview only** (`src/lib/lockedMove.ts`): a value
+derived from XP, always labeled "preview · in-app progress, not a payout". No
+balance is stored and no earning is implied.
+
+**Fonts follow-up:** the `type` scale targets Sora (display), Plus Jakarta Sans
+(body) and Space Grotesk (numeric) with platform-sans fallbacks today. A future
+PR should add `expo-font` + the matching `@expo-google-fonts/*` packages and set
+`fontFamily` in `src/theme.ts` once the build is device-verified.
 
 ## Quest data: always go through `questService`
 
@@ -50,7 +88,8 @@ import the raw quest arrays. This is the single seam where a future
 Each quest awards XP **at most once per local day**. The store records the quest
 ids completed on the current local day (`getLocalDateKey()`), so:
 
-- Home marks finished quests "Done today" and the daily card shows a done state.
+- The board marks today's quest task done, and the quest library shows a done
+  state on every quest already completed this day.
 - The Quest detail **Start** button becomes a disabled "Completed today" once a
   quest has been done that day.
 - Replaying a quest is idempotent in the store (0 XP, no streak/history change) —
@@ -218,46 +257,73 @@ cleanly on EAS.
 > Security: the workflow uses **only** the `EXPO_TOKEN` GitHub Actions secret.
 > Never commit Expo tokens, passwords, or `.env` files.
 
-## Screens & flow
+## First run and navigation
 
 ```
-onboarding     First-launch intro carousel (3 slides) → Get started
-(tabs)/index   Home — daily quest + list, level/XP, streak, "moved today" state
-(tabs)/profile Profile — level, XP bar, streak, completed count, recent activity
-quest/[id]     Quest detail — description, steps, reward → Start
-active         Active quest — countdown timer, pause/resume, finish (haptics)
-result         XP result — animated, level-up, streak, share card → Share / Done
+opening        Branded startup while persisted state hydrates
+welcome        Account choice — email OTP sign-in / create account
+onboarding     Redirect only; the real intro lives in `opening`
+(tabs)/index   Home — today's task board
+(tabs)/clubs   Clubs — city ranking and your club
+(tabs)/profile Profile — stats, and the directory of every other screen
+move/*         The movement session: start → session → summary → captured
+quest/[id]     Quest detail → active timer → XP result
+quests         The warmup quest library
+territory/*    Local territory map and alerts
 ```
 
-Navigation: onboarding gates first launch (redirect happens after persisted
-state hydrates, behind a branded splash). Tabs for Home/Profile; the quest flow
-(`detail → active → result`) is a stack. Finishing pops back to Home.
+The bottom bar carries the five destinations that matter — Home, Territory,
+**Move**, Clubs, Profile — with Move as the elevated centre action. Everything
+else is reachable from the Profile directory, so Home never has to be a menu.
 
 ## Project layout
 
 ```
-app/                 Expo Router routes (incl. onboarding + root hydration gate)
-src/components/       Reusable UI — Button, QuestCard, Badge, XPBar, StatCard,
-                     Screen, SectionHeader, EmptyState, ShareCard
-src/services/        questService — the quest access seam (mock today)
-src/data/quests.ts   Mock quest catalogue (raw data only)
-src/hooks/           useSessionStart — daily quest + completed-today session state
-src/store/           Zustand game store (XP / streak / history / onboarding /
-                     completed-today, persisted; selectors + hooks)
-src/lib/             Leveling, date, and haptics helpers
-src/theme.ts         Design tokens
-_legacy/             Earlier GPS/blockchain mobile scaffold, parked out of the build
-                     (see _legacy/README.md — do not delete without approval)
+app/            Expo Router routes. One file = one screen. No business logic.
+src/
+  components/   Presentational only. Card, TaskRow, TaskHero, StatTrio, Button,
+                Screen, SectionHeader, NavRow, ScalePress, EmptyState, …
+  lib/          Pure functions. No React, no I/O — every decision lives here.
+                tasks.ts (the board), shape.ts (geometry), territory.ts,
+                leveling.ts, secureSession.ts, date.ts, haptics.ts, …
+  services/     Everything that talks to the outside world:
+                identityApi (auth), questService (the quest seam), moveTracker
+  store/        Zustand. useGameStore (progress) and useAuthStore (session).
+  data/         Raw mock catalogues — quests, clubs. Data only, no logic.
+  theme.ts      Design tokens, and the re-export point for shape.ts
+_legacy/        Parked GPS/blockchain scaffold, out of the build
+                (see _legacy/README.md — do not delete without approval)
 ```
+
+**The rule that keeps this readable:** a screen never decides anything. It calls
+one function from `lib/`, gets a plain object back, and renders it. That is why
+the whole suite runs on plain Node in about four seconds with no simulator —
+and why `lib/` must never import from `react-native` at runtime. (Type-only
+imports are fine; they're erased. `theme.ts` imports `Platform` as a *value*,
+which is why the shape rules live in `lib/shape.ts` instead.)
+
+```bash
+yarn workspace @movenrun/mobile lint   # tsc --noEmit
+yarn workspace @movenrun/mobile test   # node --test
+```
+
+## Quest data: always go through `questService`
+
+All quest access goes through **`src/services/questService.ts`** — screens never
+import the raw arrays. This is the single seam where a future server-side quest
+source plugs in. Don't bypass it, and never ship AI provider keys in the app.
 
 ## Known limitations
 
-- Quests are mock data; there is no AI generation or backend sync yet.
-- Progress is local-only (AsyncStorage) and not synced across devices.
-- The timer is a simple countdown — it does not use device motion/GPS sensors.
-- The share card is a **mock**: it shares a text blurb (the on-screen card is not
-  yet captured as an image).
-- App icon/splash use Expo defaults (no custom art committed yet).
+- Territory, zones and clubs are a **local simulation** — no sync, no ownership
+  beyond this device.
+- Quests are mock data.
+- Movement recovery isn't implemented: a finished route lives in memory only
+  during the summary flow, so the board's `resume` task never fires yet.
+- The timer is a countdown — it does not read motion or GPS sensors.
+- The share card shares a text blurb; the on-screen card isn't captured as an
+  image yet.
+- App icon and splash are Expo defaults.
 - The app targets **Expo SDK 54**. Phone testing uses the **SDK 54** Expo Go
   (Android) — see "Test on your Android phone" above.
 

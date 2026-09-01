@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { ScalePress } from "@/components/ScalePress";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -135,7 +135,7 @@ export default function EventZonesScreen() {
   return (
     <Screen>
       <View style={styles.headerRow}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.back()} style={pressFade(styles.backBtn)}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Event Zones</Text>
@@ -304,7 +304,7 @@ function EventRow({ event, onPress }: { event: EventZone; onPress: () => void })
           </View>
         ) : null}
         <Text style={styles.eventRec}>{event.recommendation}</Text>
-        <Pressable hitSlop={8} onPress={onPress} style={styles.ctaBtn}>
+        <Pressable hitSlop={8} onPress={onPress} style={pressFade(styles.ctaBtn)}>
           <Text style={[styles.ctaText, { color: locked ? colors.primary : accent }]}>{event.ctaLabel}</Text>
           <Ionicons name="chevron-forward" size={13} color={locked ? colors.primary : accent} />
         </Pressable>
@@ -389,13 +389,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   eventLocked: { backgroundColor: colors.surfaceAlt, shadowOpacity: 0.04 },
-  eventIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  eventIcon: { ...iconTile(42) },
   eventBody: { flex: 1, gap: 4 },
   eventTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   eventName: { ...type.heading, fontSize: 14.5, flex: 1 },

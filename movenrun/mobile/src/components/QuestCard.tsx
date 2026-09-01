@@ -1,15 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  categoryColor,
-  colors,
-  difficultyColor,
-  palette,
-  radius,
-  shadows,
-  spacing,
-  type,
-} from "@/theme";
+import { categoryColor, colors, difficultyColor, iconTile, palette, radius, shadows, spacing, type } from "@/theme";
 import type { Quest } from "@/types";
 import { Badge } from "./Badge";
 import { ScalePress } from "./ScalePress";
@@ -114,13 +105,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   doneBadgeText: { color: palette.pulseGreen, fontSize: 11, fontWeight: "700" },
-  iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconWrap: { ...iconTile(48) },
   headerText: { flex: 1, gap: 2 },
   title: { ...type.heading, fontSize: 16 },
   titleFeatured: { fontSize: 20, letterSpacing: -0.4 },

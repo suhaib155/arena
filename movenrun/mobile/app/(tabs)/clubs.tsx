@@ -8,7 +8,7 @@ import { Hexagon } from "@/components/Hexagon";
 import { ScalePress } from "@/components/ScalePress";
 import { RankRow } from "@/components/RankRow";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { CLUBS, getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -178,8 +178,7 @@ function ClubHome({ club }: { club: Club }) {
                 selectClub("");
               }}
               accessibilityRole="button"
-              accessibilityLabel="Switch club"
-            >
+              accessibilityLabel="Switch club" style={pressFade()}>
               <Text style={styles.switchLink}>Switch</Text>
             </Pressable>
           </View>
@@ -481,14 +480,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  territoryCtaIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  territoryCtaIcon: { ...iconTile(36), backgroundColor: colors.primaryDim },
   territoryCtaBody: { flex: 1, gap: 1 },
   territoryCtaName: { ...type.heading, fontSize: 14.5 },
   territoryCtaNote: { ...type.caption, fontSize: 11.5, color: colors.textFaint },

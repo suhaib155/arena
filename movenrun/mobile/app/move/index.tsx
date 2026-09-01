@@ -7,7 +7,7 @@ import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { colors, palette, radius, shadows, spacing, type } from "@/theme";
+import { avatar, colors, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import {
   getForegroundPermissionStatus,
   hasLocationServices,
@@ -109,7 +109,7 @@ export default function MoveStartScreen() {
   return (
     <Screen>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={pressFade(styles.backBtn)}>
           <Ionicons name="close" size={24} color={colors.textDim} />
         </Pressable>
         <Text style={styles.topTitle}>Start Move</Text>
@@ -251,14 +251,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadows.card,
   },
-  activityIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  activityIcon: { ...iconTile(44), backgroundColor: colors.primaryDim },
   activityBody: { flex: 1, gap: 2 },
   activityName: { ...type.heading, fontSize: 16 },
   activitySub: { ...type.caption, fontSize: 12, color: colors.textDim },
@@ -274,15 +267,7 @@ const styles = StyleSheet.create({
   roadV: { position: "absolute", top: 0, bottom: 0, width: 5, backgroundColor: "#E6EBEF" },
   mapHexA: { position: "absolute", left: "18%", top: 20 },
   mapHexB: { position: "absolute", right: "20%", bottom: 16 },
-  mapPin: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.float,
-  },
+  mapPin: { ...avatar(74), backgroundColor: colors.surface, ...shadows.float },
   readyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
@@ -292,13 +277,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   readyHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  readyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  readyIcon: { ...iconTile(40) },
   readyTitle: { ...type.heading, fontSize: 16, flex: 1 },
   readyMsg: { ...type.body, fontSize: 13.5, lineHeight: 19 },
   offlineNote: {
@@ -306,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.sm,
   },
   offlineText: { ...type.caption, fontSize: 11.5, color: colors.textDim, flex: 1 },

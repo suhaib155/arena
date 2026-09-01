@@ -6,7 +6,7 @@ import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { healthVisual } from "@/components/ZoneCard";
-import { colors, glow, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, glow, iconTile, palette, pressFade, radius, shadows, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { getLastSession } from "@/services/moveSession";
 import {
@@ -100,7 +100,7 @@ export default function ZoneDetailScreen() {
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={pressFade()}>
             <Ionicons name="chevron-back" size={26} color={colors.text} />
           </Pressable>
           <Text style={styles.topTitle}>Zone</Text>
@@ -257,7 +257,7 @@ export default function ZoneDetailScreen() {
         {/* Related */}
         <View style={styles.relatedRow}>
           <Pressable
-            style={styles.relatedCard}
+            style={pressFade(styles.relatedCard)}
             onPress={() => {
               tapFeedback();
               router.push("/territory/map");
@@ -267,7 +267,7 @@ export default function ZoneDetailScreen() {
             <Text style={styles.relatedText}>Territory Map</Text>
           </Pressable>
           <Pressable
-            style={styles.relatedCard}
+            style={pressFade(styles.relatedCard)}
             onPress={() => {
               tapFeedback();
               router.push("/collections");
@@ -279,7 +279,7 @@ export default function ZoneDetailScreen() {
         </View>
 
         <Pressable
-          style={styles.deedPreviewCard}
+          style={pressFade(styles.deedPreviewCard)}
           onPress={() => {
             tapFeedback();
             router.push("/deed-showroom");
@@ -488,13 +488,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
-  timeIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  timeIcon: { ...iconTile(26) },
   timeLabel: { ...type.caption, fontSize: 13, color: colors.text, fontWeight: "600", flex: 1 },
   timeWhen: { ...type.mono, fontSize: 11, color: colors.textFaint },
   fortifiedNote: {

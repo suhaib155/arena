@@ -23,15 +23,22 @@ and Base-native city wars / gasless badges.
 
 ## The quest APK is NOT the final product
 The app currently in `mobile/` (Expo SDK 54, RN 0.81, Expo Router v6, TS,
-Zustand + AsyncStorage) is a **mobile shell**: local mock quests, a
-`start → active timer → finish → XP result` flow, XP/levels/streak, and a working
-**EAS APK build pipeline**. It exists to prove out build/release and on-device
-state — **not** to be the product. We evolve it toward the territory loop; we do
-not invest in it as a generic quest/step app.
+Zustand + AsyncStorage) is a **mobile shell**: real accounts (email OTP, tokens
+in `expo-secure-store`) over a local simulation of territory, zones and clubs,
+plus a working **EAS APK build pipeline**. It exists to prove out build/release
+and on-device state — **not** to be the product. We evolve it toward the
+territory loop; we do not invest in it as a generic quest/step app.
 
 Quest data goes through `mobile/src/services/questService.ts` (mock data in
 `mobile/src/data/quests.ts`) — that service seam is the place to later swap in a
 GPS/territory data source. Each quest awards XP at most once per local day.
+
+**Home is a task board.** Everything the app asks of the player is one `Task`,
+and `mobile/src/lib/tasks.ts` is the single pure function that builds today's
+list. Screens decide nothing: they call a `lib/` function and render the result.
+Keep `lib/` free of runtime `react-native` imports so the suite stays testable
+on plain Node. New surfaces go through `<Card>`, `TaskRow` and the shape rules
+in `lib/shape.ts` — `src/lib/__tests__/designSystem.test.ts` enforces them.
 
 ### Do NOT (unless a roadmap phase explicitly calls for it):
 - Add **AI quest features / AI APIs / AI provider keys** — they don't serve the
