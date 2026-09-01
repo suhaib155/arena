@@ -318,8 +318,11 @@ source plugs in. Don't bypass it, and never ship AI provider keys in the app.
 - Territory, zones and clubs are a **local simulation** — no sync, no ownership
   beyond this device.
 - Quests are mock data.
-- Movement recovery isn't implemented: a finished route lives in memory only
-  during the summary flow, so the board's `resume` task never fires yet.
+- A finished route lives in memory during the summary flow. If server
+  verification fails, that session's route observations are held on the device
+  so the request can be retried — bounded to one account, a few attempts and a
+  short retention window, and deleted once it settles. Nothing else persists a
+  route, and the board's `resume` task still never fires.
 - The timer is a countdown — it does not read motion or GPS sensors.
 - The share card shares a text blurb; the on-screen card isn't captured as an
   image yet.

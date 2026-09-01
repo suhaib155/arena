@@ -206,6 +206,10 @@ test("a route with a real tracking gap cannot score as clean", () => {
     accuracy: 8,
   }));
   const base = {
+    /* Required since completed sessions gained a stable identity. Fixed here
+       because these tests measure route trust from tracking gaps, and the id
+       is not part of that. */
+    clientSessionId: "mv-tracking-power-01",
     mode: "gps" as const,
     points,
     distanceM: 1400,
@@ -232,6 +236,7 @@ test("a momentary interruption does not brand the route", () => {
     accuracy: 8,
   }));
   const withBlip = scoreRoute({
+    clientSessionId: "mv-tracking-power-02",
     mode: "gps",
     points,
     distanceM: 1400,

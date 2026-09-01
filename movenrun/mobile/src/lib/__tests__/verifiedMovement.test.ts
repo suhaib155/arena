@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   findVerification,
@@ -278,12 +278,23 @@ test("zone counts still come from local zones, not from verification records", (
     !/movementVerifications/.test(profile),
     "profile must not derive territory from verification records",
   );
-  /* Home's territory input on this branch is homeMission.ts (the #63 family
-     replaces it with lib/tasks.ts; that stack is analysed in the PR body, not
-     asserted here — this branch is main-based and must test what it ships). */
-  const home = read(join(SRC, "lib", "homeMission.ts"));
+  /* Home's territory model is `tasks.ts` once the task-board work is present
+     and `homeMission.ts` before it. Pinning one filename made this guard
+     ENOENT the moment both stacks were integrated — it stopped asserting
+     anything rather than asserting something false, but a guard that vanishes
+     on a rename is no guard. Assert against whichever model actually ships,
+     and fail closed if neither does. */
+  const homeModels = ["tasks.ts", "homeMission.ts"]
+    .map((f) => join(SRC, "lib", f))
+    .filter((f) => existsSync(f));
   assert.ok(
-    !/movementVerifications|traversedHex/.test(home),
-    "the home model must not treat verified traversal as territory",
+    homeModels.length > 0,
+    "no home territory model found — this guard has lost its subject",
   );
+  for (const model of homeModels) {
+    assert.ok(
+      !/movementVerifications|traversedHex/.test(read(model)),
+      `${model} must not treat verified traversal as territory`,
+    );
+  }
 });

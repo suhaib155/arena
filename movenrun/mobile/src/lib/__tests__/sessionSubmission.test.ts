@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   CLIENT_SESSION_ID_RE,
@@ -127,7 +127,20 @@ test("the id is minted at session start, not at finish, save, or per attempt", (
      not change is that it happens once, at the top of the component. */
   const mints = screen.match(/newClientSessionId\(/g) ?? [];
   assert.equal(mints.length, 1, "a session must mint exactly one id");
-  assert.match(screen, /clientSessionIdRef\.current = newClientSessionId\(\)|clientSessionIdRef = useRef<string>\(newClientSessionId\(\)\)/);
+  /* The mint must be ONCE-ONLY, not merely once in the source. An earlier
+     version of this line accepted a bare
+     `clientSessionIdRef.current = newClientSessionId()`, which is what an
+     unconditional re-mint on every render looks like — the guard checked the
+     assignment's shape and never its condition, so that mutation passed. Both
+     accepted idioms below are self-limiting: a lazy assignment behind a falsy
+     check, or a useRef initializer, which React evaluates once. */
+  const onceOnly =
+    /if\s*\(!clientSessionIdRef\.current\)\s*clientSessionIdRef\.current = newClientSessionId\(\)/.test(screen) ||
+    /clientSessionIdRef\s*=\s*useRef<string>\(newClientSessionId\(\)\)/.test(screen);
+  assert.ok(
+    onceOnly,
+    "the id must be minted once per session — an unconditional assignment re-mints on every render",
+  );
   assert.match(screen, /clientSessionId: clientSessionIdRef\.current/);
 
   /* And crucially NOT inside finish() — minting there would tie identity to
@@ -151,6 +164,32 @@ test("the id is minted at session start, not at finish, save, or per attempt", (
     assert.ok(
       !/newClientSessionId\(/.test(read(file)),
       `${file} mints a session id — retries would stop being idempotent`,
+    );
+  }
+});
+
+test("the movement client rides the shared authenticated transport", () => {
+  /* There was no guard on this at all on the mobile side. A screen that built
+     its own transport would get a second bearer attachment and a second
+     refresh slot, and every submission test would still pass — they inject
+     their own transport and never look at the screen. */
+  const summary = read(join(APP, "move", "summary.tsx"));
+  assert.match(
+    summary,
+    /new MovementApiClient\(\s*identityClient\.transport\s*\)/,
+    "summary must construct the movement client from the identity client's transport",
+  );
+  assert.ok(
+    !/new AuthedJsonTransport\(/.test(summary),
+    "no screen may construct its own transport",
+  );
+  // And no other screen may build a movement client at all.
+  const screens = readdirSync(join(APP, "move")).filter((f) => f.endsWith(".tsx"));
+  for (const file of screens) {
+    if (file === "summary.tsx") continue;
+    assert.ok(
+      !/new MovementApiClient\(/.test(read(join(APP, "move", file))),
+      `${file} builds its own movement client — there must be one submission path`,
     );
   }
 });
