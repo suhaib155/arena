@@ -6,6 +6,7 @@
  * (distance/time → XP record) via the existing game store.
  */
 import type { TrackPoint } from "@/lib/geo";
+import type { TrackingGap } from "@/lib/trackPoints";
 import type { TrackerMode } from "./moveTracker";
 
 export interface FinishedSession {
@@ -14,6 +15,10 @@ export interface FinishedSession {
   distanceM: number;
   durationMs: number;
   finishedAt: number;
+  /** Spans where the app was backgrounded and no fixes arrived, so the summary
+   *  can say the distance is incomplete instead of presenting it as the truth.
+   *  Optional: older callers and demo sessions simply have none. */
+  gaps?: TrackingGap[];
 }
 
 let last: FinishedSession | null = null;
