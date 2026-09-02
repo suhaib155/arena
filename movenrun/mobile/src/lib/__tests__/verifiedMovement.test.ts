@@ -22,6 +22,7 @@ import {
   type VerifiedMovementRecord,
 } from "../verifiedMovement";
 import type { VerificationState } from "../movementVerification";
+import { ZONE_GEOGRAPHY_VERSION } from "../zoneMigration";
 
 const SRC = join(process.cwd(), "src");
 const read = (p: string) => readFileSync(p, "utf8");
@@ -175,7 +176,8 @@ test("the reconciliation module cannot reach territory or reward authority", () 
   const code = src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, "");
   for (const forbidden of [
     "newCapturedZone", "captureZone", "defendZones", "fortifyZone", "useGameStore",
-    "completeQuest", "lockedMovePreview", "deriveZonesFromRoute", "wallet", "deed",
+    "completeQuest", "lockedMovePreview", "cellsForRoute", "newCapturedZone",
+    "wallet", "deed",
   ]) {
     assert.ok(
       !new RegExp(`\\b${forbidden}\\b`).test(code),
@@ -234,7 +236,18 @@ test("the verification slice is bounded, reset-clearing, and migration-safe", ()
   assert.match(resetBlock.slice(0, 1200), /movementVerifications: \[\]/);
   // Persisted-state upgrades backfill it rather than crashing.
   assert.match(store, /if \(!Array\.isArray\(state\.movementVerifications\)\) \{/);
-  assert.match(store, /version: 11,/, "adding a persisted field requires a version bump");
+  /* The version at which `movementVerifications` became persisted state. Pinned
+     as a floor rather than an equality: the property is "adding this field
+     required a bump", and a literal `version: 11` also fails for every later,
+     unrelated bump — which it did, on the H3 migration, for a reason that had
+     nothing to do with this slice. A floor keeps the guard and drops the false
+     positive. */
+  const VERSION_WHEN_ADDED = 11;
+  assert.match(store, /version: ZONE_GEOGRAPHY_VERSION,/, "the store must declare a version");
+  assert.ok(
+    ZONE_GEOGRAPHY_VERSION >= VERSION_WHEN_ADDED,
+    "adding a persisted field requires a version bump",
+  );
 });
 
 test("recording a verification touches no reward or territory state", () => {
@@ -259,7 +272,10 @@ test("local territory capture is unchanged and still the only path to a zone", (
   const summary = read(join(process.cwd(), "app", "move", "summary.tsx"));
   // The pre-existing local capture path is intact...
   assert.match(summary, /captureZone\(newCapturedZone\(candidate, false\)\)/);
-  assert.match(summary, /deriveZonesFromRoute|candidate/);
+  /* `deriveZonesFromRoute` until the world grid became real; the route → cell
+     projection now goes through the shared H3 domain, and this guard follows
+     its subject rather than outliving it. */
+  assert.match(summary, /cellsForRoute\(session\.points\)/);
   // ...and the verification result feeds none of it.
   const recordBlock = summary.slice(summary.indexOf("toVerifiedRecord("));
   const nextLines = recordBlock.slice(0, 400);

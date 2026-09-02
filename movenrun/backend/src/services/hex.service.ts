@@ -1,20 +1,56 @@
-import * as h3 from "h3-js";
 import { HexActivity, ZoneMintEligibility } from "@movenrun/shared";
-import { H3_RESOLUTION, MIN_ACTIVITY_THRESHOLD } from "@movenrun/shared/src/constants/h3.js";
+import {
+  cellCenter,
+  cellForCoordinate,
+  cellsForObservations,
+  H3_RESOLUTION,
+  neighborhood,
+  toGameplayCell,
+} from "@movenrun/shared/h3";
+import { MIN_ACTIVITY_THRESHOLD } from "@movenrun/shared";
 
+/**
+ * Server-side H3 geography.
+ *
+ * Every geometric call here now goes through the canonical shared domain, so
+ * the backend and the app derive the same cell from the same coordinate by
+ * construction. This class used to call `h3-js` directly with a resolution
+ * imported through a deep path into the shared package's source
+ * (`@movenrun/shared/src/constants/h3.js`), which reached past an exports map
+ * that named a `dist/` the package could not build. It kept working only
+ * because the backend runs through `tsx`; it was never a supported import.
+ *
+ * The behaviour of `getHexIdsForPoints` is unchanged — same cells, same
+ * deduplication, same first-touch order — and the movement-verification tests
+ * that describe it run untouched. What is new is that invalid coordinates are
+ * now rejected instead of being wrapped onto real ground by the library, and
+ * that a malformed cell id can no longer produce a plausible-looking centre or
+ * neighbour list.
+ *
+ * Nothing here writes territory. `hex_activities` still has no writer, and
+ * `getHexActivity` still returns zeros — see the stub note below.
+ */
 export class HexService {
-  // Convert lat/lng to H3 hex ID at resolution 8
+  /** The cell containing a coordinate, at the canonical gameplay resolution.
+   *  Throws for anything that is not a real latitude/longitude. */
   latLngToHex(lat: number, lng: number): string {
-    return h3.latLngToCell(lat, lng, H3_RESOLUTION);
+    return cellForCoordinate({ latitude: lat, longitude: lng });
   }
 
-  // Get all H3 hex IDs covered by a list of GPS points
+  /**
+   * The H3 cells a set of observed points falls in — deduplicated, in
+   * first-touch order.
+   *
+   * Containment of the points, not intersection of the path between them: a
+   * cell appears exactly when a point was observed inside it, and cells crossed
+   * unsampled between two consecutive fixes are not included. Sealing and solid
+   * capture will need true path geometry and must derive it deliberately rather
+   * than reading it into this.
+   */
   getHexIdsForPoints(points: Array<{ lat: number; lng: number }>): string[] {
-    const hexSet = new Set<string>();
-    for (const p of points) {
-      hexSet.add(this.latLngToHex(p.lat, p.lng));
-    }
-    return Array.from(hexSet);
+    return cellsForObservations(
+      points.map((p) => ({ latitude: p.lat, longitude: p.lng })),
+    );
   }
 
   // Get hex activity from DB (stub — will be wired to Drizzle queries)
@@ -46,7 +82,7 @@ export class HexService {
     };
   }
 
-  async getDefenderScore(hexId: string): Promise<bigint> {
+  async getDefenderScore(_hexId: string): Promise<bigint> {
     // TODO: aggregate 30-day movement for current zone owner from DB
     return 0n;
   }
@@ -58,13 +94,24 @@ export class HexService {
     return BASE * sqrtCount;
   }
 
-  // Get neighboring hexes (ring of radius 1)
+  /** The six cells surrounding one, excluding it. Rejects a cell that is not
+   *  canonical geography, where the library would have answered with an empty
+   *  list and no indication that anything was wrong. */
   getNeighbors(hexId: string): string[] {
-    return h3.gridDisk(hexId, 1).filter((h) => h !== hexId);
+    const cell = toGameplayCell(hexId);
+    return neighborhood(cell, 1).filter((c) => c !== cell);
   }
 
-  // Hex center as lat/lng
+  /** Hex centre, latitude first — matching H3's own argument order, and the
+   *  reason the domain layer speaks in named fields instead of tuples. */
   hexToLatLng(hexId: string): [number, number] {
-    return h3.cellToLatLng(hexId);
+    const { latitude, longitude } = cellCenter(toGameplayCell(hexId));
+    return [latitude, longitude];
+  }
+
+  /** The resolution this service indexes at. Read from the shared domain; there
+   *  is no backend-local copy and no environment override. */
+  get resolution(): number {
+    return H3_RESOLUTION;
   }
 }

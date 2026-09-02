@@ -11,6 +11,7 @@ import {
   type VerifiedMovementRecord,
 } from "@/lib/verifiedMovement";
 import { getLocalDateKey, daysBetween } from "@/lib/date";
+import { migrateZonesToRealGeography, ZONE_GEOGRAPHY_VERSION } from "@/lib/zoneMigration";
 import {
   chooseLocalBeta as chooseLocalBetaFirstRun,
   completeIntro as completeIntroFirstRun,
@@ -383,7 +384,7 @@ export const useGameStore = create<GameState>()(
     {
       name: "movenrun-game-v1",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 11,
+      version: ZONE_GEOGRAPHY_VERSION,
       // Older persisted state (PR #3) has no `completedQuestIds`; pre-territory
       // state (v2) has no `zones`; pre-defend state (v3) zones lack the defend
       // fields and shipped with defense 0; pre-clubs state (v4) lacks
@@ -391,7 +392,8 @@ export const useGameStore = create<GameState>()(
       // pre-history state (v6) lacks `routeTrustHistory`; pre-questline state
       // (v7) lacks the onboarding view flags; pre-intro state (v8) lacks
       // `hasSeenOpeningIntro`; pre-first-run state (v9) carries the two legacy
-      // onboarding booleans instead of `firstRun`. Backfill everything so
+      // onboarding booleans instead of `firstRun`; pre-H3 state (v11) keys its
+      // zones by the retired local lattice. Backfill everything so
       // upgrades never crash and v3 zones arrive healthy instead of decayed.
       migrate: (persisted, _version) => {
         const legacy = (persisted ?? {}) as LegacyFirstRunFlags;
@@ -402,6 +404,22 @@ export const useGameStore = create<GameState>()(
         if (!Array.isArray(state.zones)) {
           state.zones = [];
         }
+        /* v11 -> v12: the world grid became real, and a zone keyed by the
+           retired ~300 m lattice cannot be converted into an H3 cell — the
+           coordinates it was quantized from were never stored, so every
+           available mapping would invent geography. Such a zone is dropped
+           rather than translated; a zone survives only by standing on a
+           canonical resolution-8 cell. The reasoning, and the reason the test
+           is that one rather than "is not a lattice id", is in
+           lib/zoneMigration.ts.
+
+           Nothing else here is geography, and nothing else is touched: XP,
+           streak, the day key, completed quests, history, club choice,
+           route-trust summaries, verification records and first-run state all
+           carry through. Auth lives in another store under another key, and
+           queued verifications outside both with their own retention policy;
+           neither is read or written here. */
+        state.zones = migrateZonesToRealGeography(state.zones).kept;
         state.zones = state.zones.map((z) => ({
           ...z,
           lastDefendedAt: z.lastDefendedAt ?? z.capturedAt ?? new Date().toISOString(),

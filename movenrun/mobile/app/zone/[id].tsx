@@ -145,7 +145,12 @@ export default function ZoneDetailScreen() {
               <Text style={[styles.chipText, { color: colors.textDim }]}>Common Zone</Text>
             </View>
           </View>
-          <Text style={styles.zoneId}>{zone.id}</Text>
+          {/* The raw zone id used to be printed here, in mono, under the
+              name. It was a cosmetic `mrx-…` token then; it is a real H3 index
+              now, and an index is not something to show a player — it is
+              fifteen hex digits that mean nothing on screen and are location
+              data off it. Nothing of value is lost: "Captured" and "Last
+              defended" below already carry this zone's history. */}
         </View>
 
         {/* Command — recommended next action + strategy */}
@@ -437,7 +442,6 @@ const styles = StyleSheet.create({
   chipsRow: { flexDirection: "row", gap: spacing.sm },
   chip: { paddingVertical: 5, paddingHorizontal: spacing.md, borderRadius: radius.pill },
   chipText: { fontSize: 12, fontWeight: "700" },
-  zoneId: { ...type.mono, fontSize: 11.5, color: colors.textFaint },
   meterCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,

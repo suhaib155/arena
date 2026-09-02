@@ -20,7 +20,13 @@ const envSchema = z.object({
 
   ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional(),
 
-  H3_RESOLUTION: z.coerce.number().default(8),
+  /* There is deliberately no H3_RESOLUTION here. It used to sit in this schema
+     as an environment-overridable number defaulting to 8, read by nothing — a
+     dormant second definition of the world grid that could have been set to 9
+     in one deployment and left mobile and backend indexing different worlds
+     while both looked correct. The canonical resolution lives in
+     `shared/src/constants/h3.ts`, is re-exported by `@movenrun/shared/h3`, and
+     is not configurable. */
 
   // Wallet-signature auth (see middleware/auth.ts) — how long a signed request
   // stays valid after its issuedAt timestamp.

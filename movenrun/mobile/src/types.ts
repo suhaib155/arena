@@ -37,7 +37,7 @@ export interface QuestRequestContext {
   preferredCategories?: QuestCategory[];
 }
 
-/* ── Territory (Free Map Beta — local, on-device simulation only) ── */
+/* ── Territory ── */
 
 export type ZoneState =
   | "unclaimed"
@@ -47,9 +47,17 @@ export type ZoneState =
   | "deedPreview";
 
 /**
- * A mock territory zone. Ids come from the pseudo-H3 lattice in
- * `lib/zones.ts` (real H3 indexing arrives with the live map). No ownership
- * beyond this device is implied — common zones are in-app progress only.
+ * A captured zone.
+ *
+ * `id` is real geography: a canonical H3 resolution-8 cell, the same identity
+ * the backend derives for the same coordinate. It used to be an id from a local
+ * ~300 m lattice that existed only on the device.
+ *
+ * The *ownership* around it is still local. Capture, control, defence and
+ * fortification are on-device preview state: no server has agreed to any of
+ * them, no other player can see them, and nothing here is a claim beyond this
+ * install. Real geography and real ownership are separate steps, and this is
+ * the first one. See `lib/territoryCells.ts`.
  */
 export interface Zone {
   id: string;
