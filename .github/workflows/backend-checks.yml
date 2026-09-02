@@ -59,6 +59,15 @@ jobs:
       - name: Install dependencies (immutable)
         run: yarn install --immutable
 
+      # @movenrun/shared first: it is where the canonical H3 world grid lives,
+      # and the backend derives every cell through it. Nothing ran against this
+      # package before — it could not even build, so there was nothing to run.
+      - name: Type-check @movenrun/shared
+        run: yarn workspace @movenrun/shared build
+
+      - name: Test @movenrun/shared
+        run: yarn workspace @movenrun/shared test
+
       - name: Type-check @movenrun/backend
         run: yarn workspace @movenrun/backend typecheck
 
