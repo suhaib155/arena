@@ -23,7 +23,8 @@ import {
 import { MovementApiClient } from "@/services/movementApi";
 import { submitCompletedSession } from "@/services/verifySession";
 import { toVerifiedRecord } from "@/lib/verifiedMovement";
-import { deriveZonesFromRoute, newCapturedZone } from "@/lib/zones";
+import { newCapturedZone } from "@/lib/zones";
+import { cellsForRoute } from "@/lib/territoryCells";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -104,9 +105,13 @@ export default function MoveSummaryScreen() {
   const pace = formatPace(session.distanceM, session.durationMs);
   const saveable = session.mode === "gps" && isSaveable(session.distanceM, session.durationMs);
 
-  /* Territory touched — mock pseudo-H3 zones derived from the in-memory
-     route (local simulation; real H3 arrives with the live map). */
-  const zonesTouched = deriveZonesFromRoute(session.points);
+  /* Territory touched — the real H3 resolution-8 cells this route passed
+     through, derived from the in-memory route through the same shared domain
+     the backend verifies with. Derived here and not stored: a sequence of
+     cells is coarse location history, and only a captured cell reaches disk.
+     Touching a cell is not owning it — capture below is still local preview
+     state, and no server has agreed to any of it. */
+  const zonesTouched = useMemo(() => cellsForRoute(session.points), [session.points]);
   const candidate =
     zonesTouched.find((t) => !ownedZones.some((z) => z.id === t.id)) ?? null;
   const ownedTouched = zonesTouched.filter((t) =>

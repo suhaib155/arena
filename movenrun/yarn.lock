@@ -2884,6 +2884,7 @@ __metadata:
   dependencies:
     "@babel/core": "npm:^7.24.0"
     "@expo/vector-icons": "npm:^15.0.3"
+    "@movenrun/shared": "workspace:*"
     "@react-native-async-storage/async-storage": "npm:2.2.0"
     "@types/node": "npm:^20.12.7"
     "@types/react": "npm:~19.1.0"
@@ -2910,6 +2911,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@movenrun/shared@workspace:shared"
   dependencies:
+    h3-js: "npm:^4.1.0"
+    tsx: "npm:^4.9.3"
     typescript: "npm:^5.4.5"
   languageName: unknown
   linkType: soft

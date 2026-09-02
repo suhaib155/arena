@@ -1,9 +1,22 @@
 {
-  // Scoped type-check for the read-only blockchain module added in this PR.
-  // The rest of backend/src is intentionally not included yet: several existing
-  // files import the bare "@movenrun/shared" specifier, which resolves only to
-  // the package's (unbuilt) dist entry — a pre-existing gap to be addressed in
-  // its own PR. This config closes the verification gap for the new code.
+  // Scoped type-check. The `include` below is what actually compiles cleanly
+  // today, not the whole of `src/` — several legacy routes/services and the
+  // express middleware augmentation carry pre-existing type errors that are
+  // not this PR's to fix.
+  //
+  // What changed here: the shared package now has real entry points (it
+  // declared `./dist/index.js` and could not build one), so a file importing
+  // the bare `@movenrun/shared` specifier resolves and type-checks. That is why
+  // `src/services/hex.service.ts` — which imports both the shared types and the
+  // canonical H3 domain — is in scope for the first time, along with the
+  // movement domain, service and repository layers it feeds.
+  //
+  // Still out of scope, and why: `src/movement/http/router.ts` and
+  // `productionRouter.ts` pull in `middleware/rateLimit.ts`, whose
+  // `req.movenrunAuth` augmentation does not resolve here, and
+  // `movementVerification.test.ts` predates `fetch`'s stricter header typings.
+  // Both are pre-existing and both are exercised by the test suite, which runs
+  // through `tsx`.
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -14,18 +27,21 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "baseUrl": ".",
-    // Resolve the shared registry to its TS source (mirrors how tsx runs it).
-    "paths": {
-      "@movenrun/shared/src/*": ["../shared/src/*"]
-    }
+    "baseUrl": "."
+    // The `@movenrun/shared/src/*` path alias that used to live here is gone.
+    // It existed to reach past an exports map that pointed at an unbuildable
+    // `dist/`; the package now exports its source, so the workspace symlink
+    // resolves on its own and there is one way in rather than two.
   },
-  // The read-only blockchain module (pre-existing) plus the identity/wallet
-  // foundation added in this PR. The identity module and the db schema it
-  // relies on import NOTHING from the bare "@movenrun/shared" specifier, so
-  // they type-check cleanly and completely here. The remaining legacy files
-  // (routes/services that import bare "@movenrun/shared") stay out of scope —
-  // that pre-existing gap is called out in this file's history and remains a
-  // separate follow-up.
-  "include": ["src/blockchain/**/*", "src/identity/**/*", "src/db/**/*"]
+  "include": [
+    "src/blockchain/**/*",
+    "src/identity/**/*",
+    "src/db/**/*",
+    "src/movement/domain/**/*",
+    "src/movement/services/**/*",
+    "src/movement/repositories/**/*",
+    "src/movement/http/validation.ts",
+    "src/services/hex.service.ts",
+    "src/config.ts"
+  ]
 }

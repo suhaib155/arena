@@ -1,0 +1,27 @@
+{
+  // The package had no tsconfig at all, so `yarn workspace @movenrun/shared
+  // build` ran a bare `tsc` with no inputs, printed the compiler's help text
+  // and exited 2. Nothing noticed, because nothing could import the package
+  // either.
+  //
+  // `noEmit` is deliberate rather than an oversight. The package exports its
+  // TypeScript source (see package.json): backend runs through `tsx` and
+  // mobile through Metro/babel-preset-expo, so both transpile it themselves,
+  // and a `dist/` would be a build artefact that every consumer would then
+  // depend on having been produced first — exactly the failure this repair is
+  // undoing. So `build` here type-checks; there is nothing to emit.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": false,
+    "noEmit": true
+  },
+  "include": ["src/**/*"]
+}

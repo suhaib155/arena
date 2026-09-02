@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { getConfig } from "../config.js";
-import { BASE_RATE, HALVING_INTERVAL, DAILY_CAP_INITIAL } from "@movenrun/shared/src/constants/emission.js";
+import { BASE_RATE, HALVING_INTERVAL, DAILY_CAP_INITIAL } from "@movenrun/shared";
 
 export class TokenService {
   private provider: ethers.JsonRpcProvider;

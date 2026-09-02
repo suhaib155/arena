@@ -9,7 +9,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CONTRACT_ADDRESSES } from "@movenrun/shared/src/constants/contracts.js";
+import { CONTRACT_ADDRESSES } from "@movenrun/shared";
 import { getNetwork, type NetworkConfig } from "./networks.js";
 import {
   InvalidAddressError,
