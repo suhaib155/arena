@@ -13,6 +13,7 @@
  * across replicas.
  */
 import { and, eq } from "drizzle-orm";
+import { isSealMethod, type SealMethod } from "@movenrun/shared/sealing";
 import type { Db } from "../../../db/client.js";
 import { movementVerifications } from "../../../db/movement.schema.js";
 import {
@@ -33,6 +34,19 @@ function isSessionConflict(err: unknown): boolean {
 
 type Row = typeof movementVerifications.$inferSelect;
 
+/**
+ * Read the stored method list, dropping anything this build does not recognise.
+ *
+ * A text array comes back as whatever is in the column, and a method name is a
+ * gameplay fact: a value written by a newer build, or by hand, must not be
+ * handed on as though this build understood it. Unknown names are dropped
+ * rather than passed through — an unknown method fails closed at the boundary.
+ */
+function readSealMethods(stored: readonly string[] | null): SealMethod[] | null {
+  if (stored === null) return null;
+  return stored.filter(isSealMethod);
+}
+
 function toRecord(row: Row): MovementVerificationRecord {
   return {
     id: row.id,
@@ -51,6 +65,9 @@ function toRecord(row: Row): MovementVerificationRecord {
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     pausedMs: row.pausedMs,
+    sealed: row.sealed,
+    sealMethods: readSealMethods(row.sealMethods),
+    sealEventCount: row.sealEventCount,
     createdAt: row.createdAt,
   };
 }

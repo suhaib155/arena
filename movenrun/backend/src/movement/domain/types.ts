@@ -1,4 +1,5 @@
 import type { SessionMetadata } from "@movenrun/shared/session";
+import type { SealEvaluation, SealMethod } from "@movenrun/shared/sealing";
 
 /**
  * Movement-verification domain vocabulary.
@@ -68,4 +69,41 @@ export interface MovementVerificationResult {
   confidence: number | null;
   /** Non-empty exactly when status is "rejected". Public, non-sensitive. */
   rejectionReasons: string[];
+  /**
+   * Sealing, computed from the accepted route — **transient**.
+   *
+   * Null when the session was rejected (a route the server does not believe
+   * cannot produce an authoritative seal) or when it carried no provenance,
+   * because sealing is interpreted under the session's stamped rules version
+   * and there is nothing to interpret without one.
+   *
+   * This field holds the full evaluation, including the route slice each
+   * closure covers. Those slices are what the territory work will consume, and
+   * they exist only for the life of this request: what reaches the database is
+   * {@link sealSummary}, which carries no indices and no geometry.
+   */
+  sealEvaluation: SealEvaluation | null;
+}
+
+/**
+ * The part of a seal result that is safe to keep and safe to return.
+ *
+ * Whether it sealed, how, and how many times. No coordinates, no intersection,
+ * no polygon, no route indices — a durable record of *where* a loop closed
+ * would be a finer-grained trace than the verification row has ever held.
+ */
+export interface SealSummary {
+  sealed: boolean;
+  methods: SealMethod[];
+  eventCount: number;
+}
+
+/** Flatten a transient evaluation into the summary that may be stored. */
+export function toSealSummary(evaluation: SealEvaluation | null): SealSummary | null {
+  if (evaluation === null || evaluation.status !== "evaluated") return null;
+  return {
+    sealed: evaluation.events.length > 0,
+    methods: [...evaluation.methods],
+    eventCount: evaluation.events.length,
+  };
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState, BackHandler, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Alert, AppState, BackHandler, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -8,7 +8,7 @@ import { RouteCanvas } from "@/components/RouteCanvas";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
-import { colors, palette, radius, shadows, softTint, spacing, type } from "@/theme";
+import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
   acceptPoint,
   distanceMeters,
@@ -38,11 +38,16 @@ import {
   trackerStarted,
   type SessionLifecycle,
 } from "@/lib/sessionLifecycle";
+import {
+  EMPTY_PREVIEW,
+  createSealPreview,
+  sealPreviewAnnouncement,
+  sealPreviewLabel,
+  type SealPreview,
+  type SealPreviewTracker,
+} from "@/lib/sealPreview";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 import type { IoniconName } from "@/types";
-
-/** Distance that fills the capture-preview ring once (territory beta teaser). */
-const ZONE_PREVIEW_M = 500;
 
 type GpsState = "waiting" | "locked" | "weak";
 
@@ -92,6 +97,18 @@ export default function MoveSessionScreen() {
   const lifecycleRef = useRef<SessionLifecycle>(idleLifecycle());
   const [captureState, setCaptureState] = useState(lifecycleRef.current.state);
 
+  /**
+   * The live sealing preview.
+   *
+   * Guidance while the player is moving, never authority: the server recomputes
+   * sealing from verified evidence and that is the answer that counts. Held in
+   * a ref because the tracker callback feeds it on every accepted fix, and
+   * mirrored into state only when the summary of it actually changes — a
+   * re-render per GPS point would be the map's problem, not the geometry's.
+   */
+  const previewRef = useRef<SealPreviewTracker | null>(null);
+  const [preview, setPreview] = useState<SealPreview>(EMPTY_PREVIEW);
+
   const apply = useCallback((next: SessionLifecycle) => {
     lifecycleRef.current = next;
     setCaptureState(next.state);
@@ -130,6 +147,29 @@ export default function MoveSessionScreen() {
         pushPoint(pointsRef.current, p);
         acceptedRef.current += 1;
         setDistanceM(distanceRef.current);
+        /* Geometry is evaluated per accepted fix and nowhere else — not on the
+           clock tick, not on a re-render, not on pause or resume. A closure is
+           a property of the route, so the only thing that can create one is the
+           route growing. */
+        const closed = previewRef.current?.push(p) ?? false;
+        const next = previewRef.current?.preview ?? EMPTY_PREVIEW;
+        setPreview((current) => {
+          const announcement = sealPreviewAnnouncement(current, next);
+          if (announcement !== null) {
+            /* Announced once, on the transition that means something, rather
+               than on every fix — a live region that spoke each update would
+               make the screen unusable with a screen reader. */
+            AccessibilityInfo.announceForAccessibility(announcement);
+          }
+          if (current.sealedLoops === next.sealedLoops && current.nearStart === next.nearStart) {
+            return current;
+          }
+          return next;
+        });
+        /* One short confirmation on the moment a loop closes. It marks a real
+           state change in the route; it does not claim territory, because none
+           has changed hands. */
+        if (closed) successFeedback();
         if (shouldRefreshPreview(acceptedRef.current)) {
           setRoutePreview(pointsRef.current.slice());
         }
@@ -140,7 +180,18 @@ export default function MoveSessionScreen() {
           clientSessionId: newClientSessionId(),
           at: Date.now(),
         });
-        if (started.outcome === "ok") apply(started.lifecycle);
+        if (started.outcome !== "ok") return;
+        /* Built here and nowhere earlier: a preview needs a session, and the
+           session's own rules version is what decides how sealing is read. The
+           pause list handed over is the lifecycle's live array, so a pause
+           breaks the previewed route exactly where it will break the verified
+           one. Null when this build does not know the rules version — the same
+           fail-closed answer the server gives. */
+        previewRef.current = createSealPreview(
+          started.lifecycle.rulesVersion ?? -1,
+          started.lifecycle.pauses,
+        );
+        apply(started.lifecycle);
       })
       .catch(() => {
         if (cancelled) return;
@@ -151,6 +202,9 @@ export default function MoveSessionScreen() {
     return () => {
       cancelled = true;
       tracker.stop();
+      /* The session's geometry goes with the session. Nothing about a route
+         outlives the screen that captured it. */
+      previewRef.current = null;
     };
   }, [apply]);
 
@@ -292,8 +346,14 @@ export default function MoveSessionScreen() {
   const paused = captureState === "paused";
   const starting = captureState === "starting";
 
-  const zoneProgress = Math.min(1, (distanceM % ZONE_PREVIEW_M) / ZONE_PREVIEW_M);
-  const zonesPassed = Math.floor(distanceM / ZONE_PREVIEW_M);
+  /* One colour and one icon for the route's state, never colour alone. Sealed
+     is Pulse Green; an open route is Base Blue, which is information rather
+     than warning — Rival Red would say an open route was a problem, and it is
+     not. There is no animation to reduce: the chip changes, the route does
+     not move, and nothing pulses. */
+  const sealed = preview.sealedLoops > 0;
+  const sealCore = sealed ? palette.pulseGreen : palette.baseBlue;
+  const sealInk = sealed ? ink.green : ink.blue;
 
   return (
     <Screen>
@@ -327,19 +387,32 @@ export default function MoveSessionScreen() {
         </View>
       </View>
 
-      {/* Claim-in-progress */}
+      {/* The route's sealing state.
+          This card used to promise capture from distance alone — "so many
+          metres toward your first zone pass" — which is the one thing the game
+          does not do: nothing about a route can become ground until the route
+          seals. It says what is actually true instead.
+          Calm on purpose. An unsealed route is an ordinary route, so there is
+          no countdown, no warning colour and no urgency here; nobody should be
+          crossing a road to close a loop. */}
       <View style={styles.zoneCard}>
         <View style={styles.zoneHead}>
-          <Text style={styles.zoneTitle}>Capture preview</Text>
-          <Text style={styles.zoneTag}>territory beta</Text>
-        </View>
-        <View style={styles.zoneTrack}>
-          <View style={[styles.zoneFill, { width: `${zoneProgress * 100}%` }]} />
+          <Text style={styles.zoneTitle}>Your route</Text>
+          <View style={[styles.sealChip, { backgroundColor: softTint(sealCore) }]}>
+            <Ionicons
+              name={sealed ? "checkmark-circle" : "git-branch-outline"}
+              size={13}
+              color={sealCore}
+            />
+            <Text style={[styles.sealChipText, { color: sealInk }]}>
+              {sealPreviewLabel(preview)}
+            </Text>
+          </View>
         </View>
         <Text style={styles.zoneNote}>
-          {zonesPassed > 0
-            ? `${zonesPassed} zone pass${zonesPassed > 1 ? "es" : ""} this session — capture lands with the hex map.`
-            : `${Math.round(ZONE_PREVIEW_M * zoneProgress)} / ${ZONE_PREVIEW_M} m toward your first zone pass.`}
+          {sealed
+            ? "Sealed sections are banked. The trail ahead is open again."
+            : "Cross your own trail, or finish near where you started, to seal this route."}
         </Text>
       </View>
 
@@ -434,27 +507,17 @@ const styles = StyleSheet.create({
   },
   zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   zoneTitle: { ...type.heading, fontSize: 14.5 },
-  zoneTag: {
-    ...type.kicker,
-    fontSize: 10,
-    color: palette.deedViolet,
-    backgroundColor: softTint(palette.deedViolet),
-    paddingVertical: 3,
+  /* Icon + label, never colour alone: the chip says what state the route is in
+     for a reader who cannot tell green from blue. */
+  sealChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
     borderRadius: radius.pill,
-    overflow: "hidden",
   },
-  zoneTrack: {
-    height: 8,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    overflow: "hidden",
-  },
-  zoneFill: {
-    height: "100%",
-    borderRadius: radius.pill,
-    backgroundColor: palette.voltMint,
-  },
+  sealChipText: { ...type.kicker, fontSize: 12, letterSpacing: 0 },
   zoneNote: { ...type.caption, fontSize: 12 },
   controls: { paddingVertical: spacing.md, marginTop: "auto" },
 });

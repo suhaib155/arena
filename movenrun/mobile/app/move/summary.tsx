@@ -25,6 +25,7 @@ import { submitCompletedSession } from "@/services/verifySession";
 import { toVerifiedRecord } from "@/lib/verifiedMovement";
 import { newCapturedZone } from "@/lib/zones";
 import { cellsForRoute } from "@/lib/territoryCells";
+import { finishedSealLabel, sealFinishedRoute } from "@/lib/sealPreview";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { lockedMovePreview } from "@/lib/lockedMove";
@@ -117,8 +118,33 @@ export default function MoveSummaryScreen() {
   const ownedTouched = zonesTouched.filter((t) =>
     ownedZones.some((z) => z.id === t.id),
   );
+
+  /**
+   * Did this route close?
+   *
+   * Computed once from the finished route, locally, through the same shared
+   * engine the server runs. It is a **preview**: the server recomputes sealing
+   * from verified evidence and that is the answer that counts. Null when the
+   * session carries no provenance or a rules version this build cannot read —
+   * which means *unknown*, and unknown never grants anything.
+   */
+  const seal = useMemo(() => sealFinishedRoute(session), [session]);
+
+  /**
+   * Nothing about a route becomes ground until the route seals.
+   *
+   * This gate is the product catching up with its own core mechanic. Saving a
+   * qualifying session used to claim the first untouched cell it passed
+   * through, with no closure of any kind — which is precisely the thing V3 says
+   * does not happen. An open route now banks its XP, its history and its
+   * verification exactly as before, and claims nothing.
+   *
+   * What it does NOT do is grant server-side territory, or invent solid or
+   * shade ground. The zone list this writes to is local preview state that no
+   * server has agreed to, and it stays that.
+   */
   const captureEligible =
-    saveable && !alreadySavedToday && candidate !== null;
+    saveable && !alreadySavedToday && candidate !== null && seal?.sealed === true;
 
   /* Truthful completion state — the reward block only shows when there is a
      real reward to bank, and is always tagged local preview (never confirmed
@@ -190,7 +216,7 @@ export default function MoveSummaryScreen() {
        reported alongside it. */
     let captured = false;
     let capturedId: string | null = null;
-    if (candidate) {
+    if (candidate && seal?.sealed === true) {
       const outcome = captureZone(newCapturedZone(candidate, false));
       captured = outcome.captured;
       if (outcome.captured) capturedId = outcome.zone.id;
@@ -376,6 +402,13 @@ export default function MoveSummaryScreen() {
               </Text>
             ) : null}
 
+            {/* What the route did, stated plainly.
+                An open route is not a failed workout: the session saved, the
+                XP banked and the verification went out exactly as they always
+                have. It simply did not close, and closing is what a route has
+                to do before any of this ground can ever be claimed. Neutral
+                type, no red, no "you missed it". */}
+            <Text style={styles.sealLine}>{finishedSealLabel(seal)}</Text>
             <Text style={styles.zoneBeta}>Local territory preview · on-device simulation</Text>
           </View>
         </FadeSlideIn>
@@ -598,6 +631,9 @@ const styles = StyleSheet.create({
   candidateBadgeText: { fontSize: 11, fontWeight: "700", color: ink.green },
   candidateName: { ...type.heading, fontSize: 14, flex: 1 },
   candidateHint: { ...type.caption, fontSize: 11.5, color: colors.textFaint },
+  /* Deliberately the same neutral weight whether the route sealed or not.
+     Colour is not carrying the meaning here — the sentence is. */
+  sealLine: { ...type.caption, color: colors.textDim, marginTop: spacing.sm },
   zoneBeta: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
   defendHint: { ...type.caption, fontSize: 12, color: ink.green, fontWeight: "600" },
   trustCard: {

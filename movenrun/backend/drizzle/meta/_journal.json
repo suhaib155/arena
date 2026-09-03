@@ -36,6 +36,13 @@
       "when": 1784572800000,
       "tag": "0004_session_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784659200000,
+      "tag": "0005_seal_summary",
+      "breakpoints": true
     }
   ]
 }

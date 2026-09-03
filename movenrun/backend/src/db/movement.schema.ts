@@ -1,5 +1,6 @@
-import { pgTable, text, integer, bigint, real, timestamp, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, bigint, boolean, real, timestamp, index, unique } from "drizzle-orm/pg-core";
 import type { MovementMode } from "@movenrun/shared/session";
+import type { SealMethod } from "@movenrun/shared/sealing";
 
 import type { MovementVerificationStatus } from "../movement/domain/types.js";
 
@@ -53,6 +54,17 @@ export const movementVerifications = pgTable("movement_verifications", {
   startedAt: bigint("started_at", { mode: "number" }),
   finishedAt: bigint("finished_at", { mode: "number" }),
   pausedMs: integer("paused_ms"),
+  /* ── sealing (PR #93) ─────────────────────────────────────────────────────
+     The summary, and only the summary. NULL means the sealing engine never ran
+     on this row — it predates the engine, carried no provenance, or the session
+     was rejected — which is a different fact from `false`, meaning the route
+     was evaluated and did not close. No intersection coordinate, no polygon and
+     no route index is stored: a durable record of WHERE a loop closed would be
+     finer-grained movement data than this table has ever held, and the geometry
+     is recomputable from the route the client still has. */
+  sealed: boolean("sealed"),
+  sealMethods: text("seal_methods").array().$type<SealMethod[]>(),
+  sealEventCount: integer("seal_event_count"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   userIdx: index("movement_verifications_user_idx").on(t.userId),
