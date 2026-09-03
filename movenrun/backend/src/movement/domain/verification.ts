@@ -9,6 +9,8 @@
  *
  * No I/O, no clock of its own (`now` is injected), no randomness.
  */
+import { sessionMetadataProblems } from "@movenrun/shared/session";
+
 import type {
   MovementObservation,
   MovementVerificationResult,
@@ -73,6 +75,25 @@ export function structuralRejections(
   }
   if (now - endTime > MAX_SESSION_AGE_MS) {
     reasons.push("Session is too old to verify");
+  }
+
+  /* Session metadata, when present, is structurally checked before any
+     measurement — same as the observation window above, and for the same
+     reason: a self-inconsistent session should not produce a distance that
+     looks authoritative. The rules live in the shared domain, so the phone
+     rejects the same shapes the server does rather than discovering them as a
+     400 after uploading a route. */
+  if (observation.session) {
+    reasons.push(...sessionMetadataProblems(observation.session));
+    /* The lifecycle must contain the observations it claims to describe. A
+       finish before the last fix, or a start after the first, means the two
+       clocks disagree about the same session — and the pair, not either alone,
+       is what makes that detectable. */
+    const { startedAt, finishedAt } = observation.session;
+    if (Number.isFinite(startedAt) && Number.isFinite(finishedAt)) {
+      if (startTime < startedAt) reasons.push("Observations begin before the session started");
+      if (endTime > finishedAt) reasons.push("Observations continue after the session finished");
+    }
   }
 
   let previous: number | null = null;

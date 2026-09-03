@@ -49,8 +49,25 @@ test("Active Move preserves the session lifecycle wiring", () => {
   const src = read(APP, "move", "session.tsx");
   // Persistence + finish gate must remain.
   assert.match(src, /setLastSession\(/, "finish still persists the session");
-  assert.match(src, /finishedRef\.current/, "the finish guard ref is intact");
-  assert.match(src, /createTracker\(mode\)/, "the tracker subscription is intact");
+  /* The finish gate used to be a `finishedRef` boolean in this file, and this
+     guard named that ref. The gate now lives in the pure lifecycle machine,
+     where "Finish happens once" is a tested property rather than a component
+     detail — so the guard follows the invariant instead of the idiom it used
+     to wear: finish must go through a transition and must bail when the
+     machine refuses it. */
+  assert.match(src, /finishLifecycle\(lifecycleRef\.current, at\)/, "finish goes through the lifecycle machine");
+  assert.match(src, /if \(next\.outcome !== "ok"\) return;/, "a refused finish transition stops the handler");
+  /* The tracker is still subscribed here, but its evidence source is now
+     pinned in a ref rather than read from the render scope. That is what
+     keeps the start effect a mount effect: a dependency on the changing
+     value would stop the tracker in cleanup and then be turned away by the
+     single-flight guard, leaving a live-looking session capturing nothing.
+     The guard follows the subscription rather than the old spelling. */
+  assert.match(
+    src,
+    /createTracker\(evidenceSourceRef\.current\)/,
+    "the tracker subscription is intact",
+  );
   assert.match(src, /acceptPoint\(prev, p\)/, "point acceptance/validation is unchanged");
 });
 

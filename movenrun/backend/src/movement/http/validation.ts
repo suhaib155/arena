@@ -10,6 +10,8 @@
  * passthrough.
  */
 import { z } from "zod";
+import { MOVEMENT_MODES, SUPPORTED_RULES_VERSIONS } from "@movenrun/shared/session";
+
 import { IdentityError } from "../../identity/domain/errors.js";
 
 /** Bounded charset/length, so a lookup key can never be a control string or
@@ -30,12 +32,62 @@ const observedPoint = z
   })
   .strict();
 
+/** Bound on pauses in one session, so a payload cannot carry an unbounded
+ *  list. A hundred pause/resume cycles is already far beyond plausible. */
+export const MAX_PAUSES = 100;
+
+const pauseInterval = z
+  .object({
+    startedAt: z.number().int().positive(),
+    endedAt: z.number().int().positive(),
+  })
+  .strict();
+
+/**
+ * Immutable session provenance.
+ *
+ * `.strict()` like everything else, and note what is NOT here: no distance, no
+ * duration, no traversed cells, no capture, no ownership, no seal, no XP, no
+ * points, no trust score. The server computes all of those, and a body that
+ * offers one is refused before a handler runs — which is what keeps "the phone
+ * reports observations" a structural property rather than a convention.
+ *
+ * `mode` and `rulesVersion` are validated against the shared domain, so an
+ * unknown value fails closed here rather than being stored and reinterpreted
+ * later. A client cannot pick its own rules.
+ */
+const sessionMetadataSchema = z
+  .object({
+    mode: z.enum(MOVEMENT_MODES),
+    rulesVersion: z
+      .number()
+      .int()
+      .refine((v) => SUPPORTED_RULES_VERSIONS.includes(v), {
+        message: "unsupported session rules version",
+      }),
+    startedAt: z.number().int().positive(),
+    finishedAt: z.number().int().positive(),
+    pauses: z.array(pauseInterval).max(MAX_PAUSES),
+  })
+  .strict();
+
 export const submitMovementSchema = z
   .object({
     sessionId: z.string().regex(CLIENT_SESSION_ID_RE),
     startTime: z.number().int().positive(),
     endTime: z.number().int().positive(),
     points: z.array(observedPoint).min(MIN_POINTS).max(MAX_POINTS),
+    /**
+     * Optional, for one deliberate reason: a retry queued by a build that
+     * predates the session model has no metadata, and there is nothing
+     * truthful to invent for it. Absence means legacy, and the server records
+     * it as legacy rather than stamping today's mode and rules version onto a
+     * session captured under neither.
+     *
+     * This is bounded compatibility, not a permanent optional field. See
+     * `docs/SESSION_MODEL.md` for the removal milestone.
+     */
+    session: sessionMetadataSchema.optional(),
   })
   .strict();
 

@@ -5,6 +5,8 @@
  * is looking at the summary. Saving a session stores derived stats only
  * (distance/time → XP record) via the existing game store.
  */
+import type { SessionMetadata } from "@movenrun/shared/session";
+
 import type { TrackPoint } from "@/lib/geo";
 import type { TrackingGap } from "@/lib/trackPoints";
 import type { TrackerMode } from "./moveTracker";
@@ -19,10 +21,39 @@ export interface FinishedSession {
    * attempt would turn every retry into a second verification.
    */
   clientSessionId: string;
+  /**
+   * Where the observations came from: real foreground GPS, or the synthesized
+   * demo route.
+   *
+   * NOT the movement mode. This says whether the evidence is real; `session.mode`
+   * says how the player was moving. They are different axes and were nearly
+   * given the same name — a demo session and an on-foot session are not
+   * alternatives to each other.
+   */
   mode: TrackerMode;
+  /**
+   * The immutable provenance stamped at Start and closed at Finish: movement
+   * mode, rules version, lifecycle start/finish and the pause intervals.
+   *
+   * Optional only for the sake of older call sites and fixtures that predate
+   * the session model; every session the app produces now carries one, and the
+   * request builder sends the legacy shape when it is absent rather than
+   * inventing values.
+   */
+  session?: SessionMetadata;
   points: TrackPoint[];
   distanceM: number;
+  /**
+   * Active capture time in milliseconds: elapsed wall clock minus time paused.
+   *
+   * This is what the screen's clock showed. It is deliberately NOT the
+   * duration the server reports — that is measured from accepted observations
+   * under the verification rules and legitimately differs. When `session` is
+   * present this equals `activeMs(session)`, and a test asserts it rather than
+   * assuming.
+   */
   durationMs: number;
+  /** When the user ended capture. Mirrors `session.finishedAt` when present. */
   finishedAt: number;
   /** Spans where the app was backgrounded and no fixes arrived, so the summary
    *  can say the distance is incomplete instead of presenting it as the truth.

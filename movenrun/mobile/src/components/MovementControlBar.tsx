@@ -5,6 +5,16 @@ import { ScalePress } from "./ScalePress";
 
 interface MovementControlBarProps {
   paused: boolean;
+  /**
+   * True while the session is still starting — the tracker has been asked to
+   * run and has not confirmed yet.
+   *
+   * The controls are inert rather than hidden: the bar keeps its size and
+   * position, so nothing shifts under a thumb already reaching for it.
+   * `ScalePress` turns this into `accessibilityState.disabled` itself, so the
+   * state is announced rather than only dimmed.
+   */
+  disabled?: boolean;
   onPauseResume: () => void;
   /** Called on an intentional finish. The caller is expected to confirm first
    *  (e.g. a dialog) so a finish is never accidental. */
@@ -19,13 +29,19 @@ interface MovementControlBarProps {
  * unmistakable from the Pause/Resume button's icon + label + colour (not colour
  * alone).
  */
-export function MovementControlBar({ paused, onPauseResume, onFinish }: MovementControlBarProps) {
+export function MovementControlBar({
+  paused,
+  disabled = false,
+  onPauseResume,
+  onFinish,
+}: MovementControlBarProps) {
   return (
     <View style={styles.bar}>
       <ScalePress
         to={0.96}
         onPress={onPauseResume}
-        style={[styles.control, styles.secondary]}
+        disabled={disabled}
+        style={[styles.control, styles.secondary, disabled && styles.inert]}
         accessibilityRole="button"
         accessibilityLabel={paused ? "Resume session" : "Pause session"}
       >
@@ -42,7 +58,8 @@ export function MovementControlBar({ paused, onPauseResume, onFinish }: Movement
       <ScalePress
         to={0.96}
         onPress={onFinish}
-        style={[styles.control, styles.finish]}
+        disabled={disabled}
+        style={[styles.control, styles.finish, disabled && styles.inert]}
         accessibilityRole="button"
         accessibilityLabel="Finish session"
         accessibilityHint="Ends and reviews this movement session"
@@ -67,6 +84,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   secondary: { backgroundColor: colors.surface, ...shadows.card },
+  /* Dimmed, not removed. The control keeps its box so the layout cannot shift
+     between "starting" and "moving" while a thumb is on the way to it. */
+  inert: { opacity: 0.5 },
   finish: { backgroundColor: colors.primary, ...glow(colors.primary) },
   controlLabel: { ...type.heading, fontSize: 16, color: colors.text },
   finishLabel: { color: colors.surface },

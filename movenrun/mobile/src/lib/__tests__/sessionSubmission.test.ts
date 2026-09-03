@@ -127,21 +127,28 @@ test("the id is minted at session start, not at finish, save, or per attempt", (
      not change is that it happens once, at the top of the component. */
   const mints = screen.match(/newClientSessionId\(/g) ?? [];
   assert.equal(mints.length, 1, "a session must mint exactly one id");
-  /* The mint must be ONCE-ONLY, not merely once in the source. An earlier
-     version of this line accepted a bare
-     `clientSessionIdRef.current = newClientSessionId()`, which is what an
-     unconditional re-mint on every render looks like — the guard checked the
-     assignment's shape and never its condition, so that mutation passed. Both
-     accepted idioms below are self-limiting: a lazy assignment behind a falsy
-     check, or a useRef initializer, which React evaluates once. */
-  const onceOnly =
-    /if\s*\(!clientSessionIdRef\.current\)\s*clientSessionIdRef\.current = newClientSessionId\(\)/.test(screen) ||
-    /clientSessionIdRef\s*=\s*useRef<string>\(newClientSessionId\(\)\)/.test(screen);
-  assert.ok(
-    onceOnly,
-    "the id must be minted once per session — an unconditional assignment re-mints on every render",
+
+  /* The mint must be ONCE-ONLY, not merely once in the source.
+     This guard has now been wrong twice, in opposite directions. It first
+     accepted a bare `clientSessionIdRef.current = newClientSessionId()` — what
+     an unconditional per-render re-mint looks like — because it checked the
+     assignment's shape and never its condition. It was then repaired by
+     pinning two exact spellings, which made it fail the moment the mint moved
+     into the lifecycle transition where it belongs, for a reason that had
+     nothing to do with re-minting.
+
+     So it now asserts the property instead of any spelling: the id is minted
+     as the argument to `trackerStarted`, a transition the pure machine accepts
+     only from `starting`. A render cannot reach it, because a render does not
+     transition; a second Start is `ignored` before the mint is evaluated. The
+     once-only behaviour itself is proven directly in sessionLifecycle.test.ts,
+     against the machine rather than against this file's text. */
+  assert.match(
+    screen,
+    /trackerStarted\(lifecycleRef\.current, \{\s*clientSessionId: newClientSessionId\(\)/,
+    "the id must be minted at the start transition, which only fires once per session",
   );
-  assert.match(screen, /clientSessionId: clientSessionIdRef\.current/);
+  assert.match(screen, /clientSessionId: id,/, "the finished session carries the minted id");
 
   /* And crucially NOT inside finish() — minting there would tie identity to
      the end of the session rather than the whole of it. */

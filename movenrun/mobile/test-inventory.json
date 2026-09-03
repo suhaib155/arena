@@ -30,6 +30,8 @@
     "src/lib/__tests__/screenHeader.test.ts",
     "src/lib/__tests__/secureSession.test.ts",
     "src/lib/__tests__/secureSessionFailures.test.ts",
+    "src/lib/__tests__/sessionLifecycle.test.ts",
+    "src/lib/__tests__/sessionModel.test.ts",
     "src/lib/__tests__/sessionSubmission.test.ts",
     "src/lib/__tests__/signalQuality.test.ts",
     "src/lib/__tests__/startupDecision.test.ts",

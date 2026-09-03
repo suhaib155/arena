@@ -20,6 +20,7 @@
  */
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from "express";
 import { IdentityError, isIdentityError } from "../../identity/domain/errors.js";
+import { MovementSessionMetadataConflictError } from "../repositories/interfaces.js";
 import type { MovementVerificationRecord } from "../repositories/interfaces.js";
 import type { MovementVerificationService } from "../services/movementVerification.service.js";
 import { parseBody, submitMovementSchema, CLIENT_SESSION_ID_RE } from "./validation.js";
@@ -44,6 +45,15 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
     fn(req, res).catch((err: unknown) => {
       if (isIdentityError(err)) {
         res.status(err.status).json(err.toPublicJSON());
+      } else if (err instanceof MovementSessionMetadataConflictError) {
+        /* 409, categorically. The session id is already associated with
+           different immutable provenance, so this is not a retry of that
+           session and asking again cannot help — the same reason the identity
+           domain answers 409 rather than 400 for a terminal conflict.
+           The message names the category and nothing else: no stored values,
+           no submitted values, no timestamps. Echoing either would tell a
+           prober what is on file for a session id. */
+        res.status(409).json({ error: "session_metadata_conflict" });
       } else {
         next(err instanceof Error ? err : new Error(String(err)));
       }

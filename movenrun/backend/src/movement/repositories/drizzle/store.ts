@@ -46,6 +46,11 @@ function toRecord(row: Row): MovementVerificationRecord {
     rejectionReasons: row.rejectionReasons ?? [],
     startTime: row.startTime,
     endTime: row.endTime,
+    movementMode: row.movementMode,
+    rulesVersion: row.rulesVersion,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    pausedMs: row.pausedMs,
     createdAt: row.createdAt,
   };
 }
