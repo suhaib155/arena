@@ -16,7 +16,7 @@ path here reads, writes or implies ownership.
 |---|---|---|
 | Live preview | did I just close a loop? | `mobile/src/lib/sealPreview.ts` — **guidance** |
 | Verified sealing | did the route the server believes close? | `shared/src/domain/sealing.ts`, run in `backend/.../domain/verification.ts` — **authority** |
-| Territory claim | what ground does that closure win? | **does not exist** (#94 solid, #95 shade) |
+| Territory claim | what ground does that closure win? | **does not exist** (#95 solid, #96 shade) |
 
 ## The three methods
 
@@ -65,7 +65,7 @@ asked" is a different fact from "you were not standing on your own ground".
 
 A client cannot supply held cells. The strict schema refuses `heldCells`,
 `capturedCells`, `finishOnOwned` and every relative; a client that could name
-its own ground could seal at will. This activates when #96 supplies
+its own ground could seal at will. This activates when #97 supplies
 server-authoritative territory.
 
 ## Geometry
@@ -175,7 +175,7 @@ SealEvent {
 
 **A seal event contains no coordinates.** It carries point indices and fractions
 along segments, which whoever holds the route can turn back into a position and
-nobody else can. That is enough for #95 to build an exact closed polygon —
+nobody else can. That is enough for #96 to build an exact closed polygon —
 `X → p[start] → … → p[end] → X` — and it means a seal result can be returned,
 stored or logged without carrying location.
 
@@ -302,18 +302,26 @@ change once there is device data.
 | # | Decision | Chosen now | Status | Validated by | Revisited in |
 |---|---|---|---|---|---|
 | 1 | Return radius | 150 m, inclusive | **HYPOTHESIS** — the design says so | real finish-position spread | a future rules version |
-| 2 | Endpoint touch | does not seal | **HYPOTHESIS** | how often players end *on* their trail | #94/#95 |
-| 3 | Collinear retrace | does not seal | **HYPOTHESIS** | out-and-back frequency | #94/#95 |
-| 4 | Open-trail anchor | advances past the closing segment | implementation | multi-loop sessions | #94 |
-| 5 | Two cuts on one step | nearest closes, rest consumed | implementation | rare in practice | #94 |
+| 2 | Endpoint touch | does not seal | **HYPOTHESIS** | how often players end *on* their trail | #95/#96 |
+| 3 | Collinear retrace | does not seal | **HYPOTHESIS** | out-and-back frequency | #95/#96 |
+| 4 | Open-trail anchor | advances past the closing segment | implementation | multi-loop sessions | #95 |
+| 5 | Two cuts on one step | nearest closes, rest consumed | implementation | rare in practice | #95 |
 | 6 | `continuityBreakMeters` | 200 m | **HYPOTHESIS** | real sampling gaps on device | a future rules version |
-| 7 | Held-ground closure | `undetermined` | **OPEN** — the design does not say what it encloses | product decision | #94/#95 |
-| 8 | Return-to-start after a gap | still seals; `subpathCount` reported | implementation | whether #95 can use it | #95 |
+| 7 | Held-ground closure | `undetermined` | **OPEN** — the design does not say what it encloses | product decision | #95/#96 |
+| 8 | Return-to-start after a gap | still seals; `subpathCount` reported | implementation | whether #96 can use it | #96 |
 | 9 | Preview quality filter | tracker's `acceptPoint`, not server rules | implementation | preview/authority disagreement rate | — |
-| 10 | Multiple closures | all kept, none collapsed | implementation | whether #94 claims each independently | #94 |
-| 11 | Tracking gaps on the wire | not sent; derived from the jump | implementation | preview/authority disagreement rate | #96 |
+| 10 | Multiple closures | all kept, none collapsed | implementation | whether #95 claims each independently | #95 |
+| 11 | Tracking gaps on the wire | not sent; derived from the jump | implementation | preview/authority disagreement rate | #97 |
 
-## What #94 Solid receives
+## What #95 Solid receives
+
+> **Numbering note.** Solid was #94 when this document was written. An Android
+> Hermes startup crash — h3-js constructing a `TextDecoder` for an encoding the
+> engine does not implement — took that slot as a runtime hotfix, so every
+> territory PR after it moved up one: Solid #95, Shade #96, Ledger #97,
+> Reconciliation #98. See `docs/HERMES_H3_COMPATIBILITY.md`. Nothing about the
+> sealing engine changed; only the numbers did.
+
 
 - ordered `SealEvent[]` with the exact route slice per closure;
 - an exact closure edge for `self_cross` and `return_to_start`;

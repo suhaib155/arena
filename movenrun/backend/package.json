@@ -23,7 +23,7 @@
     "ethers": "^6.12.1",
     "express": "^4.19.2",
     "express-rate-limit": "^8.5.2",
-    "h3-js": "^4.1.0",
+    "h3-js": "patch:h3-js@npm%3A4.5.0#~/.yarn/patches/h3-js-npm-4.5.0-64ee667011.patch",
     "helmet": "^8.2.0",
     "ioredis": "^5.3.2",
     "pg": "^8.11.5",
