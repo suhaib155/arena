@@ -11,10 +11,18 @@
  * `MOVENRUN_TEST_DATABASE_URL` is not set — skipped rather than quietly passing,
  * so a green suite on a machine without Postgres does not read as proof.
  *
- * It builds its schema in a namespace of its own. The test runner gives each
- * file its own process and runs them at the same time, so two files that both
- * rebuilt `public` would take turns dropping the tables out from under each
- * other — a race that passes most of the time, which is the worst kind.
+ * It builds into a **database of its own**. The test runner gives each file its
+ * own process and runs them at the same time, so two files that both rebuilt
+ * `public` would take turns dropping the tables out from under each other — a
+ * race that passes most of the time, which is the worst kind.
+ *
+ * A database rather than a schema, because the committed migrations name
+ * `"public"."routes"` and `"public"."users"` explicitly in their foreign keys.
+ * Redirecting `search_path` creates the tables somewhere else and leaves those
+ * references pointing at a schema that no longer has them — which passes on a
+ * machine whose `public` still holds tables from an earlier run, and fails on a
+ * fresh one. Each database has its own `public`, so the migrations mean what
+ * they say.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -39,8 +47,15 @@ import type { MovementObservation, ObservedPoint } from "./domain/types.js";
 import type { Db } from "../db/client.js";
 
 const DATABASE_URL = process.env.MOVENRUN_TEST_DATABASE_URL;
-/** This file's own schema. See the header: concurrent files must not share one. */
-const SCHEMA = "sealing_test";
+/** This file's own database. See the header: concurrent files must not share one. */
+const DATABASE = "movenrun_test_sealing";
+
+/** The same server, a different database. */
+function withDatabase(url: string, name: string): string {
+  const parsed = new URL(url);
+  parsed.pathname = `/${name}`;
+  return parsed.toString();
+}
 const BACKEND = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const T0 = 1_756_000_000_000;
 const USER = "usr_seal_1";
@@ -321,13 +336,14 @@ async function migrate(client: pg.Pool): Promise<void> {
 
 before(async () => {
   if (!DATABASE_URL) return;
-  pool = new pg.Pool({
-    connectionString: DATABASE_URL,
-    /* Every connection in the pool resolves unqualified names here, so the
-       migrations build this file's tables in its own namespace. */
-    options: `-c search_path=${SCHEMA}`,
-  });
-  await pool.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE; CREATE SCHEMA ${SCHEMA};`);
+  /* Rebuilt from nothing on every run, so a leftover table from a previous run
+     can never stand in for one a migration was supposed to create. */
+  const admin = new pg.Pool({ connectionString: DATABASE_URL });
+  await admin.query(`DROP DATABASE IF EXISTS ${DATABASE} WITH (FORCE)`);
+  await admin.query(`CREATE DATABASE ${DATABASE}`);
+  await admin.end();
+
+  pool = new pg.Pool({ connectionString: withDatabase(DATABASE_URL, DATABASE) });
   await migrate(pool);
   db = drizzle(pool) as unknown as Db;
 });
@@ -445,8 +461,8 @@ test("sealing writes nothing to any territory table", { skip }, async () => {
   for (const table of ["zones", "hex_activities", "user_route_hexes"]) {
     const { rows } = await pool!.query(
       `select count(*)::int as n from information_schema.tables
-        where table_schema = $1 and table_name = $2`,
-      [SCHEMA, table],
+        where table_schema = 'public' and table_name = $1`,
+      [table],
     );
     if (rows[0].n === 0) continue;
     const { rows: counted } = await pool!.query(`select count(*)::int as n from "${table}"`);
@@ -457,10 +473,9 @@ test("sealing writes nothing to any territory table", { skip }, async () => {
 test("the sealing columns are exactly three, and none of them is spatial", { skip }, async () => {
   const { rows } = await pool!.query(
     `select column_name, data_type, is_nullable from information_schema.columns
-      where table_schema = $1 and table_name = 'movement_verifications'
+      where table_schema = 'public' and table_name = 'movement_verifications'
         and column_name like 'seal%'
       order by column_name`,
-    [SCHEMA],
   );
   assert.deepEqual(
     rows.map((r: { column_name: string }) => r.column_name),
@@ -472,8 +487,13 @@ test("the sealing columns are exactly three, and none of them is spatial", { ski
   }
 });
 
-test("the PostgreSQL path was actually exercised", { skip }, async () => {
+test("the PostgreSQL path was actually exercised, in its own database", { skip }, async () => {
   assert.ok(db, "no database handle — the suite above proved nothing");
-  const { rows } = await pool!.query("select version() as v");
+  const { rows } = await pool!.query("select version() as v, current_database() as d");
   assert.match(rows[0].v, /PostgreSQL/);
+  assert.equal(
+    rows[0].d,
+    DATABASE,
+    "this suite ran against a shared database, where another file can drop its tables",
+  );
 });
