@@ -14,6 +14,7 @@
     "src/lib/__tests__/firstRun.test.ts",
     "src/lib/__tests__/firstRunGuards.test.ts",
     "src/lib/__tests__/h3Foundation.test.ts",
+    "src/lib/__tests__/h3HermesRuntime.test.ts",
     "src/lib/__tests__/introFlow.test.ts",
     "src/lib/__tests__/moveReadiness.test.ts",
     "src/lib/__tests__/networkView.test.ts",

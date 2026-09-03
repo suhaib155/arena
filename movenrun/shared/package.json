@@ -19,7 +19,7 @@
     "test": "node --import tsx --test src/**/__tests__/*.test.ts"
   },
   "dependencies": {
-    "h3-js": "^4.1.0"
+    "h3-js": "patch:h3-js@npm%3A4.5.0#~/.yarn/patches/h3-js-npm-4.5.0-64ee667011.patch"
   },
   "devDependencies": {
     "tsx": "^4.9.3",
