@@ -20,6 +20,8 @@
  * territory model to base such a claim on. Nothing in this module maps it onto
  * zone state, and a test enforces that.
  */
+import type { SessionMetadata } from "@movenrun/shared/session";
+
 import type { TrackPoint } from "./geo";
 import { MAX_ACCURACY_M } from "./geo";
 
@@ -72,6 +74,21 @@ export interface SessionObservations {
 }
 
 /**
+ * One completed session, exactly as it goes on the wire and into the retry
+ * queue: observations plus the immutable provenance stamped at Start.
+ *
+ * `session` is optional, and its absence is meaningful rather than a default.
+ * A queued retry created before the session model existed has no metadata, and
+ * there is no truthful way to invent one — the mode was never chosen and the
+ * rules version did not exist. Such an item resubmits in the legacy shape and
+ * the server records it as legacy. See `docs/SESSION_MODEL.md`.
+ */
+export interface SessionSubmission {
+  observations: SessionObservations;
+  session?: SessionMetadata;
+}
+
+/**
  * The accuracy reported for a fix whose real accuracy the platform did not
  * give us (`Location.coords.accuracy` can be null).
  *
@@ -120,6 +137,32 @@ export function toObservations(session: {
   const endTime = timestamps.length ? Math.max(...timestamps, session.finishedAt) : session.finishedAt;
 
   return { startTime, endTime, points };
+}
+
+/**
+ * The complete submission for a finished session: its observations, and the
+ * provenance stamped when it started.
+ *
+ * The observation window and the lifecycle window are computed separately and
+ * deliberately stay separate. {@link toObservations} derives the window from
+ * the observed timestamps because the server validates that every point falls
+ * inside it; `session.startedAt`/`finishedAt` say when the *user* started and
+ * finished, which is a different fact and can legitimately sit outside the
+ * observed extremes — a fix can land before the UI finished transitioning, and
+ * the last fix normally precedes the Finish tap.
+ *
+ * Collapsing the two would either break the server's structural check or
+ * misreport when the session happened. They are two clocks, and this is where
+ * that is written down.
+ */
+export function toSubmission(session: {
+  points: readonly TrackPoint[];
+  durationMs: number;
+  finishedAt: number;
+  session?: SessionMetadata;
+}): SessionSubmission {
+  const observations = toObservations(session);
+  return session.session ? { observations, session: session.session } : { observations };
 }
 
 /* ── lifecycle state ──────────────────────────────────────────────────────── */

@@ -1,3 +1,5 @@
+import type { SessionMetadata } from "@movenrun/shared/session";
+
 /**
  * Movement-verification domain vocabulary.
  *
@@ -31,6 +33,22 @@ export interface MovementObservation {
   startTime: number;
   endTime: number;
   points: ObservedPoint[];
+  /**
+   * Immutable provenance stamped by the app when the session started: how the
+   * player was moving, which rules version applies, when capture began and
+   * ended, and the pauses.
+   *
+   * Provenance, not measurement. None of it is trusted as a claim about
+   * distance or duration — the server still computes those from the points —
+   * and `mode` in particular buys no leniency: a session labelled `onFoot`
+   * faces exactly the same plausibility checks as one that carries no label at
+   * all.
+   *
+   * Absent for a session captured before the session model existed. Such a
+   * submission is recorded as legacy rather than being given values it never
+   * had.
+   */
+  session?: SessionMetadata;
 }
 
 /** What the server derived. Every field here is server-computed. */

@@ -35,6 +35,25 @@ jobs:
   backend:
     name: Backend typecheck & test
     runs-on: ubuntu-latest
+    # A real PostgreSQL, because the movement session model's most important
+    # invariant is enforced by a database constraint: one verification row per
+    # (user, client_session_id), holding under concurrency. An in-memory
+    # repository that mirrors that constraint only proves the mirror works, so
+    # leaving the end-to-end suite to skip in CI would leave the invariant
+    # verified nowhere.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: movenrun_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     # The Yarn 4 workspaces project lives in the movenrun/ subdirectory.
     defaults:
       run:
@@ -72,4 +91,9 @@ jobs:
         run: yarn workspace @movenrun/backend typecheck
 
       - name: Test @movenrun/backend
+        # The database URL switches the migration/end-to-end suite on. Without
+        # it those tests SKIP loudly rather than passing vacuously, so a green
+        # run here means they actually executed.
+        env:
+          MOVENRUN_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/movenrun_test
         run: yarn workspace @movenrun/backend test

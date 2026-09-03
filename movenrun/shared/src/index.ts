@@ -29,6 +29,13 @@
    it. */
 export * from "./domain/h3";
 
+/* Sessions. What a movement session is: identity, mode, rules version,
+   lifecycle timestamps and pauses. Also available on its own at
+   `@movenrun/shared/session`. Kept a separate subpath from `/h3` rather than
+   merged: a consumer that needs geography does not need the session model, and
+   an importer should not drag in the other to get one. */
+export * from "./domain/session";
+
 /* Zone-economy thresholds. `H3_RESOLUTION` lives in the same file but is
    deliberately not re-exported here — the domain module above already exports
    it, and two star exports of one name would silently drop it from this

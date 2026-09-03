@@ -8,8 +8,11 @@
  */
 import { verifyMovement, type VerifyMovementDeps } from "../domain/verification.js";
 import type { MovementObservation } from "../domain/types.js";
+import { sameSessionMetadata, type SessionMetadata } from "@movenrun/shared/session";
+
 import {
   MovementSessionConflictError,
+  MovementSessionMetadataConflictError,
   type MovementVerificationRecord,
   type MovementVerificationRepository,
 } from "../repositories/interfaces.js";
@@ -57,7 +60,10 @@ export class MovementVerificationService {
       input.userId,
       input.clientSessionId,
     );
-    if (existing) return { record: existing, created: false };
+    if (existing) {
+      assertMetadataMatches(existing, input.observation.session);
+      return { record: existing, created: false };
+    }
 
     const result = verifyMovement(input.observation, this.deps);
 
@@ -74,6 +80,7 @@ export class MovementVerificationService {
         rejectionReasons: result.rejectionReasons,
         startTime: input.observation.startTime,
         endTime: input.observation.endTime,
+        ...sessionColumns(input.observation.session),
       });
       return { record, created: true };
     } catch (err) {
@@ -86,6 +93,11 @@ export class MovementVerificationService {
       // the store is lying about its own invariant, and failing closed is
       // safer than inventing a second verification.
       if (!winner) throw err;
+      /* The concurrent winner is subject to the same rule as a sequential
+         retry: whoever got there first defined this session's provenance, and
+         a loser carrying different metadata is refused rather than silently
+         handed a record that describes a different session. */
+      assertMetadataMatches(winner, input.observation.session);
       return { record: winner, created: false };
     }
   }
@@ -93,5 +105,90 @@ export class MovementVerificationService {
   /** Owner-scoped read. A user can only ever fetch their own verification. */
   async get(userId: string, clientSessionId: string): Promise<MovementVerificationRecord | null> {
     return this.deps.repository.findByUserSession(userId, clientSessionId);
+  }
+}
+
+/**
+ * Flatten session metadata into the columns the record stores.
+ *
+ * A submission without metadata writes NULLs, which is what "legacy" is: not a
+ * sentinel version number, not today's mode, just the absence of a fact nobody
+ * recorded.
+ */
+function sessionColumns(session: SessionMetadata | undefined): {
+  movementMode: MovementVerificationRecord["movementMode"];
+  rulesVersion: number | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  pausedMs: number | null;
+} {
+  if (!session) {
+    return {
+      movementMode: null,
+      rulesVersion: null,
+      startedAt: null,
+      finishedAt: null,
+      pausedMs: null,
+    };
+  }
+  let paused = 0;
+  for (const pause of session.pauses) paused += Math.max(0, pause.endedAt - pause.startedAt);
+  return {
+    movementMode: session.mode,
+    rulesVersion: session.rulesVersion,
+    startedAt: session.startedAt,
+    finishedAt: session.finishedAt,
+    pausedMs: paused,
+  };
+}
+
+/**
+ * Immutable metadata cannot be rewritten under a session id that already has
+ * some.
+ *
+ * The risk this closes: attempt one stores `mode=A, rulesVersion=X`; attempt
+ * two reuses the id with `mode=B, rulesVersion=Y`. Overwriting would let a
+ * client restate what a past session was, and silently returning the stored
+ * row would tell the client its new payload was accepted when it was not.
+ * Neither is safe once gameplay reads this provenance, so a genuine
+ * disagreement fails closed.
+ *
+ * Two cases deliberately do NOT conflict, because they are absence rather than
+ * contradiction:
+ *  - a legacy submission (no metadata) replaying against a stored row that has
+ *    some — an older build retrying a session a newer one already submitted;
+ *  - a submission with metadata against a stored legacy row — the row predates
+ *    the model and cannot be retroactively stamped.
+ * In both, the stored row stands unchanged.
+ */
+function assertMetadataMatches(
+  existing: MovementVerificationRecord,
+  incoming: SessionMetadata | undefined,
+): void {
+  if (!incoming) return;
+  if (existing.movementMode === null || existing.rulesVersion === null) return;
+  if (existing.startedAt === null || existing.finishedAt === null) return;
+
+  const stored: SessionMetadata = {
+    mode: existing.movementMode,
+    rulesVersion: existing.rulesVersion,
+    startedAt: existing.startedAt,
+    finishedAt: existing.finishedAt,
+    /* Pauses are stored as a total rather than as intervals, so the comparison
+       is on that total. Reconstructing a single synthetic interval on both
+       sides compares the one fact the row actually holds, and does not pretend
+       to compare a list the database never kept. */
+    pauses: [{ startedAt: 0, endedAt: existing.pausedMs ?? 0 }],
+  };
+  let incomingPaused = 0;
+  for (const pause of incoming.pauses) {
+    incomingPaused += Math.max(0, pause.endedAt - pause.startedAt);
+  }
+  const comparable: SessionMetadata = {
+    ...incoming,
+    pauses: [{ startedAt: 0, endedAt: incomingPaused }],
+  };
+  if (!sameSessionMetadata(stored, comparable)) {
+    throw new MovementSessionMetadataConflictError();
   }
 }

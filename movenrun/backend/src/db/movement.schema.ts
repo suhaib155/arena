@@ -1,4 +1,6 @@
 import { pgTable, text, integer, bigint, real, timestamp, index, unique } from "drizzle-orm/pg-core";
+import type { MovementMode } from "@movenrun/shared/session";
+
 import type { MovementVerificationStatus } from "../movement/domain/types.js";
 
 /**
@@ -34,8 +36,23 @@ export const movementVerifications = pgTable("movement_verifications", {
   traversedHexIds: text("traversed_hex_ids").array(),
   confidence: real("confidence"),
   rejectionReasons: text("rejection_reasons").array(),
+  /** Observation window: the first and last accepted fix. */
   startTime: bigint("start_time", { mode: "number" }).notNull(),
   endTime: bigint("end_time", { mode: "number" }).notNull(),
+  /* ── session provenance (PR #92) ──────────────────────────────────────────
+     All nullable, and NULL is load-bearing: it marks a session captured before
+     the session model existed, or submitted by a build that predates it. A
+     NOT NULL column with a default would have been more convenient and would
+     have asserted that every historical session followed rules that did not
+     exist when it ran. Nothing here is measurement — mode and rules version
+     are provenance, and the lifecycle window is distinct from the observation
+     window above. No coordinates, and no pause timestamps: a total, not the
+     intervals. */
+  movementMode: text("movement_mode").$type<MovementMode>(),
+  rulesVersion: integer("rules_version"),
+  startedAt: bigint("started_at", { mode: "number" }),
+  finishedAt: bigint("finished_at", { mode: "number" }),
+  pausedMs: integer("paused_ms"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   userIdx: index("movement_verifications_user_idx").on(t.userId),

@@ -23,6 +23,7 @@
  * There is none. Route points and bearer tokens never reach a log line, an
  * error message, or a URL from this module.
  */
+import type { SessionMetadata } from "@movenrun/shared/session";
 import type { AuthedJsonTransport } from "./authedTransport";
 
 /* ── request ──────────────────────────────────────────────────────────────── */
@@ -57,16 +58,42 @@ export interface SubmitMovementRequest {
   startTime: number;
   endTime: number;
   points: readonly ObservedPoint[];
+  /**
+   * Immutable session provenance, when the session has it.
+   *
+   * Omitted entirely for a session captured before the session model existed —
+   * a queued retry from an older build. Absence is the legacy signal; the
+   * server stamps such a row legacy rather than assuming a mode and a rules
+   * version that were never chosen.
+   *
+   * Everything here is provenance, not measurement. There is no distance, no
+   * duration, no cell list and no reward: the server still computes all of it,
+   * and its schema still rejects any field that would claim otherwise.
+   */
+  session?: SessionMetadata;
 }
 
-/** The exact wire payload. Field-by-field, never a spread. */
+/**
+ * The exact wire payload. Field-by-field, never a spread.
+ *
+ * Explicit construction is the point: a spread would forward whatever a caller
+ * happened to attach to the object, which is exactly how a client-authority
+ * field reaches an endpoint that is supposed to refuse one.
+ */
 function serializeRequest(request: SubmitMovementRequest): {
   sessionId: string;
   startTime: number;
   endTime: number;
   points: { lat: number; lng: number; accuracy: number; timestamp: number }[];
+  session?: {
+    mode: string;
+    rulesVersion: number;
+    startedAt: number;
+    finishedAt: number;
+    pauses: { startedAt: number; endedAt: number }[];
+  };
 } {
-  return {
+  const body = {
     sessionId: request.sessionId,
     startTime: request.startTime,
     endTime: request.endTime,
@@ -76,6 +103,18 @@ function serializeRequest(request: SubmitMovementRequest): {
       accuracy: p.accuracy,
       timestamp: p.timestamp,
     })),
+  };
+  if (!request.session) return body;
+  const { mode, rulesVersion, startedAt, finishedAt, pauses } = request.session;
+  return {
+    ...body,
+    session: {
+      mode,
+      rulesVersion,
+      startedAt,
+      finishedAt,
+      pauses: pauses.map((pause) => ({ startedAt: pause.startedAt, endedAt: pause.endedAt })),
+    },
   };
 }
 

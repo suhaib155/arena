@@ -54,9 +54,9 @@ import {
 import {
   isVerifiable,
   shouldSubmit,
-  toObservations,
+  toSubmission,
   type PendingReason,
-  type SessionObservations,
+  type SessionSubmission,
   type VerificationState,
 } from "@/lib/movementVerification";
 import { isSaveable } from "./moveSession";
@@ -152,7 +152,7 @@ export function isSubmissionInFlight(clientSessionId: string): boolean {
  */
 function runSubmission(
   clientSessionId: string,
-  observations: SessionObservations,
+  submission: SessionSubmission,
   deps: PipelineDeps,
   existing: PendingVerificationItem | null,
 ): Promise<VerificationState> {
@@ -164,7 +164,18 @@ function runSubmission(
 
   deps.writeState(clientSessionId, { kind: "submitting" });
 
-  const request: SubmitMovementRequest = { sessionId: clientSessionId, ...observations };
+  /* Built field by field rather than spread, so the request carries the
+     session's own metadata and nothing else that happens to be on the object.
+     A retry passes the metadata it was queued with — it is never rebuilt from
+     the current default mode or the current rules version, which would
+     reinterpret a session that already happened. */
+  const request: SubmitMovementRequest = {
+    sessionId: clientSessionId,
+    startTime: submission.observations.startTime,
+    endTime: submission.observations.endTime,
+    points: submission.observations.points,
+    ...(submission.session ? { session: submission.session } : {}),
+  };
 
   const operation = deps.client
     .submit(request)
@@ -190,7 +201,7 @@ function runSubmission(
     })
     .then(async (next) => {
       deps.writeState(clientSessionId, next);
-      await settleDurableState(clientSessionId, observations, next, existing, owner, now());
+      await settleDurableState(clientSessionId, submission, next, existing, owner, now());
       return next;
     })
     .finally(() => {
@@ -220,7 +231,7 @@ function runSubmission(
  */
 async function settleDurableState(
   clientSessionId: string,
-  observations: SessionObservations,
+  submission: SessionSubmission,
   next: VerificationState,
   existing: PendingVerificationItem | null,
   owner: string | null,
@@ -253,7 +264,8 @@ async function settleDurableState(
       : buildPendingItem({
           clientSessionId,
           ownerUserId: owner,
-          observations,
+          observations: submission.observations,
+          session: submission.session,
           reason: next.reason,
           now: at,
         });
@@ -300,7 +312,7 @@ export function submitCompletedSession(
     return Promise.resolve(state);
   }
 
-  return runSubmission(id, toObservations(session), deps, null);
+  return runSubmission(id, toSubmission(session), deps, null);
 }
 
 /* ── retry ────────────────────────────────────────────────────────────────── */
@@ -323,7 +335,15 @@ async function runPending(
   item: PendingVerificationItem,
   deps: RetryDeps,
 ): Promise<VerificationState> {
-  const state = await runSubmission(item.clientSessionId, item.observations, deps, item);
+  /* The queued item's own metadata, replayed exactly. An item queued before
+     the session model existed has none, and resubmits in the legacy shape
+     rather than being stamped with today's values. */
+  const state = await runSubmission(
+    item.clientSessionId,
+    item.session ? { observations: item.observations, session: item.session } : { observations: item.observations },
+    deps,
+    item,
+  );
   deps.onSettled?.(item.clientSessionId, state);
   return state;
 }

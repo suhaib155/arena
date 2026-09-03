@@ -8,6 +8,8 @@
  * failure — the same race-condition-backstop pattern as
  * `RouteHashConflictError` and identity's `UniqueConstraintError`.
  */
+import type { MovementMode } from "@movenrun/shared/session";
+
 import type { MovementVerificationStatus } from "../domain/types.js";
 
 export interface MovementVerificationRecord {
@@ -22,7 +24,41 @@ export interface MovementVerificationRecord {
   rejectionReasons: string[];
   startTime: number;
   endTime: number;
+  /**
+   * Session provenance, as submitted. NULL for a row created before the
+   * session model existed, and for a legacy submission that carries none.
+   *
+   * Nullable rather than defaulted, deliberately. A default would assert that
+   * historical sessions were captured under rules that did not exist when they
+   * ran; NULL says the only true thing, which is that nobody recorded it.
+   */
+  movementMode: MovementMode | null;
+  rulesVersion: number | null;
+  /** Lifecycle window — when the user started and finished, as distinct from
+   *  `startTime`/`endTime`, which bound the observations. */
+  startedAt: number | null;
+  finishedAt: number | null;
+  /** Total paused milliseconds. A summary, not the intervals: the durations
+   *  are what later interpretation needs, and the individual pause timestamps
+   *  would be a finer-grained record of when someone stood still. */
+  pausedMs: number | null;
   createdAt: Date;
+}
+
+/**
+ * Thrown when a retry reuses a session id but carries different immutable
+ * metadata.
+ *
+ * The id says "this is that session"; the metadata says which session that
+ * was. When they disagree, one of the two is wrong, and the safe answer is
+ * neither overwriting the stored row nor silently returning it as though the
+ * new payload had been accepted.
+ */
+export class MovementSessionMetadataConflictError extends Error {
+  constructor() {
+    super("movement session metadata does not match the stored verification");
+    this.name = "MovementSessionMetadataConflictError";
+  }
 }
 
 export type CreateMovementVerificationInput = Omit<MovementVerificationRecord, "createdAt">;

@@ -40,6 +40,13 @@
  * and none of them is advisory: {@link retryEligibility} is the single gate
  * every retry passes through.
  */
+import {
+  isMovementMode,
+  isSupportedRulesVersion,
+  isValidSessionMetadata,
+  type SessionMetadata,
+} from "@movenrun/shared/session";
+
 import { CLIENT_SESSION_ID_RE, type PendingReason, type SessionObservations } from "./movementVerification";
 
 /* ── bounds ───────────────────────────────────────────────────────────────── */
@@ -138,6 +145,25 @@ export interface PendingVerificationItem {
   ownerUserId: string;
   /** Exactly the observations the original request carried. */
   observations: SessionObservations;
+  /**
+   * The provenance stamped when the session started, replayed unchanged on
+   * every retry.
+   *
+   * **Optional, and its absence is the legacy signal.** An item queued by a
+   * build that predates the session model has no mode and no rules version,
+   * and there is nothing truthful to put here: the mode was never chosen, and
+   * the rules version did not exist when the session was captured. Inventing
+   * one would claim the session followed rules it could not have followed, and
+   * deriving a mode from its pace would be a guess wearing the costume of
+   * provenance. Such an item keeps submitting in the legacy shape, and the
+   * server records it as legacy.
+   *
+   * This is why the schema version does NOT move for this field: bumping it
+   * would make every queued item fail closed and be dropped, throwing away a
+   * user's unsent verification to avoid a nullable field. An older item stays
+   * valid and simply lacks metadata.
+   */
+  session?: SessionMetadata;
   /** Submission attempts made so far, including the original. */
   attempts: number;
   /** Epoch ms of the most recent attempt; drives backoff only. */
@@ -290,6 +316,8 @@ export function buildPendingItem(input: {
   clientSessionId: string;
   ownerUserId: string;
   observations: SessionObservations;
+  /** Absent only for a session that genuinely had no metadata. */
+  session?: SessionMetadata;
   reason: PendingReason;
   now: number;
 }): PendingVerificationItem {
@@ -298,6 +326,7 @@ export function buildPendingItem(input: {
     clientSessionId: input.clientSessionId,
     ownerUserId: input.ownerUserId,
     observations: input.observations,
+    ...(input.session ? { session: input.session } : {}),
     attempts: 1,
     lastAttemptAt: input.now,
     lastReason: input.reason,
@@ -407,15 +436,63 @@ export function parsePendingItem(value: unknown): PendingVerificationItem | null
     points.push(point);
   }
 
+  /* Session metadata, when the item has any.
+     Three outcomes, and the middle one is the point:
+       absent   → a legacy item. Valid, kept, resubmitted in the legacy shape.
+       valid    → replayed exactly as stamped.
+       present  → the item is rejected outright, like any other corrupt field.
+       but bad    A half-readable provenance is worse than none: it would be
+                  submitted as though it were what the session recorded. */
+  let session: SessionMetadata | undefined;
+  if (raw.session !== undefined) {
+    const parsed = parseSessionMetadata(raw.session);
+    if (parsed === null) return null;
+    session = parsed;
+  }
+
   return {
     schemaVersion: PENDING_SCHEMA_VERSION,
     clientSessionId: raw.clientSessionId,
     ownerUserId: raw.ownerUserId,
     observations: { startTime: o.startTime, endTime: o.endTime, points },
+    ...(session ? { session } : {}),
     attempts: raw.attempts,
     lastAttemptAt: raw.lastAttemptAt,
     lastReason: raw.lastReason as PendingReason,
   };
+}
+
+/**
+ * Validate persisted session metadata, or reject the item.
+ *
+ * Checked against the same shared rules the server applies, so a queued item
+ * that could only ever be refused is dropped here rather than spending an
+ * attempt and a GPS upload to find out.
+ */
+function parseSessionMetadata(value: unknown): SessionMetadata | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  if (!isMovementMode(raw.mode)) return null;
+  if (!isSupportedRulesVersion(raw.rulesVersion)) return null;
+  if (!isFiniteNumber(raw.startedAt) || !isFiniteNumber(raw.finishedAt)) return null;
+  if (!Array.isArray(raw.pauses)) return null;
+
+  const pauses: SessionMetadata["pauses"] = [];
+  for (const candidate of raw.pauses) {
+    if (typeof candidate !== "object" || candidate === null) return null;
+    const p = candidate as Record<string, unknown>;
+    if (!isFiniteNumber(p.startedAt) || !isFiniteNumber(p.endedAt)) return null;
+    pauses.push({ startedAt: p.startedAt, endedAt: p.endedAt });
+  }
+
+  const metadata: SessionMetadata = {
+    mode: raw.mode,
+    rulesVersion: raw.rulesVersion,
+    startedAt: raw.startedAt,
+    finishedAt: raw.finishedAt,
+    pauses,
+  };
+  return isValidSessionMetadata(metadata) ? metadata : null;
 }
 
 /** Parse a whole persisted queue. Bad items are dropped individually; a
@@ -466,6 +543,23 @@ export function serializeQueue(items: readonly PendingVerificationItem[]): strin
           timestamp: p.timestamp,
         })),
       },
+      /* Written only when the session has it. Omitted — rather than written as
+         `null` — so absence stays the single legacy signal on the way back in,
+         and a legacy item round-trips as a legacy item. */
+      ...(i.session
+        ? {
+            session: {
+              mode: i.session.mode,
+              rulesVersion: i.session.rulesVersion,
+              startedAt: i.session.startedAt,
+              finishedAt: i.session.finishedAt,
+              pauses: i.session.pauses.map((pause) => ({
+                startedAt: pause.startedAt,
+                endedAt: pause.endedAt,
+              })),
+            },
+          }
+        : {}),
       attempts: i.attempts,
       lastAttemptAt: i.lastAttemptAt,
       lastReason: i.lastReason,
