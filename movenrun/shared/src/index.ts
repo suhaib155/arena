@@ -36,6 +36,17 @@ export * from "./domain/h3";
    an importer should not drag in the other to get one. */
 export * from "./domain/session";
 
+/* Route geometry. The metric and planar primitives sealing is built on, and
+   the only implementation of them: the phone's live preview and the server's
+   authority share this module so they cannot drift apart. Also at
+   `@movenrun/shared/geo`. */
+export * from "./domain/geo";
+
+/* Sealing. When a route closes and which slice of it closed — evidence for the
+   territory work that will consume it, and never territory itself. Also at
+   `@movenrun/shared/sealing`. */
+export * from "./domain/sealing";
+
 /* Zone-economy thresholds. `H3_RESOLUTION` lives in the same file but is
    deliberately not re-exported here — the domain module above already exports
    it, and two star exports of one name would silently drop it from this

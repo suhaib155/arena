@@ -200,14 +200,22 @@ test("a verification result has no field that could mean owned", () => {
   );
   for (const forbidden of [
     "owner", "ownedHexIds", "capturedHexIds", "captured", "zones", "zoneIds",
-    "solid", "shade", "sealed", "strength", "deed", "holder",
+    "solid", "shade", "strength", "deed", "holder",
   ]) {
     assert.ok(!(forbidden in result), `the verification result leaked ${forbidden}`);
   }
+  /* `sealEvaluation` is the one field this list stopped forbidding, and the
+     distinction is the whole point of the sealing PR: a seal says a loop
+     closed, not that ground changed hands. It is asserted below to be
+     ownership-free rather than merely absent. */
   assert.deepEqual(Object.keys(result).sort(), [
     "confidence", "distanceMeters", "durationSeconds", "rejectionReasons",
-    "status", "traversedHexIds",
+    "sealEvaluation", "status", "traversedHexIds",
   ]);
+  const seal = JSON.stringify(result.sealEvaluation ?? {}).toLowerCase();
+  for (const forbidden of ["owner", "owned", "captur", "solid", "shade", "strength", "deed", "holder"]) {
+    assert.ok(!seal.includes(forbidden), `the seal evaluation claims ${forbidden}`);
+  }
 });
 
 test("verifying movement writes no territory", () => {

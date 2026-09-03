@@ -72,6 +72,19 @@ function toPublicVerification(record: MovementVerificationRecord) {
     durationSeconds: record.durationSeconds,
     traversedHexIds: record.traversedHexIds,
     rejectionReasons: record.rejectionReasons,
+    /* Sealing, compactly. Whether the route closed, how, and how many times —
+       and nothing about where. The intersection, the enclosed polygon and the
+       route indices stay on the server for the life of one request; the phone
+       still holds its own route while it shows the summary, so it can draw the
+       closure it already knows about without being told where it was.
+
+       Null across all three means the engine did not run on this session: it
+       predates the engine, carried no provenance, or was rejected. `false` is
+       the different statement that it ran and the route stayed open — which is
+       an ordinary result and not a failure. */
+    sealed: record.sealed,
+    sealMethods: record.sealMethods,
+    sealCount: record.sealEventCount,
     verifiedAt: record.createdAt.toISOString(),
   };
 }

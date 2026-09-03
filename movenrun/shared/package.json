@@ -9,6 +9,8 @@
     ".": "./src/index.ts",
     "./h3": "./src/domain/h3.ts",
     "./session": "./src/domain/session.ts",
+    "./geo": "./src/domain/geo.ts",
+    "./sealing": "./src/domain/sealing.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

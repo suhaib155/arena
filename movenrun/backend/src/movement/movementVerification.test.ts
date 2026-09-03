@@ -371,10 +371,23 @@ test("HTTP: the response carries no chain artefact, no wallet, and no anti-cheat
     const json = await res.json();
     assert.deepEqual(
       Object.keys(json).sort(),
-      ["distanceMeters", "durationSeconds", "rejectionReasons", "sessionId", "status", "traversedHexIds", "verifiedAt"],
+      [
+        "distanceMeters", "durationSeconds", "rejectionReasons", "sealCount",
+        "sealMethods", "sealed", "sessionId", "status", "traversedHexIds",
+        "verifiedAt",
+      ],
     );
     for (const leaked of ["oracleSig", "routeHash", "walletAddress", "userId", "confidence", "capturedZones", "xp", "owner"]) {
       assert.ok(!(leaked in json), `response leaked ${leaked}`);
+    }
+    /* The three seal fields say whether, how and how many. Anything that would
+       say WHERE stays on the server: the phone still holds its own route while
+       it shows the summary, so it never needs to be told. */
+    for (const located of [
+      "sealEvents", "intersection", "sealPolygon", "sealGeometry", "startIndex",
+      "endIndex", "closure", "sealStart", "sealFinish",
+    ]) {
+      assert.ok(!(located in json), `response leaked seal geometry: ${located}`);
     }
   });
 });

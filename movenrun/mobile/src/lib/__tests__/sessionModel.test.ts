@@ -534,7 +534,17 @@ test("no screen renders a session id or a rules version", () => {
       !/<Text[^>]*>\s*\{[^}]*rulesVersion[^}]*\}/.test(src),
       `${file} renders a rules version`,
     );
-    assert.ok(!/rulesVersion/.test(src), `${file} mentions rulesVersion in UI code at all`);
+    /* The blanket ban this used to be became wrong when the sealing preview
+       started needing the session's rules version to know which rules to read.
+       The invariant was never "the identifier is absent" — it was "the player
+       never sees it" — so the guard checks that instead: a rules version may be
+       passed to a function, and may not appear anywhere inside rendered JSX. */
+    for (const rendered of src.match(/>[^<>]*</g) ?? []) {
+      assert.ok(
+        !/rulesVersion|clientSessionId/.test(rendered),
+        `${file} renders a session id or rules version: ${rendered.trim()}`,
+      );
+    }
   }
 });
 
@@ -607,7 +617,7 @@ test("the tracker is started once, from a source that cannot change under it", (
      stopping the tracker — and the re-run would then be turned away by
      `requestStart`'s single-flight guard, leaving a session that still reads
      as active with nothing capturing it. */
-  const deps = screen.match(/tracker\.stop\(\);\s*\};\s*\},\s*\[([^\]]*)\]\);/);
+  const deps = screen.match(/tracker\.stop\(\);[\s\S]*?\};\s*\},\s*\[([^\]]*)\]\);/);
   assert.ok(deps, "the start effect's dependency list was not found");
   assert.equal(
     deps![1].trim(),

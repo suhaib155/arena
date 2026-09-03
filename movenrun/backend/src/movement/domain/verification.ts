@@ -10,6 +10,7 @@
  * No I/O, no clock of its own (`now` is injected), no randomness.
  */
 import { sessionMetadataProblems } from "@movenrun/shared/session";
+import { evaluateSealing } from "@movenrun/shared/sealing";
 
 import type {
   MovementObservation,
@@ -140,6 +141,7 @@ export function verifyMovement(
       traversedHexIds: [],
       confidence: null,
       rejectionReasons: structural,
+      sealEvaluation: null,
     };
   }
 
@@ -154,6 +156,7 @@ export function verifyMovement(
       traversedHexIds: [],
       confidence: anomaly.confidence,
       rejectionReasons: anomaly.reasons,
+      sealEvaluation: null,
     };
   }
 
@@ -164,5 +167,39 @@ export function verifyMovement(
     traversedHexIds: deps.traversedHexIds(observation.points),
     confidence: anomaly.confidence,
     rejectionReasons: [],
+    sealEvaluation: sealFor(observation),
   };
+}
+
+/**
+ * Seal the accepted route — and only an accepted one.
+ *
+ * Placed after the anomaly check on purpose. A rejected route is one the server
+ * does not believe happened, and a loop closed inside a route that did not
+ * happen is not a loop; running sealing first would produce an authoritative
+ * answer about evidence that had just been refused.
+ *
+ * Absent provenance means no seal rather than a seal under today's rules. The
+ * rules version says which interpretation applies, and a submission from before
+ * the session model carries none — inventing one would score a session under
+ * rules that did not exist when it ran.
+ *
+ * `heldCells` is deliberately **null**: finishing on ground you already hold is
+ * a real method and the domain implements it fully, but it needs a trusted
+ * held-cell set, and no server-authoritative territory exists to supply one.
+ * Null means "nobody who can be believed has been asked", which the engine
+ * reports as unavailable rather than as a failed seal. It is not the client's
+ * to supply — a client that could name its own held ground could seal at will.
+ */
+function sealFor(observation: MovementObservation) {
+  if (!observation.session) return null;
+  return evaluateSealing({
+    session: observation.session,
+    points: observation.points.map((p) => ({
+      latitude: p.lat,
+      longitude: p.lng,
+      timestamp: p.timestamp,
+    })),
+    heldCells: null,
+  });
 }

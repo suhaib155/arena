@@ -9,6 +9,7 @@
  * `RouteHashConflictError` and identity's `UniqueConstraintError`.
  */
 import type { MovementMode } from "@movenrun/shared/session";
+import type { SealMethod } from "@movenrun/shared/sealing";
 
 import type { MovementVerificationStatus } from "../domain/types.js";
 
@@ -42,6 +43,23 @@ export interface MovementVerificationRecord {
    *  are what later interpretation needs, and the individual pause timestamps
    *  would be a finer-grained record of when someone stood still. */
   pausedMs: number | null;
+  /**
+   * Sealing, as the engine concluded it — the summary only.
+   *
+   * NULL across all three means the row was never evaluated: it predates the
+   * sealing engine, or it carried no provenance to interpret, or the session
+   * was rejected. `false` is a different statement: the route was evaluated and
+   * did not close, which is an ordinary outcome and not a failure.
+   *
+   * There is deliberately no column for where a loop closed. An intersection
+   * coordinate, a polygon or a route index would be a finer-grained record of
+   * the player's movement than this table has ever kept, and the territory work
+   * that needs the geometry can recompute it from the route the client still
+   * holds.
+   */
+  sealed: boolean | null;
+  sealMethods: SealMethod[] | null;
+  sealEventCount: number | null;
   createdAt: Date;
 }
 

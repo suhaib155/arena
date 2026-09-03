@@ -466,9 +466,22 @@ test("a verified session grants nothing, metadata or not", async () => {
   });
   for (const forbidden of [
     "owner", "owned", "capturedCells", "captured", "zones", "zoneIds", "solid", "shade",
-    "sealed", "strength", "deed", "holder", "xp", "credits",
+    "strength", "deed", "holder", "xp", "credits",
   ]) {
     assert.ok(!(forbidden in record), `the verification record leaked ${forbidden}`);
   }
   assert.deepEqual(record.traversedHexIds, ["8860145b49fffff"]);
+  /* The record now carries a seal summary, and `sealed` left the list above
+     because a closed loop is not a grant. What must stay true is that the
+     summary is a summary: whether, how, and how many — never where. */
+  assert.deepEqual(
+    Object.keys(record).filter((k) => k.toLowerCase().startsWith("seal")).sort(),
+    ["sealEventCount", "sealMethods", "sealed"],
+  );
+  for (const absent of [
+    "sealPolygon", "sealGeometry", "sealEvents", "intersection", "sealStart", "sealEnd",
+    "sealIndices", "sealCoordinates",
+  ]) {
+    assert.ok(!(absent in record), `the record kept seal geometry: ${absent}`);
+  }
 });

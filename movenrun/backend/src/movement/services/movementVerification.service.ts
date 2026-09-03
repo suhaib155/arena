@@ -7,7 +7,7 @@
  * server-derived.
  */
 import { verifyMovement, type VerifyMovementDeps } from "../domain/verification.js";
-import type { MovementObservation } from "../domain/types.js";
+import { toSealSummary, type MovementObservation, type MovementVerificationResult } from "../domain/types.js";
 import { sameSessionMetadata, type SessionMetadata } from "@movenrun/shared/session";
 
 import {
@@ -81,6 +81,7 @@ export class MovementVerificationService {
         startTime: input.observation.startTime,
         endTime: input.observation.endTime,
         ...sessionColumns(input.observation.session),
+        ...sealColumns(result),
       });
       return { record, created: true };
     } catch (err) {
@@ -139,6 +140,33 @@ function sessionColumns(session: SessionMetadata | undefined): {
     startedAt: session.startedAt,
     finishedAt: session.finishedAt,
     pausedMs: paused,
+  };
+}
+
+/**
+ * Flatten the transient seal evaluation into the three columns the row keeps.
+ *
+ * The evaluation that arrives here carries the route slice each closure covers.
+ * None of that is written: what is stored is whether the route closed, how, and
+ * how many times. The slices existed to be handed to territory logic, which
+ * does not exist yet, and keeping them would mean holding a record of where a
+ * player's loops closed for no live reader.
+ *
+ * All three NULL when the engine did not run — a rejected session, or one with
+ * no provenance to interpret. `sealed = false` is the different, positive
+ * statement that the route was evaluated and stayed open.
+ */
+function sealColumns(result: MovementVerificationResult): {
+  sealed: MovementVerificationRecord["sealed"];
+  sealMethods: MovementVerificationRecord["sealMethods"];
+  sealEventCount: number | null;
+} {
+  const summary = toSealSummary(result.sealEvaluation);
+  if (!summary) return { sealed: null, sealMethods: null, sealEventCount: null };
+  return {
+    sealed: summary.sealed,
+    sealMethods: summary.methods,
+    sealEventCount: summary.eventCount,
   };
 }
 
