@@ -353,7 +353,7 @@ export function upsertPending(
   queue: readonly PendingVerificationItem[],
   item: PendingVerificationItem,
 ): PendingVerificationItem[] {
-  const others = queue.filter((q) => q.clientSessionId !== item.clientSessionId);
+  const others = queue.filter((q) => q.clientSessionId !== item.clientSessionId || q.ownerUserId !== item.ownerUserId);
   const next = [...others, item];
   if (next.length <= MAX_PENDING_ITEMS) return next;
   return [...next]

@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -123,9 +123,13 @@ export default function ProfileScreen() {
     tapFeedback();
     router.navigate(path);
   };
-  const onReset = () => {
+  const onReset = async () => {
     tapFeedback();
-    reset();
+    try {
+      await reset();
+    } catch {
+      Alert.alert("Reset incomplete", "Saved route data could not be cleared. Please try again.");
+    }
   };
 
   return (

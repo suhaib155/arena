@@ -13,6 +13,7 @@ import type { TrackPoint } from "@/lib/geo";
 import type { TrackingGap } from "@/lib/trackPoints";
 import type { TrackerMode } from "./moveTracker";
 import { INITIAL_VERIFICATION, type VerificationState } from "@/lib/movementVerification";
+import { onVerificationPrivacyReset, captureVerificationScope, isVerificationScopeCurrent, type VerificationScope } from "./verificationPrivacy";
 
 export interface FinishedSession {
   /**
@@ -65,6 +66,13 @@ export interface FinishedSession {
 }
 
 let last: FinishedSession | null = null;
+const sessionScopes = new WeakMap<FinishedSession, VerificationScope>();
+
+/** A screen retaining the old object after sign-out cannot enrol it again. */
+export function isSessionPrivacyCurrent(session: FinishedSession): boolean {
+  const scope = sessionScopes.get(session);
+  return scope === undefined || isVerificationScopeCurrent(scope);
+}
 
 /**
  * Verification state for the session in `last`, held beside it rather than in
@@ -90,6 +98,7 @@ function publishVerification(): void {
 }
 
 export function setLastSession(session: FinishedSession): void {
+  sessionScopes.set(session, captureVerificationScope(null));
   last = session;
   lastVerification = INITIAL_VERIFICATION;
   publishVerification();
@@ -121,6 +130,8 @@ export function clearLastSession(): void {
   lastVerification = INITIAL_VERIFICATION;
   publishVerification();
 }
+
+onVerificationPrivacyReset(clearLastSession);
 
 /**
  * XP preview for a session: 60 XP per km + 3 XP per minute, floored at 25 and
