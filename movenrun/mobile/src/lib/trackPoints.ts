@@ -130,5 +130,5 @@ export function gapNotice(summary: GapSummary): string | null {
   if (summary.count === 0) return null;
   const minutes = Math.max(1, Math.round(summary.totalMs / 60_000));
   const spans = summary.count === 1 ? "once" : `${summary.count} times`;
-  return `Tracking paused ${spans} while the app was in the background — about ${minutes} min of this route wasn't recorded.`;
+  return `Location tracking was interrupted ${spans} — about ${minutes} min of this route wasn't recorded.`;
 }
