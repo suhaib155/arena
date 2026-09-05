@@ -29,11 +29,11 @@
  * nobody should be moving unsafely to close one.
  */
 import { haversineMeters } from "@movenrun/shared/geo";
+import { createCanonicalEvidence, type EvidenceStatus, type CanonicalEvidence } from "@movenrun/shared/evidence";
 import {
-  createSealScanner,
   evaluateSealing,
   sealingRulesFor,
-  type SealScanner,
+  type PauseSource,
   type SealingRules,
 } from "@movenrun/shared/sealing";
 import type { PauseInterval, SessionMetadata } from "@movenrun/shared/session";
@@ -59,6 +59,11 @@ export interface SealPreviewTracker {
    */
   push(point: TrackPoint): boolean;
   readonly preview: SealPreview;
+  snapshot(): TrackPoint[];
+  clear(): void;
+  readonly evidenceStatus: EvidenceStatus;
+  readonly distanceMeters: number;
+  readonly evidenceStats: CanonicalEvidence<TrackPoint>["stats"];
 }
 
 /**
@@ -70,15 +75,15 @@ export interface SealPreviewTracker {
  */
 export function createSealPreview(
   rulesVersion: number,
-  pauses: readonly PauseInterval[] = [],
+  pauses: PauseSource = [],
 ): SealPreviewTracker | null {
   const rules = sealingRulesFor(rulesVersion);
   if (rules === null) return null;
   return tracker(rules, pauses);
 }
 
-function tracker(rules: SealingRules, pauses: readonly PauseInterval[]): SealPreviewTracker {
-  const scanner: SealScanner = createSealScanner(rules, pauses);
+function tracker(rules: SealingRules, pauses: PauseSource): SealPreviewTracker {
+  const evidence = createCanonicalEvidence<TrackPoint>(rules, pauses);
   let first: TrackPoint | null = null;
   let sealedLoops = 0;
   let nearStart = false;
@@ -89,8 +94,10 @@ function tracker(rules: SealingRules, pauses: readonly PauseInterval[]): SealPre
 
   return {
     push(point: TrackPoint): boolean {
-      const closed = scanner.push(point).length > 0;
-      if (closed) sealedLoops = scanner.events.length;
+      const result = evidence.push(point);
+      const closed = result.closed;
+      if (closed) sealedLoops = evidence.events.length;
+      if (!result.represented) { nearStart = false; return false; }
       if (first === null) {
         first = point;
         return closed;
@@ -103,6 +110,11 @@ function tracker(rules: SealingRules, pauses: readonly PauseInterval[]): SealPre
     get preview(): SealPreview {
       return { sealedLoops, nearStart };
     },
+    snapshot: () => evidence.snapshot(),
+    clear() { evidence.clear(); first = null; sealedLoops = 0; nearStart = false; },
+    get evidenceStatus() { return evidence.status; },
+    get distanceMeters() { return evidence.distanceMeters; },
+    get evidenceStats() { return evidence.stats; },
   };
 }
 
@@ -174,6 +186,7 @@ export const UNSEALED: FinishedSeal = { sealed: false, loops: 0, cameHome: false
 export function sealFinishedRoute(finished: {
   points: readonly TrackPoint[];
   session?: SessionMetadata;
+  evidenceStatus?: EvidenceStatus;
 }): FinishedSeal | null {
   if (!finished.session) return null;
   const evaluation = evaluateSealing({
@@ -182,10 +195,12 @@ export function sealFinishedRoute(finished: {
     heldCells: null,
   });
   if (evaluation.status !== "evaluated") return null;
+  const loops = evaluation.events.filter((e) => e.method === "self_cross").length;
+  const cameHome = finished.evidenceStatus !== "capacity_limited" && evaluation.methods.includes("return_to_start");
   return {
-    sealed: evaluation.events.length > 0,
-    loops: evaluation.events.filter((e) => e.method === "self_cross").length,
-    cameHome: evaluation.methods.includes("return_to_start"),
+    sealed: loops > 0 || cameHome,
+    loops,
+    cameHome,
   };
 }
 

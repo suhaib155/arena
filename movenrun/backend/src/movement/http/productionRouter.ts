@@ -9,6 +9,7 @@
  * Nothing here opens a DB connection at import time: getDb() is lazy.
  */
 import type { Router } from "express";
+import { hasEvidenceBreak } from "@movenrun/shared/evidence";
 import { getDb } from "../../db/client.js";
 import { getIdentityConfig } from "../../identity/config.js";
 import { getProviderConfig } from "../../identity/providerConfig.js";
@@ -26,12 +27,21 @@ import type { MovementObservation, ObservedPoint } from "../domain/types.js";
  *  are read by validateRoute and calculateDistance, so the chain-specific
  *  fields are filled with inert placeholders — the same adapter approach
  *  workers/gps.worker.ts uses. No wallet is involved or invented. */
-function toValidatable(observation: MovementObservation) {
+export function toValidatable(observation: MovementObservation) {
   return {
     id: "",
     userId: "",
     walletAddress: "",
-    points: observation.points,
+    points: observation.points.map((point, index) => {
+      const previous = observation.points[index - 1];
+      if (!previous) return point;
+      const broken = hasEvidenceBreak(
+        { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp },
+        { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, breakBefore: point.breakBefore },
+        observation.session?.pauses,
+      );
+      return broken ? { ...point, breakBefore: true } : point;
+    }),
     startTime: observation.startTime,
     endTime: observation.endTime,
     distanceMeters: 0,

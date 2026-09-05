@@ -239,6 +239,7 @@ test("an ineligible session makes no request at all", async () => {
     { mode: "demo" as const },
     { distanceM: 10, durationMs: 1_000 },
     { points: [points()[0]] },
+    { evidenceStatus: "capacity_limited" as const },
   ]) {
     __resetInFlight();
     const s = session(over);

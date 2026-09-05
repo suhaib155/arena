@@ -105,6 +105,7 @@ export default function MoveSummaryScreen() {
   const lockedMoveDelta = lockedMovePreview(totalXp + xp) - lockedMovePreview(totalXp);
   const pace = formatPace(session.distanceM, session.durationMs);
   const saveable = session.mode === "gps" && isSaveable(session.distanceM, session.durationMs);
+  const evidenceComplete = session.evidenceStatus !== "capacity_limited";
 
   /* Territory touched — the real H3 resolution-8 cells this route passed
      through, derived from the in-memory route through the same shared domain
@@ -144,7 +145,7 @@ export default function MoveSummaryScreen() {
    * server has agreed to, and it stays that.
    */
   const captureEligible =
-    saveable && !alreadySavedToday && candidate !== null && seal?.sealed === true;
+    saveable && evidenceComplete && !alreadySavedToday && candidate !== null && seal?.sealed === true;
 
   /* Truthful completion state — the reward block only shows when there is a
      real reward to bank, and is always tagged local preview (never confirmed
@@ -210,13 +211,13 @@ export default function MoveSummaryScreen() {
     if (trust) setRouteTrust(trust.score, trust.label);
     successFeedback();
     /* Movement defend: the route touched zones you already own. */
-    const defendedCount = defendZones(ownedTouched.map((t) => t.id));
+    const defendedCount = evidenceComplete ? defendZones(ownedTouched.map((t) => t.id)) : 0;
     /* One common zone per saved session (and saves are once per day).
        New capture takes priority for the result moment; defended zones are
        reported alongside it. */
     let captured = false;
     let capturedId: string | null = null;
-    if (candidate && seal?.sealed === true) {
+    if (candidate && evidenceComplete && seal?.sealed === true) {
       const outcome = captureZone(newCapturedZone(candidate, false));
       captured = outcome.captured;
       if (outcome.captured) capturedId = outcome.zone.id;
@@ -274,6 +275,16 @@ export default function MoveSummaryScreen() {
           <View style={styles.gapNotice}>
             <Ionicons name="alert-circle-outline" size={16} color={palette.moveGold} />
             <Text style={styles.gapText}>{gaps}</Text>
+          </View>
+        ) : null}
+        {!evidenceComplete ? (
+          <View style={styles.gapNotice}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.textDim} />
+            <Text style={styles.gapText}>
+              Your workout continued. The full route could not be retained, so this map shows
+              the recorded section. Earlier loop previews remain; this workout cannot capture
+              or strengthen territory and will be saved locally without a server route check.
+            </Text>
           </View>
         ) : null}
 
@@ -395,7 +406,7 @@ export default function MoveSummaryScreen() {
               <Text style={styles.zoneEmpty}>All touched zones are already yours.</Text>
             ) : null}
 
-            {ownedTouched.length > 0 && session.mode === "gps" ? (
+            {ownedTouched.length > 0 && session.mode === "gps" && evidenceComplete ? (
               <Text style={styles.defendHint}>
                 {ownedTouched.length} of yours touched — defense refreshes when you
                 save.
@@ -515,7 +526,7 @@ export default function MoveSummaryScreen() {
                 Saving is what sends the route, so this is where the user finds
                 out — and it is shown only when signed in, because a local-beta
                 save genuinely uploads nothing. */}
-            {accountId ? (
+            {accountId && evidenceComplete ? (
               <Text style={styles.uploadNote}>
                 Saving sends this session&apos;s route to MovenRun to verify the distance.
               </Text>

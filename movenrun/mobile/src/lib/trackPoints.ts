@@ -1,5 +1,5 @@
 /**
- * Route point buffering and tracking-gap accounting.
+ * Display point buffering and tracking-gap accounting.
  *
  * Two problems live here, both from the live session screen.
  *
@@ -13,8 +13,8 @@
  * `pushPoint` mutates in place (O(1) amortised) and decimates when full, so
  * memory is bounded no matter how long the session runs. Decimation keeps every
  * other point, which halves resolution uniformly rather than dropping the start
- * of the route — the shape survives, and distance is accumulated incrementally
- * as fixes arrive, so it is never recomputed from the thinned buffer.
+ * of the route. This is only a drawing approximation: sealing, measurement,
+ * submission and summary consume the separate bounded canonical evidence store.
  *
  * ## 2. A tracking gap is not the same as standing still
  *
@@ -31,7 +31,7 @@
  */
 import type { TrackPoint } from "./geo";
 
-/** Hard cap on retained fixes. Above this the buffer decimates. */
+/** Display-only budget. This buffer must never be used as canonical evidence. */
 export const MAX_STORED_POINTS = 2048;
 
 /** Redraw the on-screen route every N accepted points rather than every point.

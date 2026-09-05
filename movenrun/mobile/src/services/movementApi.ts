@@ -30,6 +30,7 @@ import type { AuthedJsonTransport } from "./authedTransport";
 
 /** One raw device observation. Exactly the fields the server accepts. */
 export interface ObservedPoint {
+  breakBefore?: boolean;
   lat: number;
   lng: number;
   /** Reported horizontal accuracy in metres. */
@@ -84,7 +85,7 @@ function serializeRequest(request: SubmitMovementRequest): {
   sessionId: string;
   startTime: number;
   endTime: number;
-  points: { lat: number; lng: number; accuracy: number; timestamp: number }[];
+  points: { lat: number; lng: number; accuracy: number; timestamp: number; breakBefore?: boolean }[];
   session?: {
     mode: string;
     rulesVersion: number;
@@ -102,6 +103,7 @@ function serializeRequest(request: SubmitMovementRequest): {
       lng: p.lng,
       accuracy: p.accuracy,
       timestamp: p.timestamp,
+      ...(p.breakBefore === true ? { breakBefore: true } : {}),
     })),
   };
   if (!request.session) return body;

@@ -152,7 +152,7 @@ test("the save action tells the user what saving does, where saving happens", ()
   const note = summary.slice(summary.indexOf("uploadNote"));
   assert.match(
     summary.slice(0, summary.indexOf("Saving sends this session")),
-    /accountId \?/,
+    /accountId && evidenceComplete \?/,
     "the notice must be gated on an authenticated account",
   );
   assert.ok(note.length > 0);

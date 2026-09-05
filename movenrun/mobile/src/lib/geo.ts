@@ -5,6 +5,8 @@
  */
 
 export interface TrackPoint {
+  /** Missing foreground continuity before this observation. */
+  breakBefore?: boolean;
   latitude: number;
   longitude: number;
   /** ms epoch when the fix arrived. */

@@ -14,6 +14,12 @@ import type { MovementObservation } from "../domain/types.js";
 import { InMemoryMovementVerificationRepository } from "../repositories/interfaces.js";
 import { MovementVerificationService } from "../services/movementVerification.service.js";
 import { createMovementRouter } from "./router.js";
+import { toValidatable } from "./productionRouter.js";
+import { createSealPreview } from "../../../../mobile/src/lib/sealPreview.js";
+import { toSubmission } from "../../../../mobile/src/lib/movementVerification.js";
+import { MovementApiClient } from "../../../../mobile/src/services/movementApi.js";
+import { AuthedJsonTransport } from "../../../../mobile/src/services/authedTransport.js";
+import { evaluateSealing } from "@movenrun/shared/sealing";
 
 const T0 = 1_756_000_000_000;
 const OFFSETS = [
@@ -51,13 +57,10 @@ function harness() {
   const service = new MovementVerificationService({
     repository,
     generateId: () => `verification-${++nextId}`,
-    now: () => T0 + 300_000,
+    now: () => T0 + 24 * 60 * 60_000,
     detectAnomalies: (observation) => {
       measured.push(observation);
-      return gps.validateRoute({
-        id: "", userId: "", walletAddress: "", distanceMeters: 0,
-        hexIds: [], status: RouteStatus.Processing, ...observation,
-      });
+      return gps.validateRoute(toValidatable(observation) as never);
     },
     calculateDistance: (points) => gps.calculateDistance(points),
     traversedHexIds: (points) => hex.getHexIdsForPoints(points),
@@ -127,6 +130,73 @@ test("HTTP provenance: the same route seals through the router and direct servic
     }
   });
 });
+
+for (const count of [2049, 5000, 10000]) {
+  test(`canonical ${count}-fix route crosses real mobile serialization and HTTP unchanged`, async () => {
+    await withServer(async (base, { repository, measured }) => {
+      const preview = createSealPreview(1)!;
+      for (let i = 0; i < count; i++) {
+        const [east, north] = i < OFFSETS.length ? OFFSETS[i]! : [-60 - (i - 11) * 3, 30];
+        preview.push({ latitude: 12.9716 + north / 111320,
+          longitude: 77.5946 + east / (111320 * Math.cos(12.9716 * Math.PI / 180)),
+          accuracy: 8, timestamp: T0 + Math.min(i, 11) * 10000 + Math.max(0, i - 11) * 4000 });
+      }
+      const points = preview.snapshot();
+      const session = { mode: "onFoot" as const, rulesVersion: 1, startedAt: T0,
+        finishedAt: points[points.length - 1]!.timestamp + 1000, pauses: [] };
+      const evidence = toSubmission({ points, session, durationMs: session.finishedAt - T0,
+        finishedAt: session.finishedAt });
+      const transport = new AuthedJsonTransport({ baseUrl: base.replace("/movement/verify", ""),
+        loadAccessToken: async () => "user-a-token", performRefresh: async () => ({ kind: "rejected" }),
+        error: (_status, code) => new Error(code) });
+      const client = new MovementApiClient(transport);
+      const sessionId = `canonical-http-${count}`;
+      const request = { sessionId, ...evidence.observations, session };
+      const result = await client.submit(request);
+      assert.equal(result.verification.status, "verified");
+      assert.equal(result.verification.distanceMeters, Math.round(preview.distanceMeters));
+      assert.deepEqual(measured[0], { ...evidence.observations, session });
+      const final = evaluateSealing({ session, points });
+      assert.equal(final.events.filter((event) => event.method === "self_cross").length, preview.preview.sealedLoops);
+      const record = await repository.findByUserSession("user-a", sessionId);
+      assert.equal(record?.sealEventCount, final.events.length);
+      const replay = await client.submit(request);
+      assert.equal(replay.replayed, true);
+      assert.deepEqual(replay.verification, result.verification);
+    });
+  });
+}
+
+for (const reason of ["pause", "gap"] as const) {
+  test(`${reason} segment is absent from mobile distance and real HTTP sealing/measurement`, async () => {
+    await withServer(async (base, { repository, measured }) => {
+      const session = { mode: "onFoot" as const, rulesVersion: 1, startedAt: T0,
+        finishedAt: T0 + 130000,
+        pauses: reason === "pause" ? [{ startedAt: T0 + 91000, endedAt: T0 + 99000 }] : [] };
+      const preview = createSealPreview(1, () => session.pauses)!;
+      OFFSETS.forEach(([east, north], index) => preview.push({
+        latitude: 12.9716 + north / 111320,
+        longitude: 77.5946 + east / (111320 * Math.cos(12.9716 * Math.PI / 180)),
+        accuracy: 8, timestamp: T0 + index * 10000,
+        ...(reason === "gap" && index === 10 ? { breakBefore: true } : {}),
+      }));
+      const evidence = toSubmission({ points: preview.snapshot(), session, durationMs: 130000,
+        finishedAt: session.finishedAt });
+      const transport = new AuthedJsonTransport({ baseUrl: base.replace("/movement/verify", ""),
+        loadAccessToken: async () => "user-a-token", performRefresh: async () => ({ kind: "rejected" }),
+        error: (_status, code) => new Error(code) });
+      const result = await new MovementApiClient(transport).submit({
+        sessionId: `canonical-break-${reason}`, ...evidence.observations, session,
+      });
+      assert.equal(result.verification.status, "verified");
+      assert.equal(result.verification.distanceMeters, Math.round(preview.distanceMeters));
+      assert.deepEqual(measured[0].points, evidence.observations.points);
+      const record = await repository.findByUserSession("user-a", `canonical-break-${reason}`);
+      assert.deepEqual(record?.sealMethods, ["return_to_start"]);
+      assert.equal(preview.preview.sealedLoops, 0);
+    });
+  });
+}
 
 test("HTTP provenance: pause timestamps reach sealing without reconstruction", async () => {
   await withServer(async (base) => {

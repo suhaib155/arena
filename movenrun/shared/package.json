@@ -11,6 +11,7 @@
     "./session": "./src/domain/session.ts",
     "./geo": "./src/domain/geo.ts",
     "./sealing": "./src/domain/sealing.ts",
+    "./evidence": "./src/domain/evidence.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

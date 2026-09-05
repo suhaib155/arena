@@ -18,6 +18,8 @@ export type MovementVerificationStatus = "verified" | "rejected";
 
 /** One raw observation from the device. Everything here is untrusted input. */
 export interface ObservedPoint {
+  /** Missing foreground continuity, not a client sealing outcome. */
+  breakBefore?: boolean;
   lat: number;
   lng: number;
   /** Reported horizontal accuracy in metres. */
