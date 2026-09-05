@@ -10,12 +10,13 @@ import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
 import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
-  acceptPoint,
   formatDistance,
   formatDuration,
   formatPace,
   type TrackPoint,
 } from "@/lib/geo";
+import { inspectFix, type FixDecision } from "@movenrun/shared/measurement";
+import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
 import { createTracker, type TrackerMode } from "@/services/moveTracker";
 import {
   pushPoint,
@@ -78,6 +79,7 @@ export default function MoveSessionScreen() {
   /** Mutated in place — appending must not copy the whole route per fix. */
   const pointsRef = useRef<TrackPoint[]>([]);
   const acceptedRef = useRef(0);
+  const lastFixTimestampRef = useRef(0);
   const distanceRef = useRef(0);
   /** Spans where the app was backgrounded and no fixes arrived. */
   const gapsRef = useRef<TrackingGap[]>([]);
@@ -128,6 +130,7 @@ export default function MoveSessionScreen() {
     const requested = requestStart(lifecycleRef.current);
     if (requested.outcome !== "ok") return;
     apply(requested.lifecycle);
+    distanceDiagnostics.reset();
 
     let cancelled = false;
     const tracker = createTracker(evidenceSourceRef.current);
@@ -140,8 +143,19 @@ export default function MoveSessionScreen() {
         if (backgroundedAtRef.current !== null) return;
         if (p.accuracy != null && p.accuracy > 25) setGpsState("weak");
         else setGpsState("locked");
-        const prev = pointsRef.current[pointsRef.current.length - 1] ?? null;
-        if (!acceptPoint(prev, p)) return;
+        const prev = continuityBrokenRef.current ? null : pointsRef.current[pointsRef.current.length - 1] ?? null;
+        const now = Date.now();
+        const decision: FixDecision = p.timestamp <= lastFixTimestampRef.current ||
+          p.timestamp < (lifecycleRef.current.startedAt ?? now)
+          ? { accepted: false, reason: "non_increasing_time", segmentMeters: 0 }
+          : inspectFix(prev, p, now);
+        if (Number.isFinite(p.timestamp) && p.timestamp <= now) {
+          lastFixTimestampRef.current = Math.max(lastFixTimestampRef.current, p.timestamp);
+        }
+        if (!decision.accepted) {
+          distanceDiagnostics.record(p, decision, distanceRef.current, previewRef.current?.evidenceStats.retained ?? 0);
+          return;
+        }
         if (continuityBrokenRef.current) {
           p = { ...p, breakBefore: true };
           continuityBrokenRef.current = false;
@@ -156,6 +170,7 @@ export default function MoveSessionScreen() {
         const closed = previewRef.current?.push(p) ?? false;
         distanceRef.current = previewRef.current?.distanceMeters ?? distanceRef.current;
         setDistanceM(distanceRef.current);
+        distanceDiagnostics.record(p, decision, distanceRef.current, previewRef.current?.evidenceStats.retained ?? 0);
         const next = previewRef.current?.preview ?? EMPTY_PREVIEW;
         setPreview((current) => {
           const announcement = sealPreviewAnnouncement(current, next);
@@ -185,6 +200,7 @@ export default function MoveSessionScreen() {
           at: Date.now(),
         });
         if (started.outcome !== "ok") return;
+        distanceDiagnostics.bind(started.lifecycle.clientSessionId);
         /* Built here and nowhere earlier: a preview needs a session, and the
            session's own rules version is what decides how sealing is read. The
            pause list handed over is the lifecycle's live array, so a pause
@@ -260,6 +276,7 @@ export default function MoveSessionScreen() {
         ? resumeLifecycle(current, Date.now())
         : pauseLifecycle(current, Date.now());
     if (next.outcome !== "ok") return;
+    if (next.lifecycle.state === "active") continuityBrokenRef.current = true;
     tapFeedback();
     apply(next.lifecycle);
   }, [apply]);

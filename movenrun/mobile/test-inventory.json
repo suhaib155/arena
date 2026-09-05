@@ -10,6 +10,7 @@
     "src/lib/__tests__/completionSummary.test.ts",
     "src/lib/__tests__/deedsView.test.ts",
     "src/lib/__tests__/designSystem.test.ts",
+    "src/lib/__tests__/distanceIntegrity.test.ts",
     "src/lib/__tests__/emailAuth.test.ts",
     "src/lib/__tests__/firstRun.test.ts",
     "src/lib/__tests__/firstRunGuards.test.ts",

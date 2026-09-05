@@ -9,6 +9,7 @@
  *
  * No I/O, no clock of its own (`now` is injected), no randomness.
  */
+import { inspectFix } from "@movenrun/shared/measurement";
 import { sessionMetadataProblems } from "@movenrun/shared/session";
 import { evaluateSealing } from "@movenrun/shared/sealing";
 import { hasEvidenceBreak } from "@movenrun/shared/evidence";
@@ -147,7 +148,12 @@ export function verifyMovement(
   }
 
   const anomaly = deps.detectAnomalies(observation);
-  const durationSeconds = Math.round((observation.endTime - observation.startTime) / 1000);
+  const quality = onFootQualityProblems(observation);
+  const durationSeconds = observedDurationSeconds(observation);
+  if (quality.length > 0) {
+    return { status: "rejected", distanceMeters: null, durationSeconds,
+      traversedHexIds: [], confidence: null, rejectionReasons: quality, sealEvaluation: null };
+  }
 
   if (anomaly.isAnomaly) {
     return {
@@ -220,4 +226,41 @@ function distanceFor(observation: MovementObservation, deps: VerifyMovementDeps)
     stretches[stretches.length - 1]!.push(point);
   }
   return stretches.reduce((total, stretch) => total + (stretch.length > 1 ? deps.calculateDistance(stretch) : 0), 0);
+}
+
+/** Current V3 on-foot quality policy, separate from gameplay/sealing rules.
+ * Reject incoherent evidence; never silently change the route that was sealed.
+ * Legacy absence remains legacy rather than inventing a movement mode.
+ */
+function onFootQualityProblems(observation: MovementObservation): string[] {
+  if (!observation.session) return [];
+  for (let i = 0; i < observation.points.length; i++) {
+    const point = observation.points[i]!;
+    const prior = observation.points[i - 1];
+    const current = { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp,
+      accuracy: point.accuracy, breakBefore: point.breakBefore };
+    const previous = prior ? { latitude: prior.lat, longitude: prior.lng,
+      timestamp: prior.timestamp, accuracy: prior.accuracy } : null;
+    const broken = previous && hasEvidenceBreak(previous, current, observation.session.pauses);
+    const decision = inspectFix(broken ? null : previous, current);
+    if (!decision.accepted) return ["Route measurement quality needs review"];
+  }
+  return [];
+}
+
+/** Observation coverage, not declared wall-clock time. A pause/background
+ * span contributes neither a guessed segment nor an invented active duration.
+ * Sparse timestamps still cannot prove continuous human movement.
+ */
+function observedDurationSeconds(observation: MovementObservation): number {
+  let milliseconds = 0;
+  for (let i = 1; i < observation.points.length; i++) {
+    const previous = observation.points[i - 1]!, point = observation.points[i]!;
+    if (!hasEvidenceBreak(
+      { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp },
+      { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, breakBefore: point.breakBefore },
+      observation.session?.pauses,
+    )) milliseconds += Math.max(0, point.timestamp - previous.timestamp);
+  }
+  return Math.round(milliseconds / 1000);
 }

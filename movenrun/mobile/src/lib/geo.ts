@@ -4,6 +4,9 @@
  * does with a finished route is decided elsewhere (see services/verifySession.ts).
  */
 
+import { haversineMeters } from "@movenrun/shared/geo";
+import { inspectFix, ON_FOOT_POLICY } from "@movenrun/shared/measurement";
+
 export interface TrackPoint {
   /** Missing foreground continuity before this observation. */
   breakBefore?: boolean;
@@ -13,40 +16,19 @@ export interface TrackPoint {
   timestamp: number;
   /** Reported horizontal accuracy in meters (null when unknown). */
   accuracy: number | null;
+  /** Optional native speed in m/s, used only for measurement quality. */
+  speed?: number | null;
 }
 
-const EARTH_RADIUS_M = 6_371_000;
+/** Shared geodesic used by canonical evidence and server measurement. */
+export const distanceMeters = haversineMeters;
+export const MAX_ACCURACY_M = ON_FOOT_POLICY.maxAccuracyMeters;
+export const MAX_PLAUSIBLE_SPEED_MS = ON_FOOT_POLICY.maxSpeedMetersPerSecond;
+export const MIN_STEP_M = ON_FOOT_POLICY.minDisplacementMeters;
 
-/** Haversine distance between two points, in meters. */
-export function distanceMeters(a: TrackPoint, b: TrackPoint): number {
-  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
-  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
-  const la = (a.latitude * Math.PI) / 180;
-  const lb = (b.latitude * Math.PI) / 180;
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(la) * Math.cos(lb) * Math.sin(dLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-/** Accuracy worse than this is treated as a poor fix and dropped. */
-export const MAX_ACCURACY_M = 40;
-/** Jumps implying speed above this (m/s ≈ 43 km/h) are treated as GPS glitches. */
-export const MAX_PLAUSIBLE_SPEED_MS = 12;
-/** Ignore micro-jitter below this distance between accepted points. */
-export const MIN_STEP_M = 2;
-
-/**
- * Decide whether a new fix should extend the route. Filters poor accuracy,
- * teleport glitches, and standing-still jitter.
- */
+/** A noise fix never advances the distance anchor. */
 export function acceptPoint(prev: TrackPoint | null, next: TrackPoint): boolean {
-  if (next.accuracy != null && next.accuracy > MAX_ACCURACY_M) return false;
-  if (!prev) return true;
-  const d = distanceMeters(prev, next);
-  if (d < MIN_STEP_M) return false;
-  const dt = Math.max(0.5, (next.timestamp - prev.timestamp) / 1000);
-  if (d / dt > MAX_PLAUSIBLE_SPEED_MS) return false;
-  return true;
+  return inspectFix(prev, next).accepted;
 }
 
 /** Format meters as "0.0 km" / "320 m". */
