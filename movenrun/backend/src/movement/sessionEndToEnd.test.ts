@@ -20,6 +20,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import { once } from "node:events";
+import type { Server } from "node:http";
+import express from "express";
 
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -31,8 +35,14 @@ import { movementVerifications } from "../db/movement.schema.js";
 import { parseBody, submitMovementSchema } from "./http/validation.js";
 import { MovementVerificationService } from "./services/movementVerification.service.js";
 import { DrizzleMovementVerificationRepository } from "./repositories/drizzle/store.js";
-import { MovementSessionMetadataConflictError } from "./repositories/interfaces.js";
+import { MovementSessionMetadataConflictError, MovementSessionConflictError, type CreateMovementVerificationInput } from "./repositories/interfaces.js";
 import type { Db } from "../db/client.js";
+import { createMovementRouter } from "./http/router.js";
+import { GpsService } from "../services/gps.service.js";
+import { HexService } from "../services/hex.service.js";
+import { createDrizzleStores } from "../identity/repositories/drizzle/stores.js";
+import { createIdentityServices } from "../identity/http/wiring.js";
+import { resolveIdentityConfig } from "../identity/config.js";
 
 const DATABASE_URL = process.env.MOVENRUN_TEST_DATABASE_URL;
 const BACKEND = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -42,6 +52,11 @@ const SESSION_ID = "mv-e2e-abcdef12";
 
 let pool: pg.Pool | null = null;
 let db: Db | null = null;
+let httpServer: Server | undefined;
+let httpUrl: string;
+let accessA: string;
+let accessB: string;
+let httpUniqueConflicts = 0;
 
 /**
  * Build the schema by running the committed migrations in order, exactly as a
@@ -67,9 +82,65 @@ before(async () => {
   await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
   await migrate(pool);
   db = drizzle(pool) as unknown as Db;
+  const stores = createDrizzleStores(db);
+  const resolved = resolveIdentityConfig({ NODE_ENV: "test" }, { requireSecrets: false });
+  assert.ok(resolved.ok);
+  const identity = createIdentityServices(stores, resolved.config);
+  await stores.users.create({ id: "usr_http_a" });
+  await stores.users.create({ id: "usr_http_b" });
+  accessA = (await identity.sessions.issue({ userId: "usr_http_a", assuranceLevel: "aal1" })).accessToken;
+  accessB = (await identity.sessions.issue({ userId: "usr_http_b", assuranceLevel: "aal1" })).accessToken;
+  const gps = new GpsService();
+  const hex = new HexService();
+  let initialReads = 0;
+  let releaseReads!: () => void;
+  const readsReady = new Promise<void>((resolve) => { releaseReads = resolve; });
+  class HttpRepository extends DrizzleMovementVerificationRepository {
+    override async findByUserSession(userId: string, sessionId: string) {
+      const record = await super.findByUserSession(userId, sessionId);
+      if (sessionId === "mv-http-pg-concurrent" && !record) {
+        if (++initialReads === 8) releaseReads();
+        await readsReady;
+      }
+      return record;
+    }
+    override async create(input: CreateMovementVerificationInput) {
+      try { return await super.create(input); }
+      catch (error) {
+        if (input.clientSessionId === "mv-http-pg-concurrent" && error instanceof MovementSessionConflictError) httpUniqueConflicts++;
+        throw error;
+      }
+    }
+  }
+  const service = new MovementVerificationService({
+    repository: new HttpRepository(db),
+    generateId: randomUUID,
+    now: () => T0 + 300_000,
+    detectAnomalies: (observation) => gps.validateRoute({
+      ...observation, id: "", userId: "", walletAddress: "", distanceMeters: 0,
+      hexIds: [], status: "PROCESSING",
+    } as never),
+    calculateDistance: (points) => gps.calculateDistance(points as never),
+    traversedHexIds: (points) => hex.getHexIdsForPoints(points),
+  });
+  const app = express();
+  app.use(express.json());
+  app.use("/movement", createMovementRouter({
+    service,
+    verifyBearer: async (token) => ({ userId: (await identity.sessions.verifyAccess(token)).userId }),
+  }));
+  httpServer = app.listen(0, "127.0.0.1");
+  await once(httpServer, "listening");
+  const address = httpServer.address();
+  assert.ok(address && typeof address !== "string");
+  httpUrl = `http://127.0.0.1:${address.port}/movement/verify`;
 });
 
 after(async () => {
+  if (httpServer) {
+    httpServer.closeAllConnections();
+    await new Promise<void>((resolve, reject) => httpServer!.close((error) => error ? reject(error) : resolve()));
+  }
   await pool?.end();
 });
 
@@ -269,4 +340,140 @@ test("the PostgreSQL path was actually exercised", { skip }, async () => {
   assert.ok(db, "no database handle — the suite above proved nothing");
   const { rows } = await pool!.query("select version() as v");
   assert.match(rows[0].v, /PostgreSQL/);
+});
+
+// These requests cross the real router, session-token verifier, measurement,
+// sealing and Drizzle store. The earlier service tests intentionally remain
+// useful unit-of-integration coverage, but cannot prove the HTTP handoff.
+function httpBody(id: string, closed = false) {
+  const points = Array.from({ length: 11 }, (_, i) => ({
+    lat: 12.9716,
+    lng: 77.5946 + (closed && i > 5 ? 10 - i : i) * 0.0004,
+    accuracy: 8,
+    timestamp: T0 + 10_000 + i * 10_000,
+  }));
+  return {
+    sessionId: id,
+    startTime: points[0].timestamp,
+    endTime: points.at(-1)!.timestamp,
+    points,
+    session: {
+      mode: DEFAULT_MOVEMENT_MODE, rulesVersion: SESSION_RULES_VERSION,
+      startedAt: T0, finishedAt: T0 + 120_000,
+      pauses: [{ startedAt: T0 + 44_000, endedAt: T0 + 46_000 }],
+    },
+  };
+}
+
+async function postHttp(body: unknown, token = accessA) {
+  const response = await fetch(httpUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  return { status: response.status, body: await response.json() as Record<string, any> };
+}
+
+async function httpRows(id: string) {
+  return db!.select().from(movementVerifications).where(eq(movementVerifications.clientSessionId, id));
+}
+
+test("HTTP → bearer → PostgreSQL preserves provenance and evaluated open versus sealed", { skip }, async () => {
+  for (const closed of [false, true]) {
+    const request = httpBody(`mv-http-pg-${closed}`, closed);
+    const response = await postHttp(request);
+    assert.equal(response.status, 201);
+    assert.equal(response.body.status, "verified");
+    assert.equal(response.body.sealed, closed);
+    assert.deepEqual(response.body.sealMethods, closed ? ["return_to_start"] : []);
+    assert.equal(response.body.sealCount, closed ? 1 : 0);
+    const [row] = await httpRows(request.sessionId);
+    assert.equal(row.userId, "usr_http_a");
+    assert.equal(row.movementMode, "onFoot");
+    assert.equal(row.rulesVersion, SESSION_RULES_VERSION);
+    assert.equal(row.startedAt, request.session.startedAt);
+    assert.equal(row.finishedAt, request.session.finishedAt);
+    assert.equal(row.pausedMs, 2_000);
+    assert.equal(row.sealed, closed);
+    assert.equal(row.sealEventCount, response.body.sealCount);
+    assert.equal(row.distanceMeters, response.body.distanceMeters);
+    for (const value of [row, response.body]) {
+      assert.doesNotMatch(JSON.stringify(value), /12\.9716|77\.5946|"points"|"closure"|"capturedCells"|"xp"/);
+    }
+  }
+});
+
+test("HTTP contradictory lifecycle reaches rejection and persists unevaluated seal", { skip }, async () => {
+  const request = httpBody("mv-http-pg-contradiction", true);
+  request.session.finishedAt = T0 + 5_000;
+  const response = await postHttp(request);
+  assert.equal(response.status, 201);
+  assert.equal(response.body.status, "rejected");
+  assert.equal(response.body.sealed, null);
+  assert.equal(response.body.distanceMeters, null);
+  const [row] = await httpRows(request.sessionId);
+  assert.equal(row.finishedAt, request.session.finishedAt);
+  assert.equal(row.sealed, null);
+});
+
+test("HTTP immutable metadata conflicts leave the original PostgreSQL row intact", { skip }, async () => {
+  const original = httpBody("mv-http-pg-immutable");
+  assert.equal((await postHttp(original)).status, 201);
+  assert.equal((await postHttp(original)).status, 200);
+  for (const session of [
+    { ...original.session, startedAt: T0 - 1 },
+    { ...original.session, finishedAt: T0 + 130_000 },
+    { ...original.session, pauses: [] },
+  ]) {
+    const response = await postHttp({ ...original, session });
+    assert.equal(response.status, 409);
+    assert.deepEqual(response.body, { error: "session_metadata_conflict" });
+  }
+  const rows = await httpRows(original.sessionId);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].finishedAt, original.session.finishedAt);
+  assert.equal(rows[0].pausedMs, 2_000);
+});
+
+test("HTTP concurrent same-ID submissions converge in PostgreSQL across independent requests", { skip }, async () => {
+  const request = httpBody("mv-http-pg-concurrent", true);
+  const replies = await Promise.all(Array.from({ length: 8 }, () => postHttp(request)));
+  assert.equal(replies.filter((reply) => reply.status === 201).length, 1);
+  assert.equal(replies.filter((reply) => reply.status === 200).length, 7);
+  assert.equal(httpUniqueConflicts, 7, "all losing inserts must recover from the real unique constraint");
+  for (const reply of replies) assert.deepEqual(reply.body, replies[0].body);
+  const rows = await httpRows(request.sessionId);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].sealed, true);
+  assert.equal(rows[0].movementMode, "onFoot");
+});
+
+test("HTTP legacy absence stays NULL on disk even after a modern retry", { skip }, async () => {
+  const modern = httpBody("mv-http-pg-legacy", true);
+  const { session, ...legacy } = modern;
+  const first = await postHttp(legacy);
+  assert.equal(first.status, 201);
+  assert.equal(first.body.sealed, null);
+  const retry = await postHttp(modern);
+  assert.equal(retry.status, 200);
+  assert.deepEqual(retry.body, first.body);
+  const [row] = await httpRows(legacy.sessionId);
+  for (const key of ["movementMode", "rulesVersion", "startedAt", "finishedAt", "pausedMs", "sealed", "sealMethods", "sealEventCount"] as const) {
+    assert.equal(row[key], null, key);
+  }
+});
+
+test("HTTP PostgreSQL owner isolation follows real bearer sessions", { skip }, async () => {
+  const request = httpBody("mv-http-pg-owner", true);
+  assert.equal((await postHttp(request)).status, 201);
+  const foreign = await fetch(`${httpUrl}/${request.sessionId}`, { headers: { authorization: `Bearer ${accessB}` } });
+  assert.equal(foreign.status, 404);
+  await foreign.arrayBuffer();
+  assert.equal((await postHttp(request, "invalid-token")).status, 401);
+  assert.equal((await postHttp({ ...request, userId: "usr_http_b" })).status, 400);
+  const rows = await httpRows(request.sessionId);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].userId, "usr_http_a");
+  assert.equal((await postHttp(request, accessB)).status, 201);
+  assert.equal((await httpRows(request.sessionId)).length, 2);
 });

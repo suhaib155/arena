@@ -124,6 +124,7 @@ export function createMovementRouter(deps: MovementRouterDeps): Router {
           startTime: body.startTime,
           endTime: body.endTime,
           points: body.points,
+          session: body.session,
         },
       });
       res.status(created ? 201 : 200).json(toPublicVerification(record));
