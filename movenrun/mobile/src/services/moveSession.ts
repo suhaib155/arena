@@ -126,6 +126,12 @@ export function setVerificationState(clientSessionId: string, state: Verificatio
 
 export function clearLastSession(): void {
   distanceDiagnostics.reset();
+  // A mounted screen can still hold the handed-off object after a privacy
+  // reset. Clear its geometry as well as the module's reference.
+  if (last) {
+    last.points.length = 0;
+    if (last.gaps) last.gaps.length = 0;
+  }
   last = null;
   lastVerification = INITIAL_VERIFICATION;
   publishVerification();
