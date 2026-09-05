@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,10 +19,11 @@ import {
   isSaveable,
   sessionXp,
   setVerificationState,
+  subscribeVerification,
 } from "@/services/moveSession";
 import { MovementApiClient } from "@/services/movementApi";
 import { submitCompletedSession } from "@/services/verifySession";
-import { toVerifiedRecord } from "@/lib/verifiedMovement";
+import { serverSealLabel, toVerifiedRecord, verificationLabel } from "@/lib/verifiedMovement";
 import { newCapturedZone } from "@/lib/zones";
 import { cellsForRoute } from "@/lib/territoryCells";
 import { finishedSealLabel, sealFinishedRoute } from "@/lib/sealPreview";
@@ -83,6 +84,10 @@ export default function MoveSummaryScreen() {
     [identityClient],
   );
   const [saved, setSaved] = useState(false);
+  const savingRef = useRef(false);
+  const verification = useSyncExternalStore(subscribeVerification, getVerificationState, getVerificationState);
+  const zonesTouched = useMemo(() => session ? cellsForRoute(session.points) : [], [session]);
+  const seal = useMemo(() => session ? sealFinishedRoute(session) : null, [session]);
 
   if (!session) {
     return (
@@ -113,7 +118,6 @@ export default function MoveSummaryScreen() {
      cells is coarse location history, and only a captured cell reaches disk.
      Touching a cell is not owning it — capture below is still local preview
      state, and no server has agreed to any of it. */
-  const zonesTouched = useMemo(() => cellsForRoute(session.points), [session.points]);
   const candidate =
     zonesTouched.find((t) => !ownedZones.some((z) => z.id === t.id)) ?? null;
   const ownedTouched = zonesTouched.filter((t) =>
@@ -129,7 +133,6 @@ export default function MoveSummaryScreen() {
    * session carries no provenance or a rules version this build cannot read —
    * which means *unknown*, and unknown never grants anything.
    */
-  const seal = useMemo(() => sealFinishedRoute(session), [session]);
 
   /**
    * Nothing about a route becomes ground until the route seals.
@@ -161,6 +164,8 @@ export default function MoveSummaryScreen() {
   });
 
   const save = () => {
+    if (!saveable || saved || alreadySavedToday || savingRef.current) return;
+    savingRef.current = true;
     tapFeedback();
     /* Synthetic "quest" routes the award through the existing store: same
        XP-once-per-day gate, same history, no new earning logic. */
@@ -268,7 +273,7 @@ export default function MoveSummaryScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <Text style={styles.kicker}>{completion.kicker}</Text>
-          <Text style={styles.title}>Every move{"\n"}leaves a mark.</Text>
+          <Text style={styles.title}>Your session</Text>
         </View>
 
         {gaps ? (
@@ -318,6 +323,12 @@ export default function MoveSummaryScreen() {
           </View>
         </FadeSlideIn>
 
+        <View style={styles.zoneCard} accessibilityLiveRegion="polite">
+          <Text style={styles.zoneTitle}>{verificationLabel(verification)}</Text>
+          <Text style={styles.sealLine}>{serverSealLabel(verification)}</Text>
+          <Text style={styles.zoneBeta}>A server route check does not establish territory ownership.</Text>
+        </View>
+
         {/* Rewards — only when there's a real reward to bank; always local preview */}
         {completion.showRewards ? (
           <FadeSlideIn delay={STAGGER_MS * 3}>
@@ -356,7 +367,7 @@ export default function MoveSummaryScreen() {
         <FadeSlideIn delay={STAGGER_MS * 4}>
           <View style={styles.zoneCard}>
             <View style={styles.zoneHead}>
-              <Text style={styles.zoneTitle}>Territory touched</Text>
+              <Text style={styles.zoneTitle}>Areas traversed</Text>
               <Text style={styles.zoneCount}>
                 {zonesTouched.length} zone{zonesTouched.length === 1 ? "" : "s"}
               </Text>
@@ -365,7 +376,7 @@ export default function MoveSummaryScreen() {
             <View style={styles.zoneHexRow}>
               {zonesTouched.slice(0, 5).map((t, i) => {
                 const owned = ownedZones.some((z) => z.id === t.id);
-                const isCandidate = candidate?.id === t.id;
+                const isCandidate = captureEligible && candidate?.id === t.id;
                 return (
                   <Hexagon
                     key={t.id}
@@ -388,8 +399,8 @@ export default function MoveSummaryScreen() {
 
             {candidate ? (
               <View style={styles.candidateRow}>
-                <View style={styles.candidateBadge}>
-                  <Text style={styles.candidateBadgeText}>Common Zone</Text>
+                <View style={[styles.candidateBadge, !captureEligible && { backgroundColor: colors.surfaceAlt }]}>
+                  <Text style={[styles.candidateBadgeText, !captureEligible && { color: colors.textDim }]}>Common Zone</Text>
                 </View>
                 <Text style={styles.candidateName} numberOfLines={1}>
                   {candidate.name}
@@ -398,15 +409,15 @@ export default function MoveSummaryScreen() {
                   {session.mode === "demo"
                     ? "demo only"
                     : captureEligible
-                      ? "ready to capture"
-                      : "capture preview"}
+                      ? "local capture preview"
+                      : "traversed only"}
                 </Text>
               </View>
             ) : zonesTouched.length > 0 ? (
               <Text style={styles.zoneEmpty}>All touched zones are already yours.</Text>
             ) : null}
 
-            {ownedTouched.length > 0 && session.mode === "gps" && evidenceComplete ? (
+            {ownedTouched.length > 0 && saveable && !alreadySavedToday && !saved && evidenceComplete ? (
               <Text style={styles.defendHint}>
                 {ownedTouched.length} of yours touched — defense refreshes when you
                 save.
@@ -503,7 +514,7 @@ export default function MoveSummaryScreen() {
                     label: trust.label,
                     distanceMeters: String(Math.round(session.distanceM)),
                     durationSeconds: String(Math.round(session.durationMs / 1000)),
-                    outcome: "saved",
+                    outcome: saved ? "saved" : "summary-only",
                     zones: String(zonesTouched.length),
                     defended: "0",
                     at: new Date(session.finishedAt).toISOString(),
@@ -532,7 +543,7 @@ export default function MoveSummaryScreen() {
               </Text>
             ) : null}
             <Button
-              label={captureEligible ? "Save + Capture Zone" : "Save session"}
+              label={captureEligible ? "Save + local capture" : "Save session"}
               icon={captureEligible ? "flag" : "bookmark"}
               onPress={save}
             />
