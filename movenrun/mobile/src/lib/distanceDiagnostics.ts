@@ -1,5 +1,6 @@
 /** Explicitly enabled, in-memory diagnostics. Never stores coordinates or logs. */
 import type { FixDecision, MeasurementFix } from "@movenrun/shared/measurement";
+import { onVerificationPrivacyReset } from "@/services/verificationPrivacy";
 export const DISTANCE_DIAGNOSTIC_LIMIT = 128;
 export interface DistanceDiagnostic {
   timestamp: number;
@@ -35,3 +36,4 @@ export function createDistanceDiagnostics(enabled: boolean) {
   };
 }
 export const distanceDiagnostics = createDistanceDiagnostics(typeof __DEV__ !== "undefined" && __DEV__);
+onVerificationPrivacyReset(() => distanceDiagnostics.reset());

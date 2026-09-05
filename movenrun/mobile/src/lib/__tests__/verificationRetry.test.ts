@@ -75,6 +75,21 @@ const END = START + 180_000;
 const USER_A = "usr_aaaaaaaaaaaaaaaa";
 const USER_B = "usr_bbbbbbbbbbbbbbbb";
 
+test("privacy barrier: a delayed failure cannot resurrect coordinates after discard", async () => {
+  let fail!: (error: unknown) => void;
+  const response = new Promise<never>((_, reject) => { fail = reject; });
+  const cell = stateCell(session().clientSessionId);
+  const running = submitCompletedSession(session(), {
+    client: fakeClient(() => response).client as any,
+    ownerUserId: USER_A, ...cell, now: () => END + 1000,
+  });
+  await discardPendingRetries();
+  fail(offline());
+  await running;
+  assert.equal(storage.raw(), null, "late failure must not restore deleted GPS");
+  assert.equal(cell.current.kind, "submitting", "stale callback cannot publish state");
+});
+
 /* ── harness ──────────────────────────────────────────────────────────────── */
 
 /** An in-memory stand-in for AsyncStorage, with the writes kept for inspection. */

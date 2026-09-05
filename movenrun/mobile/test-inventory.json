@@ -52,6 +52,7 @@
     "src/services/__tests__/movementApi.test.ts",
     "src/services/__tests__/refreshSingleFlight.test.ts",
     "src/services/__tests__/sessionRestore.test.ts",
+    "src/services/__tests__/verificationPrivacy.test.ts",
     "src/store/__tests__/authLifecycle.test.ts",
     "src/store/__tests__/bootstrapRecovery.test.ts",
     "src/store/__tests__/loginCommit.test.ts",

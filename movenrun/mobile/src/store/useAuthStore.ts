@@ -14,7 +14,8 @@
  * constructed — screens read `client` from here and never build their own.
  */
 import { create } from "zustand";
-import { discardPendingVerifications } from "@/services/verificationQueue";
+import { clearPendingQueue, discardPendingVerifications } from "@/services/verificationQueue";
+import { setVerificationAccount } from "@/services/verificationPrivacy";
 import {
   createIdentityApiClient,
   IdentityApiClient,
@@ -146,6 +147,7 @@ const SIGNED_OUT_BASE = {
  * mistake by a wide margin.
  */
 function signedOut<T extends object>(patch: T): typeof SIGNED_OUT_BASE & T {
+  setVerificationAccount(null);
   discardPendingVerifications();
   return { ...SIGNED_OUT_BASE, ...patch };
 }
@@ -584,28 +586,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
+    setVerificationAccount(null);
     const client = get().client;
+    const clearing = clearPendingQueue();
+    void clearing.catch(() => {});
     // Supersede any in-flight enrichment so a late response cannot resurrect
     // the user or their wallets after this sign-out lands.
-    beginSessionGeneration();
+    const generation = beginSessionGeneration();
     try {
       await client?.signOut();
+      await clearing;
+      if (generation !== sessionGeneration) return;
       set(signedOut({ accountErrorCode: null }));
     } catch (err) {
       // The UI state is cleared regardless, but a failed credential clear is
       // surfaced honestly — never silently reported as a clean sign-out.
+      if (generation !== sessionGeneration) return;
       set(signedOut({ accountErrorCode: codeOf(err) }));
     }
   },
 
   signOutEverywhere: async () => {
+    setVerificationAccount(null);
     const client = get().client;
-    beginSessionGeneration();
+    const clearing = clearPendingQueue();
+    void clearing.catch(() => {});
+    const generation = beginSessionGeneration();
     try {
       await client?.signOutEverywhere();
+      await clearing;
+      if (generation !== sessionGeneration) return;
       set(signedOut({ accountErrorCode: null }));
     } catch (err) {
+      if (generation !== sessionGeneration) return;
       set(signedOut({ accountErrorCode: codeOf(err) }));
     }
   },
 }));
+
+useAuthStore.subscribe((state) => {
+  if (state.status === "signedIn" && state.user) setVerificationAccount(state.user.id);
+});
