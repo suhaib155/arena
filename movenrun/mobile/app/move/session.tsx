@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, AppState, BackHandler, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Alert, AppState, BackHandler, Linking, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -8,6 +8,7 @@ import { RouteCanvas } from "@/components/RouteCanvas";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
+import { Button } from "@/components/Button";
 import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
   formatDistance,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/geo";
 import { inspectFix, type FixDecision } from "@movenrun/shared/measurement";
 import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
-import { createTracker, type TrackerMode } from "@/services/moveTracker";
+import { createTracker, TrackerStartError, type TrackerMode } from "@/services/moveTracker";
 import {
   pushPoint,
   recordGap,
@@ -74,6 +75,8 @@ export default function MoveSessionScreen() {
   const [routePreview, setRoutePreview] = useState<TrackPoint[]>([]);
   const [distanceM, setDistanceM] = useState(0);
   const [gpsState, setGpsState] = useState<GpsState>("waiting");
+  const [startAttempt, setStartAttempt] = useState(0);
+  const [startError, setStartError] = useState<TrackerStartError | null>(null);
 
   /* Refs mirror state the tracker callback needs without re-subscribing. */
   /** Mutated in place — appending must not copy the whole route per fix. */
@@ -129,6 +132,8 @@ export default function MoveSessionScreen() {
   useEffect(() => {
     const requested = requestStart(lifecycleRef.current);
     if (requested.outcome !== "ok") return;
+    setStartError(null);
+    setGpsState("waiting");
     apply(requested.lifecycle);
     distanceDiagnostics.reset();
 
@@ -192,6 +197,11 @@ export default function MoveSessionScreen() {
         if (shouldRefreshPreview(acceptedRef.current)) {
           setRoutePreview(pointsRef.current.slice());
         }
+      }, (error) => {
+        if (cancelled) return;
+        setStartError(error);
+        setGpsState("weak");
+        continuityBrokenRef.current = true;
       })
       .then(() => {
         if (cancelled) return;
@@ -213,8 +223,9 @@ export default function MoveSessionScreen() {
         );
         apply(started.lifecycle);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (cancelled) return;
+        setStartError(error instanceof TrackerStartError ? error : new TrackerStartError("tracker_error"));
         setGpsState("weak");
         const failed = trackerFailed(lifecycleRef.current);
         if (failed.outcome === "ok") apply(failed.lifecycle);
@@ -228,7 +239,7 @@ export default function MoveSessionScreen() {
       previewRef.current = null;
       pointsRef.current.length = 0;
     };
-  }, [apply]);
+  }, [apply, startAttempt]);
 
   /** Elapsed time, read on demand. Kept out of this component's state so the
    *  once-a-second tick re-renders only the clock, not the route canvas.
@@ -327,6 +338,10 @@ export default function MoveSessionScreen() {
   }, [apply, router]);
 
   const quit = useCallback(() => {
+    if (lifecycleRef.current.state === "idle" || lifecycleRef.current.state === "starting") {
+      router.back();
+      return;
+    }
     Alert.alert("End session?", "This session won't be saved if you leave now.", [
       { text: "Keep moving", style: "cancel" },
       {
@@ -370,6 +385,36 @@ export default function MoveSessionScreen() {
      is two places for one fact and two places for it to disagree. */
   const paused = captureState === "paused";
   const starting = captureState === "starting";
+  const controlsAvailable = captureState === "active" || paused;
+
+  if (!controlsAvailable && captureState !== "finished") {
+    const title = starting ? "Finding GPS" : "Session not started";
+    const detail = starting
+      ? "Waiting for a stable location. Your session starts when GPS is ready."
+      : startError?.code === "permission_denied"
+        ? "Location permission is needed to record your route."
+        : startError?.code === "services_off"
+          ? "Location services are off. Turn them on, then retry."
+          : startError?.code === "acquisition_timeout"
+            ? "A stable location could not be found. Try again with a clearer view of the sky."
+            : "Location tracking could not start. You can retry when ready.";
+    return (
+      <Screen>
+        <ScreenHeader title={title} action="dismiss" onAction={quit} actionLabel="Back" />
+        <View style={styles.zoneCard} accessibilityLiveRegion="polite">
+          <Text style={styles.zoneTitle}>{title}</Text>
+          <Text style={styles.zoneNote}>{detail}</Text>
+          {!starting ? <Button label="Retry" onPress={() => setStartAttempt(value => value + 1)} /> : null}
+          {!starting && startError?.settingsRelevant ? (
+            <Button label="Open Settings" variant="secondary" onPress={() => {
+              void Linking.openSettings().catch(() => Alert.alert("Settings unavailable", "Open your phone settings to enable location."));
+            }} />
+          ) : null}
+          <Button label="Back" variant="secondary" onPress={quit} />
+        </View>
+      </Screen>
+    );
+  }
 
   /* One colour and one icon for the route's state, never colour alone. Sealed
      is Pulse Green; an open route is Base Blue, which is information rather
@@ -386,7 +431,7 @@ export default function MoveSessionScreen() {
           it while `starting` would be the screen claiming a session that does
           not exist yet — the precise thing the lifecycle boundary prevents. */}
       <ScreenHeader
-        title={starting ? "Starting…" : paused ? "Paused" : "Moving"}
+        title={captureState === "finished" ? "Session complete" : paused ? "Paused" : "Moving"}
         action="dismiss"
         onAction={quit}
         actionLabel="End this movement session"
@@ -396,6 +441,12 @@ export default function MoveSessionScreen() {
 
       {/* Live map/route dominates the top of the screen */}
       <RouteCanvas points={routePreview} height={248} live />
+
+      {startError ? (
+        <View style={styles.demoBanner} accessibilityLiveRegion="polite">
+          <Text style={styles.demoText}>GPS tracking was interrupted. Time continues; missing route sections will be shown in your summary.</Text>
+        </View>
+      ) : null}
 
       {mode === "demo" ? (
         <View style={styles.demoBanner}>
@@ -445,7 +496,7 @@ export default function MoveSessionScreen() {
       <View style={styles.controls}>
         <MovementControlBar
           paused={paused}
-          disabled={starting}
+          disabled={!controlsAvailable}
           onPauseResume={togglePause}
           onFinish={confirmFinish}
         />

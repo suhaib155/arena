@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from "react";
-import { type DimensionValue, Share, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import { Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -7,11 +7,11 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn } from "@/components/FadeSlideIn";
-import { avatar, canvas, colors, ink, palette, radius, shadows, spacing, tints, type } from "@/theme";
+import { colors, ink, palette, radius, shadows, spacing, tints, type } from "@/theme";
 import { formatPace } from "@/lib/geo";
 import { useGameStore } from "@/store/useGameStore";
 import { computePassport } from "@/lib/routePassport";
-import { buildProof, runTitle } from "@/lib/routeProof";
+import { buildProof, outcomeLabel, runTitle } from "@/lib/routeProof";
 import type { RouteOutcome } from "@/lib/routeTrust";
 import { getClubById } from "@/data/clubs";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
@@ -41,69 +41,6 @@ function fmtDuration(seconds: number): string {
 }
 
 /**
- * Stylized captured-territory hero — built from plain Views + Hexagon (no map
- * SDK, no SVG, no screenshot). The silhouette is a deterministic pseudo-zone
- * cluster derived from safe scalars (zones + a proof seed) — it never uses raw
- * GPS, coordinates, a route path, or location labels.
- */
-function TerritoryHero({ seed, zones }: { seed: number; zones: number }) {
-  const nodes = useMemo(() => {
-    const count = Math.max(5, Math.min(8, zones || 6));
-    const out: { left: DimensionValue; top: DimensionValue; size: number; teal: boolean }[] = [];
-    for (let i = 0; i < count; i++) {
-      // Deterministic ring layout with a seeded wobble — no location data.
-      const wob = ((seed >> i) % 7) - 3; // -3..3
-      const angle = (i / count) * Math.PI * 2 + (seed % 10) / 10;
-      const r = 24 + wob; // percent radius
-      out.push({
-        left: `${50 + r * Math.cos(angle)}%`,
-        top: `${50 + r * 0.78 * Math.sin(angle)}%`,
-        size: i % 3 === 0 ? 30 : 24,
-        teal: i % 2 === 0,
-      });
-    }
-    return out;
-  }, [seed, zones]);
-
-  return (
-    <View style={styles.hero}>
-      {/* light map-like roads */}
-      <View style={[styles.road, { top: "32%" }]} />
-      <View style={[styles.road, { top: "66%" }]} />
-      <View style={[styles.roadV, { left: "30%" }]} />
-      <View style={[styles.roadV, { left: "70%" }]} />
-
-      {/* glowing captured-territory silhouette */}
-      <View style={styles.territoryBlob} />
-      <View style={styles.territoryBlob2} />
-
-      {/* territory nodes */}
-      {nodes.map((n, i) => (
-        <View key={i} style={[styles.node, { left: n.left, top: n.top }]}>
-          <Hexagon
-            size={n.size}
-            color={n.teal ? tints.greenSoft : tints.green}
-            coreColor={n.teal ? palette.voltMint : palette.pulseGreen}
-          />
-        </View>
-      ))}
-
-      {/* "you" marker */}
-      <View style={styles.markerWrap}>
-        <View style={styles.markerRing}>
-          <View style={styles.markerDot} />
-        </View>
-      </View>
-
-      <View style={styles.heroTag}>
-        <Ionicons name="navigate" size={11} color={ink.green} />
-        <Text style={styles.heroTagText}>Captured territory</Text>
-      </View>
-    </View>
-  );
-}
-
-/**
  * Route Proof — premium, privacy-safe local share card. Scalar summary stats
  * only (no raw GPS, coordinates, path, map image, or location). Share is
  * text-only via the OS share sheet; nothing is uploaded.
@@ -123,7 +60,7 @@ export default function RouteProofScreen() {
   const passport = computePassport(history, { zonesOwned, timesDefended });
 
   const rawOutcome = str(params.outcome) as RouteOutcome;
-  const outcome: RouteOutcome = VALID_OUTCOMES.includes(rawOutcome) ? rawOutcome : "saved";
+  const outcome: RouteOutcome = VALID_OUTCOMES.includes(rawOutcome) ? rawOutcome : "summary-only";
   const distanceMeters = num(params.distanceMeters);
   const durationSeconds = num(params.durationSeconds);
   const zones = num(params.zones);
@@ -133,7 +70,7 @@ export default function RouteProofScreen() {
     distanceMeters,
     durationSeconds,
     trustScore: num(params.score),
-    trustLabel: str(params.label) || "Saved",
+    trustLabel: str(params.label) || "Not evaluated",
     routeOutcome: outcome,
     zonesTouched: zones,
     defendedCount: num(params.defended),
@@ -142,11 +79,6 @@ export default function RouteProofScreen() {
   });
 
   const pace = formatPace(distanceMeters, durationSeconds * 1000);
-  const seed = useMemo(() => {
-    let h = 0;
-    for (const ch of proof.proofId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    return h;
-  }, [proof.proofId]);
 
   const onShare = async () => {
     tapFeedback();
@@ -172,7 +104,7 @@ export default function RouteProofScreen() {
               <Text style={styles.previewTag}>Route Proof Preview</Text>
             </View>
 
-            <TerritoryHero seed={seed} zones={zones} />
+            <Text style={styles.stripLabel}>{outcomeLabel(outcome)} · local summary</Text>
 
             {/* stat strip */}
             <View style={styles.stripRow}>
@@ -185,7 +117,7 @@ export default function RouteProofScreen() {
                 <Text style={[styles.stripValue, { color: palette.baseBlue }]}>
                   {proof.trustScore}
                 </Text>
-                <Text style={styles.stripLabel}>{proof.trustLabel}</Text>
+                <Text style={styles.stripLabel}>Local signal score · {proof.trustLabel}</Text>
               </View>
             </View>
 
@@ -263,66 +195,6 @@ const styles = StyleSheet.create({
   brand: { ...type.heading, fontSize: 16 },
   previewTag: { ...type.kicker, color: palette.baseBlue },
 
-  /* hero */
-  hero: {
-    height: 200,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceAlt,
-    overflow: "hidden",
-  },
-  road: { position: "absolute", left: 0, right: 0, height: 5, backgroundColor: canvas.road },
-  roadV: { position: "absolute", top: 0, bottom: 0, width: 5, backgroundColor: canvas.roadCross },
-  territoryBlob: {
-    position: "absolute",
-    left: "20%",
-    top: "24%",
-    width: "60%",
-    height: "52%",
-    borderRadius: 90,
-    backgroundColor: "rgba(24,201,135,0.16)",
-    borderWidth: 2,
-    borderColor: palette.voltMint,
-    transform: [{ rotate: "-8deg" }],
-    shadowColor: palette.voltMint,
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  territoryBlob2: {
-    position: "absolute",
-    left: "34%",
-    top: "40%",
-    width: "40%",
-    height: "40%",
-    borderRadius: 80,
-    backgroundColor: "rgba(88,242,179,0.18)",
-    borderWidth: 1.5,
-    borderColor: palette.pulseGreen,
-    transform: [{ rotate: "12deg" }],
-  },
-  node: { position: "absolute", marginLeft: -15, marginTop: -15 },
-  markerWrap: {
-    position: "absolute",
-    left: "50%",
-    top: "50%",
-    marginLeft: -13,
-    marginTop: -13,
-  },
-  markerRing: { ...avatar(26), backgroundColor: colors.surface, ...shadows.card },
-  markerDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: palette.baseBlue },
-  heroTag: {
-    position: "absolute",
-    left: spacing.md,
-    bottom: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderRadius: radius.pill,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-  },
-  heroTagText: { fontSize: 11, fontWeight: "700", color: ink.green },
 
   /* stat strip */
   stripRow: { flexDirection: "row", alignItems: "center" },

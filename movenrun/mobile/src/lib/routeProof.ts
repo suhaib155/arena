@@ -35,9 +35,9 @@ export interface RouteProof extends RouteProofInput {
 
 const OUTCOME_LABEL: Record<RouteOutcome, string> = {
   saved: "Saved",
-  captured: "Captured",
-  defended: "Defended",
-  "summary-only": "Saved",
+  captured: "Local capture",
+  defended: "Local defence",
+  "summary-only": "Not saved",
 };
 
 /** Small deterministic FNV-1a hash → 6-char base36, for display ids only. */
@@ -72,8 +72,8 @@ function fmtDuration(seconds: number): string {
 
 /** Human run-title line, e.g. "Free Run · Captured". */
 export function runTitle(outcome: RouteOutcome): string {
-  if (outcome === "captured") return "Territory Captured";
-  if (outcome === "defended") return "Zone Defended";
+  if (outcome === "captured") return "Local capture preview";
+  if (outcome === "defended") return "Local defence preview";
   return "Free Run";
 }
 
