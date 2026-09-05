@@ -21,6 +21,7 @@
  * zone state, and a test enforces that.
  */
 import type { SessionMetadata } from "@movenrun/shared/session";
+import type { SealMethod } from "@movenrun/shared/sealing";
 
 import type { TrackPoint } from "./geo";
 import { MAX_ACCURACY_M } from "./geo";
@@ -194,6 +195,10 @@ export type VerificationState =
       durationSeconds: number | null;
       /** Where the route went. NOT capture, NOT ownership. */
       traversedHexIds: string[];
+      /** Backend seal evaluation, never local preview or ownership. */
+      sealed?: boolean | null;
+      sealMethods?: SealMethod[] | null;
+      sealCount?: number | null;
     }
   /** The server answered, and declined to verify. A domain result, not a fault. */
   | { kind: "rejected"; reasons: string[] }

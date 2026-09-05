@@ -84,7 +84,7 @@ export function resolveCompletion(input: CompletionInput): CompletionSummary {
       return {
         kind: "saved-captured",
         kicker: "Session saved",
-        headline: "Territory captured",
+        headline: "Local capture saved",
         detail:
           input.defendedCount > 0
             ? `New zone captured, and ${input.defendedCount} of yours defended on the way.`
@@ -100,8 +100,8 @@ export function resolveCompletion(input: CompletionInput): CompletionSummary {
       return {
         kind: "saved-defended",
         kicker: "Session saved",
-        headline: `${input.defendedCount} zone${input.defendedCount === 1 ? "" : "s"} defended`,
-        detail: "Moving through your territory refreshed its defence.",
+        headline: `${input.defendedCount} local zone${input.defendedCount === 1 ? "" : "s"} refreshed`,
+        detail: "Your local territory preview has been updated.",
         progressPersisted: true,
         xpAwardedNow: true,
         rewardStatus,
@@ -159,7 +159,7 @@ export function resolveCompletion(input: CompletionInput): CompletionSummary {
     kind: "ready-to-save",
     kicker: "Session complete",
     headline: "Ready to save",
-    detail: "Save this session to bank your XP and claim any territory you reached.",
+    detail: "Save this session to keep your movement summary and local progress.",
     progressPersisted: false,
     xpAwardedNow: false,
     rewardStatus,
