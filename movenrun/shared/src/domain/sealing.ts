@@ -131,6 +131,8 @@ export function sealingRulesFor(rulesVersion: number): SealingRules | null {
 
 /** One accepted route observation, as sealing needs it. */
 export interface SealRoutePoint extends GeoCoordinate {
+  /** The device observed an interruption before this fix. No bridging segment exists. */
+  breakBefore?: boolean;
   timestamp: number;
 }
 
@@ -271,6 +273,8 @@ interface Segment {
  * next one because there is nowhere for it to live.
  */
 export interface SealScanner {
+  /** Transient index accounting, for bounded-work regression tests. No geometry. */
+  readonly indexedReferences: number;
   /**
    * Extend the route by one accepted point.
    *
@@ -300,11 +304,12 @@ export interface SealScanner {
  * to the first fix after is not evidence of anything. The scanner breaks the
  * route there and never draws that line.
  *
- * The list is read on every step, not copied, so a live preview can pass the
- * array its session lifecycle is still appending to. That is what lets the
- * phone and the server reach the same breaks from the same facts.
+ * A live caller supplies a getter for the current immutable pause array.
+ * A finished caller supplies the final array. Both are read on every step.
  */
-export function createSealScanner(rules: SealingRules, pauses: readonly PauseInterval[] = []): SealScanner {
+export type PauseSource = readonly PauseInterval[] | (() => readonly PauseInterval[]);
+
+export function createSealScanner(rules: SealingRules, pauses: PauseSource = []): SealScanner {
   const segments: Segment[] = [];
   const grid = new Map<string, number[]>();
   const events: SealEvent[] = [];
@@ -369,15 +374,14 @@ export function createSealScanner(rules: SealingRules, pauses: readonly PauseInt
   /**
    * Does a declared pause overlap the span between two fixes?
    *
-   * Read from the caller's list on every step rather than copied at
-   * construction, so a live session can hand in the array its lifecycle is
-   * still appending to and get the same breaks the finished route will produce.
+   * Resolve the current immutable lifecycle list on every step. A retained
+   * start-time array would miss pauses closed by later resume transitions.
    * A linear scan is right here: the submission schema caps a session at a
    * hundred pauses, and the alternative — a sorted copy — would have frozen the
    * list at the moment the scanner was built.
    */
   function pausedBetween(from: number, to: number): boolean {
-    for (const pause of pauses) {
+    for (const pause of typeof pauses === "function" ? pauses() : pauses) {
       if (pause.startedAt < to && pause.endedAt > from) return true;
     }
     return false;
@@ -429,6 +433,7 @@ export function createSealScanner(rules: SealingRules, pauses: readonly PauseInt
        flagged, simply absent, because a segment that was never observed must
        not be available to cross. */
     if (
+      point.breakBefore === true ||
       pausedBetween(prior.point.timestamp, point.timestamp) ||
       haversineMeters(prior.point, point) > rules.continuityBreakMeters
     ) {
@@ -497,11 +502,20 @@ export function createSealScanner(rules: SealingRules, pauses: readonly PauseInt
       emitted.push(event);
       anchor = closing + 1;
     }
+    // Every indexed segment now precedes the open-trail anchor. Keeping those
+    // buckets would make repeated loops query thousands of ineligible segments.
+    // Segment indices remain stable for events; only the dead search index goes.
+    if (emitted.length > 0) grid.clear();
     return emitted;
   }
 
   return {
     push,
+    get indexedReferences() {
+      let references = 0;
+      for (const bucket of grid.values()) references += bucket.length;
+      return references;
+    },
     get events() {
       return events;
     },

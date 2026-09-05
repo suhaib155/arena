@@ -28,6 +28,7 @@
     "src/lib/__tests__/profileView.test.ts",
     "src/lib/__tests__/recapView.test.ts",
     "src/lib/__tests__/releaseNavigation.test.ts",
+    "src/lib/__tests__/routeEvidenceIntegration.test.ts",
     "src/lib/__tests__/screenHeader.test.ts",
     "src/lib/__tests__/sealing.test.ts",
     "src/lib/__tests__/secureSession.test.ts",

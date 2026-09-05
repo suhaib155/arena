@@ -1,4 +1,5 @@
 export interface GPSPoint {
+  breakBefore?: boolean;
   lat: number;
   lng: number;
   accuracy: number;

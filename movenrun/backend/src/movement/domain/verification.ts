@@ -11,6 +11,7 @@
  */
 import { sessionMetadataProblems } from "@movenrun/shared/session";
 import { evaluateSealing } from "@movenrun/shared/sealing";
+import { hasEvidenceBreak } from "@movenrun/shared/evidence";
 
 import type {
   MovementObservation,
@@ -162,7 +163,7 @@ export function verifyMovement(
 
   return {
     status: "verified",
-    distanceMeters: Math.round(deps.calculateDistance(observation.points)),
+    distanceMeters: Math.round(distanceFor(observation, deps)),
     durationSeconds,
     traversedHexIds: deps.traversedHexIds(observation.points),
     confidence: anomaly.confidence,
@@ -199,7 +200,24 @@ function sealFor(observation: MovementObservation) {
       latitude: p.lat,
       longitude: p.lng,
       timestamp: p.timestamp,
+      ...(p.breakBefore === true ? { breakBefore: true } : {}),
     })),
     heldCells: null,
   });
+}
+
+/** Never count the unobserved straight line across an intentional or foreground break. */
+function distanceFor(observation: MovementObservation, deps: VerifyMovementDeps): number {
+  const stretches: ObservedPoint[][] = [[]];
+  for (let i = 0; i < observation.points.length; i++) {
+    const point = observation.points[i]!;
+    const previous = observation.points[i - 1];
+    if (previous && hasEvidenceBreak(
+      { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp },
+      { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, breakBefore: point.breakBefore },
+      observation.session?.pauses,
+    )) stretches.push([]);
+    stretches[stretches.length - 1]!.push(point);
+  }
+  return stretches.reduce((total, stretch) => total + (stretch.length > 1 ? deps.calculateDistance(stretch) : 0), 0);
 }

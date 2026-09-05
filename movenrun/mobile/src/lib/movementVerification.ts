@@ -61,6 +61,7 @@ export function newClientSessionId(now: number = Date.now(), random: () => numbe
 
 /** One point exactly as the backend accepts it. */
 export interface ObservationPoint {
+  breakBefore?: boolean;
   lat: number;
   lng: number;
   accuracy: number;
@@ -123,6 +124,7 @@ export function toObservations(session: {
     lng: p.longitude,
     accuracy: p.accuracy ?? UNKNOWN_ACCURACY_M,
     timestamp: p.timestamp,
+    ...(p.breakBefore === true ? { breakBefore: true } : {}),
   }));
 
   /* The session window must contain every point, or the server rejects the

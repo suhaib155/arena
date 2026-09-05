@@ -300,6 +300,8 @@ export function submitCompletedSession(
 
   const state = deps.readState();
   if (!shouldSubmit(state)) return Promise.resolve(state);
+  // A bounded prefix cannot stand in for the completed workout on the server.
+  if (session.evidenceStatus === "capacity_limited") return Promise.resolve(state);
 
   if (
     !isVerifiable({

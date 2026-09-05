@@ -129,19 +129,21 @@ test proves it does not.
 The route is a set of continuous stretches. A break sits between two consecutive
 fixes when either:
 
-1. a **declared pause** overlaps the span between them, or
-2. the straight-line jump exceeds `continuityBreakMeters` (200 m).
+1. a **declared pause** overlaps the span between them,
+2. the next observation carries a foreground `breakBefore`, or
+3. the straight-line jump exceeds `continuityBreakMeters` (200 m).
 
 The segment spanning a break is **not created**. Not shortened, not flagged —
 absent, because a segment that was never observed must not be available to
 cross. Whatever happened in that gap is unknown, and the line across it is a
 guess.
 
-Rule 2 is how a **tracking gap** is caught without transmitting one. Gaps are a
-mobile-only record (`FinishedSession.gaps`) and are deliberately **not** sent:
-a client-supplied field that makes sealing *easier by omission* would be client
-authority through the back door. What the server can see for itself is a jump no
-sampling could have followed, and that is the same evidence.
+Foreground interruptions are now explicit bounded observation evidence:
+`breakBefore` survives HTTP and retry serialization. It removes an unobserved
+segment from both sealing and measured distance; it grants no ownership or
+trust. Pause lifecycle intervals remain distinct. The distance-based break is
+still a fallback for an unexplained jump. See `ROUTE_EVIDENCE.md` for the full
+canonical evidence and quality limitations.
 
 Stretches either side of a break are real route and **may** cross each other.
 Only the bridge is missing.
@@ -311,7 +313,7 @@ change once there is device data.
 | 8 | Return-to-start after a gap | still seals; `subpathCount` reported | implementation | whether #96 can use it | #96 |
 | 9 | Preview quality filter | tracker's `acceptPoint`, not server rules | implementation | preview/authority disagreement rate | — |
 | 10 | Multiple closures | all kept, none collapsed | implementation | whether #95 claims each independently | #95 |
-| 11 | Tracking gaps on the wire | not sent; derived from the jump | implementation | preview/authority disagreement rate | #97 |
+| 11 | Tracking gaps on the wire | explicit foreground break; jump fallback retained | implementation | HTTP/local parity fixtures; device gate remains | measurement-quality phase |
 
 ## What #95 Solid receives
 

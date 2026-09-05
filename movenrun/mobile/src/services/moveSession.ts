@@ -6,6 +6,7 @@
  * (distance/time → XP record) via the existing game store.
  */
 import type { SessionMetadata } from "@movenrun/shared/session";
+import type { EvidenceStatus } from "@movenrun/shared/evidence";
 
 import type { TrackPoint } from "@/lib/geo";
 import type { TrackingGap } from "@/lib/trackPoints";
@@ -42,6 +43,7 @@ export interface FinishedSession {
    */
   session?: SessionMetadata;
   points: TrackPoint[];
+  evidenceStatus?: EvidenceStatus;
   distanceM: number;
   /**
    * Active capture time in milliseconds: elapsed wall clock minus time paused.

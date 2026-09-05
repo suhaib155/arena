@@ -249,12 +249,12 @@ test("an unsealed route cannot create new local territory", () => {
   assert.equal(captures.length, 1, "there must be exactly one place a zone is claimed");
   assert.match(
     screen,
-    /if \(candidate && seal\?\.sealed === true\) \{\s*const outcome = captureZone\(/,
+    /if \(candidate && evidenceComplete && seal\?\.sealed === true\) \{\s*const outcome = captureZone\(/,
     "the claim is not gated on the route having sealed",
   );
   assert.match(
     screen,
-    /captureEligible =\s*saveable && !alreadySavedToday && candidate !== null && seal\?\.sealed === true;/,
+    /captureEligible =\s*saveable && evidenceComplete && !alreadySavedToday && candidate !== null && seal\?\.sealed === true;/,
     "the eligibility the screen shows is not gated on sealing either",
   );
 

@@ -18,6 +18,7 @@ export class GpsService {
       const curr = route.points[i];
       const dt = (curr.timestamp - prev.timestamp) / 1000; // seconds
       if (dt <= 0) { reasons.push(`Non-monotonic timestamps at index ${i}`); continue; }
+      if (curr.breakBefore === true) continue;
 
       const dist = this._haversine(prev.lat, prev.lng, curr.lat, curr.lng);
       const speed = dist / dt;

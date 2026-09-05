@@ -19,7 +19,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 const APP = join(process.cwd(), "app");
 const COMPONENTS = join(process.cwd(), "src", "components");
@@ -54,7 +54,7 @@ function isIndividuallyRegistered(routeName: string, file: string): boolean {
 
 /** Map an app/ file path to its Expo Router route name (path without extension). */
 function routeNameOf(file: string): string {
-  return relative(APP, file).replace(/\.tsx$/, "");
+  return relative(APP, file).split(sep).join("/").replace(/\.tsx$/, "");
 }
 
 test("every navigable route file is explicitly registered in the root Stack", () => {

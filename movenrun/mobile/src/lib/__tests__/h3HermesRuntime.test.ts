@@ -417,7 +417,7 @@ test("the lockfile resolves h3-js through that patch, so a clean install carries
     `yarn.lock does not mention ${name}; a fresh install would ship the unpatched package`,
   );
   assert.ok(
-    /"h3-js@patch:[^"]+":\n {2}version: 4\.5\.0/.test(lock),
+    /"h3-js@patch:[^"]+":\r?\n {2}version: 4\.5\.0/.test(lock),
     "yarn.lock has no patched h3-js resolution",
   );
 });

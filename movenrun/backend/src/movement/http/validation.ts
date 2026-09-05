@@ -11,6 +11,7 @@
  */
 import { z } from "zod";
 import { MOVEMENT_MODES, SUPPORTED_RULES_VERSIONS } from "@movenrun/shared/session";
+import { MAX_CANONICAL_POINTS } from "@movenrun/shared/evidence";
 
 import { IdentityError } from "../../identity/domain/errors.js";
 
@@ -20,7 +21,7 @@ export const CLIENT_SESSION_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
 /** Hard cap on points per session — bounds CPU and payload independently of
  *  the app-wide 2mb JSON limit. */
-export const MAX_POINTS = 10_000;
+export const MAX_POINTS = MAX_CANONICAL_POINTS;
 export const MIN_POINTS = 2;
 
 const observedPoint = z
@@ -29,6 +30,7 @@ const observedPoint = z
     lng: z.number().finite().min(-180).max(180),
     accuracy: z.number().finite().min(0).max(10_000),
     timestamp: z.number().int().positive(),
+    breakBefore: z.boolean().optional(),
   })
   .strict();
 

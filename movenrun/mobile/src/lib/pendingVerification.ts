@@ -382,7 +382,9 @@ function parsePoint(value: unknown): SessionObservations["points"][number] | nul
   if (!isFiniteNumber(p.lng) || p.lng < -180 || p.lng > 180) return null;
   if (!isFiniteNumber(p.accuracy) || p.accuracy < 0) return null;
   if (!isFiniteNumber(p.timestamp) || p.timestamp <= 0) return null;
-  return { lat: p.lat, lng: p.lng, accuracy: p.accuracy, timestamp: p.timestamp };
+  if (p.breakBefore !== undefined && typeof p.breakBefore !== "boolean") return null;
+  return { lat: p.lat, lng: p.lng, accuracy: p.accuracy, timestamp: p.timestamp,
+    ...(p.breakBefore === true ? { breakBefore: true } : {}) };
 }
 
 /**
@@ -541,6 +543,7 @@ export function serializeQueue(items: readonly PendingVerificationItem[]): strin
           lng: p.lng,
           accuracy: p.accuracy,
           timestamp: p.timestamp,
+          ...(p.breakBefore === true ? { breakBefore: true } : {}),
         })),
       },
       /* Written only when the session has it. Omitted — rather than written as

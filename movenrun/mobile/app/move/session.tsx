@@ -11,7 +11,6 @@ import { MovementControlBar } from "@/components/MovementControlBar";
 import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
   acceptPoint,
-  distanceMeters,
   formatDistance,
   formatDuration,
   formatPace,
@@ -83,6 +82,7 @@ export default function MoveSessionScreen() {
   /** Spans where the app was backgrounded and no fixes arrived. */
   const gapsRef = useRef<TrackingGap[]>([]);
   const backgroundedAtRef = useRef<number | null>(null);
+  const continuityBrokenRef = useRef(false);
 
   /**
    * The capture lifecycle.
@@ -137,21 +137,25 @@ export default function MoveSessionScreen() {
            pause, or after Finish, is dropped rather than extending a route the
            user has already ended. */
         if (lifecycleRef.current.state !== "active") return;
+        if (backgroundedAtRef.current !== null) return;
         if (p.accuracy != null && p.accuracy > 25) setGpsState("weak");
         else setGpsState("locked");
         const prev = pointsRef.current[pointsRef.current.length - 1] ?? null;
         if (!acceptPoint(prev, p)) return;
-        /* Distance accumulates incrementally, so it stays exact even after the
-           buffer decimates — it is never recomputed from the thinned route. */
-        if (prev) distanceRef.current += distanceMeters(prev, p);
+        if (continuityBrokenRef.current) {
+          p = { ...p, breakBefore: true };
+          continuityBrokenRef.current = false;
+        }
+        // This buffer is only for drawing. Canonical evidence has its own budget.
         pushPoint(pointsRef.current, p);
         acceptedRef.current += 1;
-        setDistanceM(distanceRef.current);
         /* Geometry is evaluated per accepted fix and nowhere else — not on the
            clock tick, not on a re-render, not on pause or resume. A closure is
            a property of the route, so the only thing that can create one is the
            route growing. */
         const closed = previewRef.current?.push(p) ?? false;
+        distanceRef.current = previewRef.current?.distanceMeters ?? distanceRef.current;
+        setDistanceM(distanceRef.current);
         const next = previewRef.current?.preview ?? EMPTY_PREVIEW;
         setPreview((current) => {
           const announcement = sealPreviewAnnouncement(current, next);
@@ -189,7 +193,7 @@ export default function MoveSessionScreen() {
            fail-closed answer the server gives. */
         previewRef.current = createSealPreview(
           started.lifecycle.rulesVersion ?? -1,
-          started.lifecycle.pauses,
+          () => lifecycleRef.current.pauses,
         );
         apply(started.lifecycle);
       })
@@ -204,7 +208,9 @@ export default function MoveSessionScreen() {
       tracker.stop();
       /* The session's geometry goes with the session. Nothing about a route
          outlives the screen that captured it. */
+      previewRef.current?.clear();
       previewRef.current = null;
+      pointsRef.current.length = 0;
     };
   }, [apply]);
 
@@ -233,6 +239,7 @@ export default function MoveSessionScreen() {
         backgroundedAtRef.current = null;
       } else if (backgroundedAtRef.current == null) {
         backgroundedAtRef.current = Date.now();
+        continuityBrokenRef.current = true;
       }
     });
     return () => sub.remove();
@@ -291,7 +298,8 @@ export default function MoveSessionScreen() {
       clientSessionId: id,
       mode: evidenceSourceRef.current,
       session: metadata,
-      points: pointsRef.current,
+      points: previewRef.current?.snapshot() ?? [],
+      evidenceStatus: previewRef.current?.evidenceStatus ?? "capacity_limited",
       distanceM: distanceRef.current,
       /* The same active-capture time the clock showed: elapsed minus paused. */
       durationMs: activeMsSoFar(next.lifecycle, at),
