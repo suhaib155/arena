@@ -28,8 +28,8 @@
  * `distanceInterval` is the one that matters: it lets the OS stay quiet while
  * the user is standing still — at a red light, queueing, stretching — instead
  * of waking us on a fixed clock to deliver a fix we would filter out anyway.
- * `timeInterval` is the ceiling that guarantees the route still advances at a
- * slow walking pace.
+ * `timeInterval` is Android's minimum interval between updates, not a
+ * delivery deadline. Neither interval guarantees a fix or measures battery use.
  *
  * Numbers are expressed against the geo filters so the relationship is visible:
  * asking for updates finer than `MIN_STEP_M` would spend power producing points
@@ -54,9 +54,9 @@ export type AccuracyLevel = (typeof ACCURACY)[keyof typeof ACCURACY];
 
 export interface WatchConfig {
   accuracy: AccuracyLevel;
-  /** Upper bound between fixes (ms), so a slow walk still draws a route. */
+  /** Android minimum interval between fixes (ms), not a delivery guarantee. */
   timeInterval: number;
-  /** Minimum movement before the OS wakes us (m). Standing still costs nothing. */
+  /** Requested displacement interval; the OS can still deliver noisy fixes. */
   distanceInterval: number;
 }
 
@@ -87,3 +87,6 @@ export function isBatterySafe(config: WatchConfig): boolean {
   if (config.timeInterval < 1000) return false;
   return true;
 }
+
+/** Acquire while stationary; restore the normal displacement interval afterward. */
+export const ACQUISITION_WATCH: WatchConfig = { ...SESSION_WATCH, distanceInterval: 0 };

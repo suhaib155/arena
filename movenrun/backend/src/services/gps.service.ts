@@ -1,3 +1,4 @@
+import { evidenceDistance } from "@movenrun/shared/evidence";
 import { GPSPoint, GPSRoute, AnomalyResult, RouteStatus } from "@movenrun/shared";
 
 const MAX_SPEED_MS = 22; // ~80 km/h — max plausible running/cycling speed
@@ -45,14 +46,10 @@ export class GpsService {
   }
 
   calculateDistance(points: GPSPoint[]): number {
-    let total = 0;
-    for (let i = 1; i < points.length; i++) {
-      total += this._haversine(
-        points[i - 1].lat, points[i - 1].lng,
-        points[i].lat,     points[i].lng
-      );
-    }
-    return total;
+    return evidenceDistance(points.map((point) => ({
+      latitude: point.lat, longitude: point.lng, timestamp: point.timestamp,
+      breakBefore: point.breakBefore,
+    })));
   }
 
   buildRouteHash(route: GPSRoute): string {
