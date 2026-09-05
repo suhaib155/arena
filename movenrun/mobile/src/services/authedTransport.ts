@@ -30,6 +30,7 @@
  * movement carry GPS points) are likewise never logged or echoed into errors.
  */
 import type { RefreshOutcome } from "../lib/authLifecycle";
+import { verificationGeneration } from "./verificationPrivacy";
 
 /** Every transport failure is reported through this shape. `status` is 0 for
  *  problems that never reached a server verdict (transport, timeout, keystore). */
@@ -100,6 +101,7 @@ export class AuthedJsonTransport {
    * This is a security control, not an optimisation — see the module header.
    */
   private refreshInFlight: Promise<RefreshOutcome> | null = null;
+  private refreshGeneration = -1;
 
   constructor(opts: AuthedTransportOptions) {
     this.opts = opts;
@@ -110,9 +112,18 @@ export class AuthedJsonTransport {
   }
 
   async request<T>(path: string, init: AuthedRequestInit = {}): Promise<T> {
+    return this.requestInGeneration<T>(path, init, verificationGeneration());
+  }
+
+  private async requestInGeneration<T>(path: string, init: AuthedRequestInit, generation: number): Promise<T> {
+    const assertCurrent = () => {
+      if (init.auth && generation !== verificationGeneration()) throw this.opts.error(0, "session_changed");
+    };
+    assertCurrent();
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (init.auth) {
       const token = await this.opts.loadAccessToken();
+      assertCurrent();
       if (!token) throw this.opts.error(401, "unauthenticated");
       headers.authorization = `Bearer ${token}`;
     }
@@ -126,6 +137,7 @@ export class AuthedJsonTransport {
       },
       init.timeoutMs ?? this.opts.timeoutMs,
     );
+    assertCurrent();
 
     if (res.status === 401 && init.auth && init.retryOn401 !== false) {
       // One transparent refresh attempt, then retry the original call. The
@@ -134,8 +146,9 @@ export class AuthedJsonTransport {
       // Concurrent 401s all await the SAME refresh (see refreshOnce), so the
       // rotating refresh token is never presented twice.
       const outcome = await this.refreshOnce();
+      assertCurrent();
       if (outcome.kind === "refreshed") {
-        return this.request<T>(path, { ...init, retryOn401: false });
+        return this.requestInGeneration<T>(path, { ...init, retryOn401: false }, generation);
       }
       // A transient refresh failure must not be reported as "unauthenticated":
       // that would let a network blip look like a revoked session.
@@ -146,8 +159,10 @@ export class AuthedJsonTransport {
       const body = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
       throw this.opts.error(res.status, body?.error?.code ?? "request_failed");
     }
+    const body = (await res.json()) as T;
+    assertCurrent();
     init.onStatus?.(res.status);
-    return (await res.json()) as T;
+    return body;
   }
 
   /**
@@ -161,7 +176,8 @@ export class AuthedJsonTransport {
    */
   private refreshOnce(): Promise<RefreshOutcome> {
     const existing = this.refreshInFlight;
-    if (existing) return existing;
+    const generation = verificationGeneration();
+    if (existing && this.refreshGeneration === generation) return existing;
 
     const operation = this.opts.performRefresh().then(
       (outcome) => {
@@ -175,6 +191,7 @@ export class AuthedJsonTransport {
     );
 
     this.refreshInFlight = operation;
+    this.refreshGeneration = generation;
     return operation;
   }
 

@@ -45,6 +45,7 @@ import {
   buildPendingItem,
   classifyOutcome,
   MAX_ATTEMPTS,
+  isExpired,
   isDeadVerdict,
   retryEligibility,
   withAttempt,
@@ -60,8 +61,9 @@ import {
   type VerificationState,
 } from "@/lib/movementVerification";
 import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
-import { isSaveable } from "./moveSession";
+import { isSaveable, isSessionPrivacyCurrent } from "./moveSession";
 import type { FinishedSession } from "./moveSession";
+import { captureVerificationScope, isVerificationScopeCurrent, verificationGeneration, type VerificationScope } from "./verificationPrivacy";
 
 /**
  * Map a transport failure onto an honest client-side pending reason.
@@ -133,6 +135,7 @@ export interface SubmitDeps extends PipelineDeps {
  * second request.
  */
 const inFlight = new Map<string, Promise<VerificationState>>();
+const flightKey = (id: string, owner: string | null) => JSON.stringify([verificationGeneration(), owner, id]);
 
 /** Test seam only. */
 export function __resetInFlight(): void {
@@ -140,8 +143,8 @@ export function __resetInFlight(): void {
 }
 
 /** Does this session already have a request out? */
-export function isSubmissionInFlight(clientSessionId: string): boolean {
-  return inFlight.has(clientSessionId);
+export function isSubmissionInFlight(clientSessionId: string, ownerUserId: string | null = null): boolean {
+  return inFlight.has(flightKey(clientSessionId, ownerUserId));
 }
 
 /**
@@ -157,7 +160,10 @@ function runSubmission(
   deps: PipelineDeps,
   existing: PendingVerificationItem | null,
 ): Promise<VerificationState> {
-  const running = inFlight.get(clientSessionId);
+  const scope = captureVerificationScope(deps.ownerUserId ?? null);
+  if (!isVerificationScopeCurrent(scope)) return Promise.resolve({ kind: "pending", reason: "unauthenticated" });
+  const key = flightKey(clientSessionId, scope.ownerUserId);
+  const running = inFlight.get(key);
   if (running) return running;
 
   const now = deps.now ?? Date.now;
@@ -181,6 +187,7 @@ function runSubmission(
   const operation = deps.client
     .submit(request)
     .then(({ verification }): VerificationState => {
+      if (!isVerificationScopeCurrent(scope)) return { kind: "pending", reason: "unauthenticated" };
       distanceDiagnostics.backend(clientSessionId, verification.distanceMeters);
       if (verification.status === "verified") {
         return {
@@ -205,15 +212,16 @@ function runSubmission(
       return { kind: "pending", reason };
     })
     .then(async (next) => {
+      if (!isVerificationScopeCurrent(scope)) return next;
       deps.writeState(clientSessionId, next);
-      await settleDurableState(clientSessionId, submission, next, existing, owner, now());
+      await settleDurableState(clientSessionId, submission, next, existing, owner, now(), scope);
       return next;
     })
     .finally(() => {
-      inFlight.delete(clientSessionId);
+      if (inFlight.get(key) === operation) inFlight.delete(key);
     });
 
-  inFlight.set(clientSessionId, operation);
+  inFlight.set(key, operation);
   return operation;
 }
 
@@ -241,16 +249,18 @@ async function settleDurableState(
   existing: PendingVerificationItem | null,
   owner: string | null,
   at: number,
+  scope: VerificationScope,
 ): Promise<void> {
+  if (!isVerificationScopeCurrent(scope)) return;
   if (next.kind !== "pending") {
     // A verdict, either way. Nothing is owed a retry.
-    await removePendingItem(clientSessionId);
+    await removePendingItem(clientSessionId, scope);
     return;
   }
 
   const disposition = classifyOutcome(next.reason);
   if (disposition === "terminal") {
-    await removePendingItem(clientSessionId);
+    await removePendingItem(clientSessionId, scope);
     return;
   }
 
@@ -259,7 +269,7 @@ async function settleDurableState(
        can never pass the account check — so it could only ever sit there as
        orphaned location data. Refuse to create it, and remove any earlier item
        for this session rather than leaving one behind. */
-    await removePendingItem(clientSessionId);
+    await removePendingItem(clientSessionId, scope);
     return;
   }
 
@@ -275,13 +285,13 @@ async function settleDurableState(
           now: at,
         });
 
-  if (item.attempts >= MAX_ATTEMPTS) {
+  if (item.attempts >= MAX_ATTEMPTS || isExpired(item, at)) {
     // Spent. Storing it would be storing coordinates nothing may ever send.
-    await removePendingItem(clientSessionId);
+    await removePendingItem(clientSessionId, scope);
     return;
   }
 
-  await savePendingItem(item);
+  await savePendingItem(item, scope);
 }
 
 /**
@@ -295,12 +305,13 @@ export function submitCompletedSession(
   session: FinishedSession,
   deps: SubmitDeps,
 ): Promise<VerificationState> {
+  if (!isSessionPrivacyCurrent(session)) return Promise.resolve({ kind: "pending", reason: "unauthenticated" });
   const id = session.clientSessionId;
 
   /* Already running for this session: hand back the SAME promise. This is the
      guard that survives re-render, double tap, effect replay and summary
      remount — none of which a disabled button would cover. */
-  const running = inFlight.get(id);
+  const running = inFlight.get(flightKey(id, deps.ownerUserId ?? null));
   if (running) return running;
 
   const state = deps.readState();
@@ -342,6 +353,7 @@ async function runPending(
   item: PendingVerificationItem,
   deps: RetryDeps,
 ): Promise<VerificationState> {
+  const scope = captureVerificationScope(deps.ownerUserId ?? null);
   /* The queued item's own metadata, replayed exactly. An item queued before
      the session model existed has none, and resubmits in the legacy shape
      rather than being stamped with today's values. */
@@ -351,7 +363,7 @@ async function runPending(
     deps,
     item,
   );
-  deps.onSettled?.(item.clientSessionId, state);
+  if (isVerificationScopeCurrent(scope)) deps.onSettled?.(item.clientSessionId, state);
   return state;
 }
 
@@ -369,8 +381,10 @@ export async function retryVerification(
   deps: RetryDeps,
 ): Promise<VerificationState | null> {
   const now = deps.now ?? Date.now;
-  const queue = await loadPendingQueue();
-  const item = queue.find((i) => i.clientSessionId === clientSessionId);
+  const scope = captureVerificationScope(deps.ownerUserId ?? null);
+  const queue = await loadPendingQueue(scope);
+  if (!isVerificationScopeCurrent(scope)) return null;
+  const item = queue.find((i) => i.clientSessionId === clientSessionId && i.ownerUserId === deps.ownerUserId);
   if (!item) return null;
 
   const verdict = retryEligibility(item, {
@@ -379,7 +393,7 @@ export async function retryVerification(
     manual: true,
   });
   if (verdict !== "ok") {
-    if (isDeadVerdict(verdict)) await removePendingItem(item.clientSessionId);
+    if (isDeadVerdict(verdict)) await removePendingItem(item.clientSessionId, scope);
     return null;
   }
   return runPending(item, deps);
@@ -404,16 +418,18 @@ export async function retryPendingVerifications(deps: RetryDeps): Promise<RetryS
   if (owner === null) return result;
 
   const now = deps.now ?? Date.now;
-  const queue = await loadPendingQueue();
+  const scope = captureVerificationScope(owner);
+  const queue = await loadPendingQueue(scope);
 
   for (const item of queue) {
+    if (!isVerificationScopeCurrent(scope)) break;
     const verdict = retryEligibility(item, { now: now(), currentUserId: owner });
     if (verdict !== "ok") {
       result.skipped[item.clientSessionId] = verdict;
       /* Dead items are deleted rather than left to rot: an expired or spent
          entry is precise location that nothing is ever allowed to send. */
       if (isDeadVerdict(verdict)) {
-        await removePendingItem(item.clientSessionId);
+        await removePendingItem(item.clientSessionId, scope);
         result.discarded.push(item.clientSessionId);
       }
       continue;

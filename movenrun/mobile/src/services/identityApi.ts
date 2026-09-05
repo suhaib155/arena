@@ -19,6 +19,8 @@ import {
 } from "../lib/secureSession";
 import type { RefreshOutcome, RestoreKind, UnavailableCode } from "../lib/authLifecycle";
 import { AuthedJsonTransport, type AuthedRequestInit } from "./authedTransport";
+import { verificationGeneration, setVerificationAccount } from "./verificationPrivacy";
+import { clearPendingQueue } from "./verificationQueue";
 
 export interface PublicUser {
   id: string;
@@ -140,6 +142,15 @@ export type SessionRestoreResult =
   | { kind: "unavailable"; code: UnavailableCode };
 
 export class IdentityApiClient {
+  private credentialWrites: Promise<unknown> = Promise.resolve();
+  private writeCredentials(generation: number, work: () => Promise<void>): Promise<void> {
+    const run = this.credentialWrites.then(async () => {
+      if (generation !== verificationGeneration()) throw new IdentityApiError(0, "session_changed");
+      await work();
+    });
+    this.credentialWrites = run.catch(() => {});
+    return run;
+  }
   private readonly baseUrl: string;
   private readonly store: SecureSessionStore;
   /**
@@ -204,6 +215,8 @@ export class IdentityApiClient {
    * and the caller surfaces a retryable state instead of signing the user out.
    */
   private async performRefresh(): Promise<RefreshOutcome> {
+    const generation = verificationGeneration();
+    const stale = () => generation !== verificationGeneration();
     let tokens: SecureSessionTokens | null;
     try {
       tokens = await this.loadTokens();
@@ -211,7 +224,7 @@ export class IdentityApiClient {
       // Unreadable keystore: nothing is known and nothing may be deleted.
       return { kind: "unavailable", code: "secure_storage_unavailable" };
     }
-    if (!tokens) return { kind: "no-session" };
+    if (stale() || !tokens) return { kind: "no-session" };
     let res: Response;
     try {
       res = await fetch(this.baseUrl + "/identity/auth/refresh", {
@@ -223,6 +236,7 @@ export class IdentityApiClient {
       // Transport failure — credentials deliberately NOT cleared.
       return { kind: "unavailable", code: "service_unavailable" };
     }
+    if (stale()) return { kind: "no-session" };
     if (res.status >= 500) {
       // The backend is unhealthy; it has not judged these credentials.
       return { kind: "unavailable", code: "service_unavailable" };
@@ -239,8 +253,10 @@ export class IdentityApiClient {
       return { kind: "unavailable", code: "service_unavailable" };
     }
     try {
-      await this.persistSession(data.session);
+      if (stale()) return { kind: "no-session" };
+      await this.persistSession(data.session, generation);
     } catch {
+      if (stale()) return { kind: "no-session" };
       /* The server rotated successfully but the new credentials could not be
          written to the keystore. The OLD refresh token is now `rotated`
          server-side, so presenting it again would be treated as a replay and
@@ -272,7 +288,8 @@ export class IdentityApiClient {
    */
   private async discardCredentials(): Promise<void> {
     try {
-      await this.store.clear();
+      const generation = verificationGeneration();
+      await this.writeCredentials(generation, () => this.store.clear());
     } catch {
       /* Total storage failure — see above. Deliberately tolerated: the returned
          outcome is unchanged, so this can never be mistaken for success. */
@@ -336,13 +353,13 @@ export class IdentityApiClient {
     }
   }
 
-  private async persistSession(session: SessionEnvelope): Promise<void> {
-    await this.store.save({
+  private async persistSession(session: SessionEnvelope, generation = verificationGeneration()): Promise<void> {
+    await this.writeCredentials(generation, () => this.store.save({
       accessToken: session.accessToken,
       accessTokenExpiresAt: session.accessTokenExpiresAt,
       refreshToken: session.refreshToken,
       refreshTokenExpiresAt: session.refreshTokenExpiresAt,
-    });
+    }));
   }
 
   // ---- auth ---------------------------------------------------------------
@@ -357,12 +374,19 @@ export class IdentityApiClient {
    * never claims a sign-in whose credentials were not stored.
    */
   async completeEmailOtp(email: string, code: string, deviceLabel?: string): Promise<LoginResult> {
+    const startedGeneration = verificationGeneration();
     const result = await this.request<LoginResult>("/identity/auth/email/complete", {
       method: "POST",
       body: deviceLabel === undefined ? { email, code } : { email, code, deviceLabel },
     });
     try {
-      await this.persistSession(result.session);
+      if (startedGeneration !== verificationGeneration()) throw new IdentityApiError(0, "session_changed");
+      const clearing = clearPendingQueue();
+      void clearing.catch(() => {});
+      const generation = verificationGeneration();
+      await clearing;
+      await this.persistSession(result.session, generation);
+      setVerificationAccount(result.user.id);
     } catch {
       throw new IdentityApiError(0, "secure_storage_unavailable");
     }
@@ -370,12 +394,16 @@ export class IdentityApiClient {
   }
 
   async signOut(): Promise<void> {
+    setVerificationAccount(null);
+    const clearing = clearPendingQueue();
+    void clearing.catch(() => {});
+    const generation = verificationGeneration();
     try {
       await this.request<{ revoked: boolean }>("/identity/session/revoke", { method: "POST", auth: true });
     } finally {
       // Always clear local credentials, even when the revoke call failed —
       // clear() itself propagates a storage failure (fail closed).
-      await this.store.clear();
+      await Promise.all([clearing, this.writeCredentials(generation, () => this.store.clear())]);
     }
   }
 
@@ -383,10 +411,14 @@ export class IdentityApiClient {
    *  security version, killing all devices' tokens), then clear local
    *  credentials. */
   async signOutEverywhere(): Promise<void> {
+    setVerificationAccount(null);
+    const clearing = clearPendingQueue();
+    void clearing.catch(() => {});
+    const generation = verificationGeneration();
     try {
       await this.request<{ revoked: number }>("/identity/session/revoke-all", { method: "POST", auth: true });
     } finally {
-      await this.store.clear();
+      await Promise.all([clearing, this.writeCredentials(generation, () => this.store.clear())]);
     }
   }
 
