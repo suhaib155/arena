@@ -20,6 +20,7 @@
  * never reaches for the APIs that could.
  */
 import type { VerificationState } from "./movementVerification";
+import type { SealMethod } from "@movenrun/shared/sealing";
 
 /* ── the persisted record ─────────────────────────────────────────────────── */
 
@@ -56,6 +57,9 @@ export interface VerifiedMovementRecord {
   rejectionReasons: string[];
   /** When this client settled the record (ISO). */
   recordedAt: string;
+  sealed?: boolean | null;
+  sealMethods?: SealMethod[] | null;
+  sealCount?: number | null;
 }
 
 /**
@@ -81,6 +85,9 @@ export function toVerifiedRecord(
       traversedHexCount: state.traversedHexIds.length,
       rejectionReasons: [],
       recordedAt: now(),
+      sealed: state.sealed ?? null,
+      sealMethods: state.sealMethods ?? null,
+      sealCount: state.sealCount ?? null,
     };
   }
   if (state.kind === "rejected") {
@@ -190,10 +197,16 @@ export function verificationLabel(state: VerificationState): string {
     case "submitting":
       return "Verifying movement";
     case "verified":
-      return "Verified movement";
+      return "Route checked";
     case "rejected":
       return "Needs review";
     case "pending":
       return "Verification pending";
   }
+}
+
+/** Backend evaluation has three states and never establishes territory ownership. */
+export function serverSealLabel(state: VerificationState): string {
+  if (state.kind !== "verified" || state.sealed == null) return "Seal not evaluated";
+  return state.sealed ? "Server check: sealed" : "Server check: open";
 }
