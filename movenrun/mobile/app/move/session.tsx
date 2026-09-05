@@ -87,6 +87,7 @@ export default function MoveSessionScreen() {
   /** Spans where the app was backgrounded and no fixes arrived. */
   const gapsRef = useRef<TrackingGap[]>([]);
   const backgroundedAtRef = useRef<number | null>(null);
+  const trackerGapAtRef = useRef<number | null>(null);
   const continuityBrokenRef = useRef(false);
 
   /**
@@ -161,6 +162,11 @@ export default function MoveSessionScreen() {
           distanceDiagnostics.record(p, decision, distanceRef.current, previewRef.current?.evidenceStats.retained ?? 0);
           return;
         }
+        if (trackerGapAtRef.current !== null) {
+          recordGap(gapsRef.current, trackerGapAtRef.current, Date.now());
+          trackerGapAtRef.current = null;
+          setStartError(null);
+        }
         if (continuityBrokenRef.current) {
           p = { ...p, breakBefore: true };
           continuityBrokenRef.current = false;
@@ -202,6 +208,7 @@ export default function MoveSessionScreen() {
         setStartError(error);
         setGpsState("weak");
         continuityBrokenRef.current = true;
+        trackerGapAtRef.current ??= Date.now();
       })
       .then(() => {
         if (cancelled) return;
@@ -312,6 +319,10 @@ export default function MoveSessionScreen() {
     if (backgroundedAtRef.current != null) {
       recordGap(gapsRef.current, backgroundedAtRef.current, at);
       backgroundedAtRef.current = null;
+    }
+    if (trackerGapAtRef.current !== null) {
+      recordGap(gapsRef.current, trackerGapAtRef.current, at);
+      trackerGapAtRef.current = null;
     }
 
     const metadata = sessionMetadata(next.lifecycle);
