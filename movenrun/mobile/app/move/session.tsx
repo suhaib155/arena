@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, AppState, BackHandler, Linking, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, Alert, AppState, BackHandler, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScreenHeader } from "@/components/ScreenHeader";
-import { RouteCanvas } from "@/components/RouteCanvas";
+import { MovenMap } from "@/components/map/MovenMap";
+import { contextCells, currentCellKey } from "@/lib/mapCells";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
@@ -74,8 +75,11 @@ export default function MoveSessionScreen() {
   const evidenceSourceRef = useRef<TrackerMode>(mode);
 
   /* The drawn route is a throttled *snapshot* of the buffer, not the buffer
-     itself: the canvas draws ~110 dots, so refreshing on every fix reconciles
-     them for a change nobody can see. */
+     itself. Refreshing on every fix would hand the map a new coordinate array
+     several times a second for a change of a couple of metres — invisible at
+     walking zoom, and a native polyline update each time. The stride in
+     `lib/trackPoints.ts` decides how often; the buffer it snapshots is capped
+     there too, so the polyline is bounded however long the session runs. */
   const [routePreview, setRoutePreview] = useState<TrackPoint[]>([]);
   const [distanceM, setDistanceM] = useState(0);
   const [gpsState, setGpsState] = useState<GpsState>("waiting");
@@ -427,6 +431,24 @@ export default function MoveSessionScreen() {
   const starting = captureState === "starting";
   const controlsAvailable = captureState === "active" || paused;
 
+  /* The head fix, and the grid around it.
+     Keyed on the cell rather than on the fix: the player crosses a resolution-8
+     boundary every few minutes of walking, so the grid is rebuilt then and not
+     on every accepted point. `routePreview` already updates on a stride rather
+     than per fix, and this narrows it further to the one thing the overlay
+     depends on. */
+  /* Stable, so the drawn route's segment memo is not invalidated every render.
+     Reads the lifecycle's live pause array, so the line breaks at exactly the
+     pauses the measured distance breaks at. */
+  const pauseSource = useCallback(() => lifecycleRef.current.pauses, []);
+
+  const head = routePreview.length > 0 ? routePreview[routePreview.length - 1]! : null;
+  const cellKey = currentCellKey(head);
+  /* Keyed on the cell and not on `head` deliberately: while the player stays
+     inside one cell the answer is identical, so recomputing it per fix would
+     produce the same seven polygons over and over. */
+  const cells = useMemo(() => contextCells(head), [cellKey]); // eslint-disable-line
+
   if (!controlsAvailable && captureState !== "finished") {
     const title = starting ? "Finding GPS" : "Session not started";
     const detail = starting
@@ -479,9 +501,28 @@ export default function MoveSessionScreen() {
         trailing={<GpsChip mode={mode} state={gpsState} />}
       />
 
-      {/* Live map/route dominates the top of the screen */}
-      <RouteCanvas points={routePreview} height={248} live />
+      {/* The real map is the hero, and the first thing to give up height when
+          there is not enough of it — `flex: 1` above a floor. Everything below
+          keeps its natural height, so the controls cannot be pushed off a small
+          screen or a large-text one. */}
+      <MovenMap
+        points={routePreview}
+        pauses={pauseSource}
+        cells={cells}
+        live
+        paused={paused}
+        style={styles.map}
+        accessibilityLabel="Map of the route recorded so far"
+      />
 
+      {/* Between the map and the controls. Scrolls rather than growing, so at
+          the largest font scales the metrics stay reachable and the footer
+          stays on screen instead of being pushed past the bottom edge. */}
+      <ScrollView
+        style={styles.middle}
+        contentContainerStyle={styles.middleContent}
+        showsVerticalScrollIndicator={false}
+      >
       {startError ? (
         <View style={styles.demoBanner} accessibilityLiveRegion="polite">
           <Text style={styles.demoText}>GPS tracking was interrupted. Time continues; missing route sections will be shown in your summary.</Text>
@@ -531,6 +572,7 @@ export default function MoveSessionScreen() {
             : "Cross your own trail, or finish near where you started, to seal this route."}
         </Text>
       </View>
+      </ScrollView>
 
       {/* Large, unmistakable controls; Finish is separated + confirmed */}
       <View style={styles.controls}>
@@ -605,6 +647,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   demoText: { ...type.caption, fontSize: 11.5, fontWeight: "600" },
+  /* The hero, and the flexible one. A floor rather than a fixed height: on a
+     320x640 screen at the largest font scale the map gives up its space to the
+     metrics and the controls, and still shows the route. */
+  map: { flex: 1, minHeight: 132, marginTop: spacing.sm },
+  middle: { flexGrow: 0, flexShrink: 1 },
+  middleContent: { paddingBottom: spacing.sm },
   metrics: { marginTop: spacing.lg, gap: spacing.md },
   metricRow: { flexDirection: "row", alignItems: "center" },
   metricDivider: {
@@ -635,5 +683,7 @@ const styles = StyleSheet.create({
   },
   sealChipText: { ...type.kicker, fontSize: 12, letterSpacing: 0 },
   zoneNote: { ...type.caption, fontSize: 12 },
-  controls: { paddingVertical: spacing.md, marginTop: "auto" },
+  /* No `marginTop: "auto"` any more — the map above flexes, so the controls
+     sit directly under the scrollable middle and are always on screen. */
+  controls: { paddingTop: spacing.md, paddingBottom: spacing.sm },
 });
