@@ -3,12 +3,13 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
-import { Button } from "@/components/Button";
+import { DisplayHeading } from "@/components/DisplayHeading";
+import { MissionCard } from "@/components/MissionCard";
 import { Hexagon } from "@/components/Hexagon";
 import { ScalePress } from "@/components/ScalePress";
 import { RankRow } from "@/components/RankRow";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { canvas, colors, hairline, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
+import { canvas, colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { CLUBS, getClubById } from "@/data/clubs";
 import { zoneStatus } from "@/lib/territory";
@@ -21,6 +22,7 @@ import {
 import { selectClubMission, buildClubHeroView } from "@/lib/clubsView";
 import type { Club } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 /** Pre-blended pastel fill for a club color over the mist panel. */
 function pastelFor(color: string): string {
@@ -48,8 +50,10 @@ export default function ClubsScreen() {
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.greeting}>City War Preview</Text>
-          <Text style={styles.title}>{selected ? "Your club this week" : "Find your club"}</Text>
+          <DisplayHeading
+            kicker="City war preview"
+            title={selected ? "Your club this week." : "Find your club."}
+          />
         </View>
         {selected ? <ClubHome club={selected} /> : <ChooseClub />}
         <Text style={styles.footerNote}>Local preview · online clubs and city wars arrive later.</Text>
@@ -195,21 +199,23 @@ function ClubHome({ club }: { club: Club }) {
         </View>
       </FadeSlideIn>
 
-      {/* One current mission */}
+      {/* One current mission.
+          This was a white card describing the mission with a separate
+          full-width button under it — two objects for one action, and the
+          button carried a literal play glyph whatever the mission actually
+          did ("View Territory" advertised playback). One MissionCard now holds
+          the statement and its own action, and the glyph follows the mission's
+          destination, the same rule Home's spotlight obeys. */}
       <FadeSlideIn delay={STAGGER_MS}>
-        <View style={styles.missionCard}>
-          <View style={styles.missionIcon}>
-            <Ionicons name="flag-outline" size={20} color={palette.baseBlue} />
-          </View>
-          <View style={styles.missionBody}>
-            <Text style={styles.missionKicker}>Club mission</Text>
-            <Text style={styles.missionTitle}>{mission.title}</Text>
-            <Text style={styles.missionDetail}>{mission.detail}</Text>
-          </View>
-        </View>
-      </FadeSlideIn>
-      <FadeSlideIn delay={STAGGER_MS}>
-        <Button label={mission.ctaLabel} icon="play" onPress={runMission} />
+        <MissionCard
+          kicker="Club mission"
+          title={mission.title}
+          detail={mission.detail}
+          ctaLabel={mission.ctaLabel}
+          ctaIcon={mission.action === "map" ? "map-outline" : "walk-outline"}
+          onPress={runMission}
+          icon={mission.action === "map" ? "shield-half-outline" : "flag-outline"}
+        />
       </FadeSlideIn>
 
       {/* Club Territory command layer (compact) */}
@@ -276,7 +282,19 @@ const WAR_CELLS = 18;
 
 function CityWarMap({ ranked }: { ranked: RankedClub[] }) {
   const pulse = useRef(new Animated.Value(0)).current;
+  /* The only *indefinite* animation in the app: it runs for as long as this
+     screen is mounted, where every other motion here is a one-shot entrance.
+     "Reduce motion" exists largely for exactly this — a continuously moving
+     element the user cannot dismiss — and this loop was starting regardless of
+     the setting. Held at rest rather than merely slowed: the cells carry their
+     meaning in colour and position, and the pulse says nothing they do not. */
+  const reducedMotion = useReducedMotion();
   useEffect(() => {
+    if (reducedMotion) {
+      pulse.stopAnimation();
+      pulse.setValue(0);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 1600, useNativeDriver: true }),
@@ -285,7 +303,7 @@ function CityWarMap({ ranked }: { ranked: RankedClub[] }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [pulse]);
+  }, [pulse, reducedMotion]);
 
   const cells = useMemo(() => {
     const total = ranked.reduce((sum, r) => sum + r.score, 0) || 1;
@@ -348,9 +366,7 @@ function CityWarMap({ ranked }: { ranked: RankedClub[] }) {
 
 const styles = StyleSheet.create({
   content: { paddingTop: spacing.sm, paddingBottom: 120, gap: spacing.lg },
-  header: { paddingTop: spacing.md, gap: 2 },
-  greeting: { ...type.kicker, color: colors.primary },
-  title: { ...type.display, fontSize: 26 },
+  header: { paddingTop: spacing.md },
   footerNote: {
     ...type.mono,
     fontSize: 11,
@@ -447,22 +463,6 @@ const styles = StyleSheet.create({
   heroStatLabel: { ...type.caption, fontSize: 10.5, textAlign: "center" },
   heroStatDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.border },
   heroSummary: { ...type.mono, fontSize: 11, color: colors.textFaint, textAlign: "center" },
-
-  missionCard: {
-    flexDirection: "row",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: hairline(palette.baseBlue),
-    padding: spacing.lg,
-    ...shadows.card,
-  },
-  missionIcon: { ...iconTile(42), backgroundColor: softTint(palette.baseBlue) },
-  missionBody: { flex: 1, gap: 3 },
-  missionKicker: { ...type.kicker, fontSize: 10.5, color: palette.baseBlue },
-  missionTitle: { ...type.heading, fontSize: 16 },
-  missionDetail: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.textDim },
 
   territoryCta: {
     flexDirection: "row",

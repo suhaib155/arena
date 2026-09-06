@@ -12,6 +12,7 @@ import { avatar, colors, glow, iconTile, ink, palette, radius, shadows, softTint
 import { questService } from "@/services/questService";
 import { useGameStore, type CompletionOutcome } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
+import { hudProgress } from "@/lib/playerRank";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { successFeedback } from "@/lib/haptics";
 
@@ -48,6 +49,7 @@ export default function ResultScreen() {
   }
 
   const level = getLevelInfo(outcome.totalXpAfter);
+  const hud = hudProgress(outcome.totalXpAfter, "Mover");
   // Display preview only: in-app progress, not a payout (see lib/lockedMove).
   const lockedMoveGained =
     lockedMovePreview(outcome.totalXpAfter) - lockedMovePreview(outcome.totalXpBefore);
@@ -115,12 +117,17 @@ export default function ResultScreen() {
           </View>
         ) : null}
 
+        {/* Progression, stated the way every other surface states it.
+            This row used to read "1260 / 500 XP", which is a fraction *into*
+            the level and looks like an overflow. The same two facts the header
+            shows — who you are now, and what is still owed — come from
+            `hudProgress`, so the wording cannot drift between screens. */}
         <View style={styles.card}>
           <View style={styles.levelRow}>
-            <Text style={styles.levelLabel}>Level {level.level}</Text>
-            <Text style={styles.levelXp}>
-              {level.xpIntoLevel} / {level.xpForLevel} XP
+            <Text style={styles.levelLabel}>
+              Level {hud.level} · {hud.rank}
             </Text>
+            <Text style={styles.levelXp}>{hud.nextLevelLabel}</Text>
           </View>
           <RoutePath progress={level.progress} />
         </View>
