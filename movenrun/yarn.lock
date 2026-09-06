@@ -2835,6 +2835,7 @@ __metadata:
     cors: "npm:^2.8.6"
     drizzle-kit: "npm:^0.22.0"
     drizzle-orm: "npm:^0.31.0"
+    esbuild: "npm:^0.19.7"
     ethers: "npm:^6.12.1"
     express: "npm:^4.19.2"
     express-rate-limit: "npm:^8.5.2"
