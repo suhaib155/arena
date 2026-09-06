@@ -87,6 +87,7 @@ export default function MoveStartScreen() {
   }, []);
 
   const demo = useCallback(() => {
+    if (!__DEV__) return;
     tapFeedback();
     router.replace({ pathname: "/move/session", params: { mode: "demo" } });
   }, [router]);
@@ -201,7 +202,7 @@ export default function MoveStartScreen() {
           loading={requesting || readiness.kind === "checking"}
           disabled={readiness.kind === "checking"}
         />
-        {readiness.offerDemo ? (
+        {__DEV__ && readiness.offerDemo ? (
           <Button label="Not now — try a demo route" variant="ghost" onPress={demo} />
         ) : null}
       </View>

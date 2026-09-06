@@ -33,11 +33,10 @@ import { colors, iconTile, MIN_TOUCH_TARGET, pressFade, spacing, type } from "@/
  * and keep it.
  *
  * ## Touch target
- * The control is drawn at 32pt because that is what the layout was built
- * around, and inflating it to 44 would push the title off its baseline. The
- * 12pt `hitSlop` carries it to 56pt of real target — comfortably over
- * {@link MIN_TOUCH_TARGET}, and declared rather than assumed, per the contract
- * in `uiGuards.test.ts`.
+ * The control occupies 44pt, with extra hit slop. Equal side slots keep the
+ * wrapping title balanced; optional status content occupies its own row so
+ * large text never has to compete with it for the title's width. Safe-area
+ * padding belongs to the containing Screen.
  */
 interface ScreenHeaderProps {
   title: string;
@@ -75,6 +74,7 @@ export function ScreenHeader({
 }: ScreenHeaderProps) {
   const router = useRouter();
   return (
+    <View>
     <View style={styles.row}>
       <Pressable
         onPress={onAction ?? (() => router.back())}
@@ -88,24 +88,25 @@ export function ScreenHeader({
 
       <View style={styles.titleWrap}>
         {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={styles.title}>
           {title}
         </Text>
       </View>
 
-      <View style={styles.trailing}>{trailing}</View>
+      <View style={styles.trailing} />
+    </View>
+    {trailing ? <View style={styles.statusRow}>{trailing}</View> : null}
     </View>
   );
 }
 
-const CONTROL = 32;
+const CONTROL = 44;
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.xs,
     gap: spacing.sm,
@@ -118,8 +119,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
-  title: { ...type.heading, fontSize: 16, flexShrink: 1 },
+  title: { ...type.heading, fontSize: 16, flexShrink: 1, textAlign: "center" },
   dot: { width: 8, height: 8, borderRadius: 4 },
   // Mirrors the control so the title is centred whether or not a chip is here.
-  trailing: { minWidth: CONTROL, alignItems: "flex-end" },
+  trailing: { minWidth: CONTROL, width: CONTROL, alignItems: "flex-end" },
+  statusRow: { alignItems: "center", paddingBottom: spacing.xs },
 });

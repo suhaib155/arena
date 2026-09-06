@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Alert, AppState, BackHandler, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Alert, AppState, BackHandler, Linking, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -60,7 +60,9 @@ export default function MoveSessionScreen() {
   // not restart an active tracker. Keep the mount router for that callback.
   const routerRef = useRef(router);
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
-  const mode: TrackerMode = modeParam === "demo" ? "demo" : "gps";
+  const mode: TrackerMode = __DEV__ && modeParam === "demo" ? "demo" : "gps";
+  const { height, fontScale } = useWindowDimensions();
+  const compact = height < 780 || fontScale > 1.2;
   /**
    * The evidence source for this session, pinned at mount.
    *
@@ -212,19 +214,15 @@ export default function MoveSessionScreen() {
            clock tick, not on a re-render, not on pause or resume. A closure is
            a property of the route, so the only thing that can create one is the
            route growing. */
+        const previousPreview = previewRef.current?.preview ?? EMPTY_PREVIEW;
         const closed = previewRef.current?.push(p) ?? false;
         distanceRef.current = previewRef.current?.distanceMeters ?? distanceRef.current;
         setDistanceM(distanceRef.current);
         distanceDiagnostics.record(p, decision, distanceRef.current, previewRef.current?.evidenceStats.retained ?? 0);
         const next = previewRef.current?.preview ?? EMPTY_PREVIEW;
+        const announcement = sealPreviewAnnouncement(previousPreview, next);
+        if (announcement !== null) AccessibilityInfo.announceForAccessibility(announcement);
         setPreview((current) => {
-          const announcement = sealPreviewAnnouncement(current, next);
-          if (announcement !== null) {
-            /* Announced once, on the transition that means something, rather
-               than on every fix — a live region that spoke each update would
-               make the screen unusable with a screen reader. */
-            AccessibilityInfo.announceForAccessibility(announcement);
-          }
           if (current.sealedLoops === next.sealedLoops && current.nearStart === next.nearStart) {
             return current;
           }
@@ -515,14 +513,9 @@ export default function MoveSessionScreen() {
         accessibilityLabel="Map of the route recorded so far"
       />
 
-      {/* Between the map and the controls. Scrolls rather than growing, so at
-          the largest font scales the metrics stay reachable and the footer
-          stays on screen instead of being pushed past the bottom edge. */}
-      <ScrollView
-        style={styles.middle}
-        contentContainerStyle={styles.middleContent}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* Critical metrics and actions remain in the viewport. On constrained
+          screens the map shrinks and tertiary route explanation is omitted. */}
+      <View style={styles.middle}>
       {startError ? (
         <View style={styles.demoBanner} accessibilityLiveRegion="polite">
           <Text style={styles.demoText}>GPS tracking was interrupted. Time continues; missing route sections will be shown in your summary.</Text>
@@ -537,8 +530,8 @@ export default function MoveSessionScreen() {
       ) : null}
 
       {/* Dominant distance metric + supporting time/pace */}
-      <View style={styles.metrics}>
-        <MovementMetric value={formatDistance(distanceM)} label="distance" size="hero" />
+      <View style={[styles.metrics, compact && styles.compactMetrics]}>
+        <MovementMetric value={formatDistance(distanceM)} label="distance" size={compact ? "tile" : "hero"} />
         <View style={styles.metricRow}>
           <SessionClock readElapsed={readElapsed} distanceM={distanceM} paused={paused} />
         </View>
@@ -552,7 +545,7 @@ export default function MoveSessionScreen() {
           Calm on purpose. An unsealed route is an ordinary route, so there is
           no countdown, no warning colour and no urgency here; nobody should be
           crossing a road to close a loop. */}
-      <View style={styles.zoneCard}>
+      {!compact ? <View style={styles.zoneCard}>
         <View style={styles.zoneHead}>
           <Text style={styles.zoneTitle}>Your route</Text>
           <View style={[styles.sealChip, { backgroundColor: softTint(sealCore) }]}>
@@ -571,8 +564,8 @@ export default function MoveSessionScreen() {
             ? "Sealed sections are banked. The trail ahead is open again."
             : "Cross your own trail, or finish near where you started, to seal this route."}
         </Text>
+      </View> : null}
       </View>
-      </ScrollView>
 
       {/* Large, unmistakable controls; Finish is separated + confirmed */}
       <View style={styles.controls}>
@@ -650,9 +643,9 @@ const styles = StyleSheet.create({
   /* The hero, and the flexible one. A floor rather than a fixed height: on a
      320x640 screen at the largest font scale the map gives up its space to the
      metrics and the controls, and still shows the route. */
-  map: { flex: 1, minHeight: 132, marginTop: spacing.sm },
-  middle: { flexGrow: 0, flexShrink: 1 },
-  middleContent: { paddingBottom: spacing.sm },
+  map: { flex: 1, minHeight: 0, marginTop: spacing.sm },
+  middle: { flexGrow: 0, flexShrink: 0, paddingBottom: spacing.sm },
+  compactMetrics: { marginTop: spacing.xs, gap: spacing.xs },
   metrics: { marginTop: spacing.lg, gap: spacing.md },
   metricRow: { flexDirection: "row", alignItems: "center" },
   metricDivider: {
@@ -685,5 +678,5 @@ const styles = StyleSheet.create({
   zoneNote: { ...type.caption, fontSize: 12 },
   /* No `marginTop: "auto"` any more — the map above flexes, so the controls
      sit directly under the scrollable middle and are always on screen. */
-  controls: { paddingTop: spacing.md, paddingBottom: spacing.sm },
+  controls: { flexShrink: 0, paddingTop: spacing.sm, paddingBottom: spacing.sm },
 });

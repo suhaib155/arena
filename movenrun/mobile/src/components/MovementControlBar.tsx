@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, glow, palette, radius, shadows, spacing, type } from "@/theme";
+import { colors, glow, ink, radius, shadows, spacing, type } from "@/theme";
 import { ScalePress } from "./ScalePress";
 
 interface MovementControlBarProps {
@@ -48,9 +48,9 @@ export function MovementControlBar({
         <Ionicons
           name={paused ? "play" : "pause"}
           size={22}
-          color={paused ? palette.pulseGreen : colors.text}
+          color={paused ? ink.green : colors.text}
         />
-        <Text style={[styles.controlLabel, paused && { color: palette.pulseGreen }]}>
+        <Text style={[styles.controlLabel, paused && { color: ink.green }]}>
           {paused ? "Resume" : "Pause"}
         </Text>
       </ScalePress>
@@ -72,7 +72,7 @@ export function MovementControlBar({
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: "row", gap: spacing.md },
+  bar: { flexDirection: "row", gap: spacing.sm, flexShrink: 0 },
   control: {
     flex: 1,
     minHeight: 58,
@@ -81,13 +81,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    minWidth: 44,
   },
   secondary: { backgroundColor: colors.surface, ...shadows.card },
   /* Dimmed, not removed. The control keeps its box so the layout cannot shift
      between "starting" and "moving" while a thumb is on the way to it. */
   inert: { opacity: 0.5 },
   finish: { backgroundColor: colors.primary, ...glow(colors.primary) },
-  controlLabel: { ...type.heading, fontSize: 16, color: colors.text },
+  controlLabel: { ...type.heading, fontSize: 16, color: colors.text, flexShrink: 1, textAlign: "center" },
   finishLabel: { color: colors.surface },
 });
