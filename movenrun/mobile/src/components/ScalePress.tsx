@@ -1,12 +1,15 @@
-import { ReactNode, useRef } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import {
   Animated,
   Pressable,
+  StyleSheet,
   type AccessibilityRole,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { motion } from "@/theme";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { splitPressLayout } from "@/lib/pressLayout";
 
 interface ScalePressProps {
   children: ReactNode;
@@ -66,7 +69,7 @@ function accessibilityState(
 ): { disabled?: boolean; busy?: boolean; selected?: boolean } | undefined {
   const state: { disabled?: boolean; busy?: boolean; selected?: boolean } = {};
   if (disabled || busy) {
-    state.disabled = Boolean(disabled);
+    state.disabled = Boolean(disabled || busy);
     state.busy = Boolean(busy);
   }
   if (selected !== undefined) state.selected = selected;
@@ -92,12 +95,24 @@ export function ScalePress({
 }: ScalePressProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const inactive = Boolean(disabled || busy);
+  const reducedMotion = useReducedMotion();
+  const { outer, inner } = splitPressLayout(StyleSheet.flatten(style));
 
-  const springTo = (value: number) =>
-    Animated.spring(scale, { toValue: value, ...motion.spring }).start();
+  useEffect(() => {
+    scale.stopAnimation();
+    scale.setValue(1);
+    return () => { scale.stopAnimation(); };
+  }, [inactive, reducedMotion, scale]);
+
+  const springTo = (value: number) => {
+    scale.stopAnimation();
+    if (reducedMotion) scale.setValue(1);
+    else Animated.spring(scale, { toValue: value, ...motion.spring }).start();
+  };
 
   return (
     <Pressable
+      style={outer}
       // The press animation is decorative and runs on the native driver — it
       // never gates or delays this handler.
       onPress={onPress}
@@ -110,7 +125,7 @@ export function ScalePress({
       onPressIn={() => !inactive && springTo(to)}
       onPressOut={() => springTo(1)}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+      <Animated.View style={[inner, { transform: [...(Array.isArray(inner.transform) ? inner.transform : []), { scale }] }]}>{children}</Animated.View>
     </Pressable>
   );
 }

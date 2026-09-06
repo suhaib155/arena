@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { Animated, type ViewStyle } from "react-native";
 import { motion } from "@/theme";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 interface FadeSlideInProps {
   children: ReactNode;
@@ -14,16 +15,24 @@ interface FadeSlideInProps {
 /** Soft fade + rise entrance for cards and list items (native driver only). */
 export function FadeSlideIn({ children, delay = 0, dy = 14, style }: FadeSlideInProps) {
   const progress = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
-    Animated.spring(progress, {
+    if (reducedMotion) {
+      progress.stopAnimation();
+      progress.setValue(1);
+      return;
+    }
+    const animation = Animated.spring(progress, {
       toValue: 1,
       delay,
       friction: 9,
       tension: 50,
       useNativeDriver: true,
-    }).start();
-  }, [progress, delay]);
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [progress, delay, reducedMotion]);
 
   return (
     <Animated.View

@@ -1,10 +1,10 @@
-import { ActivityIndicator, StyleSheet, Text, ViewStyle } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, glow, radius, shadows, spacing } from "@/theme";
+import { colors, glow, ink, radius, shadows, spacing } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 
-type Variant = "primary" | "secondary" | "ghost";
+type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 interface ButtonProps {
   label: string;
@@ -45,7 +45,7 @@ export function Button({
   const isDisabled = Boolean(disabled);
   const isBusy = Boolean(loading);
   const textColor =
-    variant === "primary" ? colors.surface : variant === "ghost" ? colors.textDim : colors.text;
+    variant === "primary" || variant === "danger" ? colors.surface : variant === "ghost" ? colors.textDim : colors.text;
 
   const variantStyle = variantStyles[variant];
 
@@ -64,14 +64,11 @@ export function Button({
         style ?? {},
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color={textColor} />
-      ) : (
-        <>
+      <View style={[styles.content, loading && { opacity: 0 }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {icon ? <Ionicons name={icon} size={18} color={textColor} /> : null}
           <Text style={[styles.label, { color: textColor }]}>{label}</Text>
-        </>
-      )}
+      </View>
+      {loading ? <ActivityIndicator style={StyleSheet.absoluteFillObject} color={textColor} /> : null}
     </ScalePress>
   );
 }
@@ -89,9 +86,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   label: {
+    flexShrink: 1,
+    textAlign: "center",
     fontSize: 16,
     fontWeight: "700",
   },
+  content: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, maxWidth: "100%" },
   disabled: {
     opacity: 0.45,
   },
@@ -101,4 +101,5 @@ const variantStyles: Record<Variant, ViewStyle> = {
   primary: { backgroundColor: colors.primary, ...glow(colors.primary) },
   secondary: { backgroundColor: colors.surface, ...shadows.card },
   ghost: { backgroundColor: "transparent" },
+  danger: { backgroundColor: ink.coral },
 };

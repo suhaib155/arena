@@ -28,7 +28,6 @@ export function MovenTabBar({ state, navigation }: BottomTabBarProps) {
   const activeName = state.routes[state.index]?.name as TabName | undefined;
 
   const goTab = (name: TabName) => {
-    tapFeedback();
     const target = state.routes.find((r) => r.name === name);
     const isFocused = activeName === name;
     const event = navigation.emit({
@@ -37,6 +36,7 @@ export function MovenTabBar({ state, navigation }: BottomTabBarProps) {
       canPreventDefault: true,
     });
     if (!isFocused && !event.defaultPrevented) {
+      tapFeedback();
       navigation.navigate(name);
     }
   };
@@ -60,6 +60,7 @@ export function MovenTabBar({ state, navigation }: BottomTabBarProps) {
         />
         <TabButton
           label="Territory"
+          isTab={false}
           icon="map-outline"
           active={false}
           onPress={() => push("/territory/map")}
@@ -89,19 +90,22 @@ function TabButton({
   icon,
   active,
   onPress,
+  isTab = true,
 }: {
   label: string;
   icon: IoniconName;
   active: boolean;
   onPress: () => void;
+  isTab?: boolean;
 }) {
-  const color = active ? colors.primary : colors.textFaint;
+  const color = active ? colors.primary : colors.textDim;
   return (
     <ScalePress
       to={0.9}
       onPress={onPress}
       style={styles.tab}
-      accessibilityRole="button"
+      accessibilityRole={isTab ? "tab" : "button"}
+      selected={isTab ? active : undefined}
       accessibilityLabel={label}
     >
       <Ionicons name={icon} size={22} color={color} />
@@ -140,7 +144,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 64,
+    minHeight: 64,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.xl,
     backgroundColor: colors.surface,
@@ -148,13 +152,14 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
+    minWidth: 44,
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
     paddingVertical: spacing.sm,
   },
-  tabLabel: { ...type.caption, fontSize: 10.5 },
-  moveSlot: { width: 72, alignItems: "center", justifyContent: "center" },
+  tabLabel: { ...type.caption, fontSize: 10.5, textAlign: "center", flexShrink: 1 },
+  moveSlot: { flex: 1, minWidth: 56, alignItems: "center", justifyContent: "center" },
   moveButton: { ...avatar(56), marginTop: -22, backgroundColor: colors.primary, borderWidth: 4, borderColor: colors.bg, ...glow(colors.primary) },
   moveLabel: {
     ...type.caption,
