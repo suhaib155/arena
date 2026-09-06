@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -44,6 +44,13 @@ const LEGEND: LegendItem[] = [
  */
 export default function TerritoryMapScreen() {
   const router = useRouter();
+  /* The same rule the live session uses. Everything below the board keeps its
+     natural height, so on a 320x640 screen or at a large font scale the board
+     is what gives way — and a 224pt map inside a 250pt board leaves nothing to
+     scroll. The ledger is a summary of what the board already shows cell by
+     cell, so it is the right thing to drop when height is scarce. */
+  const { height: windowHeight, fontScale } = useWindowDimensions();
+  const compact = windowHeight < 780 || fontScale > 1.2;
   const zones = useGameStore((s) => s.zones);
   const history = useGameStore((s) => s.history);
   const routeTrustHistory = useGameStore((s) => s.routeTrustHistory);
@@ -111,7 +118,7 @@ export default function TerritoryMapScreen() {
           visit — and the healthy meter carries a proportion because "4 of 6"
           is the thing that decides whether you go out today. Every number comes
           from `buildTerritoryOverview`; nothing is computed here. */}
-      {hydrated && overview.total > 0 ? (
+      {hydrated && overview.total > 0 && !compact ? (
         <View style={styles.ledger}>
           <MeterRow
             meters={[
