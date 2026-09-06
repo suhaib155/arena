@@ -95,7 +95,7 @@ test("the server computes distance, duration and traversed hexes itself", () => 
   });
   assert.equal(result.status, "verified");
   assert.equal(result.distanceMeters, 412);
-  assert.equal(result.durationSeconds, 300);
+  assert.equal(result.durationSeconds, 239, "duration comes from observed coverage, not declared wall-clock time");
   assert.deepEqual(result.traversedHexIds, ["8a1fb46622dffff"]);
 });
 

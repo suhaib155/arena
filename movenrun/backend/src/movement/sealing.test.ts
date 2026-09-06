@@ -90,10 +90,10 @@ const LASSO = [
 /** Away and never back: a perfectly good session that does not close. */
 const OPEN_ROUTE = [
   [0, 0],
-  [180, 0],
-  [360, 0],
-  [540, 0],
-  [720, 0],
+  [100, 0],
+  [200, 0],
+  [300, 0],
+  [400, 0],
 ] as const;
 
 function session(over: Record<string, unknown> = {}) {

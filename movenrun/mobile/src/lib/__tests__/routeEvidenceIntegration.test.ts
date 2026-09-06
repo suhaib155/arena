@@ -13,7 +13,7 @@ const T = 1_756_000_000_000;
 const point = (x: number, y: number, index: number): TrackPoint => ({
   latitude: 12.9716 + y / 111320,
   longitude: 77.5946 + x / (111320 * Math.cos(12.9716 * Math.PI / 180)),
-  accuracy: 8, timestamp: T + index * 10_000,
+  accuracy: 8, timestamp: T + Math.min(index, 4) * 10_000 + Math.max(0, index - 4) * 4_000,
 });
 const lasso = [[0, 0], [0, 60], [60, 60], [60, 30], [-30, 30]];
 const route = () => lasso.map(([x, y], index) => point(x, y, index));
@@ -44,7 +44,7 @@ for (const count of [2047, 2048, 2049, 5000, 10000]) {
     let previous: TrackPoint | null = null;
     for (let index = 0; index < count; index++) {
       const p = index < lasso.length ? point(...lasso[index]! as [number, number], index) :
-        point(-30 - (index - 4) * 3, 30, index);
+        point(-30 - (index - 4) * 20, 30, index);
       assert.equal(acceptPoint(previous, p), true);
       pushPoint(display, p);
       preview.push(p);
@@ -55,7 +55,7 @@ for (const count of [2047, 2048, 2049, 5000, 10000]) {
     assert.equal(preview.preview.sealedLoops, 1);
     const points = preview.snapshot();
     const session = { mode: "onFoot" as const, rulesVersion: 1, startedAt: T - 1000,
-      finishedAt: T + count * 10000, pauses: [] };
+      finishedAt: points[points.length - 1]!.timestamp + 1000, pauses: [] };
     const final = sealFinishedRoute({ points, session });
     assert.equal(final?.loops, 1, "a displayed loop cannot vanish in the submitted route");
     assert.ok(Math.abs(preview.distanceMeters - evidenceDistance(points)) < 1e-6);
