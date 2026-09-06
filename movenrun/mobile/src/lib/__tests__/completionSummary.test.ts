@@ -90,7 +90,7 @@ test("saved + captured → confirmed local capture", () => {
 test("saved + defended reports the defended count", () => {
   const s = resolveCompletion({ ...base(), saved: true, outcome: "defended", defendedCount: 3 });
   assert.equal(s.kind, "saved-defended");
-  assert.match(s.headline, /3 zones/);
+  assert.equal(s.headline, "3 local zones refreshed");
 });
 
 test("saved with zero capture is honest about no new territory", () => {

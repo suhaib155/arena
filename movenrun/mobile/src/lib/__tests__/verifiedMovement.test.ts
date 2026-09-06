@@ -184,12 +184,16 @@ test("the reconciliation module cannot reach territory or reward authority", () 
       `verifiedMovement.ts references ${forbidden} — traversal must not become territory here`,
     );
   }
-  // It may only import from the verification model.
+  // The reconciliation layer may use the verification model and the shared
+  // sealing *type*. It must not import any territory or reward authority.
   const imports = code.match(/^import .*$/gm) ?? [];
   assert.deepEqual(
-    imports.filter((l) => !l.includes("./movementVerification")),
-    [],
-    "the reconciliation layer imports something outside the verification domain",
+    imports.sort(),
+    [
+      'import type { SealMethod } from "@movenrun/shared/sealing";',
+      'import type { VerificationState } from "./movementVerification";',
+    ],
+    "the reconciliation layer imports an authority outside its sealed result types",
   );
 });
 
@@ -209,7 +213,7 @@ test("every user-facing label describes verification, never territory or reward"
   assert.deepEqual(labels, [
     "Not submitted",
     "Verifying movement",
-    "Verified movement",
+    "Route checked",
     "Needs review",
     "Verification pending",
   ]);
