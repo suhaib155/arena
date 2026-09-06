@@ -189,6 +189,9 @@ function runSubmission(
           durationSeconds: verification.durationSeconds,
           // Traversal, recorded as such. Nothing here becomes a captured zone.
           traversedHexIds: verification.traversedHexIds,
+          sealed: verification.sealed ?? null,
+          sealMethods: verification.sealMethods ?? null,
+          sealCount: verification.sealCount ?? null,
         };
       }
       return { kind: "rejected", reasons: verification.rejectionReasons };

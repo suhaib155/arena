@@ -612,17 +612,21 @@ test("the tracker is started once, from a source that cannot change under it", (
   assert.equal((screen.match(/createTracker\(/g) ?? []).length, 1, "one tracker, one session");
   assert.match(screen, /createTracker\(evidenceSourceRef\.current\)/);
 
-  /* The start effect's dependency list, checked because the failure it
-     prevents is silent: a dependency that can change would run the cleanup —
-     stopping the tracker — and the re-run would then be turned away by
-     `requestStart`'s single-flight guard, leaving a session that still reads
-     as active with nothing capturing it. */
+  /* The only mutable dependency is the explicit failed-start retry. It cannot
+     change while a session is active: the button exists only in the recovery
+     branch, and every other state change must leave the live tracker alone. */
   const deps = screen.match(/tracker\.stop\(\);[\s\S]*?\};\s*\},\s*\[([^\]]*)\]\);/);
   assert.ok(deps, "the start effect's dependency list was not found");
   assert.equal(
     deps![1].trim(),
-    "apply",
-    "the start effect depends on a value that can change under a live session",
+    "apply, startAttempt",
+    "only the explicit failed-start retry may restart the tracker",
+  );
+  assert.equal((screen.match(/setStartAttempt\(/g) ?? []).length, 1, "there is one retry trigger");
+  assert.match(
+    screen,
+    /if \(!controlsAvailable && captureState !== "finished"\)[\s\S]*?setStartAttempt\(value => value \+ 1\)/,
+    "retry is unavailable while controls are live",
   );
 
   /* And the finished session records the source that actually produced the

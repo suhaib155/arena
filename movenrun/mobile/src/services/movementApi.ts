@@ -24,6 +24,7 @@
  * error message, or a URL from this module.
  */
 import type { SessionMetadata } from "@movenrun/shared/session";
+import { isSealMethod, type SealMethod } from "@movenrun/shared/sealing";
 import type { AuthedJsonTransport } from "./authedTransport";
 
 /* ── request ──────────────────────────────────────────────────────────────── */
@@ -135,6 +136,10 @@ export interface MovementVerification {
   /** Non-empty exactly when `status` is "rejected". */
   rejectionReasons: string[];
   verifiedAt: string;
+  /** Optional only for older stored/test records; the decoder normalizes absence to null. */
+  sealed?: boolean | null;
+  sealMethods?: SealMethod[] | null;
+  sealCount?: number | null;
 }
 
 export interface SubmitMovementResult {
@@ -262,6 +267,22 @@ function decodeVerification(raw: unknown): MovementVerification {
   if (status === "verified" && rejectionReasons.length > 0) fail();
   if (status === "rejected" && distanceMeters !== null) fail();
 
+  const absentSeal = ["sealed", "sealMethods", "sealCount"].every((key) => !(key in body));
+  const sealed = absentSeal ? null : body.sealed;
+  const sealMethods = absentSeal ? null : body.sealMethods;
+  const sealCount = absentSeal ? null : body.sealCount;
+  if (sealed === null) {
+    if (sealMethods !== null || sealCount !== null) fail();
+  } else {
+    if (typeof sealed !== "boolean" || !Array.isArray(sealMethods) ||
+      !sealMethods.every(isSealMethod) || new Set(sealMethods).size !== sealMethods.length ||
+      typeof sealCount !== "number" || !Number.isSafeInteger(sealCount) || sealCount < 0) fail();
+    const methods = sealMethods as SealMethod[];
+    const count = sealCount as number;
+    if (sealed ? methods.length === 0 || count < methods.length : methods.length !== 0 || count !== 0) fail();
+  }
+  if (status === "rejected" && sealed !== null) fail();
+
   /* The server must never send an ownership claim on this endpoint: it has no
      territory model to base one on. If one ever appears, that is a protocol
      change this client has not reviewed, and it stops here. */
@@ -277,6 +298,9 @@ function decodeVerification(raw: unknown): MovementVerification {
     traversedHexIds,
     rejectionReasons,
     verifiedAt: verifiedAt as string,
+    sealed: sealed as boolean | null,
+    sealMethods: sealMethods as SealMethod[] | null,
+    sealCount: sealCount as number | null,
   };
 }
 

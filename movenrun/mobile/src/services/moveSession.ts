@@ -78,10 +78,21 @@ let last: FinishedSession | null = null;
  * have it here would leave GPS observations sitting in storage with no policy.
  */
 let lastVerification: VerificationState = INITIAL_VERIFICATION;
+const verificationListeners = new Set<() => void>();
+
+export function subscribeVerification(listener: () => void): () => void {
+  verificationListeners.add(listener);
+  return () => { verificationListeners.delete(listener); };
+}
+
+function publishVerification(): void {
+  for (const listener of verificationListeners) listener();
+}
 
 export function setLastSession(session: FinishedSession): void {
   last = session;
   lastVerification = INITIAL_VERIFICATION;
+  publishVerification();
 }
 
 export function getLastSession(): FinishedSession | null {
@@ -101,12 +112,14 @@ export function getVerificationState(): VerificationState {
 export function setVerificationState(clientSessionId: string, state: VerificationState): void {
   if (!last || last.clientSessionId !== clientSessionId) return;
   lastVerification = state;
+  publishVerification();
 }
 
 export function clearLastSession(): void {
   distanceDiagnostics.reset();
   last = null;
   lastVerification = INITIAL_VERIFICATION;
+  publishVerification();
 }
 
 /**

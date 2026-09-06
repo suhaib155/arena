@@ -43,6 +43,50 @@ const verifiedBody = {
   verifiedAt: "2026-08-18T06:00:00.000Z",
 };
 
+test("server sealing survives the actual network decoder as unknown, open or sealed", async () => {
+  for (const fields of [
+    { sealed: null, sealMethods: null, sealCount: null },
+    { sealed: false, sealMethods: [], sealCount: 0 },
+    { sealed: true, sealMethods: ["self_cross", "return_to_start"], sealCount: 2 },
+  ]) {
+    const h = harness(() => ({ status: 201, body: { ...verifiedBody, ...fields } }));
+    try {
+      const result = await h.client.submit(request);
+      for (const [key, expected] of Object.entries(fields)) {
+        assert.deepEqual((result.verification as unknown as Record<string, unknown>)[key], expected);
+      }
+    } finally { h.restore(); }
+  }
+});
+
+test("older server responses with no seal fields normalize to unknown", async () => {
+  const h = harness(() => ({ status: 201, body: verifiedBody }));
+  try {
+    const result = await h.client.submit(request);
+    assert.equal((result.verification as unknown as Record<string, unknown>).sealed, null);
+  } finally { h.restore(); }
+});
+
+test("contradictory or unsupported server seal data fails closed", async () => {
+  for (const fields of [
+    { sealed: true },
+    { sealed: null, sealMethods: [], sealCount: 0 },
+    { sealed: false, sealMethods: ["self_cross"], sealCount: 1 },
+    { sealed: true, sealMethods: [], sealCount: 1 },
+    { sealed: true, sealMethods: ["future_rule"], sealCount: 1 },
+    { sealed: true, sealMethods: ["self_cross"], sealCount: 0 },
+    { sealed: true, sealMethods: ["self_cross"], sealCount: 1.5 },
+    { sealed: true, sealMethods: ["self_cross", "self_cross"], sealCount: 2 },
+    { status: "rejected", distanceMeters: null, rejectionReasons: ["Needs review"], sealed: true, sealMethods: ["self_cross"], sealCount: 1 },
+  ]) {
+    const h = harness(() => ({ status: 201, body: { ...verifiedBody, ...fields } }));
+    try {
+      await assert.rejects(() => h.client.submit(request), (error: unknown) =>
+        error instanceof MovementApiError && error.kind === "malformed_response");
+    } finally { h.restore(); }
+  }
+});
+
 interface Call {
   url: string;
   method: string;

@@ -174,7 +174,9 @@ test("a clean session reports no gaps and no notice", () => {
 test("the gap notice says what was lost, in plain words", () => {
   const notice = gapNotice(summarizeGaps([{ startedAt: 0, endedAt: 180_000 }], 600_000));
   assert.ok(notice, "a real gap must be surfaced");
-  assert.match(notice!, /background/, "it must say why");
+  assert.match(notice!, /Location tracking was interrupted/, "it must say what happened");
+  assert.match(notice!, /route wasn't recorded/, "it must say what was lost");
+  assert.doesNotMatch(notice!, /background/, "it must not invent a cause it did not observe");
   assert.match(notice!, /3 min/, "and how much");
   assert.ok(!/error|invalid|corrupt/i.test(notice!), "it is an explanation, not an alarm");
 
