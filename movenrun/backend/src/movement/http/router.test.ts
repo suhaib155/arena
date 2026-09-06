@@ -24,7 +24,7 @@ import { evaluateSealing } from "@movenrun/shared/sealing";
 const T0 = 1_756_000_000_000;
 const OFFSETS = [
   [0, 0], [0, 20], [0, 40], [0, 60], [20, 60], [40, 60],
-  [60, 60], [60, 45], [60, 30], [30, 30], [-30, 30], [-60, 30],
+  [60, 60], [60, 40], [60, 20], [30, 30], [-30, 30], [-60, 30],
 ];
 
 function requestBody(sessionId = "session-http-provenance") {
@@ -136,7 +136,7 @@ for (const count of [2049, 5000, 10000]) {
     await withServer(async (base, { repository, measured }) => {
       const preview = createSealPreview(1)!;
       for (let i = 0; i < count; i++) {
-        const [east, north] = i < OFFSETS.length ? OFFSETS[i]! : [-60 - (i - 11) * 3, 30];
+        const [east, north] = i < OFFSETS.length ? OFFSETS[i]! : [-60 - (i - 11) * 20, 30];
         preview.push({ latitude: 12.9716 + north / 111320,
           longitude: 77.5946 + east / (111320 * Math.cos(12.9716 * Math.PI / 180)),
           accuracy: 8, timestamp: T0 + Math.min(i, 11) * 10000 + Math.max(0, i - 11) * 4000 });

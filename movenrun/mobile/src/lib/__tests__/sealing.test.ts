@@ -354,7 +354,7 @@ test("the screen evaluates geometry only when the route grows", () => {
   const screen = code(join(APP, "move", "session.tsx"));
   const pushes = screen.match(/previewRef\.current\?\.push\(/g) ?? [];
   assert.equal(pushes.length, 1, "the preview is fed from more than one place");
-  const acceptBlock = screen.slice(screen.indexOf("acceptPoint(prev, p)"));
+  const acceptBlock = screen.slice(screen.indexOf("if (!decision.accepted)"));
   assert.ok(
     acceptBlock.indexOf("previewRef.current?.push(") < acceptBlock.indexOf("shouldRefreshPreview("),
     "the preview must be fed from the accepted-fix path",

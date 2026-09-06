@@ -8,6 +8,7 @@
 import type { SessionMetadata } from "@movenrun/shared/session";
 import type { EvidenceStatus } from "@movenrun/shared/evidence";
 
+import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
 import type { TrackPoint } from "@/lib/geo";
 import type { TrackingGap } from "@/lib/trackPoints";
 import type { TrackerMode } from "./moveTracker";
@@ -103,6 +104,7 @@ export function setVerificationState(clientSessionId: string, state: Verificatio
 }
 
 export function clearLastSession(): void {
+  distanceDiagnostics.reset();
   last = null;
   lastVerification = INITIAL_VERIFICATION;
 }

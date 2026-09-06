@@ -59,6 +59,7 @@ import {
   type SessionSubmission,
   type VerificationState,
 } from "@/lib/movementVerification";
+import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
 import { isSaveable } from "./moveSession";
 import type { FinishedSession } from "./moveSession";
 
@@ -180,6 +181,7 @@ function runSubmission(
   const operation = deps.client
     .submit(request)
     .then(({ verification }): VerificationState => {
+      distanceDiagnostics.backend(clientSessionId, verification.distanceMeters);
       if (verification.status === "verified") {
         return {
           kind: "verified",

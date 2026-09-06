@@ -9,13 +9,15 @@
  */
 import * as Location from "expo-location";
 import type { TrackPoint } from "@/lib/geo";
-import { SESSION_WATCH } from "@/lib/trackingConfig";
+import { AcquiredForegroundWatch, TrackerStartError } from "@/lib/acquiredForegroundWatch";
+export { TrackerStartError } from "@/lib/acquiredForegroundWatch";
+import { ACQUISITION_WATCH, SESSION_WATCH } from "@/lib/trackingConfig";
 
 export type TrackerMode = "gps" | "demo";
 
 export interface MoveTracker {
   readonly mode: TrackerMode;
-  start(onPoint: (p: TrackPoint) => void): Promise<void>;
+  start(onPoint: (p: TrackPoint) => void, onError?: (error: TrackerStartError) => void): Promise<void>;
   stop(): void;
 }
 
@@ -65,32 +67,43 @@ export async function hasLocationServices(): Promise<boolean> {
 
 export class GpsTracker implements MoveTracker {
   readonly mode = "gps" as const;
-  private sub: Location.LocationSubscription | null = null;
+  private generation = 0;
+  private watch = new AcquiredForegroundWatch({
+    watch: (acquiring, onPoint, onError) => {
+      const config = acquiring ? ACQUISITION_WATCH : SESSION_WATCH;
+      return Location.watchPositionAsync({
+        accuracy: config.accuracy as Location.Accuracy,
+        timeInterval: config.timeInterval,
+        distanceInterval: config.distanceInterval,
+      }, (loc) => onPoint({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        timestamp: loc.timestamp,
+        accuracy: loc.coords.accuracy ?? null,
+        speed: loc.coords.speed != null && loc.coords.speed >= 0 ? loc.coords.speed : null,
+      }), onError);
+    },
+  });
 
-  async start(onPoint: (p: TrackPoint) => void): Promise<void> {
-    /* Accuracy and intervals live in lib/trackingConfig.ts, with the reasoning
-       for each number. They are the biggest lever on battery life in the app,
-       so they are chosen once, in a unit-tested module, rather than inline. */
-    this.sub = await Location.watchPositionAsync(
-      {
-        accuracy: SESSION_WATCH.accuracy as Location.Accuracy,
-        timeInterval: SESSION_WATCH.timeInterval,
-        distanceInterval: SESSION_WATCH.distanceInterval,
-      },
-      (loc) => {
-        onPoint({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          timestamp: loc.timestamp ?? Date.now(),
-          accuracy: loc.coords.accuracy ?? null,
-        });
-      },
-    );
+  async start(onPoint: (p: TrackPoint) => void,
+    onError?: (error: TrackerStartError) => void): Promise<void> {
+    this.stop();
+    const generation = this.generation;
+    try {
+      if (!(await Location.hasServicesEnabledAsync())) throw new TrackerStartError("services_off");
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (permission.status !== "granted") throw new TrackerStartError("permission_denied");
+      if (generation !== this.generation) throw new TrackerStartError("cancelled");
+      await this.watch.start(onPoint, onError);
+    } catch (error) {
+      if (error instanceof TrackerStartError) throw error;
+      throw new TrackerStartError("tracker_error");
+    }
   }
 
   stop(): void {
-    this.sub?.remove();
-    this.sub = null;
+    this.generation += 1;
+    this.watch.stop();
   }
 }
 

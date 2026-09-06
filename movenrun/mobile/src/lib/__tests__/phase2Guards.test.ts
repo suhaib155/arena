@@ -68,7 +68,8 @@ test("Active Move preserves the session lifecycle wiring", () => {
     /createTracker\(evidenceSourceRef\.current\)/,
     "the tracker subscription is intact",
   );
-  assert.match(src, /acceptPoint\(prev, p\)/, "point acceptance/validation is unchanged");
+  assert.match(src, /inspectFix\(prev, p, now\)/, "each live fix is evaluated by the shared measurement policy");
+  assert.match(src, /if \(!decision\.accepted\) \{/, "rejected fixes cannot reach route evidence");
 });
 
 test("Active Move intercepts Android hardware back (no silent discard)", () => {

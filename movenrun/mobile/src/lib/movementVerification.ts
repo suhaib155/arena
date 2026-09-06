@@ -98,9 +98,9 @@ export interface SessionSubmission {
  * points" check see a cleaner route than we actually observed — claiming
  * precision we do not have, in the direction that flatters us.
  *
- * `MAX_ACCURACY_M` is instead the honest upper bound: the point passed
- * `acceptPoint`, so its accuracy is at worst this, and we know no better.
- * Reporting the ceiling can only make the server more suspicious, never less.
+ * `MAX_ACCURACY_M` is the compatibility fallback for older recorded routes.
+ * New capture rejects unknown accuracy because it cannot bound displacement
+ * uncertainty; legacy retries retain their original evidence shape.
  */
 export const UNKNOWN_ACCURACY_M = MAX_ACCURACY_M;
 
@@ -136,7 +136,7 @@ export function toObservations(session: {
      clock when there are no points at all. */
   const timestamps = points.map((p) => p.timestamp);
   const startTime = timestamps.length ? Math.min(...timestamps) : session.finishedAt - session.durationMs;
-  const endTime = timestamps.length ? Math.max(...timestamps, session.finishedAt) : session.finishedAt;
+  const endTime = timestamps.length ? Math.max(...timestamps) : session.finishedAt;
 
   return { startTime, endTime, points };
 }

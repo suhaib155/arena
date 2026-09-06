@@ -274,9 +274,11 @@ test("a movement session completed today IS a move", () => {
 });
 
 test("only TODAY's movement counts", () => {
-  assert.equal(from({ history: [completion(SESSION_QUEST_ID, "2026-08-08T23:59:00Z")] }).movedToday,
+  // Midday UTC stays on the intended side of the local-day boundary in every
+  // timezone the app supports; a near-midnight UTC fixture does not.
+  assert.equal(from({ history: [completion(SESSION_QUEST_ID, "2026-08-08T12:00:00Z")] }).movedToday,
     false, "yesterday's session does not carry over");
-  assert.equal(from({ history: [completion(SESSION_QUEST_ID, "2026-08-10T00:01:00Z")] }).movedToday,
+  assert.equal(from({ history: [completion(SESSION_QUEST_ID, "2026-08-10T12:00:00Z")] }).movedToday,
     false, "a future-dated record is not today");
 });
 
