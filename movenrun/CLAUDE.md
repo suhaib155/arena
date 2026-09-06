@@ -75,6 +75,9 @@ The territory economy is **already substantially built**. Treat these as assets:
 - `mobile/` — Expo React Native app (currently the quest **shell**).
   - `mobile/app/` — active Expo Router routes (the shell).
   - `mobile/src/` — active shell components, data, store, theme, helpers.
+  - `mobile/src/components/map/` — the real geographic map. **The only place
+    `react-native-maps` may be imported** (`provider.ts`); every screen goes
+    through `MovenMap`. See `docs/MAP_PROVIDER.md`.
   - `mobile/_legacy/` — **parked** GPS/blockchain mobile scaffold (maps, H3
     overlay, GPS tracking, wallet, zone/battle UI). Reference for the territory
     build; **do not delete or edit in place**.
@@ -86,6 +89,11 @@ The territory economy is **already substantially built**. Treat these as assets:
   addresses, branch divergence, and the safe next integration step.
 - `docs/MOBILE_TO_TERRITORY_PLAN.md` — how the quest shell evolves into the
   territory map loop.
+- `docs/MAP_PROVIDER.md` — **the map**: which provider and why, the Google Maps
+  key setup a human must do once, and the three rules the map keeps (a gap is
+  never drawn as a line; a missing key fails in words rather than in grey; there
+  is no drawn fallback basemap). Read before touching anything under
+  `mobile/src/components/map/`.
 - `docs/ARCHITECTURE.md` — contract interaction diagram and oracle flow.
 - `docs/TOKENOMICS.md` — emission schedule and burn sink details.
 - `mobile/README.md` — how to run the app.
@@ -97,6 +105,11 @@ The territory economy is **already substantially built**. Treat these as assets:
   production asset.
 - Every feature must serve **Move → Capture → Defend → Own**.
 - Package manager is **yarn workspaces**.
+- The **Android map key** is never committed. It comes from
+  `GOOGLE_MAPS_ANDROID_API_KEY` through `mobile/app.config.js`, which may set
+  that one field and nothing else — `app.json` is what proves the
+  foreground-only location promise statically, so a dynamic config that could
+  add a permission would void that proof. `mapConfig.test.ts` enforces it.
 - App is on **Expo SDK 54** (RN 0.81, React 19); phone-test via the SDK 54
   Android Expo Go + tunnel (`mobile/README.md`). Any Expo SDK upgrade is a
   **separate PR** done where `expo install --fix` / `expo-doctor` can run and be

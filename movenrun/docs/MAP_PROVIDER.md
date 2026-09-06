@@ -66,10 +66,42 @@ has no map key" instead of a map — deliberately, see below.
 5. Rebuild. The key is compiled into the binary at prebuild time — setting it
    afterwards changes nothing about an APK that already exists.
 
+### Why the key is set the way it is, and not the way the docs show
+
+Expo's `react-native-maps` page shows the key going through the *library's own*
+config plugin:
+
+```json
+["react-native-maps", { "androidGoogleMapsApiKey": "…" }]
+```
+
+**That does not work on the version SDK 54 bundles.** The plugin arrived in
+`react-native-maps` 1.22, and SDK 54 pins 1.20.1 — a mismatch Expo has an open
+documentation issue about ([expo/expo#39679](https://github.com/expo/expo/issues/39679)).
+Following the documented setup on this SDK produces a build with no key and a
+grey map, with nothing to say why.
+
+So the key goes through **`android.config.googleMaps.apiKey`**, Expo's own
+long-standing app-config field, which writes `com.google.android.geo.API_KEY`
+into the generated manifest at prebuild and is independent of the library's
+version. If this project later moves to `react-native-maps` 1.22+, the plugin
+becomes available and either route works; there is no reason to switch.
+
 **Never commit the key.** `mobile/app.config.js` reads it from the environment
 and `src/lib/__tests__/mapConfig.test.ts` fails if one appears in `app.json`.
 
 iOS needs no key: the default provider there is Apple Maps.
+
+### Expo Go
+
+`react-native-maps` 1.20.1 is one of the libraries bundled into Expo Go for SDK
+54, so the map should render there without any of the setup above — Expo Go runs
+under Expo's own Android package and its own key. Useful for checking the route,
+the grid and the camera before doing the Google Cloud work.
+
+It proves nothing about the standalone APK, which runs under `io.movenrun.app`
+with the key from step 4 and is the build the demo is recorded on. Not verified
+on a device from this branch either way.
 
 ### If the map is still blank with a key set
 
