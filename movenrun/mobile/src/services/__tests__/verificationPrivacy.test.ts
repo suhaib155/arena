@@ -16,14 +16,16 @@ function deferred<T>() {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
-const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 const END = 1_700_000_180_000;
-const session: FinishedSession = {
-  clientSessionId: "mv-privacy-session-01", mode: "gps", distanceM: 420,
-  durationMs: 180_000, finishedAt: END,
-  points: [0, 1, 2, 3].map((i) => ({ latitude: 51.5 + i * 0.0009,
-    longitude: -0.12, accuracy: 6, timestamp: END - 180_000 + i * 60_000 })),
-};
+function makeSession(): FinishedSession {
+  return {
+    clientSessionId: "mv-privacy-session-01", mode: "gps", distanceM: 420,
+    durationMs: 180_000, finishedAt: END,
+    points: [0, 1, 2, 3].map((i) => ({ latitude: 51.5 + i * 0.0009,
+      longitude: -0.12, accuracy: 6, timestamp: END - 180_000 + i * 60_000 })),
+  };
+}
+let session: FinishedSession;
 const item = (ownerUserId = "account-a", id = session.clientSessionId) => buildPendingItem({
   ownerUserId, clientSessionId: id, now: END + 1000, reason: "offline",
   observations: { startTime: END - 180_000, endTime: END,
@@ -44,21 +46,29 @@ async function gameStoreWithMemoryAdapter() {
   try { return (await import("../../store/useGameStore")).useGameStore; }
   finally { if (previous) require.cache[key] = previous; else delete require.cache[key]; }
 }
-beforeEach(async () => { __resetInFlight(); resetVerificationAccountForTests(); data = new Map(); installVerificationQueueStore(adapter()); await clearPendingQueue(); setLastSession(session); });
+beforeEach(async () => {
+  __resetInFlight(); resetVerificationAccountForTests(); data = new Map();
+  installVerificationQueueStore(adapter()); await clearPendingQueue();
+  // Privacy reset deliberately scrubs the current session object. Each test
+  // therefore needs its own valid route rather than reusing erased evidence.
+  session = makeSession();
+  setLastSession(session);
+});
 afterEach(() => { globalThis.fetch = originalFetch; });
 
 test("late success after reset publishes neither state nor reconciliation, and erases finished memory", async () => {
   await savePendingItem(item());
   setLastSession(session);
-  const response = deferred<any>();
+  const response = deferred<any>(); const entered = deferred<void>();
   const states: string[] = [];
   const settled: string[] = [];
-  const running = retryPendingVerifications({ client: { submit: () => response.promise } as any,
+  const running = retryPendingVerifications({ client: { submit: () => { entered.resolve(); return response.promise; } } as any,
     ownerUserId: "account-a", now: () => END + 120_000,
     writeState: (_, s) => states.push(s.kind), onSettled: (_, s) => settled.push(s.kind) });
-  await tick();
+  await entered.promise;
   await clearPendingQueue();
   assert.equal(getLastSession(), null);
+  assert.equal(session.points.length, 0, "privacy reset scrubs geometry retained by the summary");
   response.resolve(reply);
   await running;
   assert.deepEqual(states, ["submitting"]);
@@ -67,14 +77,19 @@ test("late success after reset publishes neither state nor reconciliation, and e
 });
 
 test("in-flight ownership and generation isolate reused session IDs and late finalizers", async () => {
-  const a = deferred<any>(); const b = deferred<any>(); let callsB = 0;
+  const a = deferred<any>(); const b = deferred<any>(); let callsA = 0; let callsB = 0;
   const deps = (ownerUserId: string, response: typeof a) => ({
-    client: { submit: () => { if (ownerUserId === "account-b") callsB++; return response.promise; } } as any,
+    client: { submit: () => {
+      if (ownerUserId === "account-a") callsA++; else callsB++;
+      return response.promise;
+    } } as any,
     ownerUserId, now: () => END + 1000, readState: () => ({ kind: "local" as const }), writeState: () => {},
   });
   const pa = submitCompletedSession(session, deps("account-a", a));
   const pb = submitCompletedSession(session, deps("account-b", b));
   assert.notEqual(pa, pb);
+  assert.equal(callsA, 1);
+  assert.equal(callsB, 1);
   a.reject(offline()); await pa;
   assert.equal(submitCompletedSession(session, deps("account-b", b)), pb);
   assert.equal(callsB, 1);
@@ -90,10 +105,13 @@ test("serialized read-modify-write retains concurrent sessions", async () => {
 });
 
 test("a stale A closure cannot start a request after B has signed in", async () => {
+  // This simulates a closure that copied evidence before the account switch;
+  // the registered summary object itself is intentionally scrubbed on switch.
+  const staleSession = makeSession();
   setVerificationAccount("account-a");
   setVerificationAccount("account-b");
   let calls = 0;
-  const state = await submitCompletedSession({ ...session }, { client: { submit: async () => { calls++; return reply; } } as any,
+  const state = await submitCompletedSession(staleSession, { client: { submit: async () => { calls++; return reply; } } as any,
     ownerUserId: "account-a", now: () => END + 1000,
     readState: () => ({ kind: "local" }), writeState: () => {} });
   assert.equal(calls, 0);
@@ -148,11 +166,13 @@ test("queue deletion falls back to an empty tombstone and reports total storage 
 test("production progress reset awaits erasure and blocks delayed route resurrection", async () => {
   const game = await gameStoreWithMemoryAdapter();
   game.setState({ totalXp: 99 });
-  const erase = deferred<void>(); const entered = deferred<void>(); const failedRequest = deferred<any>();
+  const erase = deferred<void>(); const entered = deferred<void>();
+  const submitted = deferred<void>(); const failedRequest = deferred<any>();
   const base = adapter();
   installVerificationQueueStore({ ...base, removeItem: async (key) => { entered.resolve(); await erase.promise; await base.removeItem(key); } });
-  const pending = submitCompletedSession(session, { client: { submit: () => failedRequest.promise } as any,
+  const pending = submitCompletedSession(session, { client: { submit: () => { submitted.resolve(); return failedRequest.promise; } } as any,
     ownerUserId: "account-a", now: () => END + 1000, readState: () => ({ kind: "local" }), writeState: () => {} });
+  await submitted.promise;
   const reset = game.getState().reset();
   await entered.promise;
   assert.equal(game.getState().totalXp, 99, "reset cannot announce completion ahead of erasure");
@@ -208,10 +228,11 @@ test("identity sign-out invalidates a pending route before remote revoke complet
   const identity = new IdentityApiClient({ baseUrl: "https://test.invalid", store: {
     load: async () => tokens, save: async () => {}, clear: async () => { cleared = true; },
   } });
-  const pending = deferred<any>();
-  const running = submitCompletedSession(session, { client: { submit: () => pending.promise } as any,
+  const pending = deferred<any>(); const submitted = deferred<void>();
+  const running = submitCompletedSession(session, { client: { submit: () => { submitted.resolve(); return pending.promise; } } as any,
     ownerUserId: "account-a", now: () => END + 1000,
     readState: () => ({ kind: "local" }), writeState: () => {} });
+  await submitted.promise;
   const generation = verificationGeneration();
   const signingOut = identity.signOut();
   assert.ok(verificationGeneration() > generation);
