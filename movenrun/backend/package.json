@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "tsc --noEmit -p tsconfig.api.json && node scripts/build-api.mjs",
+    "start": "node dist/api.cjs",
+    "start:legacy": "tsx src/index.ts",
+    "test:api": "node --import tsx --test src/api/*.test.ts src/identity/providers/resendEmail.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import tsx --test src/blockchain/*.test.ts src/services/*.test.ts src/repositories/*.test.ts src/middleware/*.test.ts src/identity/**/*.test.ts src/movement/**/*.test.ts",
     "worker:gps": "tsx src/workers/gps.worker.ts",
@@ -35,6 +37,7 @@
     "@types/node": "^20.12.7",
     "@types/pg": "^8.11.5",
     "drizzle-kit": "^0.22.0",
+    "esbuild": "^0.19.7",
     "tsx": "^4.9.3",
     "typescript": "^5.4.5"
   }

@@ -9,6 +9,7 @@
  * Nothing here opens a DB connection at import time: getDb() is lazy.
  */
 import type { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { hasEvidenceBreak } from "@movenrun/shared/evidence";
 import { getDb } from "../../db/client.js";
 import { getIdentityConfig } from "../../identity/config.js";
@@ -50,7 +51,9 @@ export function toValidatable(observation: MovementObservation) {
   };
 }
 
-export function createProductionMovementRouter(): Router {
+export function createProductionMovementRouter(
+  rateLimitConfig?: Parameters<typeof createWriteRateLimiter>[0],
+): Router {
   const stores = createDrizzleStores(getDb());
   const providerConfig = getProviderConfig();
   const identity = createIdentityServices(stores, getIdentityConfig(), {}, {
@@ -64,7 +67,7 @@ export function createProductionMovementRouter(): Router {
 
   const service = new MovementVerificationService({
     repository: new DrizzleMovementVerificationRepository(getDb()),
-    generateId: () => crypto.randomUUID(),
+    generateId: () => randomUUID(),
     now: () => Date.now(),
     detectAnomalies: (observation) =>
       gps.validateRoute(toValidatable(observation) as never),
@@ -74,7 +77,7 @@ export function createProductionMovementRouter(): Router {
 
   return createMovementRouter({
     service,
-    writeLimiter: createWriteRateLimiter(),
+    writeLimiter: createWriteRateLimiter(rateLimitConfig),
     // Deny-by-default: any invalid/expired/revoked token throws an
     // IdentityError from verifyAccess and never reaches a handler.
     verifyBearer: async (token) => {

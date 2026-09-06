@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/api/server.ts", "src/middleware/auth.ts"],
+  "exclude": ["**/*.test.ts"]
+}
