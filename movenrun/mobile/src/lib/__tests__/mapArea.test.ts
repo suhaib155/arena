@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import { transpileModule, ModuleKind, ScriptTarget } from "typescript";
 import * as privacy from "../../services/verificationPrivacy";
+import { createMapAreaTimings } from "../mapAreaTimings";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -13,11 +14,22 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 const FIX = { coords: { latitude: 12.97, longitude: 77.59, accuracy: 25 }, timestamp: 1700000000000 };
-const microtasks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+/* Enough ticks to drain the longest attempt: read permission, try the cached
+   fix, then the current one, then the race and the finally block. */
+const microtasks = async () => { for (let i = 0; i < 24; i++) await Promise.resolve(); };
 
 /** Run the actual hook. Only React lifecycle, OS location and timer boundaries
- * are supplied; acquisition and privacy guards come from production source. */
-function mount(permission = Promise.resolve({ status: "granted" }), fix = Promise.resolve(FIX)) {
+ * are supplied; acquisition and privacy guards come from production source.
+ *
+ * `granted` is what `getForegroundPermissionsAsync` reports without prompting —
+ * the automatic path's only input — and `permission` is what the explicit tap's
+ * `requestForegroundPermissionsAsync` resolves to. Keeping them separate is how
+ * these tests can tell "located without asking" from "asked". */
+function mount(
+  permission = Promise.resolve({ status: "granted" }),
+  fix = Promise.resolve(FIX),
+  { granted = "denied", lastKnown = null as typeof FIX | null }: { granted?: string; lastKnown?: typeof FIX | null } = {},
+) {
   const filename = resolve(__dirname, "../../hooks/useMapArea.ts");
   const values: unknown[] = [];
   const effects: Array<() => (() => void) | void> = [];
@@ -26,8 +38,11 @@ function mount(permission = Promise.resolve({ status: "granted" }), fix = Promis
   let timerId = 0;
   let blur: (() => void) | undefined;
   let permissionCalls = 0;
+  let readCalls = 0;
   let fixCalls = 0;
+  let lastKnownCalls = 0;
   let logs = 0;
+  let focus: (() => (() => void) | void) | undefined;
   const changes = new Set<(state: string) => void>();
   const appState = { currentState: "active", addEventListener: (_name: string, callback: (state: string) => void) => {
     changes.add(callback); return { remove: () => changes.delete(callback) };
@@ -48,12 +63,19 @@ function mount(permission = Promise.resolve({ status: "granted" }), fix = Promis
         useEffect: (effect: () => (() => void) | void) => effects.push(effect),
       };
       if (id === "react-native") return { AppState: appState };
-      if (id === "expo-router") return { useFocusEffect: (effect: () => () => void) => { blur = effect(); } };
+      if (id === "expo-router") return { useFocusEffect: (effect: () => () => void) => { focus = effect; } };
       if (id === "expo-location") return {
         Accuracy: { Balanced: "balanced" },
         requestForegroundPermissionsAsync: () => { permissionCalls++; return permission; },
+        getForegroundPermissionsAsync: () => { readCalls++; return Promise.resolve({ status: granted }); },
+        getLastKnownPositionAsync: (options: { maxAge: number }) => {
+          assert.equal(options.maxAge, 120000);
+          lastKnownCalls++;
+          return Promise.resolve(lastKnown);
+        },
         getCurrentPositionAsync: (options: { accuracy: string }) => { assert.equal(options.accuracy, "balanced"); fixCalls++; return fix; },
       };
+      if (id === "@/lib/mapAreaTimings") return { mapAreaTimings: createMapAreaTimings(false) };
       if (id === "@/services/verificationPrivacy") return privacy;
       throw new Error(`Unexpected hook dependency: ${id}`);
     },
@@ -62,12 +84,17 @@ function mount(permission = Promise.resolve({ status: "granted" }), fix = Promis
   for (const effect of effects) { const off = effect(); if (off) cleanup.push(off); }
   return {
     locate: hook.locate,
+    /* Focus is the automatic path's trigger. Held rather than fired at mount so
+       a test can assert what happens before the screen is entered. */
+    enter: () => { blur = focus?.() ?? undefined; },
     point: () => values[0], status: () => values[1], busy: () => values[2],
     viewportGeneration: () => values[3],
     calls: () => ({ permission: permissionCalls, fix: fixCalls }),
+    reads: () => readCalls,
+    lastKnown: () => lastKnownCalls,
     blur: () => blur?.(),
     background: () => { appState.currentState = "background"; for (const callback of changes) callback("background"); },
-    active: () => { appState.currentState = "active"; },
+    active: () => { appState.currentState = "active"; for (const callback of changes) callback("active"); },
     timeout: () => { for (const [id, callback] of [...timers]) { timers.delete(id); callback(); } },
     dispose: () => { blur?.(); for (const off of cleanup) off(); assert.equal(logs, 0); },
   };
@@ -77,6 +104,7 @@ test("area mount never requests location; explicit tap obtains one balanced fore
   const area = mount();
   try {
     assert.deepEqual(area.calls(), { permission: 0, fix: 0 });
+    assert.equal(area.reads(), 0, "mounting reads no permission and asks for none");
     await area.locate();
     assert.deepEqual(area.calls(), { permission: 1, fix: 1 });
     assert.equal(JSON.stringify(area.point()), JSON.stringify({ latitude: 12.97, longitude: 77.59, timestamp: FIX.timestamp, accuracy: 25 }));
@@ -147,6 +175,8 @@ test("privacy reset, blur, background and unmount invalidate pending fixes", asy
   for (const boundary of ["privacy", "blur", "background", "unmount"]) {
     const pending = deferred<typeof FIX>();
     const area = mount(Promise.resolve({ status: "granted" }), pending.promise);
+    area.enter();
+    await microtasks();
     const work = area.locate();
     await microtasks();
     if (boundary === "privacy") privacy.invalidateVerificationPrivacy();
@@ -187,14 +217,88 @@ test("invalid native coordinates, timestamp or accuracy cannot reach the map", a
   }
 });
 
+test("entering an already-permitted screen centres the map without a tap or a prompt", async () => {
+  const area = mount(Promise.resolve({ status: "granted" }), Promise.resolve(FIX), { granted: "granted" });
+  try {
+    area.enter();
+    await microtasks();
+    /* The device failure on Home: permission already granted, and the map still
+       showed a random continent until the player found `Locate me`. */
+    assert.equal(JSON.stringify(area.point()), JSON.stringify({ latitude: 12.97, longitude: 77.59, timestamp: FIX.timestamp, accuracy: 25 }));
+    assert.equal(area.status(), "Your area");
+    assert.equal(area.busy(), false);
+    /* Located, and never asked. The automatic path reads permission; only the
+       button requests it. */
+    assert.equal(area.calls().permission, 0, "entering a screen must never raise a permission prompt");
+    assert.equal(area.reads(), 1);
+    assert.equal(area.calls().fix, 1);
+  } finally { area.dispose(); }
+});
+
+test("a cached fix shows the player's own area while the current one is acquired", async () => {
+  const SEED = { coords: { latitude: 12.90, longitude: 77.50, accuracy: 40 }, timestamp: FIX.timestamp - 60_000 };
+  const pending = deferred<typeof FIX>();
+  const area = mount(Promise.resolve({ status: "granted" }), pending.promise, { granted: "granted", lastKnown: SEED });
+  try {
+    area.enter();
+    await microtasks();
+    /* Between opening the screen and a cold GPS fix there is a window that ran
+       to twenty seconds on the phone. It is filled with the player's real
+       recent area rather than with a world view. */
+    assert.equal(area.lastKnown(), 1);
+    assert.equal((area.point() as { latitude: number }).latitude, 12.90);
+    assert.equal(area.status(), "Your area");
+    pending.resolve(FIX);
+    await microtasks();
+    assert.equal((area.point() as { latitude: number }).latitude, 12.97, "the current fix replaces the seed");
+  } finally { area.dispose(); }
+});
+
+test("an unpermitted screen locates nothing, says nothing, and does not re-prompt on every visit", async () => {
+  const area = mount(Promise.resolve({ status: "granted" }), Promise.resolve(FIX), { granted: "denied" });
+  try {
+    for (let visit = 0; visit < 3; visit++) { area.enter(); await microtasks(); area.blur(); }
+    assert.equal(area.calls().permission, 0, "an ungranted device is never nagged by a screen it merely opened");
+    assert.equal(area.calls().fix, 0);
+    assert.equal(area.point(), null);
+    assert.equal(area.status(), "Find your area", "no error is shown for a permission that was never requested");
+    /* The button still works, and is still the only thing that asks. */
+    await area.locate();
+    assert.equal(area.calls().permission, 1);
+  } finally { area.dispose(); }
+});
+
+test("a failed refresh keeps geography already on screen rather than replacing it with an error", async () => {
+  const SEED = { coords: { latitude: 12.90, longitude: 77.50, accuracy: 40 }, timestamp: FIX.timestamp - 60_000 };
+  const pending = deferred<typeof FIX>();
+  const area = mount(Promise.resolve({ status: "granted" }), pending.promise, { granted: "granted", lastKnown: SEED });
+  try {
+    area.enter();
+    await microtasks();
+    area.timeout();
+    await microtasks();
+    assert.equal((area.point() as { latitude: number }).latitude, 12.90, "correct geography survives a failed refresh");
+    assert.equal(area.status(), "Your area");
+    assert.equal(area.busy(), false);
+  } finally { area.dispose(); }
+});
+
 test("map-area source has no tracking/storage/logging path and memoizes render geometry", () => {
   const root = resolve(__dirname, "../..");
   const hook = readFileSync(resolve(root, "hooks/useMapArea.ts"), "utf8");
   const component = readFileSync(resolve(root, "components/AreaMap.tsx"), "utf8");
   assert.ok(hook.includes("captureVerificationScope(null)"));
   for (const forbidden of ["watchPositionAsync", "requestBackgroundPermissions", "AsyncStorage", "console.", "advanceQuest", "useMoveStore"]) assert.ok(!hook.includes(forbidden), forbidden);
-  assert.ok(component.includes("useMemo(() => area.point"));
-  assert.ok(component.includes("[cells, area.point]"));
+  /* The position reaches the map as a position, never as a one-point route:
+     the marker, camera and waiting overlay must not hang off route evidence. */
+  assert.ok(component.includes("currentLocation={area.point}"));
+  assert.ok(!/\bpoints=\{/.test(component), "an area map draws no route");
+  assert.ok(component.includes("areaCells(cells, area.point)"));
+  assert.ok(component.includes("[cells, cellKey]"));
   assert.ok(component.includes("onPress={() => void area.locate()}"));
   assert.ok(component.includes("key={area.viewportGeneration}"));
+  /* The automatic path may only read permission. `requestForegroundPermissionsAsync`
+     appears exactly once, in the explicit-tap branch. */
+  assert.equal(hook.split("requestForegroundPermissionsAsync").length - 1, 1);
+  assert.ok(hook.includes("getForegroundPermissionsAsync"));
 });

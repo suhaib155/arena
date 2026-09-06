@@ -131,6 +131,54 @@ test("reduced motion follows instantly and an unchanged fix sends no redundant c
   assert.equal(h.moves[0].duration, 0);
 });
 
+test("live acquisition follows the first position, and a remount replays rather than loses it", () => {
+  /* E4: the first position of a live session moves the camera, whether it
+     arrives from the warm-up seed or from an accepted fix. */
+  const h = cameraHarness();
+  const live = h.render({ head: null, initialMode: "following", followEnabled: true });
+  live.attach(h.target);
+  live.onReady();
+  h.render({ head: A, initialMode: "following", followEnabled: true });
+  assert.equal(h.moves.length, 1);
+  assert.equal(h.moves[0].region.latitude, A.latitude);
+
+  /* E8: a remount hands the camera a new native view. The pending command is
+     re-issued against it on readiness — a fresh view must never be left at
+     whatever region it initialised with. */
+  const remounted = cameraHarness();
+  const camera = remounted.render({ head: A, initialMode: "following", followEnabled: true });
+  camera.attach(remounted.target);
+  camera.onReady();
+  assert.equal(remounted.moves.length, 1);
+  camera.attach(null);
+  const replacement = { ...remounted.target };
+  const moved: number[] = [];
+  camera.attach({ animateToRegion: r => { moved.push(r.latitude); }, fitToCoordinates: () => {} });
+  remounted.render({ head: B, initialMode: "following", followEnabled: true });
+  assert.deepEqual(moved, [], "a detached view receives nothing");
+  camera.onReady();
+  assert.deepEqual(moved, [B.latitude], "readiness on the new view replays the latest position");
+  assert.ok(replacement.animateToRegion);
+});
+
+test("no position produces no camera command and no fabricated coordinate", () => {
+  /* E9. The camera's contract is that "nowhere" is a state, not a prompt to
+     invent a default. A map with no fix stays where the native view opened. */
+  const h = cameraHarness();
+  const camera = h.render({ head: null, initialMode: "following", followEnabled: true });
+  camera.attach(h.target);
+  camera.onReady();
+  assert.equal(h.moves.length, 0);
+  camera.recenter();
+  assert.equal(h.moves.length, 0, "recentre on nothing moves nothing rather than guessing");
+  camera.fitRoute([]);
+  assert.equal(h.fits.length, 0);
+  const hook = readFileSync(resolve(__dirname, "../../components/map/useMapCamera.ts"), "utf8");
+  for (const forbidden of ["latitude: 0", "DEFAULT_REGION", "lastKnown"]) {
+    assert.ok(!hook.includes(forbidden), forbidden);
+  }
+});
+
 test("native component uses stable attach/readiness and area recenter only depends on an explicit new fix", () => {
   const root = resolve(__dirname, "../..");
   const map = readFileSync(resolve(root, "components/map/MovenMap.tsx"), "utf8");
@@ -139,4 +187,9 @@ test("native component uses stable attach/readiness and area recenter only depen
   assert.ok(map.includes("onMapReady={camera.onReady}"));
   assert.ok(map.includes("followEnabled: live"));
   assert.ok(area.includes("if (area.point) map.current?.recenter(); }, [area.point]"));
+  /* The camera follows the position, not the end of the route: a stationary
+     player has the first and not the second. */
+  assert.ok(map.includes("const point = currentLocation ?? routeHead(points);"));
+  /* Panning must cancel follow, or the map fights the player's own finger. */
+  assert.ok(map.includes("onPanDrag={interactive ? camera.onUserPan : undefined}"));
 });

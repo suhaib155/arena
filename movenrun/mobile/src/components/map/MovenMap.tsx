@@ -15,6 +15,25 @@
  * real route and invite every viewer to read them as the streets the player
  * walked.
  *
+ * ## Where the player is, and where the player went
+ *
+ * These are two inputs, not one. `currentLocation` is where the player is
+ * standing; `points` is the route that has been recorded as evidence. The
+ * marker, the follow camera and the waiting overlay all read the first; the
+ * polyline and the start marker read the second.
+ *
+ * Deriving position from the head of the route — which this map used to do —
+ * looks equivalent and is not, because the two genuinely disagree. A player
+ * standing still has a position and no new evidence: the session watch wakes
+ * on displacement, so the route stops growing while they wait at a crossing or
+ * finish acquiring a signal. On a physical build that produced a map at world
+ * scale, with no marker and a `Waiting for your first location fix…` overlay,
+ * for a player the app could already locate to within a few metres.
+ *
+ * The separation runs the other way too: a display fix may never become
+ * geometry. Nothing this map is handed as `currentLocation` is measured,
+ * sealed, submitted or turned into ground.
+ *
  * ## What is not drawn
  *
  * - `showsUserLocation` is off: the OS dot is a second, disagreeing opinion
@@ -74,6 +93,17 @@ interface MovenMapProps {
    * passes cells and no points.
    */
   points?: readonly TrackPoint[];
+  /**
+   * Where the player is now, independent of the route.
+   *
+   * Drives the marker, the follow camera and whether the waiting overlay is
+   * shown. Null means the map genuinely does not know — it is never filled in
+   * with a last-known fix, a route head or a default coordinate. When it is
+   * null the map falls back to the head of `points`, which is the honest answer
+   * for a *finished* route being reviewed, and no answer at all for an empty
+   * one.
+   */
+  currentLocation?: TrackPoint | null;
   /** Session pauses, so the drawn line breaks where the measured route does. */
   pauses?: PauseSource;
   /** H3 context. Memoise in the caller. */
@@ -117,6 +147,7 @@ function mapConfigSlice(): MapConfigSlice | null {
 function MovenMapView(
   {
     points = [],
+    currentLocation = null,
     pauses = [],
     cells = [],
     onPressCell,
@@ -138,10 +169,16 @@ function MovenMapView(
     [],
   );
 
+  /* Where the player is. The current location when there is one, otherwise the
+     last recorded fix — which is what "here" means for a route being reviewed
+     after the fact, and null for a route that does not exist yet. */
   const head = useMemo(() => {
-    const point = routeHead(points);
+    const point = currentLocation ?? routeHead(points);
     return point === null ? null : toLatLng(point);
-  }, [points]);
+  }, [currentLocation, points]);
+  /* Where the route began. Route evidence only: a display fix is not a start
+     line, so a map that has a position but no recorded route shows no start
+     marker. */
   const start = useMemo(() => {
     const point = routeStart(points);
     return point === null ? null : toLatLng(point);
@@ -175,7 +212,11 @@ function MovenMapView(
        Both empty means no viewport, and the map opens wide rather than
        pointing somewhere the player has never been. */
     const framing =
-      points.length > 0 ? points.map(toLatLng) : cellCoordinates(cells);
+      points.length > 0
+        ? points.map(toLatLng)
+        : currentLocation !== null
+          ? [toLatLng(currentLocation)]
+          : cellCoordinates(cells);
     initialRegionRef.current = regionForPoints(framing);
   }
 
@@ -263,7 +304,11 @@ function MovenMapView(
         ) : null}
       </MapView>
 
-      {live && points.length === 0 ? (
+      {/* Depends on the position, not on the route. Keyed to `points` it said
+          "waiting for your first location fix" to a player whose position was
+          already on screen, simply because they had not moved far enough to
+          record one. */}
+      {live && head === null ? (
         <View style={styles.waiting} pointerEvents="none" accessibilityLiveRegion="polite">
           <Text style={styles.waitingText}>Waiting for your first location fix…</Text>
         </View>

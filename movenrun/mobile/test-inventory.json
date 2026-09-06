@@ -25,6 +25,7 @@
     "src/lib/__tests__/mapCameraLifecycle.test.ts",
     "src/lib/__tests__/mapConfig.test.ts",
     "src/lib/__tests__/mapGeometry.test.ts",
+    "src/lib/__tests__/mapPhysicalRepair.test.ts",
     "src/lib/__tests__/moveReadiness.test.ts",
     "src/lib/__tests__/networkView.test.ts",
     "src/lib/__tests__/objectivesView.test.ts",

@@ -34,7 +34,11 @@ test("Finish sheet defaults to Keep moving, handles Back safely and blocks dupli
 test("live screen uses acquisition status immediately and retains cell-based memoization", () => {
   const session = source("app/move/session.tsx");
   assert.match(session, /if \(!cancelled\) setAcquisitionState\(state\)/);
-  assert.match(session, /acquisitionLabel\(acquisitionState\)/);
+  /* Readiness is derived from the display location, never announced by the
+     screen. `presenceLabel` is the only source of the chip's words, and
+     `gpsPresence` is the only thing that decides which word. */
+  assert.match(session, /presenceLabel\(presence\)/);
+  assert.match(session, /displayLocation: head/);
   assert.match(session, /contextCells\(head\), \[cellKey\]/);
   assert.match(session, /if \(controlsAvailable\) gpsTimings\.live\(\)/);
 });
