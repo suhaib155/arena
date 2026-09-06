@@ -55,6 +55,9 @@ type GpsState = "waiting" | "locked" | "weak";
 
 export default function MoveSessionScreen() {
   const router = useRouter();
+  // The privacy-reset callback needs navigation, but navigation identity must
+  // not restart an active tracker. Keep the mount router for that callback.
+  const routerRef = useRef(router);
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const mode: TrackerMode = modeParam === "demo" ? "demo" : "gps";
   /**
@@ -165,7 +168,7 @@ export default function MoveSessionScreen() {
       setGpsState("waiting");
       setStartError(null);
       apply(idleLifecycle());
-      router.replace("/move");
+      routerRef.current.replace("/move");
     });
     tracker
       .start((p) => {
@@ -272,7 +275,7 @@ export default function MoveSessionScreen() {
          outlives the screen that captured it. */
       eraseEvidence();
     };
-  }, [apply, router, startAttempt]);
+  }, [apply, startAttempt]);
 
   /** Elapsed time, read on demand. Kept out of this component's state so the
    *  once-a-second tick re-renders only the clock, not the route canvas.
