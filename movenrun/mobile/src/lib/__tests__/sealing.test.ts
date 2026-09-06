@@ -396,8 +396,21 @@ test("the live seal state never claims capture, and never uses a warning colour"
   assert.ok(!card.includes("danger"), "an open route is shown as a problem");
   /* State is carried by an icon as well as a colour. */
   assert.match(card, /<Ionicons/);
-  assert.match(card, /palette\.pulseGreen/);
-  assert.match(card, /palette\.baseBlue/);
+  /* Sealed is green, open is blue — information, not warning. The panel moved
+     onto the dark ground, where the readable variants of those two hues are the
+     `groundInk` ramp rather than `palette`: Base Blue lands at 3.82:1 there and
+     is not text (see lib/tone.ts). Either ramp satisfies this rule, because the
+     rule is about which two hues carry the state, not about which surface the
+     panel happens to sit on; reaching for a third would not. */
+  assert.match(card, /(palette|groundInk)\.(pulseGreen|green)\b/);
+  assert.match(card, /(palette|groundInk)\.(baseBlue|blue)\b/);
+  /* …and the open state is still the calm one. A route that has not closed yet
+     is an ordinary route, so nothing here may reach for the caution or urgent
+     roles even under a different name. */
+  for (const alarm of ["heatCoral", "moveGold", "urgent", "warning"]) {
+    assert.ok(!card.includes(`groundInk.${alarm}`), `the seal panel paints with ${alarm}`);
+    assert.ok(!card.includes(`tone="${alarm}"`), `the seal panel is toned ${alarm}`);
+  }
 });
 
 test("no screen prints a raw cell id or any geometry debug value", () => {

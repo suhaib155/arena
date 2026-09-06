@@ -132,24 +132,60 @@ test("a movement task and a non-movement task never share a CTA glyph", () => {
   }
 });
 
-/* ── the hero asks the model rather than hardcoding ───────────────────────── */
+/* ── the spotlight asks the model rather than hardcoding ──────────────────── */
 
-const HERO = readFileSync(join(process.cwd(), "src", "components", "TaskHero.tsx"), "utf8");
+/*
+ * The spotlight used to be `components/TaskHero.tsx`, and these rules read that
+ * file. It is now `components/MissionCard.tsx`, composed by Home — the card
+ * takes a glyph rather than choosing one, so the decision moved up to the
+ * screen and the rules follow it there.
+ *
+ * They are the same two rules, and they exist for the same defect: the hero
+ * once hardcoded `icon="play"`, so "Browse clubs", "View territory" and "See
+ * how it works" all advertised playback. The board had carried the semantics
+ * all along; the button simply never asked.
+ */
+const HOME_SCREEN = readFileSync(join(process.cwd(), "app", "(tabs)", "index.tsx"), "utf8");
+const MISSION_CARD = readFileSync(
+  join(process.cwd(), "src", "components", "MissionCard.tsx"),
+  "utf8",
+);
 
-test("TaskHero derives its button glyph and hardcodes none", () => {
-  assert.match(HERO, /icon=\{TASK_ACTION_ICON\[task\.action\]\}/, "the CTA must ask the model");
-  // The exact regression: a literal glyph on any Button in the hero.
-  const literalIcons = [...HERO.matchAll(/icon="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(literalIcons, [], `TaskHero hardcodes ${literalIcons.join(", ")}`);
-  assert.ok(!/icon="play"/.test(HERO), "the play-icon regression is back");
+test("the spotlight derives its CTA glyph from the task's action", () => {
+  assert.match(
+    HOME_SCREEN,
+    /ctaIcon=\{TASK_ACTION_ICON\[focus\.action\]\}/,
+    "the CTA must ask the model",
+  );
+  assert.ok(!/ctaIcon="play"/.test(HOME_SCREEN), "the play-icon regression is back");
+});
+
+test("the mission card chooses no glyph of its own", () => {
+  // The card must stay a renderer. A literal glyph inside it would put the
+  // decision somewhere the board cannot reach and no test would see it drift.
+  const literalIcons = [...MISSION_CARD.matchAll(/(?:icon|ctaIcon)="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(literalIcons, [], `MissionCard hardcodes ${literalIcons.join(", ")}`);
+  assert.match(MISSION_CARD, /icon: IoniconName/, "…because both glyphs are props");
+  assert.match(MISSION_CARD, /ctaIcon: IoniconName/);
 });
 
 test("the all-clear state is the only place a glyph is chosen without a task", () => {
   // There is no task to derive from when the board is finished, so the
   // checkmark is spelled out — but the "move anyway" button still routes
   // through the map, because it IS a move.
-  assert.match(HERO, /name=\{task \? task\.icon : "checkmark-done"\}/);
-  assert.match(HERO, /icon=\{TASK_ACTION_ICON\.move\}/);
+  const allClear = HOME_SCREEN.slice(HOME_SCREEN.indexOf('kicker="All clear"'));
+  assert.ok(allClear.length > 0, "Home lost its all-clear branch");
+  assert.match(allClear, /icon="checkmark-done"/);
+  assert.match(allClear, /ctaIcon=\{TASK_ACTION_ICON\.move\}/);
+  // …and it is the ONLY literal glyph on the screen.
+  const literals = [...HOME_SCREEN.matchAll(/(?:icon|ctaIcon)="([^"]+)"/g)]
+    .map((m) => m[1])
+    .filter((name) => name !== "checkmark-done");
+  assert.deepEqual(
+    literals.filter((name) => name === "play" || name === "walk"),
+    [],
+    "a movement glyph was spelled out instead of derived",
+  );
 });
 
 /* ── routing is unchanged ─────────────────────────────────────────────────── */

@@ -455,9 +455,15 @@ test("Home decides nothing — it renders one board and no second opinion", () =
     !/\{true \?|\{false \?|zones\.length === 0 \?|history\.length > 0 \?/.test(src),
     "visibility comes from the board, never from an ad-hoc condition",
   );
-  // The spotlight owns the only primary button, and it lives in TaskHero — so
-  // the screen itself renders no button at all and cannot grow a rival CTA.
+  // The spotlight owns the only primary action, and it is rendered inside
+  // MissionCard — so the screen itself renders no button at all and cannot grow
+  // a rival CTA beside it.
   assert.ok(!/<Button\b/.test(src), "Home renders no button of its own");
+  assert.equal(
+    (src.match(/<MissionCard\b/g) ?? []).length,
+    2,
+    "exactly two mission cards: the task branch and the all-clear branch, never both at once",
+  );
   assert.ok(!/variant="primary"/.test(src), "the only primary action is the board's");
 });
 

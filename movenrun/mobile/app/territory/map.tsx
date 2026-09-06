@@ -9,6 +9,7 @@ import { Hexagon } from "@/components/Hexagon";
 import { ScalePress } from "@/components/ScalePress";
 import { FloatingMapControl } from "@/components/FloatingMapControl";
 import { MapLegend, type LegendItem } from "@/components/MapLegend";
+import { MeterRow } from "@/components/MeterRow";
 import { ZoneSheet } from "@/components/ZoneSheet";
 import { healthVisual } from "@/components/ZoneCard";
 import { avatar, canvas, colors, iconTile, ink, palette, radius, shadows, softTint, spacing, strongTint, tints, type } from "@/theme";
@@ -100,17 +101,43 @@ export default function TerritoryMapScreen() {
 
   return (
     <Screen edgeTop>
-      <ScreenHeader
-        title="Territory"
-        trailing={
-          overview.total > 0 ? (
-            <View style={styles.headerStat}>
-              <Text style={styles.headerStatValue}>{overview.total}</Text>
-              <Text style={styles.headerStatLabel}>{overview.total === 1 ? "zone" : "zones"}</Text>
-            </View>
-          ) : null
-        }
-      />
+      <ScreenHeader title="Territory" />
+
+      {/* The holding, read as a ledger.
+          The count used to be a two-line stat wedged into the header's trailing
+          slot, where it competed with the title for a 44pt box and said only
+          how many. Three meters answer the question the screen is actually
+          about — how much ground, how much of it is healthy, how much needs a
+          visit — and the healthy meter carries a proportion because "4 of 6"
+          is the thing that decides whether you go out today. Every number comes
+          from `buildTerritoryOverview`; nothing is computed here. */}
+      {hydrated && overview.total > 0 ? (
+        <View style={styles.ledger}>
+          <MeterRow
+            meters={[
+              {
+                icon: "shapes",
+                value: String(overview.total),
+                label: overview.total === 1 ? "Zone held" : "Zones held",
+                tint: palette.baseBlue,
+              },
+              {
+                icon: "checkmark-circle",
+                value: `${overview.healthy}/${overview.total}`,
+                label: "Healthy",
+                tint: palette.pulseGreen,
+                progress: overview.healthy / overview.total,
+              },
+              {
+                icon: "shield-half",
+                value: String(needsDefense),
+                label: needsDefense === 1 ? "Needs a visit" : "Need a visit",
+                tint: palette.heatCoral,
+              },
+            ]}
+          />
+        </View>
+      ) : null}
 
       {/* The board dominates the viewport */}
       <View style={styles.board}>
@@ -334,9 +361,7 @@ function MapSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  headerStat: { alignItems: "center", minWidth: 40 },
-  headerStatValue: { ...type.heading, fontSize: 16, fontVariant: ["tabular-nums"] },
-  headerStatLabel: { ...type.caption, fontSize: 9.5, textTransform: "uppercase", letterSpacing: 0.5 },
+  ledger: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
 
   board: {
     flex: 1,

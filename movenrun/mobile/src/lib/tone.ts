@@ -243,3 +243,64 @@ export const canvas = {
   /** Loading placeholders. */
   skeleton: "#E4EAED",
 } as const;
+
+/* ── the immersive ground ──────────────────────────────────────────────────
+ *
+ * Everything above paints on light. The territory game has one surface that
+ * does not: the mission hero, the live-session status band and the summary's
+ * result banner are *dark*, because the map imagery and the reward moment need
+ * a ground that recedes so the ground, the route and the numbers come forward.
+ * That is the single strongest visual idea in the design guide, and it is the
+ * one thing the light palette above cannot express — a "dark card" mixed by
+ * hand on each screen is how the app would end up with five near-black cards
+ * that do not match.
+ *
+ * So it is a named surface family with its own text ramp, and the same
+ * measured floor. `ground.*` are grounds, `onGround.*` is what may be written
+ * on them, and `groundInk.*` is the brand hue lifted far enough to be readable
+ * there. They are deliberately NOT in `tints`/`canvas`: those are pale fills
+ * for light screens and are asserted to be pale. These are the opposite.
+ *
+ * Contrast is measured in `__tests__/immersiveTokens.test.ts` against the two
+ * grounds text is actually written on. `ground.edge` is a hairline, not a text
+ * surface, and is excluded there for that reason rather than by omission.
+ */
+export const ground = {
+  /** The base ground: a mission hero, a result banner, a status band. */
+  base: "#0B1B2B",
+  /** A panel raised on that ground — a metric tile, an inset row. */
+  raised: "#16304A",
+  /** A 1px division on the ground. Never a text surface. */
+  edge: "#27486A",
+} as const;
+
+/** Neutral text on {@link ground}. Mirrors `colors.text/textDim/textFaint`. */
+export const onGround = {
+  text: "#FFFFFF",
+  dim: "#AFC6DC",
+  faint: "#8AA5BE",
+} as const;
+
+/**
+ * Brand hues, readable on {@link ground}.
+ *
+ * Derived the same way `ink` is, and for the mirrored reason: on a dark ground
+ * `pulseGreen`, `moveGold`, `heatCoral` and `silverTrail` already clear the
+ * floor, so they are kept exactly — moving a brand hue that is already correct
+ * would be drift, not a system. Only `baseBlue` (3.82:1) and `deedViolet`
+ * (3.80:1) fall short, and only their lightness moves; hue holds to within
+ * 0.3° of the core and saturation is untouched.
+ */
+export const groundInk = {
+  green: "#18C987",
+  gold: "#F7B955",
+  coral: "#FF6B4A",
+  /** Lifted from `baseBlue` #246BFE — 3.82:1 on the ground is not text. */
+  blue: "#6194FE",
+  /** Lifted from `deedViolet` #7657FF for the same reason. */
+  violet: "#9B85FF",
+  neutral: "#A3AAB8",
+} as const;
+
+export type GroundName = keyof typeof ground;
+export type GroundInkName = keyof typeof groundInk;

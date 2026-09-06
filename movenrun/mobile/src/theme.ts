@@ -117,16 +117,26 @@ import { selectionRing as selectionRingRaw } from "./lib/shape";
  * Re-exported here so screens keep a single `@/theme` import. */
 export {
   canvas,
+  ground,
+  groundInk,
   hairline,
   HAIRLINE_ALPHA,
   ink,
+  onGround,
   SOFT_TINT_ALPHA,
   softTint,
   STRONG_TINT_ALPHA,
   strongTint,
   tints,
 } from "./lib/tone";
-export type { InkName, TintName, Tone, ToneName } from "./lib/tone";
+export type {
+  GroundInkName,
+  GroundName,
+  InkName,
+  TintName,
+  Tone,
+  ToneName,
+} from "./lib/tone";
 import { buildTones } from "./lib/tone";
 
 /**
@@ -193,6 +203,22 @@ export function glow(color: string): ViewStyle {
  * and every call site — is already locked in.
  */
 export const type = {
+  /**
+   * The editorial headline — one per screen, at the top, and only where the
+   * screen has something to *say*: "Make your next move.", "Loop sealed."
+   *
+   * A step above `display` on purpose. `display` is a big *number*; this is a
+   * big *sentence*, and a game that opens on a 30pt greeting reads like a
+   * settings page. Tight tracking and a line height under 1.15 are what keep a
+   * two-line headline reading as one block rather than two rows of text.
+   */
+  hero: {
+    fontSize: 34,
+    lineHeight: 39,
+    fontWeight: "800",
+    letterSpacing: -1.1,
+    color: colors.text,
+  } satisfies TextStyle,
   /** Hero numerals and wordmark moments. (Sora target) */
   display: {
     fontSize: 30,

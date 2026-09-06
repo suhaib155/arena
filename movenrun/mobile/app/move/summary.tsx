@@ -9,6 +9,8 @@ import { CountUpText } from "@/components/CountUpText";
 import { Hexagon } from "@/components/Hexagon";
 import { MovementMetric } from "@/components/MovementMetric";
 import { ResultCallout } from "@/components/ResultCallout";
+import { DisplayHeading } from "@/components/DisplayHeading";
+import { GroundPanel } from "@/components/GroundPanel";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { formatDuration, formatPace } from "@/lib/geo";
@@ -282,9 +284,15 @@ export default function MoveSummaryScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* The result leads, in the app's own honest words.
+            `completion.headline` is already the one true sentence about what
+            happened (lib/completionSummary.ts) — "Loop sealed", "Too short to
+            save", "Demo route — preview only". The screen used to bury it in a
+            callout below the map and title itself "Your session", which says
+            nothing. Promoting it costs no new copy and no new claim: the same
+            string, at the size the outcome deserves. */}
         <View style={styles.header}>
-          <Text style={styles.kicker}>{completion.kicker}</Text>
-          <Text style={styles.title}>Your session</Text>
+          <DisplayHeading kicker={completion.kicker} title={completion.headline} />
         </View>
 
         {gaps ? (
@@ -343,11 +351,19 @@ export default function MoveSummaryScreen() {
           </View>
         </FadeSlideIn>
 
-        <View style={styles.zoneCard} accessibilityLiveRegion="polite">
-          <Text style={styles.zoneTitle}>{verificationLabel(verification)}</Text>
-          <Text style={styles.sealLine}>{serverSealLabel(verification)}</Text>
-          <Text style={styles.zoneBeta}>A server route check does not establish territory ownership.</Text>
-        </View>
+        {/* The server's verdict, on the ground.
+            One dark object on the screen, and it is the one thing the player
+            most needs to read correctly: what the server actually said, and the
+            boundary of what that means. The wording is unchanged — a route
+            check is not ownership, and the panel says so where it is read. */}
+        <GroundPanel
+          icon="shield-checkmark-outline"
+          kicker="Movement check"
+          title={verificationLabel(verification)}
+          detail={`${serverSealLabel(verification)} A server route check does not establish territory ownership.`}
+          tone="info"
+          live
+        />
 
         {/* Rewards — only when there's a real reward to bank; always local preview */}
         {completion.showRewards ? (
@@ -610,9 +626,7 @@ const styles = StyleSheet.create({
   },
   gapText: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.text, flex: 1 },
   scroll: { paddingBottom: spacing.lg, gap: spacing.md },
-  header: { paddingTop: spacing.lg, gap: spacing.xs },
-  kicker: { ...type.kicker, color: colors.primary },
-  title: { ...type.display, fontSize: 28 },
+  header: { paddingTop: spacing.lg },
   /* Taller than the old canvas: a real basemap needs room to be read as a
      place rather than a texture. */
   routeMap: { height: 240 },

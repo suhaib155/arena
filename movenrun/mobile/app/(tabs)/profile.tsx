@@ -3,8 +3,9 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
-import { StatCard } from "@/components/StatCard";
 import { SectionHeader } from "@/components/SectionHeader";
+import { MeterRow } from "@/components/MeterRow";
+import { ResourcePill } from "@/components/ResourcePill";
 import { NavRow } from "@/components/NavRow";
 import { StatusPill } from "@/components/StatusPill";
 import { EmptyState } from "@/components/EmptyState";
@@ -12,10 +13,11 @@ import { RoutePath } from "@/components/RoutePath";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
-import { avatar, colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
+import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { getLevelInfo } from "@/lib/leveling";
+import { hudProgress } from "@/lib/playerRank";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { zoneStatus } from "@/lib/territory";
 import { getClubById, CLUBS } from "@/data/clubs";
@@ -47,7 +49,6 @@ export default function ProfileScreen() {
 
   const totalXp = useGameStore((s) => s.totalXp);
   const streak = useGameStore((s) => s.streak);
-  const questsCompleted = useGameStore((s) => s.questsCompleted);
   const history = useGameStore((s) => s.history);
   const zones = useGameStore((s) => s.zones);
   const timesDefended = useGameStore((s) => s.timesDefended);
@@ -108,6 +109,7 @@ export default function ProfileScreen() {
   const city = buildCityDistricts(zones);
   const passport = computePassport(routeTrustHistory, { zonesOwned: zones.length, timesDefended });
   const level = getLevelInfo(totalXp);
+  const hud = hudProgress(totalXp, "Mover");
   const lockedMove = lockedMovePreview(totalXp);
   const myRanked = selectedClub
     ? rankClubs(CLUBS, selectedClub.id, {
@@ -135,18 +137,47 @@ export default function ProfileScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* Identity header */}
+        {/* Identity — the player crest.
+            The same vocabulary as the resource header on Home (hex crest,
+            LV · RANK, the two resource pills, the level bar), drawn at the size
+            this screen can afford. Profile is where a player looks to see who
+            they have become, so the rank sits beside the level rather than
+            being a number on its own. */}
         <FadeSlideIn>
           <View style={styles.hero}>
-            <View style={styles.avatarRing}>
-              <View style={styles.avatar}>
-                <Ionicons name="person" size={30} color={colors.primary} />
+            <View style={styles.crest}>
+              <Hexagon size={84} color={colors.primaryDim} />
+              <View style={styles.crestGlyph}>
+                <Ionicons name="person" size={32} color={colors.primary} />
               </View>
             </View>
             <Text style={styles.name}>Mover</Text>
-            <Text style={styles.subtitle}>
-              Level {level.level} · {totalXp.toLocaleString()} XP total
+            <Text style={styles.rank}>
+              LV {hud.level} · {hud.rank.toUpperCase()}
             </Text>
+
+            {/* Two currencies, one honest and one a preview. The qualifier
+                lives inside the pill (see components/ResourcePill) so it cannot
+                be separated from the number it qualifies. */}
+            <View style={styles.pillRow}>
+              <ResourcePill
+                value={lockedMove.toLocaleString()}
+                unit="MOVE"
+                tone="gold"
+                note="preview"
+                accessibilityLabel={`${lockedMove.toLocaleString()} Locked MOVE, a preview of in-app progress — not a balance and not a payout.`}
+              />
+              <ResourcePill value={hud.xpLabel} unit="XP" tone="violet" />
+            </View>
+
+            <View style={styles.heroBar}>
+              <RoutePath progress={level.progress} label={hud.nextLevelLabel} />
+            </View>
+
+            <Text style={styles.moveNote}>
+              Locked MOVE is in-app progress, not a payout. It unlocks with the territory beta.
+            </Text>
+
             <View style={styles.pillRow}>
               <StatusPill
                 icon={identity.signedIn ? "person-circle-outline" : "phone-portrait-outline"}
@@ -154,42 +185,42 @@ export default function ProfileScreen() {
                 tone={identity.signedIn ? "primary" : "neutral"}
               />
               <StatusPill
-                icon={identity.walletAvailable ? "wallet-outline" : "wallet-outline"}
+                icon="wallet-outline"
                 label={identity.walletLabel}
                 tone={identity.walletAvailable ? "success" : "neutral"}
               />
             </View>
-            <View style={styles.heroBar}>
-              <RoutePath
-                progress={level.progress}
-                label={`${level.xpForLevel - level.xpIntoLevel} XP to level ${level.level + 1}`}
-              />
-            </View>
           </View>
         </FadeSlideIn>
 
-        {/* Concise real stats */}
+        {/* What has actually been earned. Badges carry a proportion because the
+            set is finite and knowable; a streak and a completion count do not,
+            so they stay bare numbers rather than being given an invented
+            target to fill. */}
         <FadeSlideIn delay={STAGGER_MS}>
-          <View style={styles.statsRow}>
-            <StatCard icon="flame" value={streak} label="Day streak" tint={palette.heatCoral} />
-            <StatCard icon="trophy" value={level.level} label="Level" tint={colors.primary} />
-            <StatCard icon="checkmark-done" value={questsCompleted} label="Completed" tint={palette.pulseGreen} />
-          </View>
-        </FadeSlideIn>
-
-        {/* Locked MOVE — in-app progress only */}
-        <FadeSlideIn delay={STAGGER_MS * 2}>
-          <View style={styles.moveCard}>
-            <View style={styles.moveIcon}>
-              <Hexagon size={20} color={palette.moveGold} />
-            </View>
-            <View style={styles.moveText}>
-              <Text style={styles.moveValue}>{lockedMove.toLocaleString()} Locked MOVE</Text>
-              <Text style={styles.moveNote}>
-                Preview · in-app progress, not a payout. Unlocks with the territory beta.
-              </Text>
-            </View>
-          </View>
+          <MeterRow
+            meters={[
+              {
+                icon: "flame",
+                value: String(streak),
+                label: "Day streak",
+                tint: palette.heatCoral,
+              },
+              {
+                icon: "shapes",
+                value: String(zones.length),
+                label: zones.length === 1 ? "Zone held" : "Zones held",
+                tint: palette.pulseGreen,
+              },
+              {
+                icon: "medal",
+                value: `${collections.unlocked}/${collections.total}`,
+                label: "Badges",
+                tint: palette.moveGold,
+                progress: collections.total > 0 ? collections.unlocked / collections.total : 0,
+              },
+            ]}
+          />
         </FadeSlideIn>
 
         {/* Current club */}
@@ -400,26 +431,13 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     ...shadows.float,
   },
-  avatarRing: { ...avatar(88), borderWidth: 3, borderColor: palette.baseBlue, marginBottom: spacing.sm },
-  avatar: { ...avatar(72), backgroundColor: colors.primaryDim },
+  crest: { alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
+  crestGlyph: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   name: { ...type.title, fontSize: 24 },
-  subtitle: { ...type.caption, fontSize: 14 },
+  rank: { ...type.kicker, fontSize: 10.5, letterSpacing: 1, color: colors.textDim },
   pillRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", justifyContent: "center", marginTop: spacing.xs },
   heroBar: { alignSelf: "stretch", marginTop: spacing.md },
-  statsRow: { flexDirection: "row", gap: spacing.md },
-  moveCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    ...shadows.card,
-  },
-  moveIcon: { ...iconTile(40), backgroundColor: softTint(palette.moveGold) },
-  moveText: { flex: 1, gap: 2 },
-  moveValue: { ...type.heading, fontSize: 16 },
-  moveNote: { ...type.caption, fontSize: 12, lineHeight: 16 },
+  moveNote: { ...type.caption, fontSize: 11.5, lineHeight: 16, textAlign: "center" },
   group: { gap: spacing.sm },
   groupList: { gap: spacing.sm },
   list: { gap: spacing.sm },

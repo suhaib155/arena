@@ -9,8 +9,9 @@ import { contextCells, currentCellKey } from "@/lib/mapCells";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
+import { GroundPanel } from "@/components/GroundPanel";
 import { Button } from "@/components/Button";
-import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
+import { colors, ground, groundInk, palette, radius, shadows, spacing, type } from "@/theme";
 import {
   formatDistance,
   formatDuration,
@@ -482,8 +483,9 @@ export default function MoveSessionScreen() {
      not. There is no animation to reduce: the chip changes, the route does
      not move, and nothing pulses. */
   const sealed = preview.sealedLoops > 0;
-  const sealCore = sealed ? palette.pulseGreen : palette.baseBlue;
-  const sealInk = sealed ? ink.green : ink.blue;
+  /* `groundInk` and not `palette`: the loop panel sits on the dark ground, where
+     Base Blue lands at 3.82:1 and is not text. See lib/tone.ts. */
+  const sealGroundInk = sealed ? groundInk.green : groundInk.blue;
 
   return (
     <Screen>
@@ -545,26 +547,29 @@ export default function MoveSessionScreen() {
           Calm on purpose. An unsealed route is an ordinary route, so there is
           no countdown, no warning colour and no urgency here; nobody should be
           crossing a road to close a loop. */}
-      {!compact ? <View style={styles.zoneCard}>
-        <View style={styles.zoneHead}>
-          <Text style={styles.zoneTitle}>Your route</Text>
-          <View style={[styles.sealChip, { backgroundColor: softTint(sealCore) }]}>
-            <Ionicons
-              name={sealed ? "checkmark-circle" : "git-branch-outline"}
-              size={13}
-              color={sealCore}
-            />
-            <Text style={[styles.sealChipText, { color: sealInk }]}>
-              {sealPreviewLabel(preview)}
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.zoneNote}>
-          {sealed
-            ? "Sealed sections are banked. The trail ahead is open again."
-            : "Cross your own trail, or finish near where you started, to seal this route."}
-        </Text>
-      </View> : null}
+      {!compact ? (
+        <GroundPanel
+          icon={sealed ? "checkmark-circle" : "git-branch-outline"}
+          kicker="Loop status"
+          title={
+            sealed ? "Sealed sections are banked." : "Close your loop to claim ground."
+          }
+          detail={
+            sealed
+              ? "The trail ahead is open again. Keep moving to seal more of it."
+              : "Cross your own trail, or finish near where you started, to seal this route."
+          }
+          tone={sealed ? "positive" : "info"}
+          live
+          trailing={
+            <View style={styles.sealChip}>
+              <Text style={[styles.sealChipText, { color: sealGroundInk }]}>
+                {sealPreviewLabel(preview)}
+              </Text>
+            </View>
+          }
+        />
+      ) : null}
       </View>
 
       {/* Large, unmistakable controls; Finish is separated + confirmed */}
@@ -662,17 +667,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     ...shadows.card,
   },
-  zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   zoneTitle: { ...type.heading, fontSize: 14.5 },
-  /* Icon + label, never colour alone: the chip says what state the route is in
-     for a reader who cannot tell green from blue. */
+  /* The panel already carries the glyph and the words, so the chip is the count
+     alone. State is never colour alone here: the panel's kicker and title say
+     what the route is doing in text, and this repeats the number. */
   sealChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.pill,
+    backgroundColor: ground.raised,
   },
   sealChipText: { ...type.kicker, fontSize: 12, letterSpacing: 0 },
   zoneNote: { ...type.caption, fontSize: 12 },

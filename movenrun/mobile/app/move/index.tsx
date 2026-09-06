@@ -5,10 +5,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
-import { Hexagon } from "@/components/Hexagon";
+import { GroundPanel } from "@/components/GroundPanel";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { avatar, canvas, colors, hairline, iconTile, palette, radius, shadows, softTint, spacing, type } from "@/theme";
+import { colors, hairline, iconTile, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
   getForegroundPermissionStatus,
   hasLocationServices,
@@ -138,22 +138,22 @@ export default function MoveStartScreen() {
           </View>
         </FadeSlideIn>
 
-        {/* Map-style context panel */}
+        {/* What a move is for.
+            This slot used to hold a hand-drawn map: two grey roads, a green hex
+            and a location pin, none of it anywhere. It read as a preview of the
+            ground you were about to cover, on the one screen where the app has
+            no location yet — a decorative surface impersonating the real map
+            two taps away. The screen now says what the session actually does
+            instead, which is both honest and the more useful thing to read
+            while you are lacing your shoes. */}
         <FadeSlideIn delay={STAGGER_MS}>
-          <View style={styles.mapPanel}>
-            <View style={[styles.road, { top: "30%" }]} />
-            <View style={[styles.road, { top: "66%" }]} />
-            <View style={[styles.roadV, { left: "32%" }]} />
-            <View style={styles.mapHexA}>
-              <Hexagon size={52} color={canvas.cellHeld} coreColor={palette.pulseGreen} />
-            </View>
-            <View style={styles.mapHexB}>
-              <Hexagon size={38} color={canvas.cell} />
-            </View>
-            <View style={styles.mapPin}>
-              <Ionicons name="location" size={30} color={colors.primary} />
-            </View>
-          </View>
+          <GroundPanel
+            icon="git-branch-outline"
+            kicker="What a move does"
+            title="Walk it, close the loop, hold the ground."
+            detail="Distance and time are recorded as you move. Cross your own trail, or finish near where you started, and the route seals — that is what makes ground claimable."
+            tone="info"
+          />
         </FadeSlideIn>
 
         {/* Readiness — honest state, what it means, what to do */}
@@ -251,19 +251,6 @@ const styles = StyleSheet.create({
   activityBody: { flex: 1, gap: 2 },
   activityName: { ...type.heading, fontSize: 16 },
   activitySub: { ...type.caption, fontSize: 12, color: colors.textDim },
-  mapPanel: {
-    height: 160,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceAlt,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  road: { position: "absolute", left: 0, right: 0, height: 5, backgroundColor: canvas.road },
-  roadV: { position: "absolute", top: 0, bottom: 0, width: 5, backgroundColor: canvas.roadCross },
-  mapHexA: { position: "absolute", left: "18%", top: 20 },
-  mapHexB: { position: "absolute", right: "20%", bottom: 16 },
-  mapPin: { ...avatar(74), backgroundColor: colors.surface, ...shadows.float },
   readyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,

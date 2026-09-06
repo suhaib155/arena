@@ -110,6 +110,16 @@ function TabButton({
     >
       <Ionicons name={icon} size={22} color={color} />
       <Text style={[styles.tabLabel, { color, fontWeight: active ? "700" : "600" }]}>{label}</Text>
+      {/* The indicator is always drawn and only changes colour. Rendering it
+          conditionally would grow the tab by 3pt the moment it was selected and
+          nudge the whole bar — the same class of bug `selectionRing()` exists to
+          prevent for borders. It is decoration: the filled glyph, the weight and
+          `accessibilityState.selected` already say which tab is active. */}
+      <View
+        style={[styles.indicator, active ? { backgroundColor: colors.primary } : null]}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      />
     </ScalePress>
   );
 }
@@ -159,6 +169,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   tabLabel: { ...type.caption, fontSize: 10.5, textAlign: "center", flexShrink: 1 },
+  indicator: {
+    height: 3,
+    width: 18,
+    borderRadius: radius.pill,
+    marginTop: 3,
+    backgroundColor: "transparent",
+  },
   moveSlot: { flex: 1, minWidth: 56, alignItems: "center", justifyContent: "center" },
   moveButton: { ...avatar(56), marginTop: -22, backgroundColor: colors.primary, borderWidth: 4, borderColor: colors.bg, ...glow(colors.primary) },
   moveLabel: {
