@@ -151,7 +151,7 @@ interface GameState {
   /** First run: the intro's final CTA. Idempotent, so replaying the intro
    *  from Profile cannot regress a `ready` user. */
   completeIntro: () => void;
-  reset: () => void;
+  reset: () => Promise<void>;
 }
 
 export const useGameStore = create<GameState>()(
@@ -360,24 +360,25 @@ export const useGameStore = create<GameState>()(
            key, their own retention policy), so clearing the store alone would
            leave them behind — orphaned precise location belonging to an account
            the user believes they have just wiped. */
-        discardPendingVerifications();
-        set({
-          totalXp: 0,
-          streak: 0,
-          lastActiveDay: null,
-          completedQuestIds: [],
-          questsCompleted: 0,
-          history: [],
-          zones: [],
-          timesDefended: 0,
-          selectedClubId: null,
-          lastTrustScore: null,
-          lastTrustLabel: null,
-          lastTrustAt: null,
-          routeTrustHistory: [],
-          movementVerifications: [],
-          viewedRoutePassport: false,
-          viewedRouteProof: false,
+        return discardPendingVerifications().then(() => {
+          set({
+            totalXp: 0,
+            streak: 0,
+            lastActiveDay: null,
+            completedQuestIds: [],
+            questsCompleted: 0,
+            history: [],
+            zones: [],
+            timesDefended: 0,
+            selectedClubId: null,
+            lastTrustScore: null,
+            lastTrustLabel: null,
+            lastTrustAt: null,
+            routeTrustHistory: [],
+            movementVerifications: [],
+            viewedRoutePassport: false,
+            viewedRouteProof: false,
+          });
         });
       },
     }),

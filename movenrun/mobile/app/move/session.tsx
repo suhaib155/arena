@@ -26,6 +26,7 @@ import {
   type TrackingGap,
 } from "@/lib/trackPoints";
 import { setLastSession } from "@/services/moveSession";
+import { onVerificationPrivacyReset } from "@/services/verificationPrivacy";
 import { newClientSessionId } from "@/lib/movementVerification";
 import {
   activeMsSoFar,
@@ -54,6 +55,9 @@ type GpsState = "waiting" | "locked" | "weak";
 
 export default function MoveSessionScreen() {
   const router = useRouter();
+  // The privacy-reset callback needs navigation, but navigation identity must
+  // not restart an active tracker. Keep the mount router for that callback.
+  const routerRef = useRef(router);
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const mode: TrackerMode = modeParam === "demo" ? "demo" : "gps";
   /**
@@ -140,12 +144,38 @@ export default function MoveSessionScreen() {
 
     let cancelled = false;
     const tracker = createTracker(evidenceSourceRef.current);
+    const eraseEvidence = () => {
+      previewRef.current?.clear();
+      previewRef.current = null;
+      pointsRef.current.length = 0;
+      acceptedRef.current = 0;
+      lastFixTimestampRef.current = 0;
+      distanceRef.current = 0;
+      gapsRef.current.length = 0;
+      backgroundedAtRef.current = null;
+      trackerGapAtRef.current = null;
+      continuityBrokenRef.current = false;
+    };
+    const unsubscribePrivacyReset = onVerificationPrivacyReset(() => {
+      // Sign-out/reset/account replacement explicitly ends this evidence owner.
+      // A delayed native start or fix must not repopulate either route buffer.
+      cancelled = true;
+      tracker.stop();
+      eraseEvidence();
+      setRoutePreview([]);
+      setPreview(EMPTY_PREVIEW);
+      setDistanceM(0);
+      setGpsState("waiting");
+      setStartError(null);
+      apply(idleLifecycle());
+      routerRef.current.replace("/move");
+    });
     tracker
       .start((p) => {
         /* Fixes are only evidence while capturing. A point arriving during a
            pause, or after Finish, is dropped rather than extending a route the
            user has already ended. */
-        if (lifecycleRef.current.state !== "active") return;
+        if (cancelled || lifecycleRef.current.state !== "active") return;
         if (backgroundedAtRef.current !== null) return;
         if (p.accuracy != null && p.accuracy > 25) setGpsState("weak");
         else setGpsState("locked");
@@ -211,7 +241,7 @@ export default function MoveSessionScreen() {
         trackerGapAtRef.current ??= Date.now();
       })
       .then(() => {
-        if (cancelled) return;
+        if (cancelled) { tracker.stop(); return; }
         const started = trackerStarted(lifecycleRef.current, {
           clientSessionId: newClientSessionId(),
           at: Date.now(),
@@ -239,12 +269,11 @@ export default function MoveSessionScreen() {
       });
     return () => {
       cancelled = true;
+      unsubscribePrivacyReset();
       tracker.stop();
       /* The session's geometry goes with the session. Nothing about a route
          outlives the screen that captured it. */
-      previewRef.current?.clear();
-      previewRef.current = null;
-      pointsRef.current.length = 0;
+      eraseEvidence();
     };
   }, [apply, startAttempt]);
 
@@ -343,7 +372,7 @@ export default function MoveSessionScreen() {
       /* The same active-capture time the clock showed: elapsed minus paused. */
       durationMs: activeMsSoFar(next.lifecycle, at),
       finishedAt: metadata.finishedAt,
-      gaps: gapsRef.current,
+      gaps: gapsRef.current.map((gap) => ({ ...gap })),
     });
     router.replace("/move/summary");
   }, [apply, router]);
