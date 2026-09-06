@@ -12,12 +12,15 @@ import type { TrackPoint } from "@/lib/geo";
 import { AcquiredForegroundWatch, TrackerStartError } from "@/lib/acquiredForegroundWatch";
 export { TrackerStartError } from "@/lib/acquiredForegroundWatch";
 import { ACQUISITION_WATCH, SESSION_WATCH } from "@/lib/trackingConfig";
+import { gpsTimings, type GpsAcquisitionState } from "@/lib/gpsAcquisitionState";
+import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
 
 export type TrackerMode = "gps" | "demo";
 
 export interface MoveTracker {
   readonly mode: TrackerMode;
-  start(onPoint: (p: TrackPoint) => void, onError?: (error: TrackerStartError) => void): Promise<void>;
+  start(onPoint: (p: TrackPoint) => void, onError?: (error: TrackerStartError) => void,
+    onState?: (state: GpsAcquisitionState) => void): Promise<void>;
   stop(): void;
 }
 
@@ -69,6 +72,8 @@ export class GpsTracker implements MoveTracker {
   readonly mode = "gps" as const;
   private generation = 0;
   private watch = new AcquiredForegroundWatch({
+    acquisitionSample: (point) => distanceDiagnostics.record(point,
+      { accepted: false, reason: "acquiring", segmentMeters: 0 }, 0, 0),
     watch: (acquiring, onPoint, onError) => {
       const config = acquiring ? ACQUISITION_WATCH : SESSION_WATCH;
       return Location.watchPositionAsync({
@@ -86,15 +91,21 @@ export class GpsTracker implements MoveTracker {
   });
 
   async start(onPoint: (p: TrackPoint) => void,
-    onError?: (error: TrackerStartError) => void): Promise<void> {
+    onError?: (error: TrackerStartError) => void,
+    onState?: (state: GpsAcquisitionState) => void): Promise<void> {
     this.stop();
+    gpsTimings.reset();
     const generation = this.generation;
     try {
       if (!(await Location.hasServicesEnabledAsync())) throw new TrackerStartError("services_off");
       const permission = await Location.getForegroundPermissionsAsync();
       if (permission.status !== "granted") throw new TrackerStartError("permission_denied");
+      gpsTimings.permission();
       if (generation !== this.generation) throw new TrackerStartError("cancelled");
-      await this.watch.start(onPoint, onError);
+      await this.watch.start(onPoint, onError, (state) => {
+        gpsTimings.state(state);
+        onState?.(state);
+      });
     } catch (error) {
       if (error instanceof TrackerStartError) throw error;
       throw new TrackerStartError("tracker_error");

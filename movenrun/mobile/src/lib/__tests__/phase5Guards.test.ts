@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 const APP = join(process.cwd(), "app");
 const DEEDS = join(APP, "deed-showroom.tsx");
-const NETWORK = join(APP, "network", "status.tsx");
+const NETWORK = join(APP, "settings", "technical.tsx");
 const PROFILE = join(APP, "(tabs)", "profile.tsx");
 const TABS_LAYOUT = join(APP, "(tabs)", "_layout.tsx");
 
@@ -78,13 +78,14 @@ test("Deeds and Network navigate only to pre-existing routes", () => {
   }
 });
 
-test("Deeds keeps honest ownership-preview wording (local, earned on device, not on-chain, never 'owned')", () => {
+test("Deeds keeps preview state and links to ownership limits through Help and Legal", () => {
   const src = read(DEEDS);
-  assert.match(src, /Local preview/);
-  assert.match(src, /earned on this device/i);
-  assert.match(src, /not on-chain/i);
-  assert.match(src, /Ownership not finalized/i);
-  assert.match(src, /No minting/);
+  assert.match(src, /label="Preview"/);
+  assert.match(src, /<FirstTimeGuide topic="deeds"/);
+  assert.match(src, /pathname: "\/help", params: \{ topic: "deeds"/);
+  const legal = read(join(APP, "legal.tsx"));
+  assert.match(legal, /no purchase, reward payout or minting/i);
+  assert.match(legal, /Deed previews do not establish permanent ownership/i);
   // Never AFFIRMATIVELY asserts ownership or a fabricated market/yield value.
   // (Negated disclaimers like "never minted or owned" / "no market value" are
   // fine; only affirmative claims are forbidden.)
@@ -123,10 +124,12 @@ test("Deeds and Network never enable the JS animation driver", () => {
   }
 });
 
-test("Profile keeps Deeds and Network reachable", () => {
+test("Profile keeps Deeds and Settings technical information reachable without old Network entry", () => {
   const src = read(PROFILE);
   assert.match(src, /\/deed-showroom/);
-  assert.match(src, /\/network\/status/);
+  assert.match(src, /\/settings\/technical/);
+  assert.doesNotMatch(src, /\/network\/status/);
+  assert.match(read(join(APP, "network", "status.tsx")), /<Redirect href="\/settings\/technical"/);
 });
 
 test("no sixth tab — exactly three tab screens and two push destinations", () => {

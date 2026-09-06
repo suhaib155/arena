@@ -1,23 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, Share, StyleSheet, Text, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AppState, Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
+import { captureRef, releaseCapture } from "react-native-view-shot";
+import { shareVisualSummary } from "@/lib/visualShare";
+import { ensureShareCacheClean } from "@/services/shareCache";
+import { onVerificationPrivacyReset, verificationGeneration } from "@/services/verificationPrivacy";
+import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
-import { FadeSlideIn } from "@/components/FadeSlideIn";
 import { colors, ink, palette, pressFade, radius, shadows, spacing, tints, type } from "@/theme";
 import { formatPace } from "@/lib/geo";
-import { MovenMap } from "@/components/map/MovenMap";
+import { MovenMap, type MovenMapHandle } from "@/components/map/MovenMap";
 import { DEFAULT_PRIVACY_RADIUS_M, redactEndpoints } from "@/lib/mapGeometry";
-import { getLastSession, isSessionPrivacyCurrent } from "@/services/moveSession";
+import { getLastSession, isSessionPrivacyCurrent, subscribeVerification } from "@/services/moveSession";
 import { useGameStore } from "@/store/useGameStore";
 import { computePassport } from "@/lib/routePassport";
-import { buildProof, outcomeLabel, runTitle } from "@/lib/routeProof";
+import { buildProof, runTitle } from "@/lib/routeProof";
 import type { RouteOutcome } from "@/lib/routeTrust";
 import { getClubById } from "@/data/clubs";
-import { tapFeedback, successFeedback } from "@/lib/haptics";
+import { tapFeedback } from "@/lib/haptics";
 
 function num(v: string | string[] | undefined, fallback = 0): number {
   const s = Array.isArray(v) ? v[0] : v;
@@ -43,29 +48,8 @@ function fmtDuration(seconds: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-/**
- * Route Proof — the local share card, and the preview of it.
- *
- * Two different things, and the distinction is the whole privacy design.
- *
- * **What leaves the phone** is unchanged: `proof.shareText`, scalar summary
- * stats, handed to the OS share sheet by an explicit tap. No coordinates, no
- * route path, no map image, no cell ids, no upload. `lib/routeProof.ts` and its
- * guards own that, and this screen does not widen it.
- *
- * **What the player sees here** now includes the route on a real map, because a
- * preview that cannot show the walk is not much of a preview and the map is the
- * thing worth looking at. It is drawn with both ends redacted by default — see
- * `redactEndpoints` — since a route's start and finish are usually one address.
- * The redaction is a real removal, not a mask over the top: the hidden fixes
- * never reach the map, and the drawn line breaks where they were rather than
- * cutting across the hidden ground.
- *
- * The card's footer states both facts separately, so neither is read as the
- * other.
- */
+/** A temporary image export of the same redacted route shown on this screen. */
 export default function RouteProofScreen() {
-  const router = useRouter();
   const params = useLocalSearchParams();
 
   const selectedClub = getClubById(useGameStore((s) => s.selectedClubId));
@@ -103,10 +87,40 @@ export default function RouteProofScreen() {
      reached without one, or after a privacy reset spent it — in which case the
      card simply shows no map rather than an emptier one. */
   const [hideEnds, setHideEnds] = useState(true);
-  const session = useMemo(() => {
+  const [session, setSession] = useState(() => {
     const held = getLastSession();
     return held && isSessionPrivacyCurrent(held) ? held : null;
-  }, []);
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [snapshot, setSnapshot] = useState<string | null | undefined>(undefined);
+  const mapRef = useRef<MovenMapHandle>(null);
+  const cardRef = useRef<View>(null);
+  const active = useRef(false);
+  const revision = useRef(0);
+  const files = useRef(new Set<string>());
+  const imageReady = useRef<null | { resolve(): void; reject(error: Error): void }>(null);
+  const mounted = useRef(true);
+  async function removeFile(uri: string) {
+    files.current.delete(uri);
+    releaseCapture(uri);
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  }
+  function cancel() {
+    revision.current += 1;
+    imageReady.current?.reject(new Error("share_cancelled"));
+    imageReady.current = null;
+    for (const file of files.current) void removeFile(file).catch(() => {});
+    if (mounted.current) setSnapshot(undefined);
+  }
+  useEffect(() => {
+    mounted.current = true;
+    const unsubscribe = subscribeVerification(() => {
+      if (getLastSession() !== session) { cancel(); setSession(getLastSession()); }
+    });
+    const reset = onVerificationPrivacyReset(() => { cancel(); setSession(null); });
+    return () => { mounted.current = false; cancel(); unsubscribe(); reset(); };
+  }, [session]);
   const routePoints = useMemo(() => {
     if (session === null) return [];
     return hideEnds ? redactEndpoints(session.points) : session.points;
@@ -114,52 +128,81 @@ export default function RouteProofScreen() {
   const mapPauses = useMemo(() => session?.session?.pauses ?? [], [session]);
 
   const onShare = async () => {
-    tapFeedback();
+    if (active.current) return;
+    active.current = true;
+    setBusy(true); setError(""); tapFeedback();
+    const version = revision.current;
+    const generation = verificationGeneration();
+    const current = () => mounted.current && version === revision.current && generation === verificationGeneration() &&
+      (!session || (getLastSession() === session && isSessionPrivacyCurrent(session)));
     try {
-      await Share.share({ message: proof.shareText });
-      successFeedback();
+      await ensureShareCacheClean();
+      if (!(await Sharing.isAvailableAsync())) throw new Error("sharing_unavailable");
+      await shareVisualSummary({
+        current,
+        captureMap: async () => {
+          const uri = routePoints.length ? await mapRef.current?.capture() ?? null : null;
+          if (uri) files.current.add(uri);
+          return uri;
+        },
+        prepareCard: (uri) => new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => { imageReady.current = null; reject(new Error("image_timeout")); }, 8000);
+          imageReady.current = { resolve: () => { clearTimeout(timeout); imageReady.current = null; resolve(); },
+            reject: (e) => { clearTimeout(timeout); imageReady.current = null; reject(e); } };
+          setSnapshot(uri);
+        }),
+        captureCard: async () => {
+          const uri = await captureRef(cardRef, { format: "png", quality: 1, result: "tmpfile" });
+          files.current.add(uri); return uri;
+        },
+        shareImage: async (uri) => {
+          await Sharing.shareAsync(uri, { mimeType: "image/png", UTI: "public.png", dialogTitle: "Share your move" });
+          // Some Android recipients read the URI after the chooser returns.
+          // Keep it until returning to MovenRun, bounded to two minutes.
+          if (AppState.currentState !== "active" && current()) await new Promise<void>((resolve) => {
+            const finish = () => { clearTimeout(timeout); listener.remove(); reset(); resolve(); };
+            const listener = AppState.addEventListener("change", (state) => { if (state === "active") finish(); });
+            const reset = onVerificationPrivacyReset(finish);
+            const timeout = setTimeout(finish, 120_000);
+          });
+        },
+        remove: removeFile,
+      });
     } catch {
-      /* user dismissed the share sheet — no-op */
+      if (current()) setError("Couldn’t share the image. Try again, or share text details below.");
+    } finally {
+      active.current = false;
+      if (mounted.current) { setBusy(false); setSnapshot(undefined); }
     }
   };
 
   return (
     <Screen>
-      <ScreenHeader title="Route Proof" />
+      <ScreenHeader title="Share your move" />
 
-      <View style={styles.body}>
-        <FadeSlideIn>
-          <View style={styles.card}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.body} removeClippedSubviews={false}>
+          <View ref={cardRef} collapsable={false} style={styles.card}>
             <View style={styles.brandRow}>
               <Hexagon size={15} color={tints.green} coreColor={palette.pulseGreen} />
               <Text style={styles.brand}>MovenRun</Text>
               <View style={{ flex: 1 }} />
-              <Text style={styles.previewTag}>Route Proof Preview</Text>
+              <Text style={styles.previewTag}>Your move</Text>
             </View>
 
-            <Text style={styles.stripLabel}>{outcomeLabel(outcome)} · local summary</Text>
-
-            {/* stat strip */}
-            <View style={styles.stripRow}>
-              <View style={styles.stripStat}>
-                <Text style={[styles.stripValue, { color: ink.green }]}>{zones}</Text>
-                <Text style={styles.stripLabel}>zones touched</Text>
-              </View>
-              <View style={styles.stripDivider} />
-              <View style={styles.stripStat}>
-                <Text style={[styles.stripValue, { color: palette.baseBlue }]}>
-                  {proof.trustScore}
-                </Text>
-                <Text style={styles.stripLabel}>Local signal score · {proof.trustLabel}</Text>
-              </View>
-            </View>
+            <Text style={styles.stripLabel}>{outcome === "summary-only" ? "Not enough movement" : "Route complete"}</Text>
 
             {/* The walk itself, on real ground. Shown only when the session is
                 still in memory — there is no stand-in map for a route this
                 screen does not have. */}
             {routePoints.length > 0 ? (
               <>
-                <MovenMap
+                {snapshot !== undefined ? (
+                  snapshot ? <Image source={{ uri: snapshot }} style={styles.shareMap} resizeMode="contain"
+                    onLoad={() => requestAnimationFrame(() => imageReady.current?.resolve())} onError={() => imageReady.current?.reject(new Error("image_load"))} /> :
+                  <View style={styles.shareMap} onLayout={() => imageReady.current?.resolve()}><Text style={styles.stripLabel}>Map unavailable</Text></View>
+                ) : <MovenMap
+                  key={String(hideEnds)}
+                  ref={mapRef}
                   points={routePoints}
                   pauses={mapPauses}
                   interactive={false}
@@ -169,11 +212,13 @@ export default function RouteProofScreen() {
                       ? "Map of your route, with the areas around the start and finish hidden"
                       : "Map of your full route, including the start and finish"
                   }
-                />
+                />}
                 <Pressable
+                  disabled={busy}
                   style={pressFade(styles.privacyRow)}
                   onPress={() => {
                     tapFeedback();
+                    cancel();
                     setHideEnds((on) => !on);
                   }}
                   accessibilityRole="switch"
@@ -193,10 +238,10 @@ export default function RouteProofScreen() {
                   </Text>
                 </Pressable>
               </>
-            ) : null}
+            ) : <View onLayout={() => { if (snapshot === null) imageReady.current?.resolve(); }} key={String(snapshot)}><Text style={styles.stripLabel}>No shareable route</Text></View>}
 
             {/* main run block */}
-            <Text style={styles.runTitle}>{runTitle(outcome)}</Text>
+            <Text style={styles.runTitle}>{str(params.title) || runTitle(outcome)}</Text>
             <View style={styles.statRow}>
               <View style={styles.stat}>
                 <Text style={styles.statValue}>{fmtKm(distanceMeters)}</Text>
@@ -214,57 +259,30 @@ export default function RouteProofScreen() {
               </View>
             </View>
 
-            {/* quality bar: Risk → Strong signal */}
-            <View style={styles.qualityWrap}>
-              <View style={styles.qualityTrack}>
-                <View style={[styles.qualitySeg, { backgroundColor: palette.heatCoral }]} />
-                <View style={[styles.qualitySeg, { backgroundColor: palette.moveGold }]} />
-                <View style={[styles.qualitySeg, { backgroundColor: palette.pulseGreen }]} />
-                <View style={[styles.qualitySeg, { backgroundColor: palette.voltMint }]} />
-                <View
-                  style={[
-                    styles.qualityMarker,
-                    { left: `${Math.max(2, Math.min(98, proof.trustScore))}%` },
-                  ]}
-                />
-              </View>
-              <View style={styles.qualityLabels}>
-                <Text style={styles.qualityEnd}>Risk</Text>
-                <Text style={styles.qualityEnd}>Strong signal</Text>
-              </View>
-            </View>
-
-            {/* proof id + safety footer */}
+            {/* Endpoint visibility is explicit before sharing. */}
             <View style={styles.footerCard}>
-              <View style={styles.proofIdRow}>
-                <Ionicons name="ribbon-outline" size={13} color={palette.moveGold} />
-                <Text style={styles.proofId}>{proof.proofId}</Text>
-              </View>
-              {/* Two separate statements, deliberately. The map above is on
-                  this screen; the text the share sheet sends is not the map.
-                  Collapsing them into one line is how a card ends up claiming
-                  the stronger of the two about the wrong thing. */}
               <Text style={styles.safety}>
                 {routePoints.length > 0
-                  ? "Shared text holds no coordinates and no route path · The map stays on this phone"
-                  : "This proof holds no coordinates · No route path · Local preview"}
+                  ? (hideEnds ? "Start and finish hidden" : "Full route visible")
+                  : ""}
               </Text>
-              <Text style={styles.safetyDim}>Not on-chain</Text>
             </View>
           </View>
-        </FadeSlideIn>
-      </View>
+      </ScrollView>
 
       <View style={styles.footer}>
-        <Button label="Share summary" icon="share-outline" onPress={onShare} />
-        <Text style={styles.ctaNote}>Local proof preview · not on-chain</Text>
+        {!!error && <Text accessibilityRole="alert" style={styles.stripLabel}>{error}</Text>}
+        <Button label="Share summary" icon="share-outline" loading={busy} onPress={onShare} />
+        <Button label="Share text details" variant="ghost" disabled={busy} onPress={() => {
+          void Share.share({ message: proof.shareText }).catch(() => setError("Couldn’t open sharing. Please try again."));
+        }} />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  body: { flexGrow: 1, paddingTop: spacing.sm, paddingBottom: spacing.md },
 
   card: {
     backgroundColor: colors.surface,
@@ -273,7 +291,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     ...shadows.float,
   },
-  shareMap: { height: 180, marginTop: spacing.sm },
+  shareMap: { height: 240, width: "100%", marginTop: spacing.sm },
   privacyRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -282,7 +300,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   privacyText: { ...type.caption, fontSize: 11.5, fontWeight: "600" },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  brandRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
   brand: { ...type.heading, fontSize: 16 },
   previewTag: { ...type.kicker, color: palette.baseBlue },
 
@@ -296,9 +314,9 @@ const styles = StyleSheet.create({
 
   /* main run */
   runTitle: { ...type.display, fontSize: 24, textAlign: "center", marginTop: -spacing.sm },
-  statRow: { flexDirection: "row", alignItems: "center" },
-  stat: { flex: 1, alignItems: "center", gap: 2 },
-  statValue: { ...type.title, fontSize: 18, fontVariant: ["tabular-nums"] },
+  statRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
+  stat: { flexGrow: 1, flexBasis: 80, alignItems: "center", gap: 2 },
+  statValue: { ...type.title, fontSize: 22, lineHeight: 34, includeFontPadding: true, fontVariant: ["tabular-nums"] },
   statLabel: { ...type.caption, fontSize: 10.5 },
   statDivider: { width: 1, alignSelf: "stretch", backgroundColor: colors.surfaceAlt },
 

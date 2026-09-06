@@ -82,13 +82,13 @@ test("app.json carries no Google Maps key", () => {
 
 /* ── the dynamic layer changes exactly one thing ──────────────────────────── */
 
-test("with no key in the environment the config is returned untouched", () => {
+test("with no key the config exposes only a false availability flag", () => {
   const { withMapKey } = dynamicConfig();
   const original = fixtureConfig();
   for (const absent of [undefined, null, "", "   "]) {
     assert.deepEqual(
       withMapKey(fixtureConfig(), absent),
-      original,
+      { ...original, extra: { ...original.extra, maps: { androidConfigured: false } } },
       `a ${JSON.stringify(absent)} key must not alter the config`,
     );
   }
@@ -97,11 +97,12 @@ test("with no key in the environment the config is returned untouched", () => {
   assert.equal(withMapKey(fixtureConfig(), "").android.config, undefined);
 });
 
-test("with a key set, only the Android map key changes", () => {
+test("with a key set, only the native key and public boolean change", () => {
   const { withMapKey } = dynamicConfig();
   const resolved = withMapKey(fixtureConfig(), "test-key-value");
 
   assert.equal(resolved.android.config.googleMaps.apiKey, "test-key-value");
+  assert.equal(resolved.extra.maps.androidConfigured, true);
 
   /* Diff everything else against the untouched fixture. Strip the one field
      the layer is allowed to set, and the two must be identical — so a widened
@@ -109,6 +110,7 @@ test("with a key set, only the Android map key changes", () => {
      here rather than silently escaping the static policy guard. */
   const stripped = JSON.parse(JSON.stringify(resolved));
   delete stripped.android.config;
+  delete stripped.extra.maps;
   assert.deepEqual(stripped, fixtureConfig(), "app.config.js changed more than the map key");
 });
 
@@ -147,11 +149,29 @@ test("Android without a usable key reports a missing key", () => {
 
 test("Android with a key is ready; iOS needs none; web has no native map", () => {
   assert.deepEqual(
-    mapAvailability("android", { android: { config: { googleMaps: { apiKey: "AIza-real" } } } }),
+    mapAvailability("android", { extra: { maps: { androidConfigured: true } } }),
     { status: "ready" },
   );
   assert.deepEqual(mapAvailability("ios", null), { status: "ready" });
   assert.deepEqual(mapAvailability("web", null), { status: "unsupported_platform" });
+});
+
+test("Expo public filtering preserves availability without exposing the native key", () => {
+  const prior = process.env.GOOGLE_MAPS_ANDROID_API_KEY;
+  try {
+    process.env.GOOGLE_MAPS_ANDROID_API_KEY = "test-config-probe";
+    const { getConfig } = requireFromHere("@expo/config");
+    const publicConfig = getConfig(MOBILE, { isPublicConfig: true }).exp;
+    assert.equal(publicConfig.android.config, undefined);
+    assert.equal(JSON.stringify(publicConfig).includes("test-config-probe"), false);
+    assert.deepEqual(mapAvailability("android", publicConfig), { status: "ready" });
+    delete process.env.GOOGLE_MAPS_ANDROID_API_KEY;
+    const absent = getConfig(MOBILE, { isPublicConfig: true }).exp;
+    assert.deepEqual(mapAvailability("android", absent), { status: "missing_key" });
+  } finally {
+    if (prior === undefined) delete process.env.GOOGLE_MAPS_ANDROID_API_KEY;
+    else process.env.GOOGLE_MAPS_ANDROID_API_KEY = prior;
+  }
 });
 
 test("an unknown platform is checked rather than assumed fine", () => {
@@ -174,24 +194,16 @@ test("the unavailable message explains the loss without blaming the player", () 
   assert.equal(mapUnavailableMessage({ status: "ready" }), null);
 });
 
-/* ── the preview gained a map; the share payload did not ──────────────────── */
+/* Visual sharing is authorized: scalar text remains an explicit fallback. */
 
-test("the shared payload is still text, and still carries no route", () => {
-  /* The Route Proof screen now draws the walk on a real map. That is a local
-     preview. The thing the OS share sheet sends must remain the scalar text it
-     has always been — this is the exact seam where a map ends up in someone
-     else's chat because the preview and the payload were confused. */
+test("the shared payload is an image with an explicit text fallback", () => {
   const screen = readFileSync(join(MOBILE, "app", "route", "proof.tsx"), "utf8");
-
-  const shareCall = screen.slice(screen.indexOf("Share.share("), screen.indexOf("successFeedback()"));
-  assert.ok(shareCall.length > 0, "the share call is gone — this guard lost its subject");
-  assert.match(shareCall, /message:\s*proof\.shareText/, "the share payload must be the proof text");
-  for (const leaked of ["points", "routePoints", "coordinate", "latitude", "longitude", "url", "uri"]) {
-    assert.ok(
-      !new RegExp(`\\b${leaked}\\b`, "i").test(shareCall),
-      `the share call carries ${leaked}`,
-    );
-  }
+  const start = screen.indexOf("const onShare");
+  const primary = screen.slice(start, screen.indexOf("  return (", start));
+  assert.match(primary, /shareVisualSummary\(/);
+  assert.match(primary, /Sharing.shareAsync/);
+  assert.ok(!primary.includes("Share.share("));
+  assert.match(screen, /label="Share text details"/);
 });
 
 test("the redaction cannot be off by default", () => {
@@ -204,14 +216,11 @@ test("the redaction cannot be off by default", () => {
   assert.match(screen, /redactEndpoints\(/, "the preview must actually redact, not merely offer to");
 });
 
-test("the card never states the stronger claim about the wrong thing", () => {
-  /* With a map on screen, "no route path" is true of the shared text and false
-     of the card. The two must be stated separately. */
+test("the visual card does not deny the route it shares", () => {
   const screen = readFileSync(join(MOBILE, "app", "route", "proof.tsx"), "utf8");
-  const withMap = screen.slice(screen.indexOf("routePoints.length > 0"));
-  const claim = withMap.match(/"Shared text holds no coordinates[^"]*"/);
-  assert.ok(claim, "the map-present footer claim is gone");
-  assert.match(claim[0], /Shared text/, "the claim must name what it is about");
+  assert.ok(!screen.includes("The map stays on this phone"));
+  assert.ok(!screen.includes("This proof holds no coordinates"));
+  assert.match(screen, /Start and finish hidden/);
 });
 
 test("the misconfigured-key hint names what a human must actually check", () => {

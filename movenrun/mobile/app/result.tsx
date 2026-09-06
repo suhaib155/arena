@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Animated, Easing, Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,39 +10,51 @@ import { ShareCard } from "@/components/ShareCard";
 import { Hexagon } from "@/components/Hexagon";
 import { avatar, colors, glow, iconTile, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
-import { useGameStore, type CompletionOutcome } from "@/store/useGameStore";
+import { useGameStore } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
-import { successFeedback } from "@/lib/haptics";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function ResultScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, attemptId } = useLocalSearchParams<{ id: string; attemptId: string }>();
   const quest = questService.getQuestById(id ?? "");
-  const completeQuest = useGameStore((s) => s.completeQuest);
-
-  const [outcome, setOutcome] = useState<CompletionOutcome | null>(null);
-  // Award XP exactly once, even if the component re-renders.
-  const awardedRef = useRef(false);
+  const attempt = useGameStore((s) => s.questAttempt);
+  const hydrated = useGameStore((s) => s._hydrated);
+  // Results only present a persisted settlement; opening a route cannot award XP.
+  const outcome = attempt && attempt.id === attemptId && attempt.questId === quest?.id ? attempt.outcome : null;
   const pop = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
-    if (awardedRef.current || !quest) return;
-    awardedRef.current = true;
-    setOutcome(completeQuest(quest));
-    successFeedback();
+    if (!outcome?.completionSatisfied) return;
+    if (reducedMotion) { pop.setValue(1); return; }
     Animated.timing(pop, {
       toValue: 1,
       duration: 420,
       easing: Easing.out(Easing.back(1.6)),
       useNativeDriver: true,
     }).start();
-  }, [quest, completeQuest, pop]);
+  }, [outcome, pop, reducedMotion]);
 
-  if (!quest || !outcome) {
+  if (!hydrated) {
     return (
       <Screen>
         <View style={styles.center} />
+      </Screen>
+    );
+  }
+
+  if (!quest || !outcome?.completionSatisfied) {
+    return (
+      <Screen>
+        <View style={[styles.center, { justifyContent: "center", gap: spacing.lg }]}>
+          <Text style={styles.title}>Quest ended</Text>
+          <Text style={styles.questName}>{quest?.title ?? "No completed quest"}</Text>
+          <Text style={styles.note}>Complete the countdown to earn quest XP.</Text>
+          <Text style={styles.rewardValue}>0 XP earned</Text>
+          <Button label="Back to Today" icon="home" onPress={() => router.replace("/(tabs)")} />
+        </View>
       </Screen>
     );
   }
@@ -162,7 +174,7 @@ export default function ResultScreen() {
 
       <View style={styles.footer}>
         <Button label="Share" icon="share-social-outline" variant="secondary" onPress={onShare} />
-        <Button label="Done" icon="home" onPress={() => router.dismissAll()} />
+        <Button label="Done" icon="home" onPress={() => router.replace("/(tabs)")} />
       </View>
     </Screen>
   );

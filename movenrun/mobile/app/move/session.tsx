@@ -9,6 +9,8 @@ import { contextCells, currentCellKey } from "@/lib/mapCells";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
+import { FinishSessionSheet } from "@/components/FinishSessionSheet";
+import { acquisitionLabel, gpsTimings, type GpsAcquisitionState } from "@/lib/gpsAcquisitionState";
 import { Button } from "@/components/Button";
 import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
@@ -85,6 +87,8 @@ export default function MoveSessionScreen() {
   const [routePreview, setRoutePreview] = useState<TrackPoint[]>([]);
   const [distanceM, setDistanceM] = useState(0);
   const [gpsState, setGpsState] = useState<GpsState>("waiting");
+  const [acquisitionState, setAcquisitionState] = useState<GpsAcquisitionState>("locating");
+  const [finishSheetOpen, setFinishSheetOpen] = useState(false);
   const [startAttempt, setStartAttempt] = useState(0);
   const [startError, setStartError] = useState<TrackerStartError | null>(null);
 
@@ -241,7 +245,7 @@ export default function MoveSessionScreen() {
         setGpsState("weak");
         continuityBrokenRef.current = true;
         trackerGapAtRef.current ??= Date.now();
-      })
+      }, (state) => { if (!cancelled) setAcquisitionState(state); })
       .then(() => {
         if (cancelled) { tracker.stop(); return; }
         const started = trackerStarted(lifecycleRef.current, {
@@ -261,6 +265,7 @@ export default function MoveSessionScreen() {
           () => lifecycleRef.current.pauses,
         );
         apply(started.lifecycle);
+        setGpsState("locked");
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -404,11 +409,8 @@ export default function MoveSessionScreen() {
      accidental. The confirmed path calls the unchanged finish(). */
   const confirmFinish = useCallback(() => {
     tapFeedback();
-    Alert.alert("Finish session?", "End tracking and review your route.", [
-      { text: "Keep moving", style: "cancel" },
-      { text: "Finish", style: "default", onPress: finish },
-    ]);
-  }, [finish]);
+    setFinishSheetOpen(true);
+  }, []);
 
   /* Android hardware back must not silently discard a session — intercept it
      and route through the same confirm dialog as the close button. */
@@ -428,6 +430,9 @@ export default function MoveSessionScreen() {
   const paused = captureState === "paused";
   const starting = captureState === "starting";
   const controlsAvailable = captureState === "active" || paused;
+  useEffect(() => {
+    if (controlsAvailable) gpsTimings.live();
+  }, [controlsAvailable]);
 
   /* The head fix, and the grid around it.
      Keyed on the cell rather than on the fix: the player crosses a resolution-8
@@ -448,9 +453,9 @@ export default function MoveSessionScreen() {
   const cells = useMemo(() => contextCells(head), [cellKey]); // eslint-disable-line
 
   if (!controlsAvailable && captureState !== "finished") {
-    const title = starting ? "Finding GPS" : "Session not started";
+    const title = starting ? acquisitionLabel(acquisitionState) : "Session not started";
     const detail = starting
-      ? "Waiting for a stable location. Your session starts when GPS is ready."
+      ? acquisitionState === "locating" ? "Getting your first location." : "Your session starts when the signal is stable."
       : startError?.code === "permission_denied"
         ? "Location permission is needed to record your route."
         : startError?.code === "services_off"
@@ -576,6 +581,8 @@ export default function MoveSessionScreen() {
           onFinish={confirmFinish}
         />
       </View>
+      <FinishSessionSheet visible={finishSheetOpen} onKeepMoving={() => setFinishSheetOpen(false)}
+        onFinish={() => { setFinishSheetOpen(false); finish(); }} />
     </Screen>
   );
 }

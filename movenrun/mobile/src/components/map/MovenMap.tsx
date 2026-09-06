@@ -85,6 +85,7 @@ interface MovenMapProps {
    * Off for a finished route, which is framed once and left alone.
    */
   live?: boolean;
+  showStartMarker?: boolean;
   /** Capture is paused. Only affects how the head marker reads. */
   paused?: boolean;
   /** Allow panning and zooming, and show the camera controls. */
@@ -104,8 +105,8 @@ function currentPlatform(): MapPlatform {
 /**
  * The Expo config as this module needs to read it.
  *
- * `expoConfig` is typed loosely by Expo and the Google Maps key lives on an
- * optional branch of it. Narrowing here — once, in one place — keeps
+ * Expo exposes the non-secret availability flag while stripping the native
+ * key. Narrowing here — once, in one place — keeps
  * `mapAvailability` free of Expo's types and testable on plain Node.
  */
 function mapConfigSlice(): MapConfigSlice | null {
@@ -120,6 +121,7 @@ function MovenMapView(
     cells = [],
     onPressCell,
     live = false,
+    showStartMarker = true,
     paused = false,
     interactive = true,
     style,
@@ -129,6 +131,7 @@ function MovenMapView(
 ) {
   const reducedMotion = useReducedMotion();
   const mapRef = useRef<MapView | null>(null);
+  const mapLoaded = useRef(false);
 
   const availability = useMemo(
     () => mapAvailability(currentPlatform(), mapConfigSlice()),
@@ -150,6 +153,7 @@ function MovenMapView(
     head: live ? head : null,
     reducedMotion,
     initialMode: live ? "following" : "free",
+    followEnabled: live,
   });
 
   /**
@@ -190,9 +194,10 @@ function MovenMapView(
   const attachMap = useCallback(
     (instance: MapView | null) => {
       mapRef.current = instance;
+      if (instance === null) mapLoaded.current = false;
       camera.attach(instance);
     },
-    [camera],
+    [camera.attach],
   );
 
   useImperativeHandle(
@@ -202,7 +207,7 @@ function MovenMapView(
       recenter: () => camera.recenter(),
       capture: async () => {
         const map = mapRef.current;
-        if (map === null || availability.status !== "ready") return null;
+        if (map === null || availability.status !== "ready" || !mapLoaded.current) return null;
         try {
           return await map.takeSnapshot({ format: "png", result: "file" });
         } catch {
@@ -229,6 +234,8 @@ function MovenMapView(
     <View style={[styles.container, style]}>
       <MapView
         ref={attachMap}
+        onMapReady={camera.onReady}
+        onMapLoaded={() => { mapLoaded.current = true; }}
         style={StyleSheet.absoluteFill}
         /* Google on Android is the only provider with a key configured; iOS
            uses Apple Maps, which needs none. */
@@ -250,7 +257,7 @@ function MovenMapView(
       >
         <H3Overlay cells={cells} onPressCell={onPressCell} />
         <RoutePolyline points={points} pauses={pauses} />
-        {start !== null ? <StartMarker coordinate={start} /> : null}
+        {showStartMarker && start !== null ? <StartMarker coordinate={start} /> : null}
         {live && head !== null ? (
           <CurrentLocationMarker coordinate={head} paused={paused} />
         ) : null}

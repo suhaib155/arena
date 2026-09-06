@@ -126,16 +126,19 @@ test("the location permission rationale says the route can be sent", () => {
 
 test("account creation states upload, retention and what history does not hold", () => {
   const welcome = read(join(MOBILE, "app", "welcome.tsx"));
-  const footer = welcome.slice(welcome.indexOf("footerHeading"));
-
-  assert.match(footer, /never in the background/i);
-  assert.match(footer, /nothing leaves your device/i, "the local-beta path must stay distinguished");
-  assert.match(footer, /sends\s*\n?\s*that session(&apos;|')s route to MovenRun/i, "upload must be stated");
+  assert.match(welcome, /<LegalAcceptance onChange=\{setAccepted\}/);
+  const acceptance = read(join(MOBILE, "src", "components", "LegalAcceptance.tsx"));
+  assert.match(acceptance, /<LegalLinks/);
+  assert.match(acceptance, /pathname: "\/legal", params: \{ kind: "privacy"/);
+  const footer = read(join(MOBILE, "app", "legal.tsx"));
+  assert.match(footer, /does not record background location/i);
+  assert.match(footer, /Without that service, progress remains on this device/i, "the account-free path must stay distinguished");
+  assert.match(footer, /signed in.*send its route to MovenRun/i, "upload must be stated");
   assert.match(footer, /seven days/i, "the retention bound is part of the disclosure");
-  assert.match(footer, /then deleted/i, "so is the deletion");
+  assert.match(footer, /deleted on expiry, discard or sign-out/i, "so is the deletion");
   assert.match(
     footer,
-    /never contain coordinates or a\s*\n?\s*route path/i,
+    /do not contain coordinates or a route path/i,
     "the true part of the old copy survives, scoped to the records it is about",
   );
 });

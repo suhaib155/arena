@@ -15,6 +15,7 @@ import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { LegalAcceptance } from "@/components/LegalAcceptance";
 import { EmailOtpForm } from "@/components/EmailOtpForm";
 import { Hexagon } from "@/components/Hexagon";
 import { colors, palette, radius, shadows, spacing, tints, type } from "@/theme";
@@ -45,17 +46,18 @@ export default function WelcomeScreen() {
      landing afterwards and changing first-run state behind the user's back.
      No cancellation infrastructure, no polling — just a short, honest lock. */
   const [formBusy, setFormBusy] = useState(false);
-  const locked = busy || formBusy;
+  const [accepted, setAccepted] = useState(false);
+  const locked = busy || formBusy || !accepted;
 
   /* The SERVER decides when someone is signed in. First-run state only follows
      that confirmation — never an optimistic local guess. Advancing the stage
      is what moves the app to the intro (the root layout owns navigation). */
   useEffect(() => {
-    if (status === "signedIn" && firstRunStage === "account") {
+    if (status === "signedIn" && firstRunStage === "account" && accepted) {
       successFeedback();
       markSignedIn();
     }
-  }, [status, firstRunStage, markSignedIn]);
+  }, [status, firstRunStage, markSignedIn, accepted]);
 
   const onLocalBeta = () => {
     if (locked) return; // never start a second transition mid-request
@@ -72,17 +74,17 @@ export default function WelcomeScreen() {
         </View>
 
         <Text style={styles.h1} accessibilityRole="header">
-          Protect your MovenRun progress
+          Your next move starts here.
         </Text>
         <Text style={styles.lede}>
-          Continue with email to create or restore your MovenRun account. Your wallet is prepared
-          automatically when the service is available — no seed phrase required.
+          {backendConfigured ? "Sign in to protect your progress, or explore first." : "Explore your area. Make every move count."}
         </Text>
+        <LegalAcceptance onChange={setAccepted} />
 
         {backendConfigured ? (
           <View style={styles.card}>
             <EmailOtpForm
-              busy={busy}
+              busy={busy || !accepted}
               errorCode={authErrorCode}
               helperText="New here? We create your account automatically. Returning? Use the same email."
               onBusyChange={setFormBusy}
@@ -115,49 +117,22 @@ export default function WelcomeScreen() {
           <View style={styles.card} accessibilityLiveRegion="polite">
             <View style={styles.statusRow}>
               <Ionicons name="cloud-offline-outline" size={18} color={colors.textDim} />
-              <Text style={styles.statusTitle}>Accounts aren&apos;t available in this build</Text>
+              <Text style={styles.statusTitle}>Ready to explore</Text>
             </View>
             <Text style={styles.statusBody}>
-              {authErrorMessage("api_base_url_unset")}
+              Progress sync is unavailable. You can still start moving.
             </Text>
           </View>
         )}
 
         <Button
-          label="Explore local beta"
-          variant="secondary"
+          label="Start exploring"
+          variant="primary"
           icon="walk-outline"
           disabled={locked}
           onPress={onLocalBeta}
         />
 
-        {/* Honest footer. There is no hosted privacy/terms page in this build,
-            so the facts are stated here rather than linking somewhere that
-            does not exist. */}
-        <View style={styles.footer}>
-          <Text style={styles.footerHeading}>Privacy</Text>
-          <Text style={styles.footerText}>
-            Location is used only during an active movement session, never in the background.
-          </Text>
-          <Text style={styles.footerText}>
-            In the local beta nothing leaves your device. If you sign in, saving a session sends
-            that session&apos;s route to MovenRun to verify the distance — and if that can&apos;t
-            be done right away, the route is kept on this device so it can be retried, for up to
-            seven days, then deleted.
-          </Text>
-          <Text style={styles.footerText}>
-            Your progress history, route reviews and passport never contain coordinates or a
-            route path.
-          </Text>
-          <Text style={styles.footerHeading}>Terms</Text>
-          <Text style={styles.footerText}>
-            MovenRun is a local beta. There is no purchase, no reward payout, and no minting.
-          </Text>
-          <Text style={styles.footerText}>
-            You can explore the local beta without an account or a wallet, and sign in later from
-            Profile without losing your progress.
-          </Text>
-        </View>
       </ScrollView>
     </Screen>
   );

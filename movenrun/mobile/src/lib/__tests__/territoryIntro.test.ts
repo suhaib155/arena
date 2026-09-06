@@ -106,7 +106,7 @@ test("Home offers a zero-zone player a way into territory", () => {
   // a zero-zone player cannot have — so without this, Home never mentions
   // territory to the only audience that has never seen it.
   const board = buildTodayBoard(boardInputFromState(SOURCE));
-  const all = [board.focus, ...board.tasks].filter((t) => t !== null);
+  const all = [board.focus, ...board.tasks].filter((t): t is NonNullable<typeof t> => t !== null);
   const toTerritory = all.filter((t) => t.action === "territory");
   assert.equal(toTerritory.length, 1, "exactly one territory entry point, not zero and not two");
   assert.equal(toTerritory[0].id, "capture");
@@ -131,7 +131,7 @@ test("the territory entry point leaves the board once a zone is held", () => {
     dailyQuestDone: false,
     hasClub: true,
   });
-  const all = [withZone.focus, ...withZone.tasks].filter((t) => t !== null);
+  const all = [withZone.focus, ...withZone.tasks].filter((t): t is NonNullable<typeof t> => t !== null);
   assert.ok(!all.some((t) => t.id === "capture"), "beginner guidance is not permanent furniture");
 });
 

@@ -30,7 +30,6 @@ import { touchedCells } from "@/lib/mapCells";
 import { finishedSealLabel, sealFinishedRoute } from "@/lib/sealPreview";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { lockedMovePreview } from "@/lib/lockedMove";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
 import { gapNotice, summarizeGaps } from "@/lib/trackPoints";
 import { resolveCompletion } from "@/lib/completionSummary";
@@ -39,6 +38,7 @@ import { successFeedback, tapFeedback } from "@/lib/haptics";
 /* One owner for this id: the Home board filters history by it to tell a real
    movement session apart from an indoor warmup quest. */
 import { SESSION_QUEST_ID } from "@/lib/sessionQuest";
+import { returnToToday } from "@/lib/todayNavigation";
 
 /**
  * One synthetic quest id per local day gates session XP through the store's
@@ -70,7 +70,6 @@ export default function MoveSummaryScreen() {
   const recordMovementVerification = useGameStore((s) => s.recordMovementVerification);
   const defendZones = useGameStore((s) => s.defendZones);
   const ownedZones = useGameStore((s) => s.zones);
-  const totalXp = useGameStore((s) => s.totalXp);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
   /* THE identity client, built once by the auth store — screens never
      construct their own. The movement client rides its transport, so both
@@ -85,6 +84,7 @@ export default function MoveSummaryScreen() {
     [identityClient],
   );
   const [saved, setSaved] = useState(false);
+  const [showRouteDetails, setShowRouteDetails] = useState(false);
   const savingRef = useRef(false);
   const verification = useSyncExternalStore(subscribeVerification, getVerificationState, getVerificationState);
   const zonesTouched = useMemo(() => session ? cellsForRoute(session.points) : [], [session]);
@@ -105,7 +105,7 @@ export default function MoveSummaryScreen() {
       <Screen>
         <View style={styles.missingWrap}>
           <Text style={styles.missingText}>No session to show.</Text>
-          <Button label="Back to Today" variant="secondary" onPress={() => router.dismissAll()} />
+          <Button label="Back to Today" variant="secondary" onPress={() => returnToToday(router, clearLastSession)} />
         </View>
       </Screen>
     );
@@ -118,7 +118,6 @@ export default function MoveSummaryScreen() {
 
   const km = session.distanceM / 1000;
   const xp = sessionXp(session.distanceM, session.durationMs);
-  const lockedMoveDelta = lockedMovePreview(totalXp + xp) - lockedMovePreview(totalXp);
   const pace = formatPace(session.distanceM, session.durationMs);
   const saveable = session.mode === "gps" && isSaveable(session.distanceM, session.durationMs);
   const evidenceComplete = session.evidenceStatus !== "capacity_limited";
@@ -273,8 +272,7 @@ export default function MoveSummaryScreen() {
   };
 
   const done = () => {
-    clearLastSession();
-    router.dismissAll();
+    returnToToday(router, clearLastSession);
   };
 
   const showFooterSave = saveable && !saved && !alreadySavedToday;
@@ -343,11 +341,10 @@ export default function MoveSummaryScreen() {
           </View>
         </FadeSlideIn>
 
-        <View style={styles.zoneCard} accessibilityLiveRegion="polite">
+        {verification.kind !== "local" ? <View style={styles.zoneCard} accessibilityLiveRegion="polite">
           <Text style={styles.zoneTitle}>{verificationLabel(verification)}</Text>
           <Text style={styles.sealLine}>{serverSealLabel(verification)}</Text>
-          <Text style={styles.zoneBeta}>A server route check does not establish territory ownership.</Text>
-        </View>
+        </View> : null}
 
         {/* Rewards — only when there's a real reward to bank; always local preview */}
         {completion.showRewards ? (
@@ -356,7 +353,7 @@ export default function MoveSummaryScreen() {
               {!completion.progressPersisted ? (
                 <View style={styles.pendingBadge}>
                   <Ionicons name="time-outline" size={13} color={colors.textDim} />
-                  <Text style={styles.pendingText}>Save to bank these — not yet earned</Text>
+                  <Text style={styles.pendingText}>Earn on save</Text>
                 </View>
               ) : null}
               <View style={styles.rewardRow}>
@@ -365,19 +362,6 @@ export default function MoveSummaryScreen() {
                 </View>
                 <Text style={styles.rewardLabel}>XP</Text>
                 <CountUpText value={xp} prefix="+" style={[styles.rewardValue, { color: ink.gold }]} />
-              </View>
-              <View style={styles.rewardDivider} />
-              <View style={styles.rewardRow}>
-                <View style={[styles.rewardIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
-                  <Hexagon size={15} color={palette.deedViolet} />
-                </View>
-                <View style={styles.rewardLabelWrap}>
-                  <Text style={styles.rewardLabelPlain}>Locked MOVE</Text>
-                  <Text style={styles.rewardSub}>preview · in-app progress, not a payout</Text>
-                </View>
-                <Text style={[styles.rewardValue, { color: palette.deedViolet }]}>
-                  +{lockedMoveDelta}
-                </Text>
               </View>
             </View>
           </FadeSlideIn>
@@ -429,7 +413,7 @@ export default function MoveSummaryScreen() {
                   {session.mode === "demo"
                     ? "demo only"
                     : captureEligible
-                      ? "local capture preview"
+                      ? "Capture preview"
                       : "traversed only"}
                 </Text>
               </View>
@@ -451,7 +435,7 @@ export default function MoveSummaryScreen() {
                 to do before any of this ground can ever be claimed. Neutral
                 type, no red, no "you missed it". */}
             <Text style={styles.sealLine}>{finishedSealLabel(seal)}</Text>
-            <Text style={styles.zoneBeta}>Local territory preview · on-device simulation</Text>
+            <Text style={styles.zoneBeta}>Preview</Text>
           </View>
         </FadeSlideIn>
 
@@ -459,13 +443,17 @@ export default function MoveSummaryScreen() {
         {trust ? (
           <FadeSlideIn delay={STAGGER_MS * 5}>
             <View style={styles.trustCard}>
-              <View style={styles.trustHead}>
-                <Text style={styles.trustTitle}>Route Trust Preview</Text>
+              <Pressable style={pressFade(styles.trustHead)} accessibilityRole="button"
+                accessibilityLabel="Route quality details" accessibilityState={{ expanded: showRouteDetails }}
+                onPress={() => setShowRouteDetails((shown) => !shown)}>
+                <Text style={styles.trustTitle}>Route quality</Text>
                 <View style={styles.previewBadge}>
-                  <Text style={styles.previewBadgeText}>Preview only</Text>
+                  <Text style={styles.previewBadgeText}>{trust.label}</Text>
                 </View>
-              </View>
+                <Ionicons name={showRouteDetails ? "chevron-up" : "chevron-down"} size={18} color={colors.textDim} />
+              </Pressable>
 
+              {showRouteDetails ? <>
               <View style={styles.trustScoreRow}>
                 <View style={styles.trustScoreWrap}>
                   <Text style={[styles.trustScore, { color: toneColor(trust.tone).text }]}>
@@ -513,10 +501,9 @@ export default function MoveSummaryScreen() {
               ) : null}
 
               <Text style={styles.trustNote}>
-                Preview only · does not affect rewards or ownership. This score is
-                worked out on your device and the saved review keeps no coordinates
-                — it helps MovenRun learn what a clean route looks like.
+                Preview score. Rewards and territory are evaluated separately.
               </Text>
+              </> : null}
             </View>
           </FadeSlideIn>
         ) : null}
@@ -524,12 +511,15 @@ export default function MoveSummaryScreen() {
         {trust && session.mode === "gps" ? (
           <FadeSlideIn delay={STAGGER_MS * 6}>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Preview and share your route"
               style={pressFade(styles.proofRow)}
               onPress={() => {
                 tapFeedback();
                 router.push({
                   pathname: "/route/proof",
                   params: {
+                    title: "Free Run",
                     score: String(trust.score),
                     label: trust.label,
                     distanceMeters: String(Math.round(session.distanceM)),
@@ -543,7 +533,7 @@ export default function MoveSummaryScreen() {
               }}
             >
               <Ionicons name="share-social-outline" size={18} color={colors.primary} />
-              <Text style={styles.proofText}>Route Proof Preview</Text>
+              <Text style={styles.proofText}>Share your route</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
             </Pressable>
           </FadeSlideIn>
@@ -563,7 +553,7 @@ export default function MoveSummaryScreen() {
               </Text>
             ) : null}
             <Button
-              label={captureEligible ? "Save + local capture" : "Save session"}
+              label={captureEligible ? "Save + preview capture" : "Save session"}
               icon={captureEligible ? "flag" : "bookmark"}
               onPress={save}
             />
@@ -618,14 +608,16 @@ const styles = StyleSheet.create({
   routeMap: { height: 240 },
   statsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
     alignItems: "center",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingVertical: spacing.lg,
     ...shadows.card,
   },
-  stat: { flex: 1, alignItems: "center", gap: 2 },
-  statValue: { ...type.title, fontSize: 22, fontVariant: ["tabular-nums"] },
+  stat: { flexGrow: 1, flexBasis: 84, alignItems: "center", gap: 2, paddingVertical: spacing.xs },
+  statValue: { ...type.title, fontSize: 22, lineHeight: 34, includeFontPadding: true, fontVariant: ["tabular-nums"] },
   statLabel: { ...type.caption, fontSize: 11 },
   statDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.surfaceAlt },
   rewardCard: {
@@ -661,12 +653,12 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...shadows.card,
   },
-  zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  zoneHead: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "space-between", alignItems: "center" },
   zoneTitle: { ...type.heading, fontSize: 15 },
   zoneCount: { ...type.mono, fontSize: 12, color: colors.textDim },
   zoneHexRow: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40 },
   zoneEmpty: { ...type.caption, fontSize: 12.5, color: colors.textFaint },
-  candidateRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  candidateRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
   candidateBadge: {
     backgroundColor: softTint(palette.pulseGreen),
     paddingVertical: 3,
@@ -688,7 +680,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...shadows.card,
   },
-  trustHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  trustHead: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, minHeight: 48, justifyContent: "space-between", alignItems: "center" },
   trustTitle: { ...type.heading, fontSize: 15 },
   previewBadge: {
     backgroundColor: softTint(palette.baseBlue),

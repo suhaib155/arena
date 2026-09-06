@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { FirstTimeGuide } from "@/components/FirstTimeGuide";
 import { Hexagon } from "@/components/Hexagon";
 import { ScalePress } from "@/components/ScalePress";
-import { RankRow } from "@/components/RankRow";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { canvas, colors, hairline, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
@@ -16,7 +16,6 @@ import {
   rankClubs,
   seasonResetLabel,
   sessionsThisWeek,
-  type RankedClub,
 } from "@/lib/clubs";
 import { selectClubMission, buildClubHeroView } from "@/lib/clubsView";
 import type { Club } from "@/types";
@@ -41,18 +40,21 @@ function pastelFor(color: string): string {
  * data is a local preview and labelled as such. Ranking logic is unchanged.
  */
 export default function ClubsScreen() {
+  const router = useRouter();
   const selectedClubId = useGameStore((s) => s.selectedClubId);
   const selected = getClubById(selectedClubId);
 
   return (
     <Screen>
+      <FirstTimeGuide topic="clubs" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.greeting}>City War Preview</Text>
+          <Text style={styles.greeting}>Clubs · Preview</Text>
           <Text style={styles.title}>{selected ? "Your club this week" : "Find your club"}</Text>
         </View>
         {selected ? <ClubHome club={selected} /> : <ChooseClub />}
-        <Text style={styles.footerNote}>Local preview · online clubs and city wars arrive later.</Text>
+        <Button label="About Clubs" variant="ghost" icon="information-circle-outline"
+          onPress={() => router.push({ pathname: "/help", params: { topic: "clubs" } })} />
       </ScrollView>
     </Screen>
   );
@@ -67,9 +69,7 @@ function ChooseClub() {
       <View style={styles.valueCard}>
         <Text style={styles.valueTitle}>Represent a club as you move</Text>
         <Text style={styles.valueText}>
-          Your captured zones, defends, and sessions power your club's weekly
-          score on this device. It's a local preview — online city wars arrive
-          later.
+          Pick your colours. Make your next move count.
         </Text>
       </View>
       <Text style={styles.sectionLabel}>Available clubs</Text>
@@ -79,12 +79,11 @@ function ChooseClub() {
             to={0.98}
             style={styles.clubOption}
             onPress={() => {
-              tapFeedback();
               selectClub(club.id);
               successFeedback();
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Join ${club.name}. ${club.memberCount} movers`}
+            accessibilityLabel={`Choose ${club.name} preview`}
           >
             <Hexagon size={40} color={pastelFor(club.color)} coreColor={club.color} />
             <View style={styles.clubOptionBody}>
@@ -94,7 +93,7 @@ function ChooseClub() {
               </Text>
             </View>
             <View style={styles.joinChip}>
-              <Text style={styles.joinChipText}>Join</Text>
+              <Text style={styles.joinChipText}>Choose</Text>
             </View>
           </ScalePress>
         </FadeSlideIn>
@@ -156,7 +155,6 @@ function ClubHome({ club }: { club: Club }) {
             <Text style={styles.warCountdown}>{seasonResetLabel()}</Text>
           </View>
 
-          <CityWarMap ranked={ranked} />
 
           <View style={styles.heroIdentity}>
             <Hexagon size={44} color={tints.green} coreColor={palette.pulseGreen} />
@@ -184,7 +182,7 @@ function ClubHome({ club }: { club: Club }) {
           </View>
 
           <View style={styles.heroStats}>
-            <HeroStat label="Rank" value={heroView.rankLabel} tint={heroView.rankAvailable ? palette.baseBlue : colors.textFaint} />
+            <HeroStat label="Your sessions" value={String(weekSessions)} tint={palette.baseBlue} />
             <View style={styles.heroStatDivider} />
             <HeroStat label="Your contribution" value={heroView.contributionLabel} tint={heroView.hasContribution ? ink.green : colors.textFaint} wide />
           </View>
@@ -222,39 +220,19 @@ function ClubHome({ club }: { club: Club }) {
             router.push("/club-territory");
           }}
           accessibilityRole="button"
-          accessibilityLabel="Club Territory. Your local club command layer, preview"
+          accessibilityLabel="Club Territory preview"
         >
           <View style={styles.territoryCtaIcon}>
             <Ionicons name="map-outline" size={18} color={colors.primary} />
           </View>
           <View style={styles.territoryCtaBody}>
             <Text style={styles.territoryCtaName}>Club Territory</Text>
-            <Text style={styles.territoryCtaNote}>Your local club command layer · preview</Text>
+            <Text style={styles.territoryCtaNote}>Your ground. Your next objective.</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
         </ScalePress>
       </FadeSlideIn>
 
-      {/* Compact leaderboard */}
-      <FadeSlideIn delay={STAGGER_MS * 3}>
-        <Text style={styles.sectionTitle}>City leaderboard</Text>
-      </FadeSlideIn>
-      <View style={styles.board}>
-        {ranked.map((entry, i) => (
-          <FadeSlideIn key={entry.club.id} delay={STAGGER_MS * (3 + Math.min(i, 4))}>
-            <RankRow
-              rank={entry.rank}
-              name={entry.club.name}
-              meta={`${entry.club.zonesOwned} zones · ${entry.club.zonesDefended} defended · ${entry.club.weeklyDistanceKm} km/wk${entry.isUserClub && entry.userContribution > 0 ? ` · +${entry.userContribution} you` : ""}`}
-              score={entry.score.toLocaleString()}
-              trend={entry.trend}
-              accent={entry.isUserClub ? palette.pulseGreen : entry.club.color}
-              pastel={pastelFor(entry.isUserClub ? palette.pulseGreen : entry.club.color)}
-              isMine={entry.isUserClub}
-            />
-          </FadeSlideIn>
-        ))}
-      </View>
     </View>
   );
 }
@@ -266,82 +244,6 @@ function HeroStat({ label, value, tint, wide }: { label: string; value: string; 
         {value}
       </Text>
       <Text style={styles.heroStatLabel}>{label}</Text>
-    </View>
-  );
-}
-
-/* ───────────────────────── city war map ────────────────────────────── */
-
-const WAR_CELLS = 18;
-
-function CityWarMap({ ranked }: { ranked: RankedClub[] }) {
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1600, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1600, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
-  const cells = useMemo(() => {
-    const total = ranked.reduce((sum, r) => sum + r.score, 0) || 1;
-    const out: { color: string; core: string; isUser: boolean }[] = [];
-    for (const entry of ranked) {
-      const n = Math.max(1, Math.round((entry.score / total) * WAR_CELLS));
-      const color = entry.isUserClub ? palette.pulseGreen : entry.club.color;
-      for (let i = 0; i < n && out.length < WAR_CELLS; i++) {
-        out.push({ color: pastelFor(color), core: color, isUser: entry.isUserClub });
-      }
-    }
-    while (out.length < WAR_CELLS) {
-      out.push({ color: tints.neutral, core: palette.dustGray, isUser: false });
-    }
-    return out
-      .map((c, i) => ({ c, k: (i * 7) % WAR_CELLS }))
-      .sort((a, b) => a.k - b.k)
-      .map((e) => e.c);
-  }, [ranked]);
-
-  return (
-    <View style={styles.warMap}>
-      <View style={[styles.warRoad, { top: "34%" }]} />
-      <View style={[styles.warRoad, { top: "70%" }]} />
-      <View style={[styles.warRoadV, { left: "28%" }]} />
-      <View style={[styles.warRoadV, { left: "68%" }]} />
-      <View style={styles.warHexGrid}>
-        {cells.map((cell, i) => (
-          <Animated.View
-            key={i}
-            style={
-              cell.isUser
-                ? {
-                    opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }),
-                    transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) }],
-                  }
-                : undefined
-            }
-          >
-            <Hexagon size={30} color={cell.color} coreColor={cell.core} />
-          </Animated.View>
-        ))}
-      </View>
-      <View style={styles.warLegend}>
-        {ranked.map((entry) => (
-          <View key={entry.club.id} style={styles.legendItem}>
-            <View
-              style={[
-                styles.legendDot,
-                { backgroundColor: entry.isUserClub ? palette.pulseGreen : entry.club.color },
-              ]}
-            />
-            <Text style={styles.legendText}>{entry.club.shortName}</Text>
-          </View>
-        ))}
-      </View>
     </View>
   );
 }

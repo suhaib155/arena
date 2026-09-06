@@ -51,6 +51,7 @@ export type MapAvailability =
  * compile error here rather than a silent `undefined` at runtime.
  */
 export interface MapConfigSlice {
+  extra?: { maps?: { androidConfigured?: boolean } | null } | null;
   android?: {
     config?: {
       googleMaps?: {
@@ -110,8 +111,9 @@ export function mapAvailability(
   /* "unknown" is treated as Android: on this project Android is the build that
      needs a key and the one the demo is recorded on, so an unrecognised
      platform should fail toward *checking* rather than toward assuming fine. */
-  const key = config?.android?.config?.googleMaps?.apiKey;
-  return isUsableMapKey(key) ? { status: "ready" } : { status: "missing_key" };
+  // android.config is intentionally removed by Expo's public config filter.
+  // The native key never needs to be exposed to the JavaScript runtime.
+  return config?.extra?.maps?.androidConfigured === true ? { status: "ready" } : { status: "missing_key" };
 }
 
 /** One plain sentence for a player, never a stack trace and never a key. */

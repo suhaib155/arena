@@ -1,9 +1,14 @@
+import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { StatTrio } from "@/components/StatTrio";
-import { TaskHero } from "@/components/TaskHero";
+import { AreaMap } from "@/components/AreaMap";
+import { Button } from "@/components/Button";
+import { XPBar } from "@/components/XPBar";
+import { getLevelInfo } from "@/lib/leveling";
+import { heldCells } from "@/lib/mapCells";
 import { TaskRow } from "@/components/TaskRow";
 import { SectionHeader } from "@/components/SectionHeader";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
@@ -48,6 +53,9 @@ export default function TodayScreen() {
   const history = useGameStore((s) => s.history);
   const zones = useGameStore((s) => s.zones);
   const selectedClubId = useGameStore((s) => s.selectedClubId);
+  const totalXp = useGameStore((s) => s.totalXp);
+  const level = getLevelInfo(totalXp);
+  const mapCells = useMemo(() => heldCells(zones), [zones]);
 
   /* Every derivation lives in lib/tasks.ts, so it can be unit-tested. Doing it
      inline here is how "Move today" once counted an indoor warmup quest as a
@@ -98,20 +106,33 @@ export default function TodayScreen() {
         </View>
 
         <FadeSlideIn>
-          <TaskHero board={board} onStart={openTask} onMoveAnyway={() => go("move")} />
-        </FadeSlideIn>
-
-        <FadeSlideIn delay={STAGGER_MS}>
           <Card>
+            <View style={styles.playerRow}>
+              <Text style={styles.playerLevel}>Level {level.level}</Text>
+              <Text style={styles.playerXp}>{totalXp.toLocaleString()} XP</Text>
+            </View>
+            <XPBar progress={level.progress} />
             <StatTrio
               items={[
                 { value: streak, label: "Day streak", tint: palette.heatCoral },
                 { value: `+${xpToday}`, label: "XP today", tint: palette.moveGold },
-                { value: zones.length, label: "Zones held", tint: palette.pulseGreen },
+                { value: zones.length, label: "Preview zones", tint: palette.pulseGreen },
               ]}
             />
           </Card>
         </FadeSlideIn>
+
+        <Card>
+          <SectionHeader title="Today's objective" trailing={board.progressLabel} />
+          <Text style={styles.objective}>{board.focus?.title ?? "Keep your momentum"}</Text>
+          <Button label={board.focus ? "View objective" : "Explore Territory"} variant="ghost" icon="arrow-forward" onPress={() => board.focus ? openTask(board.focus) : go("territory")} />
+        </Card>
+
+        <View style={styles.mapHero}>
+          <SectionHeader title="Your territory" trailing="Preview" />
+          <AreaMap cells={mapCells} style={styles.mapArea} onPressCell={() => go("territory")} />
+          <Button label="Start Move" icon="walk-outline" onPress={() => go("move")} />
+        </View>
 
         {board.tasks.length > 0 ? (
           <FadeSlideIn delay={STAGGER_MS * 2}>
@@ -124,7 +145,7 @@ export default function TodayScreen() {
           </FadeSlideIn>
         ) : null}
 
-        <Text style={styles.footer}>Move → Capture → Defend → Own</Text>
+        <Text style={styles.footer}>One move closer.</Text>
       </ScrollView>
     </Screen>
   );
@@ -143,6 +164,12 @@ const styles = StyleSheet.create({
   brand: { ...type.kicker, color: colors.primary },
   greeting: { ...type.display, fontSize: 28, lineHeight: 34 },
   list: { gap: spacing.sm },
+  playerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: spacing.sm },
+  playerLevel: { ...type.heading },
+  playerXp: { ...type.caption },
+  objective: { ...type.title },
+  mapHero: { gap: spacing.sm },
+  mapArea: { minHeight: 310 },
   footer: {
     ...type.mono,
     fontSize: 12,

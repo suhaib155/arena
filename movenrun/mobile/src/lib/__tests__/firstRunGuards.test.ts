@@ -111,10 +111,12 @@ test("no disabled Google or Base provider controls are shown", () => {
 
 test("account choice keeps the local-beta path and a way forward when the backend is absent", () => {
   const src = read(WELCOME);
-  assert.match(src, /Explore local beta/, "the local-beta choice is always offered");
+  assert.match(src, /Start exploring/, "the account-free choice is always offered");
   assert.match(src, /chooseLocalBeta/, "and it persists the choice");
   assert.match(src, /isBackendConfigured/, "an unconfigured build says so honestly");
-  assert.match(src, /Protect your MovenRun progress/);
+  assert.match(src, /const \[accepted, setAccepted\] = useState\(false\)/);
+  assert.match(src, /const locked = busy \|\| formBusy \|\| !accepted/);
+  assert.match(src, /<LegalAcceptance onChange=\{setAccepted\}/);
   // Never a fabricated success.
   assert.ok(!/status:\s*"signedIn"|setStatus\(/.test(src), "the screen never asserts a signed-in state");
 });
@@ -455,10 +457,14 @@ test("Home decides nothing — it renders one board and no second opinion", () =
     !/\{true \?|\{false \?|zones\.length === 0 \?|history\.length > 0 \?/.test(src),
     "visibility comes from the board, never from an ad-hoc condition",
   );
-  // The spotlight owns the only primary button, and it lives in TaskHero — so
-  // the screen itself renders no button at all and cannot grow a rival CTA.
-  assert.ok(!/<Button\b/.test(src), "Home renders no button of its own");
-  assert.ok(!/variant="primary"/.test(src), "the only primary action is the board's");
+  const buttons = src.match(/<Button\b[\s\S]*?\/>/g) ?? [];
+  assert.equal(buttons.length, 2, "one objective link and one movement action");
+  assert.match(buttons[0], /variant="ghost"/, "the objective is secondary to movement");
+  assert.match(buttons[1], /label="Start Move"/);
+  assert.match(buttons[1], /go\("move"\)/);
+  assert.ok(src.indexOf("styles.playerRow") < src.indexOf("Today's objective"));
+  assert.ok(src.indexOf("Today's objective") < src.indexOf("<AreaMap"));
+  assert.ok(src.indexOf("<AreaMap") < src.indexOf('label="Start Move"'));
 });
 
 test("Home reads store state but derives nothing from it itself", () => {

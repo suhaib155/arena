@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
+import { FirstTimeGuide } from "@/components/FirstTimeGuide";
 import { ScalePress } from "@/components/ScalePress";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
@@ -169,24 +170,17 @@ export default function ClubTerritoryScreen() {
   return (
     <Screen>
       <ScreenHeader title="Club Territory" />
+      <FirstTimeGuide topic="clubs" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
           <View style={styles.hero}>
             <Text style={styles.heroKicker}>Club Territory</Text>
-            <Text style={styles.heroTitle}>Your local club command layer.</Text>
+            <Text style={styles.heroTitle}>Build your club&apos;s ground.</Text>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
-                <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local preview</Text>
-              </View>
-              <View style={[styles.badge, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name="people-outline" size={13} color={colors.textDim} />
-                <Text style={[styles.badgeText, { color: colors.textDim }]}>No real members</Text>
-              </View>
-              <View style={[styles.badge, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name="podium-outline" size={13} color={colors.textDim} />
-                <Text style={[styles.badgeText, { color: colors.textDim }]}>No leaderboard</Text>
+                <Text style={[styles.badgeText, { color: ink.blue }]}>Preview</Text>
               </View>
             </View>
           </View>
@@ -202,8 +196,8 @@ export default function ClubTerritoryScreen() {
             >
               <Hexagon size={30} color={tints.neutral} coreColor={palette.dustGray} />
               <View style={styles.clubPromptBody}>
-                <Text style={styles.clubPromptName}>Choose a local preview club</Text>
-                <Text style={styles.clubPromptNote}>Personalize this dashboard · local preview</Text>
+                <Text style={styles.clubPromptName}>Choose your club</Text>
+                <Text style={styles.clubPromptNote}>Give your movement a home</Text>
               </View>
               <Text style={styles.clubPromptCta}>View Clubs</Text>
             </ScalePress>
@@ -233,7 +227,7 @@ export default function ClubTerritoryScreen() {
               <View style={styles.scoreDivider} />
               <Score value={board.activityScore} label="activity" tint={palette.moveGold} />
             </View>
-            <Pressable
+            {board.hasZones ? <Pressable
               hitSlop={8}
               style={pressFade(styles.recRow)}
               onPress={() => go(board.recommendedAction.action)}
@@ -241,7 +235,7 @@ export default function ClubTerritoryScreen() {
               <Ionicons name="flash-outline" size={15} color={palette.deedViolet} />
               <Text style={styles.recText}>{board.recommendedAction.label}</Text>
               <Text style={styles.recCta}>{board.recommendedAction.ctaLabel}</Text>
-            </Pressable>
+            </Pressable> : null}
           </View>
         </FadeSlideIn>
 
@@ -249,7 +243,7 @@ export default function ClubTerritoryScreen() {
           <FadeSlideIn delay={STAGGER_MS * 2}>
             <View style={styles.emptyCard}>
               <Ionicons name="flag-outline" size={28} color={colors.primary} />
-              <Text style={styles.emptyText}>Capture zones to build your club territory preview.</Text>
+              <Text style={styles.emptyText}>Your next route starts the story.</Text>
               <Button
                 label="Start Move"
                 icon="play"
@@ -337,10 +331,8 @@ export default function ClubTerritoryScreen() {
           </>
         )}
 
-        <Text style={styles.footerNote}>
-          Club Territory is a local preview. It does not show real members,
-          rankings, rewards, or live multiplayer.
-        </Text>
+        <Button label="About Clubs" variant="ghost" icon="information-circle-outline"
+          onPress={() => router.push({ pathname: "/help", params: { topic: "clubs" } })} />
       </ScrollView>
     </Screen>
   );
