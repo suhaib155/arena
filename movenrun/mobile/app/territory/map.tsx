@@ -15,6 +15,8 @@ import { avatar, canvas, colors, iconTile, ink, palette, radius, shadows, softTi
 import { useGameStore } from "@/store/useGameStore";
 import { HEALTH_LABEL } from "@/lib/territory";
 import { buildTerritoryOverview, type MapCell } from "@/lib/territoryMap";
+import { MovenMap } from "@/components/map/MovenMap";
+import { heldCells, type OverlayCell } from "@/lib/mapCells";
 import { buildTerritoryIntro } from "@/lib/territoryIntro";
 import { tapFeedback } from "@/lib/haptics";
 
@@ -77,6 +79,13 @@ export default function TerritoryMapScreen() {
   }, [overview.cells]);
 
   const needsDefense = overview.atRisk + overview.contestedPreview + overview.dormant;
+
+  /* The ground, on real geography. A zone id *is* an H3 cell, so the map draws
+     each holding where that cell actually is — the first time this screen has
+     said anything about where on Earth the player's territory sits. The board
+     below stays: it answers a different question (how healthy, what to defend
+     next) and it orders by risk rather than by place. */
+  const overlayCells = useMemo(() => heldCells(zones, selectedId), [zones, selectedId]);
 
   const selectZone = (id: string) => {
     tapFeedback();
@@ -151,6 +160,18 @@ export default function TerritoryMapScreen() {
           </ScrollView>
         ) : (
           <>
+            {/* Where the ground is. Tapping a cell selects it, the same
+                selection the board below uses, so the two never disagree about
+                what is being looked at. */}
+            {overlayCells.length > 0 ? (
+              <MovenMap
+                cells={overlayCells}
+                onPressCell={(cell: OverlayCell) => selectZone(cell.id as string)}
+                style={styles.groundMap}
+                accessibilityLabel="Map of the ground you hold"
+              />
+            ) : null}
+
             <ScrollView
               contentContainerStyle={styles.boardScroll}
               showsVerticalScrollIndicator={false}
@@ -325,6 +346,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...shadows.card,
   },
+  /* Fixed rather than flexed: the board below needs room to stay usable, and a
+     map that grew to fill the screen would push the status surface out of it. */
+  groundMap: { height: 224, borderRadius: 0 },
   boardScroll: {
     flexGrow: 1,
     justifyContent: "center",

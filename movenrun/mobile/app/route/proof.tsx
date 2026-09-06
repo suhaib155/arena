@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Share, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -7,8 +7,11 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn } from "@/components/FadeSlideIn";
-import { colors, ink, palette, radius, shadows, spacing, tints, type } from "@/theme";
+import { colors, ink, palette, pressFade, radius, shadows, spacing, tints, type } from "@/theme";
 import { formatPace } from "@/lib/geo";
+import { MovenMap } from "@/components/map/MovenMap";
+import { DEFAULT_PRIVACY_RADIUS_M, redactEndpoints } from "@/lib/mapGeometry";
+import { getLastSession, isSessionPrivacyCurrent } from "@/services/moveSession";
 import { useGameStore } from "@/store/useGameStore";
 import { computePassport } from "@/lib/routePassport";
 import { buildProof, outcomeLabel, runTitle } from "@/lib/routeProof";
@@ -41,9 +44,25 @@ function fmtDuration(seconds: number): string {
 }
 
 /**
- * Route Proof — premium, privacy-safe local share card. Scalar summary stats
- * only (no raw GPS, coordinates, path, map image, or location). Share is
- * text-only via the OS share sheet; nothing is uploaded.
+ * Route Proof — the local share card, and the preview of it.
+ *
+ * Two different things, and the distinction is the whole privacy design.
+ *
+ * **What leaves the phone** is unchanged: `proof.shareText`, scalar summary
+ * stats, handed to the OS share sheet by an explicit tap. No coordinates, no
+ * route path, no map image, no cell ids, no upload. `lib/routeProof.ts` and its
+ * guards own that, and this screen does not widen it.
+ *
+ * **What the player sees here** now includes the route on a real map, because a
+ * preview that cannot show the walk is not much of a preview and the map is the
+ * thing worth looking at. It is drawn with both ends redacted by default — see
+ * `redactEndpoints` — since a route's start and finish are usually one address.
+ * The redaction is a real removal, not a mask over the top: the hidden fixes
+ * never reach the map, and the drawn line breaks where they were rather than
+ * cutting across the hidden ground.
+ *
+ * The card's footer states both facts separately, so neither is read as the
+ * other.
  */
 export default function RouteProofScreen() {
   const router = useRouter();
@@ -79,6 +98,20 @@ export default function RouteProofScreen() {
   });
 
   const pace = formatPace(distanceMeters, durationSeconds * 1000);
+
+  /* The finished session still held in memory. Null when this screen was
+     reached without one, or after a privacy reset spent it — in which case the
+     card simply shows no map rather than an emptier one. */
+  const [hideEnds, setHideEnds] = useState(true);
+  const session = useMemo(() => {
+    const held = getLastSession();
+    return held && isSessionPrivacyCurrent(held) ? held : null;
+  }, []);
+  const routePoints = useMemo(() => {
+    if (session === null) return [];
+    return hideEnds ? redactEndpoints(session.points) : session.points;
+  }, [session, hideEnds]);
+  const mapPauses = useMemo(() => session?.session?.pauses ?? [], [session]);
 
   const onShare = async () => {
     tapFeedback();
@@ -120,6 +153,47 @@ export default function RouteProofScreen() {
                 <Text style={styles.stripLabel}>Local signal score · {proof.trustLabel}</Text>
               </View>
             </View>
+
+            {/* The walk itself, on real ground. Shown only when the session is
+                still in memory — there is no stand-in map for a route this
+                screen does not have. */}
+            {routePoints.length > 0 ? (
+              <>
+                <MovenMap
+                  points={routePoints}
+                  pauses={mapPauses}
+                  interactive={false}
+                  style={styles.shareMap}
+                  accessibilityLabel={
+                    hideEnds
+                      ? "Map of your route, with the areas around the start and finish hidden"
+                      : "Map of your full route, including the start and finish"
+                  }
+                />
+                <Pressable
+                  style={pressFade(styles.privacyRow)}
+                  onPress={() => {
+                    tapFeedback();
+                    setHideEnds((on) => !on);
+                  }}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: hideEnds }}
+                  accessibilityLabel="Hide the start and finish of the route"
+                  accessibilityHint={`Hides everything within ${DEFAULT_PRIVACY_RADIUS_M} metres of where you started and stopped`}
+                >
+                  <Ionicons
+                    name={hideEnds ? "eye-off-outline" : "eye-outline"}
+                    size={15}
+                    color={hideEnds ? ink.green : colors.textDim}
+                  />
+                  <Text style={styles.privacyText}>
+                    {hideEnds
+                      ? `Start and finish hidden (${DEFAULT_PRIVACY_RADIUS_M} m)`
+                      : "Showing the full route, ends included"}
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
 
             {/* main run block */}
             <Text style={styles.runTitle}>{runTitle(outcome)}</Text>
@@ -166,7 +240,15 @@ export default function RouteProofScreen() {
                 <Ionicons name="ribbon-outline" size={13} color={palette.moveGold} />
                 <Text style={styles.proofId}>{proof.proofId}</Text>
               </View>
-              <Text style={styles.safety}>This proof holds no coordinates · No route path · Local preview</Text>
+              {/* Two separate statements, deliberately. The map above is on
+                  this screen; the text the share sheet sends is not the map.
+                  Collapsing them into one line is how a card ends up claiming
+                  the stronger of the two about the wrong thing. */}
+              <Text style={styles.safety}>
+                {routePoints.length > 0
+                  ? "Shared text holds no coordinates and no route path · The map stays on this phone"
+                  : "This proof holds no coordinates · No route path · Local preview"}
+              </Text>
               <Text style={styles.safetyDim}>Not on-chain</Text>
             </View>
           </View>
@@ -191,6 +273,15 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     ...shadows.float,
   },
+  shareMap: { height: 180, marginTop: spacing.sm },
+  privacyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    minHeight: 44,
+  },
+  privacyText: { ...type.caption, fontSize: 11.5, fontWeight: "600" },
   brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   brand: { ...type.heading, fontSize: 16 },
   previewTag: { ...type.kicker, color: palette.baseBlue },
