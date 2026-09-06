@@ -18,12 +18,14 @@ import {
   regionAround,
   regionForBounds,
   regionForPoints,
+  redactEndpoints,
   regionsClose,
   routeHead,
   routeStart,
   routeSegments,
 } from "@/lib/mapGeometry";
 import { contextCells, currentCellKey, touchedCells } from "@/lib/mapCells";
+import { haversineMeters } from "@movenrun/shared/geo";
 import type { TrackPoint } from "@/lib/geo";
 
 function fix(
@@ -215,6 +217,87 @@ test("near-identical viewports are not worth a camera command", () => {
   assert.ok(!regionsClose(a, { ...a, latitude: a.latitude + 0.01 }));
   assert.ok(regionsClose(null, null), "no viewport equals no viewport");
   assert.ok(!regionsClose(a, null));
+});
+
+/* ── privacy redaction ────────────────────────────────────────────────────── */
+
+test("both ends of a shared route are hidden", () => {
+  /* 40 fixes ~11 m apart: a ~430 m straight line. A 100 m radius should take
+     roughly nine fixes off each end and leave the middle. */
+  const points = walk(40);
+  const kept = redactEndpoints(points, 100);
+
+  assert.ok(kept.length > 0 && kept.length < points.length, `kept ${kept.length}`);
+  assert.ok(
+    haversineMeters(points[0]!, kept[0]!) > 100,
+    "the first surviving fix is still inside the hidden radius",
+  );
+  assert.ok(
+    haversineMeters(points[points.length - 1]!, kept[kept.length - 1]!) > 100,
+    "the last surviving fix is still inside the hidden radius",
+  );
+});
+
+test("redaction never leaves a line pointing at what it hid", () => {
+  /* The failure this guards: filtering points out leaves two survivors that
+     were never adjacent, and a naive polyline joins them with a straight line
+     across the removed ground — aimed directly at the hidden address. */
+  const points = walk(40);
+  const kept = redactEndpoints(points, 100);
+  const removedInTheMiddle = kept.some((point) => point.breakBefore === true);
+
+  const before = polylineSegments(points);
+  const after = polylineSegments(kept);
+  assert.equal(before.length, 1, "the original is one unbroken line");
+  if (removedInTheMiddle) {
+    assert.ok(after.length > 1, "a redacted middle must break the drawn line");
+  }
+  /* Whatever survived, no drawn coordinate may sit inside a hidden zone. */
+  for (const segment of after) {
+    for (const coordinate of segment) {
+      assert.ok(haversineMeters(points[0]!, coordinate) > 100);
+      assert.ok(haversineMeters(points[points.length - 1]!, coordinate) > 100);
+    }
+  }
+});
+
+test("an out-and-back that passes home mid-route hides that pass too", () => {
+  /* The reason redaction is a radius and not a trim of the first and last N
+     points: a loop back past the door would otherwise survive in the middle. */
+  const out = walk(20);
+  const back = out
+    .slice(0, 19)
+    .reverse()
+    .map((point, i) => ({ ...point, timestamp: out[19]!.timestamp + (i + 1) * 1000 }));
+  const there = [...out, ...back];
+
+  const kept = redactEndpoints(there, 100);
+  for (const point of kept) {
+    assert.ok(
+      haversineMeters(there[0]!, point) > 100,
+      "a mid-route pass through the hidden zone survived",
+    );
+  }
+});
+
+test("a route entirely inside the hidden radius shares nothing", () => {
+  const kept = redactEndpoints(walk(4), 5_000);
+  assert.deepEqual(kept, [], "the map must be empty rather than partly revealing");
+  assert.deepEqual(polylineSegments(kept), []);
+});
+
+test("a zero radius redacts nothing, and an empty route stays empty", () => {
+  const points = walk(5);
+  assert.deepEqual(redactEndpoints(points, 0), points);
+  assert.deepEqual(redactEndpoints([], 200), []);
+});
+
+test("redaction does not mutate the route it was given", () => {
+  /* The summary and the share preview read the same in-memory session. */
+  const points = walk(30);
+  const snapshot = JSON.parse(JSON.stringify(points));
+  redactEndpoints(points, 100);
+  assert.deepEqual(points, snapshot);
 });
 
 /* ── H3 context ───────────────────────────────────────────────────────────── */

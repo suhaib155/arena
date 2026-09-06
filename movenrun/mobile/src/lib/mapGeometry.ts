@@ -31,6 +31,7 @@
  * about a route's *meaning* is decided in it.
  */
 import { hasEvidenceBreak } from "@movenrun/shared/evidence";
+import { haversineMeters } from "@movenrun/shared/geo";
 import type { PauseSource, SealRoutePoint } from "@movenrun/shared/sealing";
 
 /** A coordinate in the shape every map provider accepts. */
@@ -262,4 +263,64 @@ export function routeHead<P extends LatLng>(points: readonly P[]): P | null {
 /** The first observed fix, or null — where the session began. */
 export function routeStart<P extends LatLng>(points: readonly P[]): P | null {
   return points.length > 0 ? points[0]! : null;
+}
+
+/* ── privacy ──────────────────────────────────────────────────────────────── */
+
+/** Default radius hidden around each end of a shared route, in metres. */
+export const DEFAULT_PRIVACY_RADIUS_M = 200;
+
+/**
+ * Hide the ground around both ends of a route before it is shown to anyone
+ * else.
+ *
+ * A route's two most sensitive points are where it started and where it
+ * stopped, because for most people that is one address. This removes every fix
+ * within `radiusMeters` of *either* end.
+ *
+ * ## Why a radius and not a trim along the path
+ *
+ * Trimming the first and last N points looks equivalent and is not. A loop that
+ * passes the front door in the middle — which is what an out-and-back or a
+ * couple of laps around the block looks like — leaves the address exposed in
+ * the part that was kept. A radius removes those passes too, wherever in the
+ * route they occur.
+ *
+ * ## Why the survivors are re-marked
+ *
+ * Removing a run of points leaves two survivors that were never adjacent. Drawn
+ * naively they would be joined by a straight line across the removed ground —
+ * a line that points directly at the thing being hidden, and the most
+ * eye-catching stroke on the map. So the first fix after each removed run is
+ * marked `breakBefore`, and {@link routeSegments} then splits there like any
+ * other gap. The redacted map has a hole in it, which is the honest shape of a
+ * route with something removed.
+ *
+ * Distance is measured with the shared domain's geodesic — there is no second
+ * implementation of it here.
+ */
+export function redactEndpoints<P extends SealRoutePoint>(
+  points: readonly P[],
+  radiusMeters: number = DEFAULT_PRIVACY_RADIUS_M,
+): P[] {
+  if (points.length === 0 || radiusMeters <= 0) return [...points];
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+
+  const kept: P[] = [];
+  let removedSincePrevious = false;
+  for (const point of points) {
+    const hidden =
+      haversineMeters(first, point) <= radiusMeters ||
+      haversineMeters(last, point) <= radiusMeters;
+    if (hidden) {
+      removedSincePrevious = true;
+      continue;
+    }
+    /* Only after something was actually dropped, and never on the first
+       surviving fix — there is nothing before it to bridge to. */
+    kept.push(removedSincePrevious && kept.length > 0 ? { ...point, breakBefore: true } : point);
+    removedSincePrevious = false;
+  }
+  return kept;
 }

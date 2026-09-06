@@ -174,6 +174,46 @@ test("the unavailable message explains the loss without blaming the player", () 
   assert.equal(mapUnavailableMessage({ status: "ready" }), null);
 });
 
+/* ── the preview gained a map; the share payload did not ──────────────────── */
+
+test("the shared payload is still text, and still carries no route", () => {
+  /* The Route Proof screen now draws the walk on a real map. That is a local
+     preview. The thing the OS share sheet sends must remain the scalar text it
+     has always been — this is the exact seam where a map ends up in someone
+     else's chat because the preview and the payload were confused. */
+  const screen = readFileSync(join(MOBILE, "app", "route", "proof.tsx"), "utf8");
+
+  const shareCall = screen.slice(screen.indexOf("Share.share("), screen.indexOf("successFeedback()"));
+  assert.ok(shareCall.length > 0, "the share call is gone — this guard lost its subject");
+  assert.match(shareCall, /message:\s*proof\.shareText/, "the share payload must be the proof text");
+  for (const leaked of ["points", "routePoints", "coordinate", "latitude", "longitude", "url", "uri"]) {
+    assert.ok(
+      !new RegExp(`\\b${leaked}\\b`, "i").test(shareCall),
+      `the share call carries ${leaked}`,
+    );
+  }
+});
+
+test("the redaction cannot be off by default", () => {
+  const screen = readFileSync(join(MOBILE, "app", "route", "proof.tsx"), "utf8");
+  assert.match(
+    screen,
+    /const \[hideEnds, setHideEnds\] = useState\(true\)/,
+    "the start/finish redaction must default to on — a player should have to ask to reveal",
+  );
+  assert.match(screen, /redactEndpoints\(/, "the preview must actually redact, not merely offer to");
+});
+
+test("the card never states the stronger claim about the wrong thing", () => {
+  /* With a map on screen, "no route path" is true of the shared text and false
+     of the card. The two must be stated separately. */
+  const screen = readFileSync(join(MOBILE, "app", "route", "proof.tsx"), "utf8");
+  const withMap = screen.slice(screen.indexOf("routePoints.length > 0"));
+  const claim = withMap.match(/"Shared text holds no coordinates[^"]*"/);
+  assert.ok(claim, "the map-present footer claim is gone");
+  assert.match(claim[0], /Shared text/, "the claim must name what it is about");
+});
+
 test("the misconfigured-key hint names what a human must actually check", () => {
   /* A present-but-rejected key is invisible to JavaScript, so the only useful
      thing the app can do is say precisely where to look. */
