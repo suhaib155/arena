@@ -24,7 +24,7 @@ import {
   routeStart,
   routeSegments,
 } from "@/lib/mapGeometry";
-import { contextCells, currentCellKey, touchedCells } from "@/lib/mapCells";
+import { cellCoordinates, contextCells, currentCellKey, heldCells, touchedCells } from "@/lib/mapCells";
 import { haversineMeters } from "@movenrun/shared/geo";
 import type { TrackPoint } from "@/lib/geo";
 
@@ -333,6 +333,37 @@ test("the memo key changes only when the player changes cell", () => {
 
   const far = currentCellKey(fix(48.8566, 2.3522, 3_000));
   assert.notEqual(a, far, "a different city is different ground");
+});
+
+test("held ground is drawn where it is, and a selected cell paints last", () => {
+  const a = currentCellKey(fix(51.5007, -0.1246, 1_000))!;
+  const b = currentCellKey(fix(48.8566, 2.3522, 2_000))!;
+
+  const cells = heldCells([{ id: a }, { id: b }], b);
+  assert.equal(cells.length, 2);
+  assert.equal(cells[cells.length - 1]!.tone, "selected", "selection must paint over its edges");
+  assert.equal(cells[0]!.tone, "held");
+
+  /* Nothing stronger than `held`: no server has agreed to any of this. */
+  assert.ok(!cells.some((cell) => cell.tone === "current" || cell.tone === "touched"));
+});
+
+test("a zone whose id is not real geography is not placed on the map", () => {
+  /* The board can fall back to an arbitrary grid position because it makes no
+     geographic claim. A map cannot, because it does. */
+  const real = currentCellKey(fix(51.5007, -0.1246, 1_000))!;
+  const cells = heldCells([{ id: "mrx-1qz8x4" }, { id: real }]);
+  assert.equal(cells.length, 1);
+  assert.equal(cells[0]!.id as string, real);
+});
+
+test("framing a map on ground uses the cells' own vertices", () => {
+  const cell = currentCellKey(fix(51.5007, -0.1246, 1_000))!;
+  const coordinates = cellCoordinates(heldCells([{ id: cell }]));
+  assert.ok(coordinates.length >= 5, "a cell has five or six vertices");
+  const region = regionForPoints(coordinates)!;
+  assert.ok(Math.abs(region.latitude - 51.5007) < 0.02, "the viewport must contain the cell");
+  assert.deepEqual(cellCoordinates([]), [], "no ground means no viewport");
 });
 
 test("a finished route's cells are evidence of movement, never a holding", () => {

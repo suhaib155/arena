@@ -80,6 +80,34 @@ restriction does not list this build's package name **and** SHA-1; the key is
 restricted to a different API; billing is not enabled on the Google Cloud
 project.
 
+## What the config actually resolves to — measured, not assumed
+
+Run against this branch with `expo config --type prebuild`:
+
+**Permissions are unchanged by this work.** With and without
+`react-native-maps` in `package.json`, the resolved Android permission set is
+identical:
+
+```
+ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION,
+READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE, INTERNET
+```
+
+The last three are Expo's own prebuild defaults, not the map library's —
+`react-native-maps` ships an empty `AndroidManifest.xml` and declares none.
+`ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE` and
+`FOREGROUND_SERVICE_LOCATION` are absent, which is the promise
+`src/lib/__tests__/androidRuntimePolicy.test.ts` exists to keep. Tracking stays
+foreground-only and session-scoped.
+
+**The key reaches the build and not the manifest served to clients.**
+`expo config --type prebuild` shows `android.config.googleMaps.apiKey` set from
+the environment; `expo config --type public` shows it absent. That is Expo
+deliberately stripping a build-time secret from the publicly served manifest,
+and it is the behaviour you want — if you go looking for the key in the public
+config to confirm your setup worked, you will not find it there. Check
+`--type prebuild`.
+
 ## How the app is wired
 
 One directory imports the library — `mobile/src/components/map/provider.ts` —

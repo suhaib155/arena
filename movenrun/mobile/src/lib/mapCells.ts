@@ -28,7 +28,7 @@
  * where the route is complete and the answer is stable; see
  * {@link touchedCells}.
  */
-import { neighborhood, tryCellForCoordinate, type H3Cell } from "@movenrun/shared/h3";
+import { cellBoundary, neighborhood, parseGameplayCell, tryCellForCoordinate, type H3Cell } from "@movenrun/shared/h3";
 
 import type { TrackPoint } from "./geo";
 
@@ -48,7 +48,9 @@ export type CellTone =
   /** The player is standing in it now. */
   | "current"
   /** Locally recorded as the player's. Never a server-confirmed claim. */
-  | "held";
+  | "held"
+  /** The cell the player has tapped to inspect. */
+  | "selected";
 
 export interface OverlayCell {
   id: H3Cell;
@@ -108,4 +110,45 @@ export function currentCellKey(head: TrackPoint | null | undefined): string | nu
  */
 export function touchedCells(cells: readonly { id: H3Cell }[]): OverlayCell[] {
   return cells.map((cell): OverlayCell => ({ id: cell.id, tone: "touched" }));
+}
+
+/**
+ * The player's recorded ground, as overlay input.
+ *
+ * `held` and never anything stronger. These are the cells the local store has
+ * recorded as the player's; no server has agreed to them, and the tone says
+ * exactly that much. A zone whose id is not canonical geography is skipped
+ * rather than placed somewhere plausible — the board in `lib/territoryMap.ts`
+ * can fall back to an arbitrary grid position because it makes no geographic
+ * claim, and a map cannot, because it does.
+ *
+ * The selected cell is listed last so it paints over its neighbours' edges.
+ */
+export function heldCells(
+  zones: readonly { id: string }[],
+  selectedId: string | null = null,
+): OverlayCell[] {
+  const held: OverlayCell[] = [];
+  let selected: OverlayCell | null = null;
+  for (const zone of zones) {
+    const cell = parseGameplayCell(zone.id);
+    if (cell === null) continue;
+    if (zone.id === selectedId) selected = { id: cell, tone: "selected" };
+    else held.push({ id: cell, tone: "held" });
+  }
+  return selected === null ? held : [...held, selected];
+}
+
+/**
+ * Every vertex of every listed cell, for framing a camera on ground rather
+ * than on a route.
+ *
+ * The Territory map has no route to fit — the thing worth showing is where the
+ * player's cells are. Empty in, empty out: there is no default viewport, for
+ * the same reason `boundsOf` returns null rather than a fallback coordinate.
+ */
+export function cellCoordinates(
+  cells: readonly OverlayCell[],
+): { latitude: number; longitude: number }[] {
+  return cells.flatMap((cell) => cellBoundary(cell.id));
 }

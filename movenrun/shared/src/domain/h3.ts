@@ -279,9 +279,12 @@ export function cellBoundary(cell: H3Cell): GeoCoordinate[] {
  * once, somewhere it can be tested — not at each renderer that happens to want
  * a polygon.
  *
- * Not used by any renderer today (the app has no map provider; see
- * `docs/H3_GEOGRAPHY.md`). It is here because the conversion is a property of
- * the geometry rather than of whichever library eventually draws it.
+ * The app's map draws cells through {@link cellBoundary} rather than this,
+ * because `react-native-maps` takes named `{latitude, longitude}` objects (see
+ * `mobile/src/components/map/H3Overlay.tsx` and `docs/MAP_PROVIDER.md`). This
+ * stays because the conversion is a property of the geometry rather than of
+ * whichever library draws it, and a GeoJSON consumer — a tile source, an
+ * export, a backend response — needs the ring in this order.
  */
 export function cellBoundaryRing(cell: H3Cell): [number, number][] {
   const ring: [number, number][] = cellToBoundary(toGameplayCell(cell)).map(

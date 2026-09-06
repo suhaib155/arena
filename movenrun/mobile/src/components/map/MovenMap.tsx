@@ -38,6 +38,7 @@ import {
   type MapPlatform,
 } from "@/lib/mapAvailability";
 import { regionForPoints, routeHead, routeStart, toLatLng, type LatLng } from "@/lib/mapGeometry";
+import { cellCoordinates } from "@/lib/mapCells";
 import type { TrackPoint } from "@/lib/geo";
 import type { PauseSource } from "@movenrun/shared/sealing";
 import { FloatingMapControl } from "@/components/FloatingMapControl";
@@ -66,12 +67,19 @@ export interface MovenMapHandle {
 }
 
 interface MovenMapProps {
-  /** The recorded route. Break-aware — see `RoutePolyline`. */
-  points: readonly TrackPoint[];
+  /**
+   * The recorded route. Break-aware — see `RoutePolyline`.
+   *
+   * Optional: a map can show ground without a walk on it. The Territory screen
+   * passes cells and no points.
+   */
+  points?: readonly TrackPoint[];
   /** Session pauses, so the drawn line breaks where the measured route does. */
   pauses?: PauseSource;
   /** H3 context. Memoise in the caller. */
   cells?: readonly OverlayCell[];
+  /** Make the cells tappable. Omit for a purely contextual grid. */
+  onPressCell?: (cell: OverlayCell) => void;
   /**
    * A session is being recorded: show the live head marker and follow it.
    * Off for a finished route, which is framed once and left alone.
@@ -107,9 +115,10 @@ function mapConfigSlice(): MapConfigSlice | null {
 
 function MovenMapView(
   {
-    points,
+    points = [],
     pauses = [],
     cells = [],
+    onPressCell,
     live = false,
     paused = false,
     interactive = true,
@@ -157,10 +166,22 @@ function MovenMapView(
    */
   const initialRegionRef = useRef<ReturnType<typeof regionForPoints> | undefined>(undefined);
   if (initialRegionRef.current === undefined) {
-    initialRegionRef.current = regionForPoints(points.map(toLatLng));
+    /* A route frames the camera when there is one. When there is not — the
+       Territory map, which shows ground rather than a walk — the cells do.
+       Both empty means no viewport, and the map opens wide rather than
+       pointing somewhere the player has never been. */
+    const framing =
+      points.length > 0 ? points.map(toLatLng) : cellCoordinates(cells);
+    initialRegionRef.current = regionForPoints(framing);
   }
 
   const routeCoordinates = useMemo(() => points.map(toLatLng), [points]);
+  /* What "fit" means depends on what the map is showing: the route where there
+     is one, otherwise the ground. */
+  const fitTarget = useMemo(
+    () => (points.length > 0 ? routeCoordinates : cellCoordinates(cells)),
+    [points.length, routeCoordinates, cells],
+  );
 
   /* Stable, so React does not detach and re-attach the camera on every render.
      An inline arrow here would hand the camera a null target and then a fresh
@@ -177,7 +198,7 @@ function MovenMapView(
   useImperativeHandle(
     ref,
     () => ({
-      fitRoute: () => camera.fitRoute(routeCoordinates),
+      fitRoute: () => camera.fitRoute(fitTarget),
       recenter: () => camera.recenter(),
       capture: async () => {
         const map = mapRef.current;
@@ -191,7 +212,7 @@ function MovenMapView(
         }
       },
     }),
-    [camera, routeCoordinates, availability.status],
+    [camera, fitTarget, availability.status],
   );
 
   const unavailable = mapUnavailableMessage(availability);
@@ -227,7 +248,7 @@ function MovenMapView(
         toolbarEnabled={false}
         accessibilityLabel={accessibilityLabel}
       >
-        <H3Overlay cells={cells} />
+        <H3Overlay cells={cells} onPressCell={onPressCell} />
         <RoutePolyline points={points} pauses={pauses} />
         {start !== null ? <StartMarker coordinate={start} /> : null}
         {live && head !== null ? (
@@ -235,7 +256,7 @@ function MovenMapView(
         ) : null}
       </MapView>
 
-      {points.length === 0 ? (
+      {live && points.length === 0 ? (
         <View style={styles.waiting} pointerEvents="none" accessibilityLiveRegion="polite">
           <Text style={styles.waitingText}>Waiting for your first location fix…</Text>
         </View>
@@ -254,11 +275,13 @@ function MovenMapView(
               onPress={camera.recenter}
             />
           ) : null}
-          {points.length > 1 ? (
+          {fitTarget.length > 1 ? (
             <FloatingMapControl
               icon="scan-outline"
-              accessibilityLabel="Fit the whole route on screen"
-              onPress={() => camera.fitRoute(routeCoordinates)}
+              accessibilityLabel={
+                points.length > 1 ? "Fit the whole route on screen" : "Fit all your ground on screen"
+              }
+              onPress={() => camera.fitRoute(fitTarget)}
             />
           ) : null}
         </View>

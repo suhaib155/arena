@@ -84,6 +84,15 @@ const TONE_STYLES: Record<CellTone, ToneStyle> = {
     strokeWidth: 2.5,
     zIndex: 1,
   },
+  /* Deed Violet, so selection is a different hue from every status tone rather
+     than a stronger version of one — "selected" and "healthy" must not be
+     distinguishable only by saturation. */
+  selected: {
+    fillColor: `${palette.deedViolet}33`,
+    strokeColor: palette.deedViolet,
+    strokeWidth: 3,
+    zIndex: 2,
+  },
 };
 
 interface H3OverlayProps {
@@ -92,9 +101,11 @@ interface H3OverlayProps {
    * defeats the geometry memo below and re-derives every boundary.
    */
   cells: readonly OverlayCell[];
+  /** Make cells tappable. Omit for a purely contextual grid. */
+  onPressCell?: (cell: OverlayCell) => void;
 }
 
-function H3OverlayView({ cells }: H3OverlayProps) {
+function H3OverlayView({ cells, onPressCell }: H3OverlayProps) {
   /* Boundary derivation is the expensive part and it is pure: the same cell id
      always yields the same ring. Held in a memo tied to this component rather
      than a module cache, deliberately — a module-level map keyed by cell id
@@ -105,6 +116,7 @@ function H3OverlayView({ cells }: H3OverlayProps) {
     () =>
       cells.slice(0, MAX_DRAWN_CELLS).map((cell) => ({
         key: cell.id as string,
+        cell,
         coordinates: cellBoundary(cell.id),
         style: TONE_STYLES[cell.tone],
       })),
@@ -121,6 +133,8 @@ function H3OverlayView({ cells }: H3OverlayProps) {
           strokeColor={polygon.style.strokeColor}
           strokeWidth={polygon.style.strokeWidth}
           zIndex={polygon.style.zIndex}
+          tappable={onPressCell !== undefined}
+          onPress={onPressCell === undefined ? undefined : () => onPressCell(polygon.cell)}
         />
       ))}
     </>
