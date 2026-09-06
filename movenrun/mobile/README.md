@@ -189,6 +189,42 @@ After Metro starts, the terminal prints a QR code and an `exp://…` tunnel URL.
   where `npx expo install --fix` and `npx expo-doctor` can run successfully and
   the result can be device-tested (see `docs/ROADMAP.md`).
 
+## The map needs a Google Maps key (Android)
+
+The movement, summary, share-preview and Territory screens draw a real
+basemap through `react-native-maps`. On Android that needs a Google Maps API
+key compiled into the build.
+
+**Without one the app still works** — the route, distance, time and H3 grid are
+all on-device — but where the map would be, a panel says the build has no map
+key. That is deliberate: without a key the native map view renders an empty
+grey field and nothing throws, and a route drawn over grey looks like a route
+through somewhere real.
+
+Set it as an environment variable; never commit it:
+
+```bash
+# local
+export GOOGLE_MAPS_ANDROID_API_KEY=...   # or a .env in mobile/ (git-ignored)
+
+# EAS
+eas secret:create --scope project --name GOOGLE_MAPS_ANDROID_API_KEY --value ...
+```
+
+`mobile/app.config.js` injects it and nothing else — a guard diffs the resolved
+config to keep it that way, because `app.json` is what proves the app's
+foreground-only location promise statically.
+
+**Full setup, including how to restrict the key so a leaked copy is useless,
+and what to check when a key is present but the map is still blank:
+[`docs/MAP_PROVIDER.md`](../docs/MAP_PROVIDER.md).** That document also carries
+the provider comparison and why the newest `react-native-maps` was not taken.
+
+`react-native-maps` 1.20.1 is bundled into Expo Go for SDK 54, so the map
+should render in Expo Go without any of this — Expo Go runs under Expo's own
+package and key. That says nothing about the standalone APK, which is the build
+a demo gets recorded on.
+
 ## Build an installable Android APK (GitHub Actions + EAS)
 
 Build a real, installable `.apk` in the cloud with **EAS Build** — **no Expo Go

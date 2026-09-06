@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { RouteCanvas } from "@/components/RouteCanvas";
+import { MovenMap } from "@/components/map/MovenMap";
 import { CountUpText } from "@/components/CountUpText";
 import { Hexagon } from "@/components/Hexagon";
 import { MovementMetric } from "@/components/MovementMetric";
@@ -26,6 +26,7 @@ import { submitCompletedSession } from "@/services/verifySession";
 import { serverSealLabel, toVerifiedRecord, verificationLabel } from "@/lib/verifiedMovement";
 import { newCapturedZone } from "@/lib/zones";
 import { cellsForRoute } from "@/lib/territoryCells";
+import { touchedCells } from "@/lib/mapCells";
 import { finishedSealLabel, sealFinishedRoute } from "@/lib/sealPreview";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -88,6 +89,16 @@ export default function MoveSummaryScreen() {
   const verification = useSyncExternalStore(subscribeVerification, getVerificationState, getVerificationState);
   const zonesTouched = useMemo(() => session ? cellsForRoute(session.points) : [], [session]);
   const seal = useMemo(() => session ? sealFinishedRoute(session) : null, [session]);
+  /* The same cells, as map overlay input. `touched` and never `held`: the map
+     shows where the route went, which is evidence of movement. Whether any of
+     it becomes ground is the server's answer from verified evidence, and the
+     summary must not colour it in ahead of that.
+     Declared here, above the no-session early return, because a hook after a
+     conditional return is a hook that does not always run. */
+  const mapCells = useMemo(() => touchedCells(zonesTouched), [zonesTouched]);
+  /* The session's own pauses, so the drawn line breaks exactly where the
+     measured distance stops counting. */
+  const mapPauses = useMemo(() => session?.session?.pauses ?? [], [session]);
 
   if (!session) {
     return (
@@ -293,9 +304,18 @@ export default function MoveSummaryScreen() {
           </View>
         ) : null}
 
-        {/* Route closes — the map result leads */}
+        {/* Route closes — the map result leads.
+            The same canonical evidence the stats above are measured from, drawn
+            on real ground: the map and the distance cannot disagree, because
+            they are the same points read through the same break rule. */}
         <FadeSlideIn>
-          <RouteCanvas points={session.points} height={210} />
+          <MovenMap
+            points={session.points}
+            pauses={mapPauses}
+            cells={mapCells}
+            style={styles.routeMap}
+            accessibilityLabel="Map of the route you walked"
+          />
         </FadeSlideIn>
 
         {/* Honest result state */}
@@ -593,6 +613,9 @@ const styles = StyleSheet.create({
   header: { paddingTop: spacing.lg, gap: spacing.xs },
   kicker: { ...type.kicker, color: colors.primary },
   title: { ...type.display, fontSize: 28 },
+  /* Taller than the old canvas: a real basemap needs room to be read as a
+     place rather than a texture. */
+  routeMap: { height: 240 },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
