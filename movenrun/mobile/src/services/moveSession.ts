@@ -63,6 +63,24 @@ export interface FinishedSession {
    *  can say the distance is incomplete instead of presenting it as the truth.
    *  Optional: older callers and demo sessions simply have none. */
   gaps?: TrackingGap[];
+  /**
+   * Where the player was standing when the session ended — for drawing, and
+   * for nothing else.
+   *
+   * A session can finish with a real position and no route: stand still for
+   * thirty seconds and every fix is correctly rejected as movement, so `points`
+   * is empty while the app knows the ground the player is on to within a few
+   * metres. Without this the summary had no coordinate at all and opened at
+   * world scale, which reads as a map of nowhere rather than as "you did not
+   * move far enough to draw a line".
+   *
+   * It is the same display channel the live map uses (see
+   * `lib/acquiredForegroundWatch.ts`) and carries the same prohibition: never
+   * distance, never a route point, never a seal, never territory, and never
+   * submitted. `toSubmission` names the fields it sends, so this one cannot
+   * reach the wire even by accident, and a test pins that.
+   */
+  displaySeed?: TrackPoint | null;
 }
 
 let last: FinishedSession | null = null;
@@ -131,6 +149,8 @@ export function clearLastSession(): void {
   if (last) {
     last.points.length = 0;
     if (last.gaps) last.gaps.length = 0;
+    /* The display seed is a coordinate like any other and goes with them. */
+    last.displaySeed = null;
   }
   last = null;
   lastVerification = INITIAL_VERIFICATION;

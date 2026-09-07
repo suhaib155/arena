@@ -109,6 +109,18 @@ export default function MoveSessionScreen() {
    * with the rest of the session's geometry.
    */
   const [displayLocation, setDisplayLocation] = useState<TrackPoint | null>(null);
+  /**
+   * The same position, readable without re-subscribing.
+   *
+   * `finish` needs it and must stay a stable callback: depending on the state
+   * would rebuild the finish handler on every fix, which is how a Finish tap
+   * ends up running against a closure from three seconds ago.
+   */
+  const displayLocationRef = useRef<TrackPoint | null>(null);
+  const showLocation = useCallback((point: TrackPoint | null) => {
+    displayLocationRef.current = point;
+    setDisplayLocation(point);
+  }, []);
   const [finishSheetOpen, setFinishSheetOpen] = useState(false);
   const [startAttempt, setStartAttempt] = useState(0);
   const [startError, setStartError] = useState<TrackerStartError | null>(null);
@@ -170,7 +182,7 @@ export default function MoveSessionScreen() {
     if (requested.outcome !== "ok") return;
     setStartError(null);
     setSignal("unknown");
-    setDisplayLocation(null);
+    showLocation(null);
     apply(requested.lifecycle);
     distanceDiagnostics.reset();
 
@@ -195,7 +207,7 @@ export default function MoveSessionScreen() {
       tracker.stop();
       eraseEvidence();
       setRoutePreview([]);
-      setDisplayLocation(null);
+      showLocation(null);
       setPreview(EMPTY_PREVIEW);
       setDistanceM(0);
       setSignal("unknown");
@@ -233,7 +245,7 @@ export default function MoveSessionScreen() {
         /* Accepted, so this is both evidence and the best answer to "where am
            I". The two channels agree here; they disagree while stationary and
            during acquisition, which is what the display channel is for. */
-        setDisplayLocation(p);
+        showLocation(p);
         setSignal(p.accuracy != null && p.accuracy > 25 ? "degraded" : "usable");
         if (trackerGapAtRef.current !== null) {
           recordGap(gapsRef.current, trackerGapAtRef.current, Date.now());
@@ -282,7 +294,7 @@ export default function MoveSessionScreen() {
         /* The display channel. It runs before the lifecycle is active — that is
            its whole purpose — so it is guarded by `cancelled` alone and never
            by the capture state. It touches no evidence ref. */
-        (p) => { if (!cancelled) setDisplayLocation(p); })
+        (p) => { if (!cancelled) showLocation(p); })
       .then(() => {
         if (cancelled) { tracker.stop(); return; }
         const started = trackerStarted(lifecycleRef.current, {
@@ -323,7 +335,7 @@ export default function MoveSessionScreen() {
          outlives the screen that captured it. */
       eraseEvidence();
     };
-  }, [apply, startAttempt]);
+  }, [apply, showLocation, startAttempt]);
 
   /** Elapsed time, read on demand. Kept out of this component's state so the
    *  once-a-second tick re-renders only the clock, not the route canvas.
@@ -421,6 +433,10 @@ export default function MoveSessionScreen() {
       durationMs: activeMsSoFar(next.lifecycle, at),
       finishedAt: metadata.finishedAt,
       gaps: gapsRef.current.map((gap) => ({ ...gap })),
+      /* Where the player is standing, so a session that recorded no route can
+         still be shown on their own ground rather than at world scale. Copied,
+         not aliased, and display-only — see `FinishedSession.displaySeed`. */
+      displaySeed: displayLocationRef.current === null ? null : { ...displayLocationRef.current },
     });
     router.replace("/move/summary");
   }, [apply, router]);

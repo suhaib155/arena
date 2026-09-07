@@ -9,8 +9,10 @@ import { RoutePath } from "@/components/RoutePath";
 import { ShareCard } from "@/components/ShareCard";
 import { Hexagon } from "@/components/Hexagon";
 import { avatar, colors, glow, iconTile, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
+import { resolveQuestResult } from "@/lib/questResult";
+import { formatDuration } from "@/lib/geo";
 import { questService } from "@/services/questService";
-import { useGameStore } from "@/store/useGameStore";
+import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { getLevelInfo } from "@/lib/leveling";
 import { lockedMovePreview } from "@/lib/lockedMove";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
@@ -25,6 +27,22 @@ export default function ResultScreen() {
   const outcome = attempt && attempt.id === attemptId && attempt.questId === quest?.id ? attempt.outcome : null;
   const pop = useRef(new Animated.Value(0)).current;
   const reducedMotion = useReducedMotion();
+  const attemptSettled = attempt === null || attempt.status === "completed" || attempt.status === "abandoned";
+  const alreadyAwardedToday = useIsCompletedToday(quest?.id ?? "");
+
+  /**
+   * How the result reads. Presentation only — `completionSatisfied` arrives
+   * already settled from the store and no reward rule is re-decided here.
+   */
+  const view = resolveQuestResult({
+    questTitle: quest?.title ?? null,
+    completionSatisfied: outcome?.completionSatisfied ?? false,
+    xpGained: outcome?.xpGained ?? 0,
+    activeMs: attempt && attempt.questId === quest?.id ? attempt.activeMs : 0,
+    requiredMs: (quest?.durationSeconds ?? 0) * 1000,
+    alreadyAwardedToday,
+    attemptSettled,
+  });
 
   useEffect(() => {
     if (!outcome?.completionSatisfied) return;
@@ -46,14 +64,58 @@ export default function ResultScreen() {
   }
 
   if (!quest || !outcome?.completionSatisfied) {
+    /**
+     * The unfinished result.
+     *
+     * Same blocks as the completed one below — crest, title, quest name,
+     * reason, XP, progress, actions — sized to their content instead of
+     * floating in a centred void. The crest is muted and there is no badge and
+     * no pop: a quest that was not completed is not celebrated, and dressing it
+     * up as a near-miss would be the screen flattering the player about a rule
+     * it just enforced.
+     */
+    const held = formatDuration(view.progress * (quest?.durationSeconds ?? 0) * 1000);
+    const target = formatDuration((quest?.durationSeconds ?? 0) * 1000);
     return (
       <Screen>
-        <View style={[styles.center, { justifyContent: "center", gap: spacing.lg }]}>
-          <Text style={styles.title}>Quest ended</Text>
-          <Text style={styles.questName}>{quest?.title ?? "No completed quest"}</Text>
-          <Text style={styles.note}>Complete the countdown to earn quest XP.</Text>
-          <Text style={styles.rewardValue}>0 XP earned</Text>
-          <Button label="Back to Today" icon="home" onPress={() => router.replace("/(tabs)")} />
+        <View style={styles.compact}>
+          <View style={styles.resultCard}>
+            <View style={styles.crestRow}>
+              <View style={styles.crestMuted}>
+                <Ionicons name={view.icon as never} size={26} color={colors.textDim} />
+              </View>
+              <View style={styles.crestText}>
+                <Text style={styles.resultTitle}>{view.title}</Text>
+                {quest ? <Text style={styles.questName} numberOfLines={2}>{quest.title}</Text> : null}
+              </View>
+            </View>
+
+            <Text style={styles.reason}>{view.reason}</Text>
+
+            {quest && quest.durationSeconds > 0 ? (
+              <View style={styles.progressBlock}>
+                <RoutePath progress={view.progress} />
+                <Text style={styles.progressLabel}>{held} of {target} held</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.xpRow}>
+              <Text style={styles.xpLabel}>XP earned</Text>
+              <Text style={styles.xpZero}>{view.xpLabel}</Text>
+            </View>
+          </View>
+
+          <View style={styles.compactActions}>
+            <Button label="Back to Today" icon="home" onPress={() => router.replace("/(tabs)")} />
+            {view.retry && quest ? (
+              <Button
+                label="Try again"
+                icon="refresh"
+                variant="secondary"
+                onPress={() => router.replace({ pathname: "/quest/[id]", params: { id: quest.id } })}
+              />
+            ) : null}
+          </View>
         </View>
       </Screen>
     );
@@ -87,7 +149,7 @@ export default function ResultScreen() {
           <Ionicons name="checkmark" size={44} color={colors.surface} />
         </Animated.View>
 
-        <Text style={styles.title}>Quest complete!</Text>
+        <Text style={styles.title}>{view.title}</Text>
         <Text style={styles.questName}>{quest.title}</Text>
 
         {/* Reward card: XP + Locked MOVE preview */}
@@ -182,6 +244,40 @@ export default function ResultScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1 },
+  /* Content-sized, top-aligned, with the actions pinned to the bottom. The old
+     failure branch was `flex: 1` + `justifyContent: "center"`, which is what
+     produced a short paragraph adrift in the middle of an empty page. */
+  compact: { flex: 1, paddingTop: spacing.xl, gap: spacing.lg },
+  resultCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    ...shadows.card,
+  },
+  crestRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  /* The crest, muted. Same tile geometry as the completed badge's family, and
+     deliberately not its Pulse Green: the shape says "this is the result", the
+     colour says "and it is not a win". */
+  crestMuted: { ...iconTile(52), backgroundColor: colors.surfaceAlt },
+  crestText: { flex: 1, gap: 2 },
+  resultTitle: { ...type.display, fontSize: 22, lineHeight: 27 },
+  reason: { ...type.body, fontSize: 14, lineHeight: 20, color: colors.textDim },
+  progressBlock: { gap: spacing.xs },
+  progressLabel: { ...type.mono, fontSize: 12, color: colors.textFaint },
+  xpRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceAlt,
+    paddingTop: spacing.md,
+  },
+  xpLabel: { ...type.heading, fontSize: 14.5 },
+  /* Stated, not hidden. A zero the player cannot find reads as a screen that is
+     still loading the number. */
+  xpZero: { ...type.title, fontSize: 20, color: colors.textDim },
+  compactActions: { marginTop: "auto", paddingBottom: spacing.md, gap: spacing.sm },
   content: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
   badge: { ...avatar(92), backgroundColor: palette.pulseGreen, marginBottom: spacing.sm, ...glow(palette.pulseGreen) },
   title: { ...type.display, fontSize: 28 },

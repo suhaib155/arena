@@ -61,6 +61,41 @@ test("share-route redaction removes middle passes by the endpoints and breaks th
   assert.equal(redactEndpoints(input.slice(0, 1)).length, 0);
 });
 
+test("the no-route card is a designed card, not a card with a hole in it", () => {
+  const screen = readFileSync(join(__dirname, "../../../app/route/proof.tsx"), "utf8");
+
+  /* One condition, named once, for every branch that depends on whether this
+     card has a route. Three separate `routePoints.length > 0` tests is how a
+     card ends up with a status chip that disagrees with its own map slot. */
+  assert.match(screen, /const hasRoute = routePoints\.length > 0;/);
+
+  /* A status chip rather than a stray caption line. */
+  assert.match(screen, /styles\.statusChip/);
+  assert.match(screen, /"Route complete" : "Not enough movement"/);
+
+  /* The empty slot carries an emblem that cannot be read as the walk. */
+  assert.match(screen, /<RouteMotif size=\{38\}/);
+  const motif = readFileSync(join(__dirname, "../../components/RouteMotif.tsx"), "utf8");
+  for (const forbidden of ["road", "MovenMap", "Polyline", "latitude", "longitude"]) {
+    assert.ok(!motif.includes(forbidden), `the motif must not name ${forbidden}`);
+  }
+
+  /* The endpoint notice appears only when there are endpoints. It used to render
+     an empty caption under a divider — a rule drawn across nothing. */
+  assert.match(screen, /\{hasRoute \? \(\s*<View style=\{styles\.footerCard\}>/);
+
+  /* Nothing raw on the card: no proof id, no coordinates, no cell ids, and no
+     privacy prose. */
+  for (const forbidden of ["proofId", "proof.id", "latitude", "longitude", "h3", "off-chain"]) {
+    assert.ok(!screen.includes(forbidden), `the share card must not carry ${forbidden}`);
+  }
+
+  /* The image is the primary action and text remains the fallback. */
+  assert.ok(screen.indexOf('label="Share summary"') < screen.indexOf('label="Share text details"'),
+    "the visual card is the primary share");
+  assert.match(screen, /label="Share summary" icon="share-outline" loading=\{busy\}/);
+});
+
 test("screen image export uses only the redacted native map and preserves the full provider bitmap", () => {
   const screen = readFileSync(join(__dirname, "../../../app/route/proof.tsx"), "utf8");
   assert.match(screen, /useState\(true\)/);

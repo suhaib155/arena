@@ -12,9 +12,10 @@ import { Screen } from "@/components/Screen";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
-import { colors, ink, palette, pressFade, radius, shadows, spacing, tints, type } from "@/theme";
+import { colors, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { formatPace } from "@/lib/geo";
 import { MovenMap, type MovenMapHandle } from "@/components/map/MovenMap";
+import { RouteMotif } from "@/components/RouteMotif";
 import { DEFAULT_PRIVACY_RADIUS_M, redactEndpoints } from "@/lib/mapGeometry";
 import { getLastSession, isSessionPrivacyCurrent, subscribeVerification } from "@/services/moveSession";
 import { useGameStore } from "@/store/useGameStore";
@@ -126,6 +127,10 @@ export default function RouteProofScreen() {
     return hideEnds ? redactEndpoints(session.points) : session.points;
   }, [session, hideEnds]);
   const mapPauses = useMemo(() => session?.session?.pauses ?? [], [session]);
+  /* Whether this card has a real route on it. One name for the condition the
+     status chip, the map slot and the endpoint notice all branch on, so they
+     cannot end up disagreeing about what the card is showing. */
+  const hasRoute = routePoints.length > 0;
 
   const onShare = async () => {
     if (active.current) return;
@@ -189,12 +194,24 @@ export default function RouteProofScreen() {
               <Text style={styles.previewTag}>Your move</Text>
             </View>
 
-            <Text style={styles.stripLabel}>{outcome === "summary-only" ? "Not enough movement" : "Route complete"}</Text>
+            {/* One restrained status chip. This was a bare caption line, which
+                on a card with no map read as a stray sentence rather than as the
+                session's result. */}
+            <View style={[styles.statusChip, hasRoute ? styles.statusChipRoute : styles.statusChipShort]}>
+              <Ionicons
+                name={hasRoute ? "checkmark-circle" : "footsteps-outline"}
+                size={13}
+                color={hasRoute ? ink.green : colors.textDim}
+              />
+              <Text style={[styles.statusChipText, hasRoute ? { color: ink.green } : null]}>
+                {hasRoute ? "Route complete" : "Not enough movement"}
+              </Text>
+            </View>
 
             {/* The walk itself, on real ground. Shown only when the session is
                 still in memory — there is no stand-in map for a route this
                 screen does not have. */}
-            {routePoints.length > 0 ? (
+            {hasRoute ? (
               <>
                 {snapshot !== undefined ? (
                   snapshot ? <Image source={{ uri: snapshot }} style={styles.shareMap} resizeMode="contain"
@@ -238,7 +255,19 @@ export default function RouteProofScreen() {
                   </Text>
                 </Pressable>
               </>
-            ) : <View onLayout={() => { if (snapshot === null) imageReady.current?.resolve(); }} key={String(snapshot)}><Text style={styles.stripLabel}>No shareable route</Text></View>}
+            ) : (
+              /* No route, so no map — and deliberately no drawn stand-in for
+                 one. The emblem fills the slot with something that cannot be
+                 misread as the walk; see `components/RouteMotif.tsx`. */
+              <View
+                style={styles.noRoute}
+                onLayout={() => { if (snapshot === null) imageReady.current?.resolve(); }}
+                key={String(snapshot)}
+              >
+                <RouteMotif size={38} />
+                <Text style={styles.noRouteText}>No route to show for this one.</Text>
+              </View>
+            )}
 
             {/* main run block */}
             <Text style={styles.runTitle}>{str(params.title) || runTitle(outcome)}</Text>
@@ -259,14 +288,16 @@ export default function RouteProofScreen() {
               </View>
             </View>
 
-            {/* Endpoint visibility is explicit before sharing. */}
-            <View style={styles.footerCard}>
-              <Text style={styles.safety}>
-                {routePoints.length > 0
-                  ? (hideEnds ? "Start and finish hidden" : "Full route visible")
-                  : ""}
-              </Text>
-            </View>
+            {/* Endpoint visibility is explicit before sharing — and only shown
+                when there are endpoints to hide. It used to render an empty
+                caption under a divider, which is a rule drawn across nothing. */}
+            {hasRoute ? (
+              <View style={styles.footerCard}>
+                <Text style={styles.safety}>
+                  {hideEnds ? "Start and finish hidden" : "Full route visible"}
+                </Text>
+              </View>
+            ) : null}
           </View>
       </ScrollView>
 
@@ -288,9 +319,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     padding: spacing.lg,
-    gap: spacing.lg,
+    /* A single rhythm rather than the large uniform one this card used to have.
+       With a map in the slot the big gap read as breathing room; without one it
+       read as three elements adrift in a tall empty box. */
+    gap: spacing.md,
     ...shadows.float,
   },
+  statusChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  statusChipRoute: { backgroundColor: softTint(palette.pulseGreen) },
+  statusChipShort: { backgroundColor: colors.surfaceAlt },
+  statusChipText: { ...type.kicker, fontSize: 10.5, letterSpacing: 0, color: colors.textDim },
+  noRoute: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  noRouteText: { ...type.caption, fontSize: 12, flex: 1 },
   shareMap: { height: 240, width: "100%", marginTop: spacing.sm },
   privacyRow: {
     flexDirection: "row",
@@ -305,12 +361,8 @@ const styles = StyleSheet.create({
   previewTag: { ...type.kicker, color: palette.baseBlue },
 
 
-  /* stat strip */
-  stripRow: { flexDirection: "row", alignItems: "center" },
-  stripStat: { flex: 1, alignItems: "center", gap: 1 },
-  stripValue: { ...type.display, fontSize: 30, fontVariant: ["tabular-nums"] },
+  /* The one caption left from the old stat strip: the share error line. */
   stripLabel: { ...type.caption, fontSize: 11 },
-  stripDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.surfaceAlt },
 
   /* main run */
   runTitle: { ...type.display, fontSize: 24, textAlign: "center", marginTop: -spacing.sm },
@@ -320,30 +372,6 @@ const styles = StyleSheet.create({
   statLabel: { ...type.caption, fontSize: 10.5 },
   statDivider: { width: 1, alignSelf: "stretch", backgroundColor: colors.surfaceAlt },
 
-  /* quality bar */
-  qualityWrap: { gap: 6 },
-  qualityTrack: {
-    flexDirection: "row",
-    height: 10,
-    borderRadius: radius.pill,
-    overflow: "hidden",
-    position: "relative",
-  },
-  qualitySeg: { flex: 1, height: 10 },
-  qualityMarker: {
-    position: "absolute",
-    top: -3,
-    marginLeft: -8,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-    borderWidth: 3,
-    borderColor: colors.text,
-  },
-  qualityLabels: { flexDirection: "row", justifyContent: "space-between" },
-  qualityEnd: { ...type.caption, fontSize: 10.5, color: colors.textFaint },
-
   /* footer card */
   footerCard: {
     alignItems: "center",
@@ -352,11 +380,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingTop: spacing.md,
   },
-  proofIdRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  proofId: { ...type.mono, fontSize: 12.5, fontWeight: "700", color: colors.text },
   safety: { ...type.mono, fontSize: 10.5, color: colors.textFaint },
-  safetyDim: { ...type.mono, fontSize: 10, color: colors.textFaint },
 
   footer: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
-  ctaNote: { ...type.mono, fontSize: 11, color: colors.textFaint, textAlign: "center" },
 });

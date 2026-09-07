@@ -256,11 +256,11 @@ test("display position and route evidence stay separate all the way to the scree
   /* The display channel is the watch's fourth callback and is guarded only by
      cancellation — it must run before the lifecycle is active, which is the
      window the device failure lived in. */
-  assert.match(session, /\(p\) => \{ if \(!cancelled\) setDisplayLocation\(p\); \}/);
+  assert.match(session, /\(p\) => \{ if \(!cancelled\) showLocation\(p\); \}/);
 
   /* …and it touches no evidence. Everything that measures, seals or banks is
      reached only from the accepted branch of the evidence callback. */
-  const displayCallback = session.slice(session.indexOf("(p) => { if (!cancelled) setDisplayLocation(p); }"));
+  const displayCallback = session.slice(session.indexOf("(p) => { if (!cancelled) showLocation(p); }"));
   const displayLine = displayCallback.slice(0, displayCallback.indexOf("\n"));
   for (const forbidden of ["pushPoint", "distanceRef", "previewRef", "acceptedRef", "setDistanceM"]) {
     assert.ok(!displayLine.includes(forbidden), `the display channel must not touch ${forbidden}`);
@@ -268,8 +268,18 @@ test("display position and route evidence stay separate all the way to the scree
 
   /* A rejected fix moves neither distance nor the marker — the documented
      decision, pinned so it cannot be quietly reversed. */
-  const rejected = session.slice(session.indexOf("if (!decision.accepted)"), session.indexOf("setDisplayLocation(p);\n        setSignal"));
-  assert.ok(!rejected.includes("setDisplayLocation"), "a rejected fix does not move the marker");
+  const rejected = session.slice(session.indexOf("if (!decision.accepted)"), session.indexOf("showLocation(p);\n        setSignal"));
+  assert.ok(!rejected.includes("showLocation"), "a rejected fix does not move the marker");
+
+  /* `showLocation` is the single writer, and it writes display state only —
+     the ref the finish handler reads, and the state the map renders. Anything
+     that measured, sealed or banked from here would put a browsing position
+     into the game. */
+  const writer = session.slice(session.indexOf("const showLocation = useCallback("));
+  const writerBody = writer.slice(0, writer.indexOf("}, []);"));
+  for (const forbidden of ["pushPoint", "distanceRef", "previewRef", "acceptedRef", "setDistanceM", "setRoutePreview"]) {
+    assert.ok(!writerBody.includes(forbidden), `the display writer must not touch ${forbidden}`);
+  }
 
   /* Readiness is derived, never announced. Nothing in this screen may set a
      lock; the only thing that can produce the word is `presenceLabel`. */
@@ -280,6 +290,10 @@ test("display position and route evidence stay separate all the way to the scree
   /* The map is handed the position as a position. */
   assert.match(session, /currentLocation=\{head\}/);
   assert.match(session, /const head = displayLocation \?\?/);
+
+  /* The finished session carries the position for the summary to draw, and
+     `toSubmission` names the fields it sends, so it cannot reach the wire. */
+  assert.match(session, /displaySeed: displayLocationRef\.current === null \? null : \{ \.\.\.displayLocationRef\.current \}/);
 });
 
 test("the map draws the player from the position input, not from the route", () => {

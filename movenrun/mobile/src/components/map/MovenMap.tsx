@@ -144,6 +144,20 @@ function mapConfigSlice(): MapConfigSlice | null {
   return config ?? null;
 }
 
+/**
+ * Whether this build can draw a real basemap at all.
+ *
+ * Exported for the one decision a screen has to make *before* mounting a map:
+ * whether a map is the right thing to render, or whether it should show a
+ * designed panel instead. A screen that mounted this component to find out
+ * would get the honest unavailable notice — correct, but it cannot be combined
+ * with the screen's own reason for having nothing to draw, and the player would
+ * be told about a missing key when the real fact is that they did not move.
+ */
+export function mapBasemapAvailable(): boolean {
+  return mapAvailability(currentPlatform(), mapConfigSlice()).status === "ready";
+}
+
 function MovenMapView(
   {
     points = [],

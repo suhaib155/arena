@@ -101,17 +101,23 @@ export default function ZoneCapturedScreen() {
         </Text>
 
         <View style={styles.stage}>
-          {/* faint map roads */}
-          <View style={[styles.road, { top: "30%" }]} />
-          <View style={[styles.road, { top: "70%" }]} />
-          <View style={[styles.roadV, { left: "26%" }]} />
-
-          {/* route line touching the hex */}
-          <View style={styles.routeRow}>
-            {Array.from({ length: 9 }).map((_, i) => (
-              <View key={i} style={[styles.routeDot, { opacity: 0.3 + i * 0.08 }]} />
-            ))}
-          </View>
+          {/* An abstract lattice, and deliberately not a map.
+              This stage used to draw two horizontal "roads", one vertical
+              cross-street and a nine-dot route line leading into the hex. None
+              of it came from the session: the roads were painted at fixed
+              percentages and the route was a fixed row of dots. On a capture
+              screen — the one moment the app tells you you have taken ground —
+              that reads as the streets you walked to take it, which is a
+              geographic claim the screen cannot support and never could.
+              What replaces it makes no claim: concentric rings around the cell,
+              which say "this hex, and its surroundings" without asserting
+              anything about what is in them. */}
+          {[1, 0.72, 0.46].map((scale) => (
+            <View
+              key={scale}
+              style={[styles.ring, { width: 280 * scale, height: 280 * scale, borderRadius: (280 * scale) / 2 }]}
+            />
+          ))}
 
           {/* hex fills dust → pulse green */}
           <View style={styles.hexWrap}>
@@ -237,34 +243,13 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginVertical: spacing.sm,
   },
-  road: {
+  /* Non-geographic by construction: a ring has no direction and cannot be
+     read as a street. Bordered rather than filled so the hex stays the
+     brightest thing on the stage. */
+  ring: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: canvas.road,
-  },
-  roadV: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 5,
-    borderRadius: 3,
-    backgroundColor: canvas.roadCross,
-  },
-  routeRow: {
-    position: "absolute",
-    left: 18,
-    top: "48%",
-    flexDirection: "row",
-    gap: 9,
-  },
-  routeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: palette.baseBlue,
+    borderWidth: 1,
+    borderColor: canvas.ring,
   },
   hexWrap: { width: HEX, height: HEX * 1.1547 },
   vertex: {
