@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { Hexagon } from "@/components/Hexagon";
 import { ProgressHero } from "@/components/ProgressHero";
 import { StatusPill } from "@/components/StatusPill";
+import { FirstTimeGuide } from "@/components/FirstTimeGuide";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { colors, hairline, iconTile, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
@@ -180,29 +181,16 @@ export default function DeedShowroomScreen() {
   return (
     <Screen>
       <ScreenHeader title="Deeds" />
+      <FirstTimeGuide topic="deeds" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
           <View style={styles.hero}>
-            <Text style={styles.heroKicker}>Deed Preview Showroom</Text>
-            <Text style={styles.heroTitle}>A safe look at future Zone Deeds.</Text>
+            <Text style={styles.heroKicker}>Your collection</Text>
+            <Text style={styles.heroTitle}>Ground worth remembering.</Text>
             <View style={styles.pillRow}>
-              <StatusPill icon="eye-outline" label="Local preview" tone="primary" />
-              <StatusPill icon="wallet-outline" label="No wallet" tone="neutral" />
-              <StatusPill icon="hammer-outline" label="No minting" tone="neutral" />
-              <StatusPill icon="cube-outline" label="Not on-chain" tone="neutral" />
+              <StatusPill icon="lock-closed-outline" label="Preview" tone="primary" />
             </View>
-          </View>
-        </FadeSlideIn>
-
-        <FadeSlideIn delay={STAGGER_MS}>
-          <View style={styles.explainCard}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.textDim} />
-            <Text style={styles.explainText}>
-              Zone Deeds are a future layer of MovenRun and are not live in this app
-              build. This showroom is an educational preview only — it does not mint,
-              claim, sell, trade, or verify ownership of anything.
-            </Text>
           </View>
         </FadeSlideIn>
 
@@ -212,10 +200,9 @@ export default function DeedShowroomScreen() {
               <View style={styles.emptyIcon}>
                 <Ionicons name="shapes-outline" size={26} color={palette.deedViolet} />
               </View>
-              <Text style={styles.emptyTitle}>No deed previews yet</Text>
+              <Text style={styles.emptyTitle}>Your collection starts outside</Text>
               <Text style={styles.emptyText}>
-                Capture a zone and your first local deed preview appears here —
-                earned on this device, never minted or owned.
+                Move through new ground to discover collection previews.
               </Text>
               <Button label="Start Move" icon="play" onPress={() => go("move")} style={styles.emptyBtn} />
             </View>
@@ -294,24 +281,8 @@ export default function DeedShowroomScreen() {
           </>
         )}
 
-        <FadeSlideIn delay={STAGGER_MS * 6}>
-          <View style={styles.howCard}>
-            <Text style={styles.howTitle}>How future deeds may work</Text>
-            <HowRow icon="finger-print-outline" text="A future zone identity tied to the territory you build here." />
-            <HowRow icon="business-outline" text="A future layer on top of the fictional city districts you already explore." />
-            <HowRow icon="git-network-outline" text="Possible future governance or utility roles — details are not decided yet." />
-            <Text style={styles.howDisclaimer}>
-              None of this is live. It does not promise ownership, rewards, payouts,
-              market value, tradability, or eligibility of any kind. Previews are
-              earned on this device and are not on-chain.
-            </Text>
-          </View>
-        </FadeSlideIn>
-
-        <Text style={styles.footerNote}>
-          Deed Preview Showroom is local and educational. Ownership is not
-          finalized — it does not mint, claim, sell, trade, or verify ownership.
-        </Text>
+        <Button label="About Deeds" variant="ghost" icon="information-circle-outline"
+          onPress={() => router.push({ pathname: "/help", params: { topic: "deeds" } })} />
       </ScrollView>
     </Screen>
   );
@@ -385,7 +356,7 @@ function FeaturedDeedCard({ card, onPress }: { card: DeedPreviewCard; onPress: (
         <Bar label="Signal" value={card.signalContribution} color={palette.deedViolet} />
       </View>
 
-      <Text style={styles.featuredNote}>Ownership not finalized · not on-chain · earned on this device.</Text>
+      <Text style={styles.featuredNote}>Collection preview</Text>
 
       <Pressable
         hitSlop={8}

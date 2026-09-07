@@ -138,7 +138,14 @@ the environment; `expo config --type public` shows it absent. That is Expo
 deliberately stripping a build-time secret from the publicly served manifest,
 and it is the behaviour you want — if you go looking for the key in the public
 config to confirm your setup worked, you will not find it there. Check
-`--type prebuild`.
+`--type prebuild` without printing its raw key output.
+
+The runtime gate reads `extra.maps.androidConfigured`, a boolean generated
+alongside the native key. It must not read `android.config`: Expo removes that
+field from `Constants.expoConfig`. The device-feedback repair reproduced this
+false-negative gate against Expo's actual public-config filter. Unset and
+placeholder values keep the flag false; the key itself stays out of public
+configuration.
 
 ## How the app is wired
 
@@ -181,8 +188,12 @@ demo look broken. The marker the app draws is tied to the evidence.
 
 ## What is not done here
 
-- **No APK has been built with a key.** The key is an external gate, so the
-  map has not been seen rendering on a device from this branch.
+- **Native key presence is proven; physical tile loading remains a gate.**
+  The preview APK at `0195a346cbf80092aa0943b74009d4b571411140` contains native
+  Maps metadata, but its runtime gate incorrectly reported a missing key.
+  The repaired preview configuration resolves the same native metadata and
+  public availability boolean. Package/signing restrictions and actual tiles
+  must still be checked on the rebuilt APK.
 - **`takeSnapshot()` is wired but unverified on hardware.** The API exists in
   1.20.1 and the share card handles a null result by showing no map. Whether the
   Android capture includes the polygon and polyline overlays is a device

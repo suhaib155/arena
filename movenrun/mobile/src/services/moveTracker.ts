@@ -12,12 +12,23 @@ import type { TrackPoint } from "@/lib/geo";
 import { AcquiredForegroundWatch, TrackerStartError } from "@/lib/acquiredForegroundWatch";
 export { TrackerStartError } from "@/lib/acquiredForegroundWatch";
 import { ACQUISITION_WATCH, SESSION_WATCH } from "@/lib/trackingConfig";
+import { gpsTimings, type GpsAcquisitionState } from "@/lib/gpsAcquisitionState";
+import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
 
 export type TrackerMode = "gps" | "demo";
 
 export interface MoveTracker {
   readonly mode: TrackerMode;
-  start(onPoint: (p: TrackPoint) => void, onError?: (error: TrackerStartError) => void): Promise<void>;
+  /**
+   * `onPoint` carries evidence — geometry that may become distance, a seal and
+   * ground. `onDisplayFix` carries positions that may only be drawn: the
+   * marker, the camera and the readiness the chip may claim. A tracker must
+   * never route a point to both because it looks convenient; see
+   * `lib/acquiredForegroundWatch.ts`.
+   */
+  start(onPoint: (p: TrackPoint) => void, onError?: (error: TrackerStartError) => void,
+    onState?: (state: GpsAcquisitionState) => void,
+    onDisplayFix?: (p: TrackPoint) => void): Promise<void>;
   stop(): void;
 }
 
@@ -69,6 +80,8 @@ export class GpsTracker implements MoveTracker {
   readonly mode = "gps" as const;
   private generation = 0;
   private watch = new AcquiredForegroundWatch({
+    acquisitionSample: (point) => distanceDiagnostics.record(point,
+      { accepted: false, reason: "acquiring", segmentMeters: 0 }, 0, 0),
     watch: (acquiring, onPoint, onError) => {
       const config = acquiring ? ACQUISITION_WATCH : SESSION_WATCH;
       return Location.watchPositionAsync({
@@ -86,15 +99,22 @@ export class GpsTracker implements MoveTracker {
   });
 
   async start(onPoint: (p: TrackPoint) => void,
-    onError?: (error: TrackerStartError) => void): Promise<void> {
+    onError?: (error: TrackerStartError) => void,
+    onState?: (state: GpsAcquisitionState) => void,
+    onDisplayFix?: (p: TrackPoint) => void): Promise<void> {
     this.stop();
+    gpsTimings.reset();
     const generation = this.generation;
     try {
       if (!(await Location.hasServicesEnabledAsync())) throw new TrackerStartError("services_off");
       const permission = await Location.getForegroundPermissionsAsync();
       if (permission.status !== "granted") throw new TrackerStartError("permission_denied");
+      gpsTimings.permission();
       if (generation !== this.generation) throw new TrackerStartError("cancelled");
-      await this.watch.start(onPoint, onError);
+      await this.watch.start(onPoint, onError, (state) => {
+        gpsTimings.state(state);
+        onState?.(state);
+      }, onDisplayFix);
     } catch (error) {
       if (error instanceof TrackerStartError) throw error;
       throw new TrackerStartError("tracker_error");
@@ -117,7 +137,11 @@ export class DemoTracker implements MoveTracker {
   private timer: ReturnType<typeof setInterval> | null = null;
   private t = 0;
 
-  async start(onPoint: (p: TrackPoint) => void): Promise<void> {
+  async start(onPoint: (p: TrackPoint) => void,
+    _onError?: (error: TrackerStartError) => void,
+    onState?: (state: GpsAcquisitionState) => void,
+    onDisplayFix?: (p: TrackPoint) => void): Promise<void> {
+    onState?.("ready");
     const lat0 = 40.7812;
     const lon0 = -73.9665;
     const mPerDegLat = 111_320;
@@ -131,12 +155,17 @@ export class DemoTracker implements MoveTracker {
       const ym = 75 * Math.sin(a) + 12 * Math.sin(a * 2);
       const jx = (Math.random() - 0.5) * 1.6;
       const jy = (Math.random() - 0.5) * 1.6;
-      onPoint({
+      const point: TrackPoint = {
         latitude: lat0 + (ym + jy) / mPerDegLat,
         longitude: lon0 + (xm + jx) / mPerDegLon,
         timestamp: Date.now(),
         accuracy: 8,
-      });
+      };
+      /* The demo route is its own display truth: the same synthesized point
+         drives the marker and the route, because there is no separate warm-up
+         to keep out of it. It is still labelled demo everywhere it appears. */
+      onDisplayFix?.(point);
+      onPoint(point);
     }, 1000);
   }
 

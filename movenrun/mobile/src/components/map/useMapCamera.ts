@@ -78,6 +78,8 @@ export interface MapCamera {
   onUserPan(): void;
   /** Hand the camera its target once the native view exists. */
   attach(target: CameraTarget | null): void;
+  /** Native initialization completed; replay the latest requested camera command. */
+  onReady(): void;
 }
 
 export interface MapCameraOptions {
@@ -89,6 +91,7 @@ export interface MapCameraOptions {
   followRadiusMeters?: number;
   /** Start free rather than following — used by static, already-framed maps. */
   initialMode?: CameraMode;
+  followEnabled?: boolean;
 }
 
 export function useMapCamera(options: MapCameraOptions): MapCamera {
@@ -96,6 +99,9 @@ export function useMapCamera(options: MapCameraOptions): MapCamera {
   const [mode, setMode] = useState<CameraMode>(options.initialMode ?? "following");
 
   const targetRef = useRef<CameraTarget | null>(null);
+  const readyRef = useRef(false);
+  type Command = { region: MapRegion; duration: number } | { coordinates: LatLng[]; animated: boolean };
+  const pendingRef = useRef<Command | null>(null);
   /** The last region we asked for, so an unchanged head issues no command. */
   const lastRegionRef = useRef<MapRegion | null>(null);
   /** Read inside the follow effect without making it depend on the mode. */
@@ -104,33 +110,60 @@ export function useMapCamera(options: MapCameraOptions): MapCamera {
 
   const duration = reducedMotion ? 0 : CAMERA_DURATION_MS;
 
+  const execute = useCallback((command: Command) => {
+    const target = targetRef.current;
+    if (target === null || !readyRef.current) { pendingRef.current = command; return; }
+    pendingRef.current = null;
+    if ("region" in command) {
+      if (regionsClose(lastRegionRef.current, command.region, MIN_SPAN_DEGREES / 10)) return;
+      target.animateToRegion(command.region, command.duration);
+      lastRegionRef.current = command.region;
+    } else {
+      lastRegionRef.current = null;
+      target.fitToCoordinates(command.coordinates, { edgePadding: FIT_EDGE_PADDING, animated: command.animated });
+    }
+  }, []);
+
   const moveTo = useCallback(
     (region: MapRegion) => {
-      const target = targetRef.current;
-      if (target === null) return;
       /* A fix a few centimetres from the last one is not a camera move. The
          watch delivers every few metres, and animating each one would keep the
          map permanently in motion under the player's finger. */
-      if (regionsClose(lastRegionRef.current, region, MIN_SPAN_DEGREES / 10)) return;
-      lastRegionRef.current = region;
-      target.animateToRegion(region, duration);
+      execute({ region, duration });
     },
-    [duration],
+    [duration, execute],
   );
 
   const attach = useCallback((target: CameraTarget | null) => {
+    if (targetRef.current === target) return;
     targetRef.current = target;
-    if (target === null) lastRegionRef.current = null;
+    readyRef.current = false;
+    lastRegionRef.current = null;
   }, []);
+  const onReady = useCallback(() => {
+    readyRef.current = true;
+    if (pendingRef.current) execute(pendingRef.current);
+  }, [execute]);
+
+  const followEnabled = options.followEnabled ?? options.initialMode !== "free";
+  const previouslyEnabled = useRef(followEnabled);
+  useEffect(() => {
+    if (followEnabled && !previouslyEnabled.current) {
+      modeRef.current = "following";
+      setMode("following");
+      lastRegionRef.current = null;
+    }
+    previouslyEnabled.current = followEnabled;
+  }, [followEnabled]);
 
   /* Follow. Depends on the head fix, so it runs when the player moves and at
      no other time — not on the session clock, not on a metric changing, not on
      a parent re-render. */
   useEffect(() => {
-    if (head === null) return;
+    if (head === null) { pendingRef.current = null; lastRegionRef.current = null; return; }
     if (modeRef.current !== "following") return;
     moveTo(regionAround(head, followRadiusMeters));
-  }, [head, followRadiusMeters, moveTo]);
+  }, [head, followRadiusMeters, moveTo, followEnabled]);
 
   const recenter = useCallback(() => {
     setMode("following");
@@ -143,20 +176,17 @@ export function useMapCamera(options: MapCameraOptions): MapCamera {
 
   const fitRoute = useCallback(
     (coordinates: readonly LatLng[]) => {
-      const target = targetRef.current;
-      if (target === null || coordinates.length === 0) return;
+      if (coordinates.length === 0) return;
       setMode("free");
       modeRef.current = "free";
       lastRegionRef.current = null;
-      target.fitToCoordinates([...coordinates], {
-        edgePadding: FIT_EDGE_PADDING,
-        animated: !reducedMotion,
-      });
+      execute({ coordinates: [...coordinates], animated: !reducedMotion });
     },
-    [reducedMotion],
+    [reducedMotion, execute],
   );
 
   const onUserPan = useCallback(() => {
+    pendingRef.current = null;
     /* Only a transition is worth a state update — the pan handler fires
        continuously through a drag, and setting "free" on every frame would
        re-render the screen for the length of the gesture. */
@@ -170,7 +200,7 @@ export function useMapCamera(options: MapCameraOptions): MapCamera {
      those unstable, which is how the map's ref callback ends up detaching and
      re-attaching the camera on each re-render. */
   return useMemo(
-    () => ({ mode, recenter, fitRoute, onUserPan, attach }),
-    [mode, recenter, fitRoute, onUserPan, attach],
+    () => ({ mode, recenter, fitRoute, onUserPan, attach, onReady }),
+    [mode, recenter, fitRoute, onUserPan, attach, onReady],
   );
 }

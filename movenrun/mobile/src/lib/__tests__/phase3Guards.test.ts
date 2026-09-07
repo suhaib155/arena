@@ -59,9 +59,11 @@ test("no redesigned retention/social screen enables the JS animation driver", ()
   }
 });
 
-test("Clubs City War animation stays on the native driver (opacity/transform only)", () => {
+test("Clubs has no fabricated map or continuous animation and retains reduced-motion entrances", () => {
   const src = read(APP, "(tabs)", "clubs.tsx");
-  assert.match(src, /useNativeDriver:\s*true/);
-  // Only opacity + transform are animated (native-driver-safe).
-  assert.ok(!/left:\s*pulse|top:\s*pulse|width:\s*pulse|height:\s*pulse/.test(src));
+  assert.doesNotMatch(src, /CityWarMap|Animated\.loop|useNativeDriver:\s*false/);
+  assert.match(src, /<FadeSlideIn/);
+  const entrance = read(process.cwd(), "src", "components", "FadeSlideIn.tsx");
+  assert.match(entrance, /if \(reducedMotion\)/);
+  assert.match(entrance, /useNativeDriver:\s*true/);
 });

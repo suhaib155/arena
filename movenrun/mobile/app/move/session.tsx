@@ -9,6 +9,9 @@ import { contextCells, currentCellKey } from "@/lib/mapCells";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
+import { FinishSessionSheet } from "@/components/FinishSessionSheet";
+import { gpsTimings, type GpsAcquisitionState } from "@/lib/gpsAcquisitionState";
+import { gpsPresence, presenceLabel, type GpsPresence } from "@/lib/mapPresence";
 import { Button } from "@/components/Button";
 import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
@@ -52,7 +55,13 @@ import {
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 import type { IoniconName } from "@/types";
 
-type GpsState = "waiting" | "locked" | "weak";
+/**
+ * The screen's own signal-quality opinion, which is only half of what the chip
+ * says. The other half is whether the map has a position at all, and the two
+ * are combined by `gpsPresence` — see `lib/mapPresence.ts` for why this screen
+ * is not allowed to announce readiness on its own.
+ */
+type SignalQuality = "unknown" | "usable" | "degraded";
 
 export default function MoveSessionScreen() {
   const router = useRouter();
@@ -84,7 +93,35 @@ export default function MoveSessionScreen() {
      there too, so the polyline is bounded however long the session runs. */
   const [routePreview, setRoutePreview] = useState<TrackPoint[]>([]);
   const [distanceM, setDistanceM] = useState(0);
-  const [gpsState, setGpsState] = useState<GpsState>("waiting");
+  const [signal, setSignal] = useState<SignalQuality>("unknown");
+  const [acquisitionState, setAcquisitionState] = useState<GpsAcquisitionState>("locating");
+  /**
+   * Where the player is, for the map to draw.
+   *
+   * Separate from `routePreview` on purpose, and the reason this screen was
+   * rebuilt. Route preview is *evidence* — points that passed `inspectFix` and
+   * are being measured toward distance, a seal and eventually ground. This is
+   * only a position: the warm-up fix that satisfied acquisition, and thereafter
+   * each accepted fix. A stationary player has the second and, correctly, none
+   * of the first, and the map must still be able to show them where they are.
+   *
+   * Nothing set here is measured, sealed, submitted or banked. It is erased
+   * with the rest of the session's geometry.
+   */
+  const [displayLocation, setDisplayLocation] = useState<TrackPoint | null>(null);
+  /**
+   * The same position, readable without re-subscribing.
+   *
+   * `finish` needs it and must stay a stable callback: depending on the state
+   * would rebuild the finish handler on every fix, which is how a Finish tap
+   * ends up running against a closure from three seconds ago.
+   */
+  const displayLocationRef = useRef<TrackPoint | null>(null);
+  const showLocation = useCallback((point: TrackPoint | null) => {
+    displayLocationRef.current = point;
+    setDisplayLocation(point);
+  }, []);
+  const [finishSheetOpen, setFinishSheetOpen] = useState(false);
   const [startAttempt, setStartAttempt] = useState(0);
   const [startError, setStartError] = useState<TrackerStartError | null>(null);
 
@@ -144,7 +181,8 @@ export default function MoveSessionScreen() {
     const requested = requestStart(lifecycleRef.current);
     if (requested.outcome !== "ok") return;
     setStartError(null);
-    setGpsState("waiting");
+    setSignal("unknown");
+    showLocation(null);
     apply(requested.lifecycle);
     distanceDiagnostics.reset();
 
@@ -169,9 +207,10 @@ export default function MoveSessionScreen() {
       tracker.stop();
       eraseEvidence();
       setRoutePreview([]);
+      showLocation(null);
       setPreview(EMPTY_PREVIEW);
       setDistanceM(0);
-      setGpsState("waiting");
+      setSignal("unknown");
       setStartError(null);
       apply(idleLifecycle());
       routerRef.current.replace("/move");
@@ -183,8 +222,6 @@ export default function MoveSessionScreen() {
            user has already ended. */
         if (cancelled || lifecycleRef.current.state !== "active") return;
         if (backgroundedAtRef.current !== null) return;
-        if (p.accuracy != null && p.accuracy > 25) setGpsState("weak");
-        else setGpsState("locked");
         const prev = continuityBrokenRef.current ? null : pointsRef.current[pointsRef.current.length - 1] ?? null;
         const now = Date.now();
         const decision: FixDecision = p.timestamp <= lastFixTimestampRef.current ||
@@ -195,9 +232,21 @@ export default function MoveSessionScreen() {
           lastFixTimestampRef.current = Math.max(lastFixTimestampRef.current, p.timestamp);
         }
         if (!decision.accepted) {
+          /* A rejected fix moves nothing — not the distance, and deliberately
+             not the marker either. The common rejections are `within_uncertainty`
+             (the player has not actually moved) and `weak_accuracy` (the fix is
+             not honest geography); redrawing the player at either would make the
+             marker jitter around a stationary person, or place them somewhere
+             the app has already decided it does not believe. The display keeps
+             the last position it had reason to trust. */
           distanceDiagnostics.record(p, decision, distanceRef.current, previewRef.current?.evidenceStats.retained ?? 0);
           return;
         }
+        /* Accepted, so this is both evidence and the best answer to "where am
+           I". The two channels agree here; they disagree while stationary and
+           during acquisition, which is what the display channel is for. */
+        showLocation(p);
+        setSignal(p.accuracy != null && p.accuracy > 25 ? "degraded" : "usable");
         if (trackerGapAtRef.current !== null) {
           recordGap(gapsRef.current, trackerGapAtRef.current, Date.now());
           trackerGapAtRef.current = null;
@@ -238,10 +287,14 @@ export default function MoveSessionScreen() {
       }, (error) => {
         if (cancelled) return;
         setStartError(error);
-        setGpsState("weak");
+        setSignal("degraded");
         continuityBrokenRef.current = true;
         trackerGapAtRef.current ??= Date.now();
-      })
+      }, (state) => { if (!cancelled) setAcquisitionState(state); },
+        /* The display channel. It runs before the lifecycle is active — that is
+           its whole purpose — so it is guarded by `cancelled` alone and never
+           by the capture state. It touches no evidence ref. */
+        (p) => { if (!cancelled) showLocation(p); })
       .then(() => {
         if (cancelled) { tracker.stop(); return; }
         const started = trackerStarted(lifecycleRef.current, {
@@ -261,11 +314,16 @@ export default function MoveSessionScreen() {
           () => lifecycleRef.current.pauses,
         );
         apply(started.lifecycle);
+        /* Nothing about readiness is announced here. A resolved `start()` means
+           the acquisition policy is satisfied, not that the map has a position;
+           this line used to say `locked` and was how the header came to claim
+           GPS lock over a map showing no location at all. The chip now derives
+           what it says from `displayLocation`. */
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         setStartError(error instanceof TrackerStartError ? error : new TrackerStartError("tracker_error"));
-        setGpsState("weak");
+        setSignal("degraded");
         const failed = trackerFailed(lifecycleRef.current);
         if (failed.outcome === "ok") apply(failed.lifecycle);
       });
@@ -277,7 +335,7 @@ export default function MoveSessionScreen() {
          outlives the screen that captured it. */
       eraseEvidence();
     };
-  }, [apply, startAttempt]);
+  }, [apply, showLocation, startAttempt]);
 
   /** Elapsed time, read on demand. Kept out of this component's state so the
    *  once-a-second tick re-renders only the clock, not the route canvas.
@@ -375,6 +433,10 @@ export default function MoveSessionScreen() {
       durationMs: activeMsSoFar(next.lifecycle, at),
       finishedAt: metadata.finishedAt,
       gaps: gapsRef.current.map((gap) => ({ ...gap })),
+      /* Where the player is standing, so a session that recorded no route can
+         still be shown on their own ground rather than at world scale. Copied,
+         not aliased, and display-only — see `FinishedSession.displaySeed`. */
+      displaySeed: displayLocationRef.current === null ? null : { ...displayLocationRef.current },
     });
     router.replace("/move/summary");
   }, [apply, router]);
@@ -404,11 +466,8 @@ export default function MoveSessionScreen() {
      accidental. The confirmed path calls the unchanged finish(). */
   const confirmFinish = useCallback(() => {
     tapFeedback();
-    Alert.alert("Finish session?", "End tracking and review your route.", [
-      { text: "Keep moving", style: "cancel" },
-      { text: "Finish", style: "default", onPress: finish },
-    ]);
-  }, [finish]);
+    setFinishSheetOpen(true);
+  }, []);
 
   /* Android hardware back must not silently discard a session — intercept it
      and route through the same confirm dialog as the close button. */
@@ -428,6 +487,9 @@ export default function MoveSessionScreen() {
   const paused = captureState === "paused";
   const starting = captureState === "starting";
   const controlsAvailable = captureState === "active" || paused;
+  useEffect(() => {
+    if (controlsAvailable) gpsTimings.live();
+  }, [controlsAvailable]);
 
   /* The head fix, and the grid around it.
      Keyed on the cell rather than on the fix: the player crosses a resolution-8
@@ -440,7 +502,19 @@ export default function MoveSessionScreen() {
      pauses the measured distance breaks at. */
   const pauseSource = useCallback(() => lifecycleRef.current.pauses, []);
 
-  const head = routePreview.length > 0 ? routePreview[routePreview.length - 1]! : null;
+  /* Where the player is, which on this screen is the display location and only
+     falls back to the route's head if the display channel has somehow produced
+     nothing. Not `routePreview`'s head: that is the last point that became
+     *evidence*, which a stationary player does not have and which lags the
+     player's actual position by the preview stride even when they do. */
+  const head = displayLocation ?? (routePreview.length > 0 ? routePreview[routePreview.length - 1]! : null);
+  /* One derivation for the chip, the marker and the overlay, so the header
+     cannot claim a lock over a map that is still saying it has no fix. */
+  const presence: GpsPresence = gpsPresence({
+    acquisition: acquisitionState,
+    displayLocation: head,
+    degraded: signal === "degraded",
+  });
   const cellKey = currentCellKey(head);
   /* Keyed on the cell and not on `head` deliberately: while the player stays
      inside one cell the answer is identical, so recomputing it per fix would
@@ -448,9 +522,12 @@ export default function MoveSessionScreen() {
   const cells = useMemo(() => contextCells(head), [cellKey]); // eslint-disable-line
 
   if (!controlsAvailable && captureState !== "finished") {
-    const title = starting ? "Finding GPS" : "Session not started";
+    /* The same vocabulary the chip uses once the session is running, so the
+       player is not handed one set of words during warm-up and another after
+       it. `acquisitionLabel` remains the policy's internal naming. */
+    const title = starting ? presenceLabel(presence) : "Session not started";
     const detail = starting
-      ? "Waiting for a stable location. Your session starts when GPS is ready."
+      ? presence === "locating" ? "Getting your first location." : "Your session starts when the signal is stable."
       : startError?.code === "permission_denied"
         ? "Location permission is needed to record your route."
         : startError?.code === "services_off"
@@ -496,7 +573,7 @@ export default function MoveSessionScreen() {
         onAction={quit}
         actionLabel="End this movement session"
         dotColor={starting ? palette.silverTrail : paused ? palette.moveGold : palette.pulseGreen}
-        trailing={<GpsChip mode={mode} state={gpsState} />}
+        trailing={<GpsChip mode={mode} presence={presence} />}
       />
 
       {/* The real map is the hero, and the first thing to give up height when
@@ -505,6 +582,7 @@ export default function MoveSessionScreen() {
           screen or a large-text one. */}
       <MovenMap
         points={routePreview}
+        currentLocation={head}
         pauses={pauseSource}
         cells={cells}
         live
@@ -576,6 +654,8 @@ export default function MoveSessionScreen() {
           onFinish={confirmFinish}
         />
       </View>
+      <FinishSessionSheet visible={finishSheetOpen} onKeepMoving={() => setFinishSheetOpen(false)}
+        onFinish={() => { setFinishSheetOpen(false); finish(); }} />
     </Screen>
   );
 }
@@ -612,20 +692,25 @@ function SessionClock({
   );
 }
 
-function GpsChip({ mode, state }: { mode: TrackerMode; state: GpsState }) {
+/**
+ * The readiness chip.
+ *
+ * Its words come from `presenceLabel`, so the only way to make it say `GPS
+ * locked` is to hand it a presence that required a display location to exist.
+ * There is no branch here that can announce a lock on its own.
+ */
+function GpsChip({ mode, presence }: { mode: TrackerMode; presence: GpsPresence }) {
   if (mode === "demo") {
     return <ReadinessChip icon="flask-outline" label="Demo" tone="neutral" />;
   }
-  const map: Record<
-    GpsState,
-    { icon: IoniconName; label: string; tone: "neutral" | "ok" | "warning" }
-  > = {
-    waiting: { icon: "ellipsis-horizontal", label: "Searching…", tone: "neutral" },
-    locked: { icon: "navigate", label: "GPS locked", tone: "ok" },
-    weak: { icon: "warning-outline", label: "Weak signal", tone: "warning" },
+  const icons: Record<GpsPresence, { icon: IoniconName; tone: "neutral" | "ok" | "warning" }> = {
+    locating: { icon: "ellipsis-horizontal", tone: "neutral" },
+    improving: { icon: "ellipsis-horizontal", tone: "neutral" },
+    ready: { icon: "navigate", tone: "ok" },
+    weak: { icon: "warning-outline", tone: "warning" },
   };
-  const { icon, label, tone } = map[state];
-  return <ReadinessChip icon={icon} label={label} tone={tone} />;
+  const { icon, tone } = icons[presence];
+  return <ReadinessChip icon={icon} label={presenceLabel(presence)} tone={tone} />;
 }
 
 const styles = StyleSheet.create({

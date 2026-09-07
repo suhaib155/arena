@@ -128,7 +128,7 @@ export function resolveCompletion(input: CompletionInput): CompletionSummary {
     return {
       kind: "too-short",
       kicker: "Session complete",
-      headline: "Too short to save",
+      headline: "Not enough movement",
       detail: "Move at least 200 m or 5 minutes to save a session and earn XP.",
       progressPersisted: false,
       xpAwardedNow: false,
@@ -144,7 +144,7 @@ export function resolveCompletion(input: CompletionInput): CompletionSummary {
       kicker: "Session complete",
       headline: "Already saved today",
       detail:
-        "You've saved a session today — extra sessions don't earn more XP, but your route still counts.",
+        "Today's session XP is already earned.",
       progressPersisted: false,
       xpAwardedNow: false,
       rewardStatus,
@@ -159,7 +159,7 @@ export function resolveCompletion(input: CompletionInput): CompletionSummary {
     kind: "ready-to-save",
     kicker: "Session complete",
     headline: "Ready to save",
-    detail: "Save this session to keep your movement summary and local progress.",
+    detail: "Keep this route summary and earn your session XP.",
     progressPersisted: false,
     xpAwardedNow: false,
     rewardStatus,

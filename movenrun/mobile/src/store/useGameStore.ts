@@ -6,6 +6,9 @@ import type { Quest, Zone } from "@/types";
 import type { RouteTrustRecord } from "@/lib/routeTrust";
 import { applyDefend, applyFortify, fortifiedToday } from "@/lib/territory";
 import { getLevelInfo } from "@/lib/leveling";
+import { questService } from "@/services/questService";
+import { SESSION_QUEST_ID } from "@/lib/sessionQuest";
+import { advanceQuestAttempt, questCompletionSatisfied, type QuestAttempt } from "@/lib/questProgress";
 import {
   mergeVerification,
   type VerifiedMovementRecord,
@@ -49,6 +52,7 @@ export interface CaptureOutcome {
 
 /** Result returned to the UI so the Result screen can show what happened. */
 export interface CompletionOutcome {
+  completionSatisfied: boolean;
   xpGained: number;
   totalXpBefore: number;
   totalXpAfter: number;
@@ -63,6 +67,13 @@ export interface CompletionOutcome {
 }
 
 interface GameState {
+  questAttempt: QuestAttempt | null;
+  questAttemptSequence: number;
+  startQuest: (questId: string) => QuestAttempt | null;
+  advanceQuest: (attemptId: string, elapsedMs: number) => void;
+  pauseQuest: (attemptId: string) => void;
+  resumeQuest: (attemptId: string) => void;
+  finishQuest: (attemptId: string) => CompletionOutcome | null;
   totalXp: number;
   streak: number;
   /** Day key of the last day a quest was completed. */
@@ -120,7 +131,7 @@ interface GameState {
    * zone — it only appends what the server said.
    */
   recordMovementVerification: (record: VerifiedMovementRecord) => void;
-  completeQuest: (quest: Quest) => CompletionOutcome;
+  completeQuest: (quest: Quest, attemptId?: string) => CompletionOutcome;
   /** Add a captured zone (or refresh it when already owned). Demo zones are
    *  rejected here as a final guard — they must never persist. */
   captureZone: (zone: Zone) => CaptureOutcome;
@@ -157,6 +168,8 @@ interface GameState {
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
+      questAttempt: null,
+      questAttemptSequence: 0,
       totalXp: 0,
       streak: 0,
       lastActiveDay: null,
@@ -176,7 +189,39 @@ export const useGameStore = create<GameState>()(
       firstRun: { ...FRESH_FIRST_RUN },
       _hydrated: false,
 
-      completeQuest: (quest) => {
+      startQuest: (questId) => {
+        if (!get()._hydrated || !questService.getQuestById(questId)) return null;
+        const existing = get().questAttempt;
+        if (existing?.questId === questId && (existing.status === "active" || existing.status === "paused")) return existing;
+        const sequence = get().questAttemptSequence + 1;
+        const attempt: QuestAttempt = { id: `quest-${sequence}`, questId, activeMs: 0, status: "active", outcome: null };
+        set({ questAttempt: attempt, questAttemptSequence: sequence });
+        return attempt;
+      },
+      advanceQuest: (attemptId, elapsedMs) => {
+        const attempt = get().questAttempt;
+        if (!attempt || attempt.id !== attemptId) return;
+        const quest = questService.getQuestById(attempt.questId);
+        if (quest) set({ questAttempt: advanceQuestAttempt(attempt, elapsedMs, quest) });
+      },
+      pauseQuest: (attemptId) => {
+        const attempt = get().questAttempt;
+        if (attempt?.id === attemptId && attempt.status === "active") set({ questAttempt: { ...attempt, status: "paused" } });
+      },
+      resumeQuest: (attemptId) => {
+        const attempt = get().questAttempt;
+        if (attempt?.id === attemptId && attempt.status === "paused") set({ questAttempt: { ...attempt, status: "active" } });
+      },
+      finishQuest: (attemptId) => {
+        const attempt = get().questAttempt;
+        if (!attempt || attempt.id !== attemptId) return null;
+        const quest = questService.getQuestById(attempt.questId);
+        return quest ? get().completeQuest(quest, attemptId) : null;
+      },
+      completeQuest: (requestedQuest, attemptId) => {
+        // Timed definitions are resolved here, not trusted from navigation or callers.
+        const definition = questService.getQuestById(requestedQuest.id);
+        const quest = definition ?? requestedQuest;
         const state = get();
         const today = getLocalDateKey();
         const isNewDay = state.lastActiveDay !== today;
@@ -185,11 +230,31 @@ export const useGameStore = create<GameState>()(
 
         const totalXpBefore = state.totalXp;
         const levelBefore = getLevelInfo(totalXpBefore).level;
+        const emptyOutcome: CompletionOutcome = {
+          completionSatisfied: false, xpGained: 0, totalXpBefore, totalXpAfter: totalXpBefore,
+          levelBefore, levelAfter: levelBefore, leveledUp: false, streak: state.streak,
+          streakIncreased: false, alreadyAwarded: false,
+        };
+        const attempt = state.questAttempt;
+        if (definition) {
+          if (attempt && attempt.id === attemptId && attempt.questId === quest.id && attempt.outcome) return attempt.outcome;
+          if (!questCompletionSatisfied(attempt, quest, attemptId)) {
+            if (attempt && attempt.id === attemptId && attempt.questId === quest.id) {
+              set({ questAttempt: { ...attempt, status: "abandoned", outcome: emptyOutcome } });
+            }
+            return emptyOutcome;
+          }
+        } else if (quest.id !== SESSION_QUEST_ID) {
+          return emptyOutcome;
+        }
+        const settleAttempt = (outcome: CompletionOutcome) => definition && attempt
+          ? { questAttempt: { ...attempt, status: "completed" as const, outcome } } : {};
 
         // Anti-farming: a quest awards XP at most once per local day. A replay
         // is idempotent — no XP, no streak change, no history entry.
         if (todaysIds.includes(quest.id)) {
-          return {
+          const outcome: CompletionOutcome = {
+            completionSatisfied: true,
             xpGained: 0,
             totalXpBefore,
             totalXpAfter: totalXpBefore,
@@ -200,6 +265,8 @@ export const useGameStore = create<GameState>()(
             streakIncreased: false,
             alreadyAwarded: true,
           };
+          set(settleAttempt(outcome));
+          return outcome;
         }
 
         // Streak: +1 if the previous active day was yesterday, otherwise reset
@@ -223,7 +290,13 @@ export const useGameStore = create<GameState>()(
           completedAt: new Date().toISOString(),
         };
 
+        const outcome: CompletionOutcome = {
+          completionSatisfied: true,
+          xpGained: quest.xpReward, totalXpBefore, totalXpAfter, levelBefore, levelAfter,
+          leveledUp: levelAfter > levelBefore, streak, streakIncreased: isNewDay, alreadyAwarded: false,
+        };
         set({
+          ...settleAttempt(outcome),
           totalXp: totalXpAfter,
           streak,
           lastActiveDay: today,
@@ -232,17 +305,7 @@ export const useGameStore = create<GameState>()(
           history: [record, ...state.history].slice(0, 50),
         });
 
-        return {
-          xpGained: quest.xpReward,
-          totalXpBefore,
-          totalXpAfter,
-          levelBefore,
-          levelAfter,
-          leveledUp: levelAfter > levelBefore,
-          streak,
-          streakIncreased: isNewDay,
-          alreadyAwarded: false,
-        };
+        return outcome;
       },
 
       captureZone: (zone) => {
@@ -362,6 +425,7 @@ export const useGameStore = create<GameState>()(
            the user believes they have just wiped. */
         return discardPendingVerifications().then(() => {
           set({
+            questAttempt: null,
             totalXp: 0,
             streak: 0,
             lastActiveDay: null,
@@ -476,7 +540,11 @@ export const useGameStore = create<GameState>()(
       // Flip the hydration flag once AsyncStorage has loaded so screens can
       // avoid a flash of empty (zeroed) data on cold start.
       onRehydrateStorage: () => () => {
-        useGameStore.setState({ _hydrated: true });
+        const attempt = useGameStore.getState().questAttempt;
+        // Only committed foreground time survives a restart; offline time never earns XP.
+        useGameStore.setState({ _hydrated: true,
+          ...(attempt?.status === "active" ? { questAttempt: { ...attempt, status: "paused" as const } } : {}),
+        });
       },
     },
   ),

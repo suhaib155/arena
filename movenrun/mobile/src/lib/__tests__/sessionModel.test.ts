@@ -619,9 +619,31 @@ test("the tracker is started once, from a source that cannot change under it", (
   assert.ok(deps, "the start effect's dependency list was not found");
   assert.equal(
     deps![1].trim(),
-    "apply, startAttempt",
+    "apply, showLocation, startAttempt",
     "only the explicit failed-start retry may restart the tracker",
   );
+  /* The two callbacks in that list are stable by construction, so the exact
+     string above is a statement about `startAttempt` and nothing else. Asserted
+     rather than assumed: a dependency that started changing per render would
+     stop a live tracker mid-session and be turned away by the single-flight
+     guard, leaving a session that looks live and captures nothing. */
+  for (const dep of deps![1].split(",").map((name) => name.trim()).filter((name) => name && name !== "startAttempt")) {
+    assert.match(
+      screen,
+      new RegExp(`const ${dep} = useCallback\\(`),
+      `${dep} must be a callback, not a value that changes per render`,
+    );
+    /* Bounded to this callback: the window ends where the next `useCallback`
+       begins, so a non-empty dependency list cannot be satisfied by the next
+       callback's empty one further down the file. */
+    const from = screen.indexOf(`const ${dep} = useCallback(`);
+    const next = screen.indexOf("useCallback(", from + `const ${dep} = useCallback(`.length);
+    assert.match(
+      screen.slice(from, next === -1 ? undefined : next),
+      /\}, \[\]\);/,
+      `${dep} must have an empty dependency list, or it can restart a live tracker`,
+    );
+  }
   assert.equal((screen.match(/setStartAttempt\(/g) ?? []).length, 1, "there is one retry trigger");
   assert.match(
     screen,

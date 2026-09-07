@@ -140,6 +140,38 @@ export function heldCells(
 }
 
 /**
+ * The grid an area map draws: recorded ground, plus context around the player.
+ *
+ * The two answer different questions and a map that shows only one of them is
+ * wrong in a different way each time. Held cells alone leave a player with no
+ * territory — every new player — looking at a basemap with no grid on it at
+ * all, unable to see that the world is divided into cells or which one they
+ * are standing in. Context alone would hide ground the player has actually
+ * recorded.
+ *
+ * A cell the player holds is drawn as held even when they are standing in it:
+ * `held` is the stronger and more specific claim, and overriding it with
+ * `current` would quietly downgrade recorded ground to scenery. Context is
+ * listed first so held and selected cells paint over its edges.
+ *
+ * Claims nothing new. `context` and `current` are neutral tones by
+ * construction — see {@link CellTone} — and this function invents no `held`
+ * cell that was not already in `held`.
+ */
+export function areaCells(
+  held: readonly OverlayCell[],
+  head: TrackPoint | null | undefined,
+): OverlayCell[] {
+  const context = contextCells(head);
+  if (context.length === 0) return [...held];
+  const recorded = new Set<string>(held.map((cell) => cell.id as string));
+  return [
+    ...context.filter((cell) => !recorded.has(cell.id as string)),
+    ...held,
+  ];
+}
+
+/**
  * Every vertex of every listed cell, for framing a camera on ground rather
  * than on a route.
  *

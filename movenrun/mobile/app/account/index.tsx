@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { LegalLinks } from "@/components/LegalAcceptance";
 import { EmailOtpForm } from "@/components/EmailOtpForm";
 import { SectionHeader } from "@/components/SectionHeader";
 import { Badge } from "@/components/Badge";
@@ -106,9 +107,7 @@ export default function AccountScreen() {
           Sign in to MovenRun
         </Text>
         <Text style={styles.caption}>
-          Continue with email to create or restore your account. Your wallet is prepared
-          automatically when the service is available — no seed phrase, ever. Your local progress
-          stays exactly as it is.
+          {backendConfigured ? "Use your email to protect your progress." : "Progress sync is unavailable. Keep exploring."}
         </Text>
 
         {backendConfigured ? (
@@ -144,11 +143,12 @@ export default function AccountScreen() {
           <View style={styles.card} accessibilityLiveRegion="polite">
             <View style={styles.statusRow}>
               <Ionicons name="cloud-offline-outline" size={18} color={colors.textDim} />
-              <Text style={styles.statusTitle}>Accounts aren&apos;t available in this build</Text>
+              <Text style={styles.statusTitle}>Explore without an account</Text>
             </View>
-            <Text style={styles.caption}>{authErrorMessage("api_base_url_unset")}</Text>
+            <Button label="Start Move" icon="walk-outline" onPress={() => router.replace("/move")} />
           </View>
         )}
+        <LegalLinks />
       </ScrollView>
     </Screen>
   );

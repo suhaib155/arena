@@ -4,11 +4,11 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { MovenMap } from "@/components/map/MovenMap";
+import { mapBasemapAvailable } from "@/components/map/MovenMap";
+import { RouteMapPanel } from "@/components/RouteMapPanel";
 import { CountUpText } from "@/components/CountUpText";
 import { Hexagon } from "@/components/Hexagon";
 import { MovementMetric } from "@/components/MovementMetric";
-import { ResultCallout } from "@/components/ResultCallout";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, tints, type } from "@/theme";
 import { formatDuration, formatPace } from "@/lib/geo";
@@ -30,20 +30,38 @@ import { touchedCells } from "@/lib/mapCells";
 import { finishedSealLabel, sealFinishedRoute } from "@/lib/sealPreview";
 import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { lockedMovePreview } from "@/lib/lockedMove";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
 import { gapNotice, summarizeGaps } from "@/lib/trackPoints";
 import { resolveCompletion } from "@/lib/completionSummary";
-import type { Quest, IoniconName } from "@/types";
+import { routeMapState } from "@/lib/routeMapState";
+import type { Quest } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 /* One owner for this id: the Home board filters history by it to tell a real
    movement session apart from an indoor warmup quest. */
 import { SESSION_QUEST_ID } from "@/lib/sessionQuest";
+import { returnToToday } from "@/lib/todayNavigation";
 
 /**
  * One synthetic quest id per local day gates session XP through the store's
  * existing once-per-day award logic — saving repeatedly can't farm XP.
  */
+
+/**
+ * The accent for the one result statement at the top of the screen.
+ *
+ * Colour is never the message — the headline says what happened in words — so
+ * this only tints the kicker above it. A separate callout component used to own
+ * this mapping and rendered the same three strings the header already showed;
+ * it had no other caller and went with the duplication.
+ */
+function toneAccent(tone: ReturnType<typeof resolveCompletion>["tone"]): string {
+  switch (tone) {
+    case "green": return ink.green;
+    case "warning": return ink.gold;
+    case "neutral": return colors.textDim;
+    default: return palette.baseBlue;
+  }
+}
 
 /** Map a trust tone to its Daylight Cartography bar/text colors. */
 function toneColor(tone: TrustTone): { bar: string; text: string } {
@@ -70,7 +88,6 @@ export default function MoveSummaryScreen() {
   const recordMovementVerification = useGameStore((s) => s.recordMovementVerification);
   const defendZones = useGameStore((s) => s.defendZones);
   const ownedZones = useGameStore((s) => s.zones);
-  const totalXp = useGameStore((s) => s.totalXp);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
   /* THE identity client, built once by the auth store — screens never
      construct their own. The movement client rides its transport, so both
@@ -85,6 +102,7 @@ export default function MoveSummaryScreen() {
     [identityClient],
   );
   const [saved, setSaved] = useState(false);
+  const [showRouteDetails, setShowRouteDetails] = useState(false);
   const savingRef = useRef(false);
   const verification = useSyncExternalStore(subscribeVerification, getVerificationState, getVerificationState);
   const zonesTouched = useMemo(() => session ? cellsForRoute(session.points) : [], [session]);
@@ -99,13 +117,31 @@ export default function MoveSummaryScreen() {
   /* The session's own pauses, so the drawn line breaks exactly where the
      measured distance stops counting. */
   const mapPauses = useMemo(() => session?.session?.pauses ?? [], [session]);
+  /**
+   * What the map slot resolves to: a route, the player's ground, or a panel
+   * saying there is neither.
+   *
+   * Decided in `lib/routeMapState.ts` rather than here. A 0 m session used to
+   * hand an empty point array straight to the map, which has no honest viewport
+   * for a route that does not exist and so opened at world scale — a map of
+   * nowhere, presented as the result of the session.
+   */
+  const mapState = useMemo(
+    () => routeMapState({
+      points: session?.points ?? [],
+      pauses: session?.session?.pauses ?? [],
+      displaySeed: session?.displaySeed ?? null,
+      mapAvailable: mapBasemapAvailable(),
+    }),
+    [session],
+  );
 
   if (!session) {
     return (
       <Screen>
         <View style={styles.missingWrap}>
           <Text style={styles.missingText}>No session to show.</Text>
-          <Button label="Back to Today" variant="secondary" onPress={() => router.dismissAll()} />
+          <Button label="Back to Today" variant="secondary" onPress={() => returnToToday(router, clearLastSession)} />
         </View>
       </Screen>
     );
@@ -118,7 +154,6 @@ export default function MoveSummaryScreen() {
 
   const km = session.distanceM / 1000;
   const xp = sessionXp(session.distanceM, session.durationMs);
-  const lockedMoveDelta = lockedMovePreview(totalXp + xp) - lockedMovePreview(totalXp);
   const pace = formatPace(session.distanceM, session.durationMs);
   const saveable = session.mode === "gps" && isSaveable(session.distanceM, session.durationMs);
   const evidenceComplete = session.evidenceStatus !== "capacity_limited";
@@ -273,8 +308,7 @@ export default function MoveSummaryScreen() {
   };
 
   const done = () => {
-    clearLastSession();
-    router.dismissAll();
+    returnToToday(router, clearLastSession);
   };
 
   const showFooterSave = saveable && !saved && !alreadySavedToday;
@@ -282,9 +316,16 @@ export default function MoveSummaryScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* The result, stated once.
+            This block and the callout below it used to say the same thing twice:
+            the kicker was rendered here and again inside the callout, and
+            "Not enough movement" appeared as both a page subtitle and a callout
+            headline. A reader does not learn a fact twice by reading it twice —
+            they start wondering whether the two are different facts. */}
         <View style={styles.header}>
-          <Text style={styles.kicker}>{completion.kicker}</Text>
-          <Text style={styles.title}>Your session</Text>
+          <Text style={[styles.kicker, { color: toneAccent(completion.tone) }]}>{completion.kicker}</Text>
+          <Text style={styles.title}>{completion.headline}</Text>
+          <Text style={styles.headerDetail}>{completion.detail}</Text>
         </View>
 
         {gaps ? (
@@ -304,33 +345,10 @@ export default function MoveSummaryScreen() {
           </View>
         ) : null}
 
-        {/* Route closes — the map result leads.
-            The same canonical evidence the stats above are measured from, drawn
-            on real ground: the map and the distance cannot disagree, because
-            they are the same points read through the same break rule. */}
+        {/* What the session measured. Ahead of the map now: for a session with
+            no route the numbers are the result, and a map slot explaining its
+            own emptiness is a poor thing to lead with. */}
         <FadeSlideIn>
-          <MovenMap
-            points={session.points}
-            pauses={mapPauses}
-            cells={mapCells}
-            style={styles.routeMap}
-            accessibilityLabel="Map of the route you walked"
-          />
-        </FadeSlideIn>
-
-        {/* Honest result state */}
-        <FadeSlideIn delay={STAGGER_MS}>
-          <ResultCallout
-            icon={completionIcon(completion.kind)}
-            kicker={completion.kicker}
-            headline={completion.headline}
-            detail={completion.detail}
-            tone={completion.tone}
-          />
-        </FadeSlideIn>
-
-        {/* Movement metrics — route summary */}
-        <FadeSlideIn delay={STAGGER_MS * 2}>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
               <CountUpText value={km} decimals={2} style={styles.statValue} />
@@ -343,20 +361,32 @@ export default function MoveSummaryScreen() {
           </View>
         </FadeSlideIn>
 
-        <View style={styles.zoneCard} accessibilityLiveRegion="polite">
+        {/* The ground. A route where there is one, the player's own area where
+            there is a position but no route, and a panel that says so where
+            there is neither — never a default world view. */}
+        <FadeSlideIn delay={STAGGER_MS}>
+          <RouteMapPanel
+            state={mapState}
+            points={session.points}
+            pauses={mapPauses}
+            cells={mapCells}
+            style={styles.routeMap}
+          />
+        </FadeSlideIn>
+
+        {verification.kind !== "local" ? <View style={styles.zoneCard} accessibilityLiveRegion="polite">
           <Text style={styles.zoneTitle}>{verificationLabel(verification)}</Text>
           <Text style={styles.sealLine}>{serverSealLabel(verification)}</Text>
-          <Text style={styles.zoneBeta}>A server route check does not establish territory ownership.</Text>
-        </View>
+        </View> : null}
 
         {/* Rewards — only when there's a real reward to bank; always local preview */}
         {completion.showRewards ? (
-          <FadeSlideIn delay={STAGGER_MS * 3}>
+          <FadeSlideIn delay={STAGGER_MS * 2}>
             <View style={styles.rewardCard}>
               {!completion.progressPersisted ? (
                 <View style={styles.pendingBadge}>
                   <Ionicons name="time-outline" size={13} color={colors.textDim} />
-                  <Text style={styles.pendingText}>Save to bank these — not yet earned</Text>
+                  <Text style={styles.pendingText}>Earn on save</Text>
                 </View>
               ) : null}
               <View style={styles.rewardRow}>
@@ -366,25 +396,18 @@ export default function MoveSummaryScreen() {
                 <Text style={styles.rewardLabel}>XP</Text>
                 <CountUpText value={xp} prefix="+" style={[styles.rewardValue, { color: ink.gold }]} />
               </View>
-              <View style={styles.rewardDivider} />
-              <View style={styles.rewardRow}>
-                <View style={[styles.rewardIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
-                  <Hexagon size={15} color={palette.deedViolet} />
-                </View>
-                <View style={styles.rewardLabelWrap}>
-                  <Text style={styles.rewardLabelPlain}>Locked MOVE</Text>
-                  <Text style={styles.rewardSub}>preview · in-app progress, not a payout</Text>
-                </View>
-                <Text style={[styles.rewardValue, { color: palette.deedViolet }]}>
-                  +{lockedMoveDelta}
-                </Text>
-              </View>
             </View>
           </FadeSlideIn>
         ) : null}
 
-        {/* Territory touched — Free Map Beta simulation */}
-        <FadeSlideIn delay={STAGGER_MS * 4}>
+        {/* Territory touched — Free Map Beta simulation.
+            Hidden entirely when the route touched nothing. It used to render
+            regardless, so a session with no route showed a card whose whole
+            content was "No zones reached yet" plus a sealing line about a route
+            that does not exist plus a Preview tag — three labels reporting the
+            absence the map panel above has already stated. */}
+        {zonesTouched.length > 0 ? (
+        <FadeSlideIn delay={STAGGER_MS * 3}>
           <View style={styles.zoneCard}>
             <View style={styles.zoneHead}>
               <Text style={styles.zoneTitle}>Areas traversed</Text>
@@ -412,9 +435,6 @@ export default function MoveSummaryScreen() {
                   />
                 );
               })}
-              {zonesTouched.length === 0 ? (
-                <Text style={styles.zoneEmpty}>No zones reached yet</Text>
-              ) : null}
             </View>
 
             {candidate ? (
@@ -429,13 +449,13 @@ export default function MoveSummaryScreen() {
                   {session.mode === "demo"
                     ? "demo only"
                     : captureEligible
-                      ? "local capture preview"
+                      ? "Capture preview"
                       : "traversed only"}
                 </Text>
               </View>
-            ) : zonesTouched.length > 0 ? (
+            ) : (
               <Text style={styles.zoneEmpty}>All touched zones are already yours.</Text>
-            ) : null}
+            )}
 
             {ownedTouched.length > 0 && saveable && !alreadySavedToday && !saved && evidenceComplete ? (
               <Text style={styles.defendHint}>
@@ -451,21 +471,29 @@ export default function MoveSummaryScreen() {
                 to do before any of this ground can ever be claimed. Neutral
                 type, no red, no "you missed it". */}
             <Text style={styles.sealLine}>{finishedSealLabel(seal)}</Text>
-            <Text style={styles.zoneBeta}>Local territory preview · on-device simulation</Text>
+            {/* The one Preview label on this screen. The route-quality card
+                below used to carry a second, and two of them read as two
+                different qualifications rather than one honest one. */}
+            <Text style={styles.zoneBeta}>Preview</Text>
           </View>
         </FadeSlideIn>
+        ) : null}
 
         {/* Route Trust — local verification preview (does not affect rewards) */}
         {trust ? (
-          <FadeSlideIn delay={STAGGER_MS * 5}>
+          <FadeSlideIn delay={STAGGER_MS * 4}>
             <View style={styles.trustCard}>
-              <View style={styles.trustHead}>
-                <Text style={styles.trustTitle}>Route Trust Preview</Text>
+              <Pressable style={pressFade(styles.trustHead)} accessibilityRole="button"
+                accessibilityLabel="Route quality details" accessibilityState={{ expanded: showRouteDetails }}
+                onPress={() => setShowRouteDetails((shown) => !shown)}>
+                <Text style={styles.trustTitle}>Route quality</Text>
                 <View style={styles.previewBadge}>
-                  <Text style={styles.previewBadgeText}>Preview only</Text>
+                  <Text style={styles.previewBadgeText}>{trust.label}</Text>
                 </View>
-              </View>
+                <Ionicons name={showRouteDetails ? "chevron-up" : "chevron-down"} size={18} color={colors.textDim} />
+              </Pressable>
 
+              {showRouteDetails ? <>
               <View style={styles.trustScoreRow}>
                 <View style={styles.trustScoreWrap}>
                   <Text style={[styles.trustScore, { color: toneColor(trust.tone).text }]}>
@@ -512,24 +540,23 @@ export default function MoveSummaryScreen() {
                 </View>
               ) : null}
 
-              <Text style={styles.trustNote}>
-                Preview only · does not affect rewards or ownership. This score is
-                worked out on your device and the saved review keeps no coordinates
-                — it helps MovenRun learn what a clean route looks like.
-              </Text>
+              </> : null}
             </View>
           </FadeSlideIn>
         ) : null}
 
         {trust && session.mode === "gps" ? (
-          <FadeSlideIn delay={STAGGER_MS * 6}>
+          <FadeSlideIn delay={STAGGER_MS * 5}>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Preview and share your route"
               style={pressFade(styles.proofRow)}
               onPress={() => {
                 tapFeedback();
                 router.push({
                   pathname: "/route/proof",
                   params: {
+                    title: "Free Run",
                     score: String(trust.score),
                     label: trust.label,
                     distanceMeters: String(Math.round(session.distanceM)),
@@ -543,7 +570,7 @@ export default function MoveSummaryScreen() {
               }}
             >
               <Ionicons name="share-social-outline" size={18} color={colors.primary} />
-              <Text style={styles.proofText}>Route Proof Preview</Text>
+              <Text style={styles.proofText}>Share your route</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
             </Pressable>
           </FadeSlideIn>
@@ -563,7 +590,7 @@ export default function MoveSummaryScreen() {
               </Text>
             ) : null}
             <Button
-              label={captureEligible ? "Save + local capture" : "Save session"}
+              label={captureEligible ? "Save + preview capture" : "Save session"}
               icon={captureEligible ? "flag" : "bookmark"}
               onPress={save}
             />
@@ -580,25 +607,6 @@ export default function MoveSummaryScreen() {
   );
 }
 
-function completionIcon(kind: ReturnType<typeof resolveCompletion>["kind"]): IoniconName {
-  switch (kind) {
-    case "saved-captured":
-      return "flag";
-    case "saved-defended":
-      return "shield-checkmark";
-    case "saved":
-      return "checkmark-circle";
-    case "too-short":
-      return "alert-circle-outline";
-    case "already-saved":
-      return "time-outline";
-    case "demo-preview":
-      return "flask-outline";
-    default:
-      return "bookmark-outline";
-  }
-}
-
 const styles = StyleSheet.create({
   gapNotice: {
     flexDirection: "row",
@@ -611,21 +619,28 @@ const styles = StyleSheet.create({
   gapText: { ...type.caption, fontSize: 12.5, lineHeight: 17, color: colors.text, flex: 1 },
   scroll: { paddingBottom: spacing.lg, gap: spacing.md },
   header: { paddingTop: spacing.lg, gap: spacing.xs },
+  /* Tinted per result by `toneAccent`; the default here is only what shows if
+     the accent is ever absent. */
   kicker: { ...type.kicker, color: colors.primary },
-  title: { ...type.display, fontSize: 28 },
+  /* The result itself. 24 rather than 28: "Not enough movement" is three words
+     wider than "Your session" and wrapped a display line on a small screen. */
+  title: { ...type.display, fontSize: 24, lineHeight: 30 },
+  headerDetail: { ...type.caption, fontSize: 13, lineHeight: 18, color: colors.textDim },
   /* Taller than the old canvas: a real basemap needs room to be read as a
      place rather than a texture. */
   routeMap: { height: 240 },
   statsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
     alignItems: "center",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingVertical: spacing.lg,
     ...shadows.card,
   },
-  stat: { flex: 1, alignItems: "center", gap: 2 },
-  statValue: { ...type.title, fontSize: 22, fontVariant: ["tabular-nums"] },
+  stat: { flexGrow: 1, flexBasis: 84, alignItems: "center", gap: 2, paddingVertical: spacing.xs },
+  statValue: { ...type.title, fontSize: 22, lineHeight: 34, includeFontPadding: true, fontVariant: ["tabular-nums"] },
   statLabel: { ...type.caption, fontSize: 11 },
   statDivider: { width: 1, alignSelf: "stretch", marginVertical: 6, backgroundColor: colors.surfaceAlt },
   rewardCard: {
@@ -661,12 +676,12 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...shadows.card,
   },
-  zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  zoneHead: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "space-between", alignItems: "center" },
   zoneTitle: { ...type.heading, fontSize: 15 },
   zoneCount: { ...type.mono, fontSize: 12, color: colors.textDim },
   zoneHexRow: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40 },
   zoneEmpty: { ...type.caption, fontSize: 12.5, color: colors.textFaint },
-  candidateRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  candidateRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
   candidateBadge: {
     backgroundColor: softTint(palette.pulseGreen),
     paddingVertical: 3,
@@ -688,7 +703,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...shadows.card,
   },
-  trustHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  trustHead: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, minHeight: 48, justifyContent: "space-between", alignItems: "center" },
   trustTitle: { ...type.heading, fontSize: 15 },
   previewBadge: {
     backgroundColor: softTint(palette.baseBlue),
@@ -731,7 +746,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: spacing.sm,
   },
-  trustNote: { ...type.caption, fontSize: 11, lineHeight: 15, color: colors.textFaint },
   proofRow: {
     flexDirection: "row",
     alignItems: "center",

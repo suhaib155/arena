@@ -299,24 +299,26 @@ export default function ProfileScreen() {
         </NavGroup>
 
         {/* Account & network */}
-        <NavGroup title="Account & network">
+        <NavGroup title="Settings">
           <NavRow
             icon="wallet-outline"
-            title="Account & Wallet"
+            title="Account"
             subtitle={identity.signedIn ? `Signed in · ${identity.walletLabel}` : "Local profile · sign in and wallets"}
             onPress={() => go("/account")}
           />
           <NavRow
             icon="cube-outline"
-            title="Base Sepolia Status"
-            subtitle="Contracts deployed · read-only preview · no wallet needed"
-            onPress={() => go("/network/status")}
+            title="Technical info"
+            subtitle="App and connection details"
+            onPress={() => go("/settings/technical")}
           />
+          <NavRow icon="help-circle-outline" title="Help" subtitle="Quick guides" onPress={() => go("/help")} />
+          <NavRow icon="document-text-outline" title="Legal" subtitle="Terms of Use · Privacy Policy" onPress={() => go("/legal")} />
         </NavGroup>
 
         {/* Beta & Preview — fictional/technical previews live here */}
         <NavGroup title="Beta & Preview">
-          <NavRow icon="shapes-outline" tint={palette.deedViolet} title="Deed Preview Showroom" subtitle="Educational preview · no wallet · no minting" onPress={() => go("/deed-showroom")} />
+          <NavRow icon="shapes-outline" tint={palette.deedViolet} title="Deeds" subtitle="Explore the collection preview" onPress={() => go("/deed-showroom")} />
           <NavRow icon="flag-outline" tint={palette.deedViolet} title="City War Board" subtitle="Fictional season battle · no real users" onPress={() => go("/city-war")} />
           <NavRow icon="color-wand-outline" tint={palette.deedViolet} title="Rival Ghosts" subtitle="Fictional local pressure · no real users" onPress={() => go("/rivals")} />
           <NavRow icon="storefront-outline" tint={palette.deedViolet} title="Sponsor Zones" subtitle="Fictional future activations · no ads" onPress={() => go("/sponsor-zones")} />

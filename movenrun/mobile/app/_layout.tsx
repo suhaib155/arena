@@ -13,6 +13,7 @@ import { isDecidingStartup, type StartupRoute } from "@/lib/startupDecision";
 import { installExpoSecureSessionStore } from "@/lib/secureSessionExpo";
 import { installAsyncVerificationQueueStore } from "@/services/verificationQueueStorage";
 import { useVerificationRetry } from "@/hooks/useVerificationRetry";
+import { ensureShareCacheClean } from "@/services/shareCache";
 
 // Install the OS-keystore session store before anything can touch auth state.
 // Until this runs, getSecureSessionStore() throws — there is no insecure
@@ -107,6 +108,7 @@ function useStartupRouting(route: StartupRoute): boolean {
 }
 
 function RootNavigator() {
+  useEffect(() => { void ensureShareCacheClean().catch(() => { /* Sharing fails closed if cleanup is unavailable. */ }); }, []);
   const decision = useAppBootstrap();
   // Foreground-only, authenticated-only retry of queued verifications. Mounted
   // at the root because it belongs to the app lifecycle, not to a screen — but
@@ -145,6 +147,9 @@ function RootNavigator() {
         />
         <Stack.Screen name="zone/[id]" />
         <Stack.Screen name="network/status" />
+        <Stack.Screen name="settings/technical" />
+        <Stack.Screen name="help" />
+        <Stack.Screen name="legal" />
         <Stack.Screen name="route/review-history" />
         <Stack.Screen name="route/passport" />
         <Stack.Screen name="route/proof" />

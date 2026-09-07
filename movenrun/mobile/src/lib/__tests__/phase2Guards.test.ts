@@ -81,7 +81,8 @@ test("Active Move intercepts Android hardware back (no silent discard)", () => {
 
 test("Finish is confirmed before ending (not accidental)", () => {
   const src = read(APP, "move", "session.tsx");
-  assert.match(src, /Finish session\?/);
+  assert.match(src, /<FinishSessionSheet/);
+  assert.match(src, /const confirmFinish = useCallback\(\(\) => \{\s+tapFeedback\(\);\s+setFinishSheetOpen\(true\)/);
   assert.match(src, /onFinish=\{confirmFinish\}/);
 });
 

@@ -242,4 +242,13 @@ export const canvas = {
   cellHeld: "#E3F4EA",
   /** Loading placeholders. */
   skeleton: "#E4EAED",
+  /**
+   * A drawn ring on the canvas.
+   *
+   * For celebratory art that must not read as geography. A road has a
+   * direction and a reader will follow it; a concentric ring has none, so it
+   * can sit behind a hex without claiming to be a street the player walked.
+   * See `app/move/captured.tsx`, which used painted roads until it did.
+   */
+  ring: "#E5EAEE",
 } as const;

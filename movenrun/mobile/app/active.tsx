@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef } from "react";
+import { Alert, AppState, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { avatar, categoryColor, colors, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
+import { useGameStore } from "@/store/useGameStore";
 
 function mmss(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
@@ -21,35 +22,65 @@ export default function ActiveQuestScreen() {
   const quest = questService.getQuestById(id ?? "");
   const duration = quest?.durationSeconds ?? 0;
 
-  const [remaining, setRemaining] = useState(duration);
-  const [paused, setPaused] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hydrated = useGameStore((s) => s._hydrated);
+  const storedAttempt = useGameStore((s) => s.questAttempt);
+  const attempt = storedAttempt?.questId === quest?.id ? storedAttempt : null;
+  const remaining = Math.max(0, Math.ceil(duration - (attempt?.activeMs ?? 0) / 1000));
+  const paused = attempt?.status === "paused";
+  const lastTickRef = useRef<number | null>(null);
   // Guard so the tick and the "Finish" button can't both navigate.
   const finishedRef = useRef(false);
 
+  const flushElapsed = useCallback(() => {
+    const current = useGameStore.getState().questAttempt;
+    const now = performance.now();
+    if (lastTickRef.current !== null && current && current.questId === quest?.id && current.status === "active") {
+      useGameStore.getState().advanceQuest(current.id, now - lastTickRef.current);
+    }
+    lastTickRef.current = now;
+  }, [quest?.id]);
+
   const finish = useCallback(() => {
-    if (finishedRef.current || !quest) return;
+    const current = useGameStore.getState().questAttempt;
+    if (finishedRef.current || !quest || !current || current.questId !== quest.id) return;
     finishedRef.current = true;
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    successFeedback();
-    router.replace({ pathname: "/result", params: { id: quest.id } });
-  }, [quest, router]);
+    flushElapsed();
+    const outcome = useGameStore.getState().finishQuest(current.id);
+    if (outcome?.completionSatisfied && !outcome.alreadyAwarded) successFeedback();
+    router.replace({ pathname: "/result", params: { id: quest.id, attemptId: current.id } });
+  }, [quest, router, flushElapsed]);
 
   useEffect(() => {
-    if (paused) return;
-    intervalRef.current = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          finish();
-          return 0;
-        }
-        return prev - 1;
-      });
+    if (hydrated && quest) useGameStore.getState().startQuest(quest.id);
+  }, [hydrated, quest?.id]);
+
+  useEffect(() => {
+    if (!attempt || attempt.status !== "active" || finishedRef.current) return;
+    if (AppState.currentState !== "active") {
+      useGameStore.getState().pauseQuest(attempt.id);
+      return;
+    }
+    lastTickRef.current = performance.now();
+    const interval = setInterval(() => {
+      flushElapsed();
+      if ((useGameStore.getState().questAttempt?.activeMs ?? 0) >= duration * 1000) finish();
     }, 1000);
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      clearInterval(interval);
+      lastTickRef.current = null;
     };
-  }, [paused, finish]);
+  }, [attempt?.id, attempt?.status, duration, finish, flushElapsed]);
+
+  useEffect(() => {
+    const pause = () => {
+      flushElapsed();
+      const current = useGameStore.getState().questAttempt;
+      if (current && current.questId === quest?.id) useGameStore.getState().pauseQuest(current.id);
+      lastTickRef.current = null;
+    };
+    const listener = AppState.addEventListener("change", (state) => { if (state !== "active") pause(); });
+    return () => { listener.remove(); pause(); };
+  }, [quest?.id, flushElapsed]);
 
   const quit = useCallback(() => {
     Alert.alert("Quit quest?", "You won't earn XP if you leave now.", [
@@ -59,12 +90,14 @@ export default function ActiveQuestScreen() {
         style: "destructive",
         onPress: () => {
           finishedRef.current = true;
-          if (intervalRef.current) clearInterval(intervalRef.current);
+          flushElapsed();
+          const current = useGameStore.getState().questAttempt;
+          if (current && current.questId === quest?.id) useGameStore.getState().finishQuest(current.id);
           router.back();
         },
       },
     ]);
-  }, [router]);
+  }, [router, quest?.id, flushElapsed]);
 
   if (!quest) {
     return (
@@ -91,7 +124,7 @@ export default function ActiveQuestScreen() {
 
       <View style={styles.center}>
         <View style={[styles.ring, { borderColor: tint }]}>
-          <Text style={styles.timer}>{mmss(remaining)}</Text>
+          <Text maxFontSizeMultiplier={1.6} style={styles.timer}>{mmss(remaining)}</Text>
           <Text style={styles.status}>{paused ? "Paused" : "Keep moving"}</Text>
         </View>
 
@@ -112,7 +145,10 @@ export default function ActiveQuestScreen() {
           variant="secondary"
           onPress={() => {
             tapFeedback();
-            setPaused((p) => !p);
+            if (!attempt) return;
+            flushElapsed();
+            const store = useGameStore.getState();
+            if (paused) store.resumeQuest(attempt.id); else store.pauseQuest(attempt.id);
           }}
           style={styles.controlBtn}
         />
@@ -120,6 +156,7 @@ export default function ActiveQuestScreen() {
           label="Finish"
           icon="checkmark"
           onPress={finish}
+          disabled={!attempt || !hydrated}
           style={styles.controlBtn}
         />
       </View>
@@ -129,8 +166,8 @@ export default function ActiveQuestScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.xl },
-  ring: { ...avatar(240), borderWidth: 6, backgroundColor: colors.surface, gap: spacing.sm, ...shadows.float },
-  timer: { ...type.display, fontSize: 56, fontVariant: ["tabular-nums"] },
+  ring: { width: "100%", maxWidth: 320, minHeight: 260, paddingVertical: spacing.xl, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", borderWidth: 6, backgroundColor: colors.surface, gap: spacing.sm, ...shadows.float },
+  timer: { ...type.display, fontSize: 56, lineHeight: 78, paddingVertical: spacing.xs, fontVariant: ["tabular-nums"] },
   status: { ...type.body },
   progressTrack: {
     alignSelf: "stretch",
