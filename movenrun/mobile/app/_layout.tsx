@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import { useFonts } from "expo-font";
+import { Sora_700Bold } from "@expo-google-fonts/sora/700Bold";
+import { Sora_800ExtraBold } from "@expo-google-fonts/sora/800ExtraBold";
+import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
+import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
 import { StyleSheet, Text, View } from "react-native";
 import { Stack, useRootNavigationState, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -200,10 +205,11 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [fontsReady, fontError] = useFonts({ Sora_700Bold, Sora_800ExtraBold, PlusJakartaSans_400Regular, PlusJakartaSans_700Bold });
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <RootNavigator />
+      {fontsReady || fontError ? <RootNavigator /> : <SplashView />}
     </SafeAreaProvider>
   );
 }

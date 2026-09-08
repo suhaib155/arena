@@ -24,6 +24,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import ts from "typescript";
 
 import { AcquiredForegroundWatch } from "../acquiredForegroundWatch";
 import { gpsPresence, presenceLabel, claimsPosition, type GpsPresence } from "../mapPresence";
@@ -38,6 +39,51 @@ const point = (offset: number, accuracy: number | null = 5): TrackPoint =>
   ({ latitude: 26.1445, longitude: 91.7362, timestamp: epoch + offset, accuracy });
 
 const source = (relative: string) => readFileSync(resolve(__dirname, "../..", relative), "utf8");
+
+/** Inspect the branch itself; source-file line endings are not control flow. */
+function assertRejectedFixIsolation(sourceText: string): void {
+  const tree = ts.createSourceFile("session.tsx", sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const branches: ts.IfStatement[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isIfStatement(node) && ts.isPrefixUnaryExpression(node.expression) &&
+      node.expression.operator === ts.SyntaxKind.ExclamationToken &&
+      node.expression.operand.getText(tree) === "decision.accepted") branches.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  assert.equal(branches.length, 1, "the rejected-fix branch must remain identifiable and unique");
+  const block = branches[0]!.thenStatement;
+  assert.ok(ts.isBlock(block), "the rejected-fix guard must own a block");
+  assert.ok(ts.isReturnStatement(block.statements[block.statements.length - 1]!), "a rejected fix must return before accepted-fix work");
+  const forbidden = new Set(["showLocation", "setDisplayLocation", "setDistanceM", "pushPoint", "setRoutePreview"]);
+  const inspect = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      assert.ok(!forbidden.has(node.expression.getText(tree)), "a rejected fix does not move the marker or route");
+    }
+    ts.forEachChild(node, inspect);
+  };
+  inspect(block);
+}
+
+test("rejected-fix isolation guard accepts LF and CRLF without confusing the accepted branch", () => {
+  const session = source("../app/move/session.tsx").replace(/\r\n/g, "\n");
+  assertRejectedFixIsolation(session);
+  assertRejectedFixIsolation(session.replace(/\n/g, "\r\n"));
+});
+
+test("rejected-fix isolation guard kills marker, distance and fallthrough mutations", () => {
+  const session = source("../app/move/session.tsx");
+  const rejected = session.match(/if \(!decision\.accepted\) \{[\s\S]*?return;\s*\}/)?.[0];
+  assert.ok(rejected, "mutation fixture must find the real rejected-fix branch");
+  for (const [name, replacement] of [
+    ["marker write", rejected.replace("return;", "showLocation(p); return;")],
+    ["distance write", rejected.replace("return;", "setDistanceM(100); return;")],
+    ["fallthrough", rejected.replace("return;", "")],
+    ["inverted guard", rejected.replace("!decision.accepted", "decision.accepted")],
+  ]) {
+    assert.throws(() => assertRejectedFixIsolation(session.replace(rejected, replacement)), name);
+  }
+});
 
 /**
  * Drive the real watch to readiness while the player stands still.
@@ -268,8 +314,7 @@ test("display position and route evidence stay separate all the way to the scree
 
   /* A rejected fix moves neither distance nor the marker — the documented
      decision, pinned so it cannot be quietly reversed. */
-  const rejected = session.slice(session.indexOf("if (!decision.accepted)"), session.indexOf("showLocation(p);\n        setSignal"));
-  assert.ok(!rejected.includes("showLocation"), "a rejected fix does not move the marker");
+  assertRejectedFixIsolation(session);
 
   /* `showLocation` is the single writer, and it writes display state only —
      the ref the finish handler reads, and the state the map renders. Anything

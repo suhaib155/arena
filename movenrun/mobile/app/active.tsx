@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
+import { GameBadge } from "@/components/GameBadge";
 import { avatar, categoryColor, colors, radius, shadows, spacing, type } from "@/theme";
 import { questService } from "@/services/questService";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
@@ -125,7 +126,10 @@ export default function ActiveQuestScreen() {
       <View style={styles.center}>
         <View style={[styles.ring, { borderColor: tint }]}>
           <Text maxFontSizeMultiplier={1.6} style={styles.timer}>{mmss(remaining)}</Text>
-          <Text style={styles.status}>{paused ? "Paused" : "Keep moving"}</Text>
+          <View style={styles.questState}>
+            <GameBadge icon={paused ? "pause" : "flash-outline"} tone="gold" size={32} />
+            <Text style={styles.status}>{paused ? "Paused" : "Keep moving"}</Text>
+          </View>
         </View>
 
         <View style={styles.progressTrack}>
@@ -168,7 +172,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.xl },
   ring: { width: "100%", maxWidth: 320, minHeight: 260, paddingVertical: spacing.xl, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", borderWidth: 6, backgroundColor: colors.surface, gap: spacing.sm, ...shadows.float },
   timer: { ...type.display, fontSize: 56, lineHeight: 78, paddingVertical: spacing.xs, fontVariant: ["tabular-nums"] },
-  status: { ...type.body },
+  status: { ...type.heading },
+  questState: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   progressTrack: {
     alignSelf: "stretch",
     height: 10,

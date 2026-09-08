@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { colors, ink, pressFade, radius, spacing, type } from "@/theme";
 import { Button } from "./Button";
+import { GameBadge } from "./GameBadge";
 
 interface Props { visible: boolean; onKeepMoving(): void; onFinish(): void }
 
@@ -30,7 +31,8 @@ export function FinishSessionSheet({ visible, onKeepMoving, onFinish }: Props) {
       <View style={[styles.overlay, { paddingTop: insets.top + spacing.lg, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
         <ScrollView style={styles.sheet} contentContainerStyle={styles.content} bounces={false}
           accessibilityViewIsModal importantForAccessibility="yes">
-          <View style={styles.motif}><Ionicons name="flag-outline" size={28} color={ink.blue} /></View>
+          <View style={styles.motif}><GameBadge icon="flag-outline" tone="blue" size={64} /></View>
+          <Text style={styles.eyebrow}>YOUR MOVE</Text>
           <Text style={styles.title} accessibilityRole="header">Ready to finish?</Text>
           <Text style={styles.detail}>End this move and see your route.</Text>
           <Pressable ref={safeAction} onPress={onKeepMoving} style={pressFade(styles.safeAction)}
@@ -48,8 +50,9 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", paddingHorizontal: spacing.lg, backgroundColor: "rgba(12,20,32,0.35)" },
   sheet: { flexGrow: 0, backgroundColor: colors.surface, borderRadius: radius.xl },
   content: { padding: spacing.lg, gap: spacing.md },
-  motif: { alignSelf: "center", padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
-  title: { ...type.title, textAlign: "center" },
+  motif: { alignSelf: "center" },
+  eyebrow: { ...type.kicker, color: ink.blue, textAlign: "center" },
+  title: { ...type.display, fontSize: 26, lineHeight: 34, textAlign: "center" },
   detail: { ...type.caption, textAlign: "center", marginBottom: spacing.sm },
   safeAction: { minHeight: 56, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   safeLabel: { ...type.heading, color: colors.surface, textAlign: "center" },

@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { GameBadge } from "@/components/GameBadge";
+import { DisplayHeading } from "@/components/DisplayHeading";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -175,8 +177,8 @@ export default function ClubTerritoryScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
           <View style={styles.hero}>
-            <Text style={styles.heroKicker}>Club Territory</Text>
-            <Text style={styles.heroTitle}>Build your club&apos;s ground.</Text>
+            <DisplayHeading eyebrow="Club Territory" title="Build your club’s ground."
+              trailing={<GameBadge icon="shield-outline" tone="blue" size={68} locked={!board.hasClub} />} />
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
@@ -208,11 +210,7 @@ export default function ClubTerritoryScreen() {
         <FadeSlideIn delay={STAGGER_MS}>
           <View style={styles.commandCard}>
             <View style={styles.commandHeader}>
-              <Hexagon
-                size={32}
-                color={board.hasClub ? tints.green : tints.neutral}
-                coreColor={board.hasClub ? palette.pulseGreen : palette.dustGray}
-              />
+              <GameBadge icon="shield-outline" tone={board.hasClub ? "green" : "neutral"} size={58} locked={!board.hasClub} />
               <View style={styles.commandTitleBox}>
                 <Text style={styles.commandName} numberOfLines={1}>{board.clubLabel}</Text>
                 <View style={[styles.stanceChip, { backgroundColor: softTint(stanceTint) }]}>
@@ -278,37 +276,6 @@ export default function ClubTerritoryScreen() {
               </FadeSlideIn>
             ) : null}
 
-            {/* Club pressure */}
-            <FadeSlideIn delay={STAGGER_MS * 4}>
-              <View style={styles.pressureCard}>
-                <Pressable hitSlop={6} style={pressFade(styles.pressureRow)} onPress={() => go(board.rivalSummary.action)}>
-                  <Ionicons name="color-wand-outline" size={16} color={palette.heatCoral} />
-                  <Text style={styles.pressureText} numberOfLines={2}>{board.rivalSummary.label}</Text>
-                  <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
-                </Pressable>
-                <View style={styles.pressureDivider} />
-                <Pressable hitSlop={6} style={pressFade(styles.pressureRow)} onPress={() => go(board.cityWarSummary.action)}>
-                  <Ionicons name="flag-outline" size={16} color={palette.deedViolet} />
-                  <Text style={styles.pressureText} numberOfLines={2}>{board.cityWarSummary.label}</Text>
-                  <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
-                </Pressable>
-              </View>
-            </FadeSlideIn>
-
-            {/* Future activation */}
-            <FadeSlideIn delay={STAGGER_MS * 5}>
-              <ScalePress to={0.98} style={styles.activationCard} onPress={() => go("events")}>
-                <View style={styles.activationIcon}>
-                  <Ionicons name="sparkles-outline" size={18} color={palette.deedViolet} />
-                </View>
-                <View style={styles.activationBody}>
-                  <Text style={styles.activationName}>Club rally · future activity</Text>
-                  <Text style={styles.activationNote}>Fictional event previews · local only</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-              </ScalePress>
-            </FadeSlideIn>
-
             <FadeSlideIn delay={STAGGER_MS * 6}>
               <ScalePress
                 to={0.98}
@@ -323,7 +290,7 @@ export default function ClubTerritoryScreen() {
                 </View>
                 <View style={styles.activationBody}>
                   <Text style={styles.activationName}>Crew Missions</Text>
-                  <Text style={styles.activationNote}>Local weekly goals for your crew</Text>
+                  <Text style={styles.activationNote}>Your next weekly objective</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
               </ScalePress>

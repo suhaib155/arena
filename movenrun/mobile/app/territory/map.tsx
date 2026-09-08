@@ -8,7 +8,10 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { ZoneSheet } from "@/components/ZoneSheet";
 import { FirstTimeGuide } from "@/components/FirstTimeGuide";
-import { colors, ink, palette, spacing, type } from "@/theme";
+import { DisplayHeading } from "@/components/DisplayHeading";
+import { MeterRow } from "@/components/MeterRow";
+import { GameBadge } from "@/components/GameBadge";
+import { colors, ink, palette, spacing, tints, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { HEALTH_LABEL } from "@/lib/territory";
 import { buildTerritoryOverview } from "@/lib/territoryMap";
@@ -29,13 +32,13 @@ export default function TerritoryMapScreen() {
   return <Screen>
     <ScreenHeader title="Territory" trailing={<Button label="Help" variant="ghost" icon="help-circle-outline" onPress={() => router.push({ pathname: "/help", params: { topic: "territory" } })} />} />
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.head}>
-        <View><Text style={styles.kicker}>YOUR WORLD</Text><Text style={styles.title}>Make your next mark.</Text></View>
-        <Text style={styles.preview}>Preview</Text>
-      </View>
+      <DisplayHeading eyebrow="YOUR GROUND" title="Make your mark." trailing={<GameBadge icon="map-outline" tone="green" size={40} />} />
       <AreaMap cells={cells} style={styles.map} onPressCell={cell => {
         tapFeedback(); setExpanded(false); setSelectedId(cell.id === selectedId ? null : cell.id);
       }} />
+      <View style={styles.legend} accessibilityLabel="Map legend: neutral nearby cells, outlined current cell, green held preview cells">
+        <Text style={styles.label}>Nearby</Text><Text style={styles.currentLegend}>Current cell</Text><Text style={styles.heldLegend}>Held · Preview</Text>
+      </View>
       {selected ? <ZoneSheet
         zoneName={selected.zone.name}
         statusLabel={`Preview · ${HEALTH_LABEL[selected.status.health]}`}
@@ -50,14 +53,11 @@ export default function TerritoryMapScreen() {
           { label: "Control", value: selected.status.control, color: palette.baseBlue },
           { label: "Defence", value: selected.status.defense, color: palette.pulseGreen },
         ]}
-      /> : <Card>
-        <View style={styles.stats}>
-          <View style={styles.stat}><Text style={styles.number}>{overview.total}</Text><Text style={styles.label}>preview zones</Text></View>
-          <View style={styles.stat}><Text style={styles.number}>{atRisk}</Text><Text style={styles.label}>need a visit</Text></View>
-        </View>
-        <Text style={styles.body}>{!hydrated ? "Loading your progress…" : overview.total ? "Tap a zone to see your progress." : "Find your area, then start your first move."}</Text>
+      /> : <View style={styles.context}>
+        <MeterRow items={[{ value: overview.total, label: "Preview zones", tone: "green" }, { value: atRisk, label: "Need a visit", tone: "gold" }]} />
+        <Text style={styles.body}>{!hydrated ? "Loading your progress…" : overview.total ? "Choose a zone to explore." : "Your first mark starts with a move."}</Text>
         <Button label="Start Move" icon="walk-outline" onPress={() => router.push("/move")} />
-      </Card>}
+      </View>}
     </ScrollView>
     {hydrated ? <FirstTimeGuide topic="territory" /> : null}
   </Screen>;
@@ -69,7 +69,11 @@ const styles = StyleSheet.create({
   kicker: { ...type.kicker, color: ink.green },
   title: { ...type.title, marginTop: spacing.xs },
   preview: { ...type.caption, color: ink.green },
-  map: { minHeight: 370 },
+  map: { minHeight: 410 },
+  context: { gap: spacing.sm },
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  currentLegend: { ...type.caption, color: ink.green, borderWidth: 1, borderColor: palette.pulseGreen, paddingHorizontal: spacing.xs },
+  heldLegend: { ...type.caption, color: ink.green, backgroundColor: tints.green, paddingHorizontal: spacing.xs },
   stats: { flexDirection: "row", gap: spacing.lg },
   stat: { flex: 1, gap: spacing.xs },
   number: { ...type.display, lineHeight: 42, includeFontPadding: true },

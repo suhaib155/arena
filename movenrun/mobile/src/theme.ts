@@ -186,15 +186,13 @@ export function glow(color: string): ViewStyle {
 /**
  * Typography scale.
  *
- * Target faces are Sora (display), Plus Jakarta Sans (body) and Space Grotesk
- * (numeric/technical) to match the website. Shipping the font packages is a
- * deliberate follow-up PR (`expo-font` + `@expo-google-fonts/*`); until then
- * the platform sans serves with matched sizes/weights/tracking so the scale —
- * and every call site — is already locked in.
+ * Bundled Sora establishes mission/level identity; Plus Jakarta Sans handles
+ * body and controls. Technical monospace remains the platform's existing face.
  */
 export const type = {
   /** Hero numerals and wordmark moments. (Sora target) */
   display: {
+    fontFamily: "Sora_800ExtraBold",
     fontSize: 30,
     lineHeight: 36,
     fontWeight: "800",
@@ -203,6 +201,7 @@ export const type = {
   } satisfies TextStyle,
   /** Screen titles. (Sora target) */
   title: {
+    fontFamily: "Sora_800ExtraBold",
     fontSize: 22,
     lineHeight: 28,
     fontWeight: "800",
@@ -211,6 +210,7 @@ export const type = {
   } satisfies TextStyle,
   /** Card titles / section headings. */
   heading: {
+    fontFamily: "Sora_700Bold",
     fontSize: 17,
     lineHeight: 23,
     fontWeight: "700",
@@ -219,18 +219,21 @@ export const type = {
   } satisfies TextStyle,
   /** Body copy. (Plus Jakarta Sans target) */
   body: {
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 15,
     lineHeight: 21,
     color: colors.textDim,
   } satisfies TextStyle,
   /** Supporting captions and labels. */
   caption: {
+    fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12.5,
     lineHeight: 17,
     color: colors.textDim,
   } satisfies TextStyle,
   /** Tiny uppercase kickers. */
   kicker: {
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.2,

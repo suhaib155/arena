@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { GameBadge } from "@/components/GameBadge";
+import { DisplayHeading } from "@/components/DisplayHeading";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -186,8 +188,8 @@ export default function DeedShowroomScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
           <View style={styles.hero}>
-            <Text style={styles.heroKicker}>Your collection</Text>
-            <Text style={styles.heroTitle}>Ground worth remembering.</Text>
+            <DisplayHeading eyebrow="Deeds" title="Ground worth remembering."
+              trailing={<GameBadge icon="ribbon-outline" tone="violet" size={68} locked={!view.hasZones} />} />
             <View style={styles.pillRow}>
               <StatusPill icon="lock-closed-outline" label="Preview" tone="primary" />
             </View>
@@ -198,7 +200,7 @@ export default function DeedShowroomScreen() {
           <FadeSlideIn delay={STAGGER_MS * 2}>
             <View style={styles.emptyCard}>
               <View style={styles.emptyIcon}>
-                <Ionicons name="shapes-outline" size={26} color={palette.deedViolet} />
+                <GameBadge icon="albums-outline" tone="violet" size={84} locked />
               </View>
               <Text style={styles.emptyTitle}>Your collection starts outside</Text>
               <Text style={styles.emptyText}>
@@ -309,14 +311,12 @@ function HowRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: st
   );
 }
 
-/** Abstract pseudo deed art: a tinted hex + a short preview-id string. No real
+/** Abstract collectible art. No real
  *  NFT/token, no price, no rarity value, no marketplace frame. */
 function DeedArt({ card, size = 64 }: { card: DeedPreviewCard; size?: number }) {
-  const previewId = card.id.slice(0, 10).toUpperCase();
   return (
     <View style={styles.deedArtWrap}>
-      <Hexagon size={size} color={softTint(card.accent)} coreColor={card.ready ? card.accent : undefined} />
-      <Text style={styles.deedArtId}>{previewId}</Text>
+      <GameBadge icon="ribbon-outline" tone="violet" size={size} locked={!card.ready} />
     </View>
   );
 }
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyIcon: { ...iconTile(56), backgroundColor: softTint(palette.deedViolet), marginBottom: spacing.xs },
+  emptyIcon: { alignItems: "center", justifyContent: "center", paddingVertical: spacing.sm, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
   emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },

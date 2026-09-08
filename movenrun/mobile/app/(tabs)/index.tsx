@@ -1,19 +1,19 @@
 import { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
-import { Card } from "@/components/Card";
-import { StatTrio } from "@/components/StatTrio";
 import { AreaMap } from "@/components/AreaMap";
 import { Button } from "@/components/Button";
-import { XPBar } from "@/components/XPBar";
-import { getLevelInfo } from "@/lib/leveling";
 import { heldCells } from "@/lib/mapCells";
 import { TaskRow } from "@/components/TaskRow";
 import { SectionHeader } from "@/components/SectionHeader";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { NotificationBell } from "@/components/NotificationBell";
-import { colors, palette, spacing, type } from "@/theme";
+import { PlayerHud } from "@/components/PlayerHud";
+import { MissionCard } from "@/components/MissionCard";
+import { MeterRow } from "@/components/MeterRow";
+import { DisplayHeading } from "@/components/DisplayHeading";
+import { spacing } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { useSessionStart } from "@/hooks/useSessionStart";
 import { tapFeedback } from "@/lib/haptics";
@@ -24,13 +24,6 @@ import {
   type Task,
   type TaskAction,
 } from "@/lib/tasks";
-
-function greeting(date = new Date()): string {
-  const h = date.getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
 
 /**
  * Home — today's board.
@@ -54,7 +47,6 @@ export default function TodayScreen() {
   const zones = useGameStore((s) => s.zones);
   const selectedClubId = useGameStore((s) => s.selectedClubId);
   const totalXp = useGameStore((s) => s.totalXp);
-  const level = getLevelInfo(totalXp);
   const mapCells = useMemo(() => heldCells(zones), [zones]);
 
   /* Every derivation lives in lib/tasks.ts, so it can be unit-tested. Doing it
@@ -91,53 +83,32 @@ export default function TodayScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.brand}>MOVENRUN</Text>
-            <Text style={styles.greeting}>{greeting()}</Text>
-          </View>
-          <NotificationBell
+        <PlayerHud totalXp={totalXp} streak={streak} trailing={<NotificationBell
             unread={atRiskCount > 0}
             onPress={() => {
               tapFeedback();
               router.push("/territory/alerts");
             }}
-          />
-        </View>
-
-        <FadeSlideIn>
-          <Card>
-            <View style={styles.playerRow}>
-              <Text style={styles.playerLevel}>Level {level.level}</Text>
-              <Text style={styles.playerXp}>{totalXp.toLocaleString()} XP</Text>
-            </View>
-            <XPBar progress={level.progress} />
-            <StatTrio
-              items={[
-                { value: streak, label: "Day streak", tint: palette.heatCoral },
-                { value: `+${xpToday}`, label: "XP today", tint: palette.moveGold },
-                { value: zones.length, label: "Preview zones", tint: palette.pulseGreen },
-              ]}
-            />
-          </Card>
-        </FadeSlideIn>
-
-        <Card>
-          <SectionHeader title="Today's objective" trailing={board.progressLabel} />
-          <Text style={styles.objective}>{board.focus?.title ?? "Keep your momentum"}</Text>
-          <Button label={board.focus ? "View objective" : "Explore Territory"} variant="ghost" icon="arrow-forward" onPress={() => board.focus ? openTask(board.focus) : go("territory")} />
-        </Card>
+          />} />
+        <DisplayHeading eyebrow="MOVENRUN" title="Make your next move." />
+        {board.focus ? <MissionCard task={board.focus} progressLabel={board.progressLabel} onPress={() => openTask(board.focus!)} /> : null}
 
         <View style={styles.mapHero}>
-          <SectionHeader title="Your territory" trailing="Preview" />
+          <SectionHeader title="Your ground" trailing="Preview" />
           <AreaMap cells={mapCells} style={styles.mapArea} onPressCell={() => go("territory")} />
           <Button label="Start Move" icon="walk-outline" onPress={() => go("move")} />
         </View>
 
+        <MeterRow items={[
+          { value: `+${xpToday}`, label: "XP today", tone: "gold" },
+          { value: zones.length, label: "Preview zones", tone: "green" },
+          { value: board.progressLabel, label: "Today's objectives", tone: "blue" },
+        ]} />
+
         {board.tasks.length > 0 ? (
           <FadeSlideIn delay={STAGGER_MS * 2}>
             <View style={styles.list}>
-              <SectionHeader title="Today" trailing={board.progressLabel} />
+              <SectionHeader title="Keep exploring" />
               {board.tasks.map((task) => (
                 <TaskRow key={task.id} task={task} onPress={() => openTask(task)} />
               ))}
@@ -145,7 +116,6 @@ export default function TodayScreen() {
           </FadeSlideIn>
         ) : null}
 
-        <Text style={styles.footer}>One move closer.</Text>
       </ScrollView>
     </Screen>
   );
@@ -153,28 +123,8 @@ export default function TodayScreen() {
 
 const styles = StyleSheet.create({
   // Extra bottom padding clears the floating tab bar.
-  content: { paddingTop: spacing.sm, paddingBottom: 120, gap: spacing.lg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingTop: spacing.md,
-  },
-  headerText: { flex: 1, gap: 2 },
-  brand: { ...type.kicker, color: colors.primary },
-  greeting: { ...type.display, fontSize: 28, lineHeight: 34 },
+  content: { paddingTop: spacing.sm, paddingBottom: 120, gap: spacing.md },
   list: { gap: spacing.sm },
-  playerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: spacing.sm },
-  playerLevel: { ...type.heading },
-  playerXp: { ...type.caption },
-  objective: { ...type.title },
   mapHero: { gap: spacing.sm },
   mapArea: { minHeight: 310 },
-  footer: {
-    ...type.mono,
-    fontSize: 12,
-    color: colors.textFaint,
-    textAlign: "center",
-    paddingVertical: spacing.md,
-  },
 });
