@@ -625,8 +625,8 @@ export default function MoveSessionScreen() {
           crossing a road to close a loop. */}
       {!compact ? <View style={styles.zoneCard}>
         <View style={styles.zoneHead}>
-          <Text style={styles.zoneTitle}>Your route</Text>
-          <View style={[styles.sealChip, { backgroundColor: softTint(sealCore) }]}>
+          <Text style={styles.zoneTitle}>Make your mark</Text>
+          <View style={[styles.sealChip, { backgroundColor: colors.surface }]}>
             <Ionicons
               name={sealed ? "checkmark-circle" : "git-branch-outline"}
               size={13}
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
      320x640 screen at the largest font scale the map gives up its space to the
      metrics and the controls, and still shows the route. */
   map: { flex: 1, minHeight: 0, marginTop: spacing.sm },
-  middle: { flexGrow: 0, flexShrink: 0, paddingBottom: spacing.sm },
+  middle: { flexGrow: 0, flexShrink: 0, paddingBottom: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   compactMetrics: { marginTop: spacing.xs, gap: spacing.xs },
   metrics: { marginTop: spacing.lg, gap: spacing.md },
   metricRow: { flexDirection: "row", alignItems: "center" },
@@ -740,15 +740,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
   },
   zoneCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.text,
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.sm,
     marginTop: spacing.lg,
-    ...shadows.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   zoneHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  zoneTitle: { ...type.heading, fontSize: 14.5 },
+  zoneTitle: { ...type.heading, fontSize: 14.5, color: colors.surface },
   /* Icon + label, never colour alone: the chip says what state the route is in
      for a reader who cannot tell green from blue. */
   sealChip: {
@@ -760,7 +761,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   sealChipText: { ...type.kicker, fontSize: 12, letterSpacing: 0 },
-  zoneNote: { ...type.caption, fontSize: 12 },
+  zoneNote: { ...type.caption, fontSize: 12, color: colors.surface },
   /* No `marginTop: "auto"` any more — the map above flexes, so the controls
      sit directly under the scrollable middle and are always on screen. */
   controls: { flexShrink: 0, paddingTop: spacing.sm, paddingBottom: spacing.sm },

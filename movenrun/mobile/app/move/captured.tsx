@@ -232,10 +232,12 @@ export default function ZoneCapturedScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
-  kicker: { ...type.kicker, color: palette.pulseGreen },
+  kicker: { ...type.kicker, color: colors.text, letterSpacing: 2 },
   stage: {
     width: "100%",
     height: 280,
+    flexShrink: 1,
+    minHeight: 160,
     borderRadius: radius.xl,
     backgroundColor: colors.surfaceAlt,
     alignItems: "center",

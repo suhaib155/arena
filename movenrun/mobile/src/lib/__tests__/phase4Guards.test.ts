@@ -46,9 +46,21 @@ test("Profile never renders a wallet address or a raw user/session id", () => {
   assert.ok(!/authUser\.id|user\.id|\.sessionId|\.privateKey|\.seed/.test(src), "must not render ids/secrets");
 });
 
-test("Passport labels itself local preview / not official verification", () => {
+function assertPassportTruth(src: string): void {
+  // Require rendered clarification at the score, not a matching source comment.
+  assert.match(src, /<Text style=\{styles\.readyHint\}>Local preview · not official verification<\/Text>/);
+  assert.match(src, /<Text style=\{styles\.readyExplain\}>Saved summaries only; no route coordinates in this passport\.<\/Text>/);
+  assert.match(src, /label="Privacy Policy"/);
+  assert.match(src, /pathname: "\/legal", params: \{ kind: "privacy" \}/);
+}
+
+test("Passport labels its score local preview / not official verification", () => {
+  assertPassportTruth(read(APP, "route", "passport.tsx"));
+});
+
+test("Passport truth guard rejects removing the visible score clarification", () => {
   const src = read(APP, "route", "passport.tsx");
-  assert.match(src, /Local preview/);
-  assert.match(src, /not official verification/i);
-  assert.match(src, /No raw GPS/);
+  const mutated = src.replace(/<Text style=\{styles\.readyHint\}>[^<]*<\/Text>/, "");
+  assert.notEqual(mutated, src);
+  assert.throws(() => assertPassportTruth(mutated), assert.AssertionError);
 });

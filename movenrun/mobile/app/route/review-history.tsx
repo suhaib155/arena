@@ -3,6 +3,8 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { DisplayHeading } from "@/components/DisplayHeading";
+import { GameBadge } from "@/components/GameBadge";
 import { ScalePress } from "@/components/ScalePress";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { tapFeedback } from "@/lib/haptics";
@@ -75,23 +77,17 @@ export default function RouteReviewHistoryScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title="Route Review" />
+      <ScreenHeader title="Activity" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
           <View style={styles.hero}>
-            <Text style={styles.heroKicker}>Route Review</Text>
-            <Text style={styles.heroTitle}>
-              Local trust summaries help you understand GPS quality.
-            </Text>
+            <DisplayHeading eyebrow="Your journey" title="Every move has a story."
+              trailing={<GameBadge icon="footsteps-outline" tone="green" size={68} locked={count === 0} />} />
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
-                <Ionicons name="phone-portrait-outline" size={13} color={palette.baseBlue} />
-                <Text style={[styles.badgeText, { color: palette.baseBlue }]}>Local only</Text>
-              </View>
-              <View style={[styles.badge, { backgroundColor: softTint(palette.pulseGreen) }]}>
-                <Ionicons name="location-outline" size={13} color={ink.green} />
-                <Text style={[styles.badgeText, { color: ink.green }]}>No raw GPS</Text>
+                <Ionicons name="footsteps-outline" size={13} color={palette.baseBlue} />
+                <Text style={[styles.badgeText, { color: palette.baseBlue }]}>{count} routes</Text>
               </View>
             </View>
           </View>
@@ -111,8 +107,8 @@ export default function RouteReviewHistoryScreen() {
               <Ionicons name="shield-half-outline" size={18} color={palette.deedViolet} />
             </View>
             <View style={styles.passportBody}>
-              <Text style={styles.passportName}>Route Signal Passport</Text>
-              <Text style={styles.passportNote}>See your readiness preview & trend</Text>
+              <Text style={styles.passportName}>Route Passport</Text>
+              <Text style={styles.passportNote}>Collect your route stamps</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
           </ScalePress>
@@ -123,8 +119,7 @@ export default function RouteReviewHistoryScreen() {
             <View style={styles.emptyCard}>
               <Ionicons name="footsteps-outline" size={28} color={colors.textFaint} />
               <Text style={styles.emptyText}>
-                Complete and save a movement session to build your local review
-                history.
+                Your first saved move starts the journey.
               </Text>
             </View>
           </FadeSlideIn>

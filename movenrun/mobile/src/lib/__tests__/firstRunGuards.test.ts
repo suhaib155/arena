@@ -439,8 +439,7 @@ test("redesigned first-run screens stay on the native driver with safe propertie
 
 // ---- home / the task board --------------------------------------------------
 
-test("Home decides nothing — it renders one board and no second opinion", () => {
-  const src = code(HOME);
+function assertHomeBoard(src: string): void {
   /* The board's rules ("one spotlight task", "never rendered twice", priority
      order) are proven for every input in tasks.test.ts. What must be guarded
      HERE is that the screen obeys the board instead of re-deciding with its
@@ -457,15 +456,39 @@ test("Home decides nothing — it renders one board and no second opinion", () =
     !/\{true \?|\{false \?|zones\.length === 0 \?|history\.length > 0 \?/.test(src),
     "visibility comes from the board, never from an ad-hoc condition",
   );
+  const missions = src.match(/<MissionCard\b[\s\S]*?\/>/g) ?? [];
+  assert.equal(missions.length, 1, "one spotlight mission from the board");
+  assert.match(src, /\{board\.focus\s*\?\s*<MissionCard/, "the board owns mission visibility");
+  assert.match(missions[0], /task=\{board\.focus\}/);
+  assert.match(missions[0], /progressLabel=\{board\.progressLabel\}/);
+  assert.match(missions[0], /onPress=\{\(\) => openTask\(board\.focus!\)\}/, "the mission opens its actual board action");
+  assert.match(src, /const openTask = \(task: Task\) => go\(task\.action\)/);
   const buttons = src.match(/<Button\b[\s\S]*?\/>/g) ?? [];
-  assert.equal(buttons.length, 2, "one objective link and one movement action");
-  assert.match(buttons[0], /variant="ghost"/, "the objective is secondary to movement");
-  assert.match(buttons[1], /label="Start Move"/);
-  assert.match(buttons[1], /go\("move"\)/);
-  assert.ok(src.indexOf("styles.playerRow") < src.indexOf("Today's objective"));
-  assert.ok(src.indexOf("Today's objective") < src.indexOf("<AreaMap"));
-  assert.ok(src.indexOf("<AreaMap") < src.indexOf('label="Start Move"'));
+  assert.equal(buttons.length, 1, "one primary movement action; the objective uses MissionCard");
+  assert.match(buttons[0], /label="Start Move"/);
+  assert.match(buttons[0], /onPress=\{\(\) => go\("move"\)\}/);
+  assert.ok(!/\bvariant=/.test(buttons[0]) || /variant="primary"/.test(buttons[0]), "Start Move stays primary");
+  const positions = ["<PlayerHud", "<MissionCard", "<AreaMap", '<Button label="Start Move"'].map((part) => src.indexOf(part));
+  assert.ok(positions.every((position) => position >= 0), "all four Home blocks exist");
+  assert.ok(positions.every((position, index) => index === 0 || position > positions[index - 1]), "Home orders player, mission, map, then Start Move");
+}
+
+test("Home decides nothing — it renders one board and no second opinion", () => {
+  assertHomeBoard(code(HOME));
 });
+
+for (const [name, mutate] of [
+  ["missing spotlight mission", (src: string) => src.replace(/<MissionCard\b[\s\S]*?\/>/, "")],
+  ["mission opens the wrong action", (src: string) => src.replace("onPress={() => openTask(board.focus!)}", 'onPress={() => go("clubs")}')],
+  ["duplicate primary movement action", (src: string) => src.replace(/<Button\b[\s\S]*?\/>/, (button) => `${button}\n${button}`)],
+] as const) {
+  test(`Home board guard rejects mutation: ${name}`, () => {
+    const original = code(HOME);
+    const mutated = mutate(original);
+    assert.notEqual(mutated, original, "mutation must exercise the current source");
+    assert.throws(() => assertHomeBoard(mutated), assert.AssertionError);
+  });
+}
 
 test("Home reads store state but derives nothing from it itself", () => {
   const src = code(HOME);

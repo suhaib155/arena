@@ -86,9 +86,11 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   label: {
+    fontFamily: "PlusJakartaSans_700Bold",
     flexShrink: 1,
     textAlign: "center",
     fontSize: 16,
+    lineHeight: 23,
     fontWeight: "700",
   },
   content: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, maxWidth: "100%" },

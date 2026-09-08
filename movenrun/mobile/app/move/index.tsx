@@ -5,10 +5,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
-import { Hexagon } from "@/components/Hexagon";
+import { GroundPanel } from "@/components/GroundPanel";
 import { ReadinessChip } from "@/components/ReadinessChip";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
-import { avatar, canvas, colors, hairline, iconTile, palette, radius, shadows, softTint, spacing, type } from "@/theme";
+import { colors, hairline, iconTile, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
   getForegroundPermissionStatus,
   hasLocationServices,
@@ -125,35 +125,8 @@ export default function MoveStartScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Activity context — one supported movement session (foreground GPS) */}
         <FadeSlideIn>
-          <View style={styles.activityCard}>
-            <View style={styles.activityIcon}>
-              <Ionicons name="walk" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.activityBody}>
-              <Text style={styles.activityName}>Movement session</Text>
-              <Text style={styles.activitySub}>
-                Foreground GPS · walk, run, or ride — your route draws as you move
-              </Text>
-            </View>
-          </View>
-        </FadeSlideIn>
-
-        {/* Map-style context panel */}
-        <FadeSlideIn delay={STAGGER_MS}>
-          <View style={styles.mapPanel}>
-            <View style={[styles.road, { top: "30%" }]} />
-            <View style={[styles.road, { top: "66%" }]} />
-            <View style={[styles.roadV, { left: "32%" }]} />
-            <View style={styles.mapHexA}>
-              <Hexagon size={52} color={canvas.cellHeld} coreColor={palette.pulseGreen} />
-            </View>
-            <View style={styles.mapHexB}>
-              <Hexagon size={38} color={canvas.cell} />
-            </View>
-            <View style={styles.mapPin}>
-              <Ionicons name="location" size={30} color={colors.primary} />
-            </View>
-          </View>
+          <GroundPanel kicker="MAKE YOUR MOVE" title="Free Run" icon="footsteps-outline"
+            detail="Choose your pace. Discover new ground." />
         </FadeSlideIn>
 
         {/* Readiness — honest state, what it means, what to do */}
@@ -251,19 +224,6 @@ const styles = StyleSheet.create({
   activityBody: { flex: 1, gap: 2 },
   activityName: { ...type.heading, fontSize: 16 },
   activitySub: { ...type.caption, fontSize: 12, color: colors.textDim },
-  mapPanel: {
-    height: 160,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceAlt,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  road: { position: "absolute", left: 0, right: 0, height: 5, backgroundColor: canvas.road },
-  roadV: { position: "absolute", top: 0, bottom: 0, width: 5, backgroundColor: canvas.roadCross },
-  mapHexA: { position: "absolute", left: "18%", top: 20 },
-  mapHexB: { position: "absolute", right: "20%", bottom: 16 },
-  mapPin: { ...avatar(74), backgroundColor: colors.surface, ...shadows.float },
   readyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
@@ -286,11 +246,8 @@ const styles = StyleSheet.create({
   },
   offlineText: { ...type.caption, fontSize: 11.5, color: colors.textDim, flex: 1 },
   facts: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.md,
-    ...shadows.card,
+    paddingHorizontal: spacing.xs,
+    gap: spacing.sm,
   },
   fact: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   factText: { ...type.caption, fontSize: 13, color: colors.text, flex: 1 },

@@ -1,4 +1,7 @@
 import { useMemo } from "react";
+import { GameBadge } from "@/components/GameBadge";
+import { DisplayHeading } from "@/components/DisplayHeading";
+import { GroundPanel } from "@/components/GroundPanel";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -49,8 +52,8 @@ export default function ClubsScreen() {
       <FirstTimeGuide topic="clubs" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.greeting}>Clubs · Preview</Text>
-          <Text style={styles.title}>{selected ? "Your club this week" : "Find your club"}</Text>
+          <DisplayHeading eyebrow="Clubs · Preview" title={selected ? "Your colours. Your ground." : "Find your colours."}
+            trailing={<GameBadge icon="shield-outline" tone="blue" size={68} />} />
         </View>
         {selected ? <ClubHome club={selected} /> : <ChooseClub />}
         <Button label="About Clubs" variant="ghost" icon="information-circle-outline"
@@ -85,7 +88,7 @@ function ChooseClub() {
             accessibilityRole="button"
             accessibilityLabel={`Choose ${club.name} preview`}
           >
-            <Hexagon size={40} color={pastelFor(club.color)} coreColor={club.color} />
+            <GameBadge icon="shield-outline" tone={club.color === palette.heatCoral ? "gold" : club.color === palette.deedViolet ? "violet" : "blue"} size={58} />
             <View style={styles.clubOptionBody}>
               <Text style={styles.clubOptionName}>{club.name}</Text>
               <Text style={styles.clubOptionMotto} numberOfLines={1}>
@@ -141,6 +144,8 @@ function ClubHome({ club }: { club: Club }) {
     if (mission.action === "map") router.push("/territory/map");
     else router.push("/move");
   };
+  // The existing preview model can rank clubs; the product has no live ranking.
+  const contributionMission = mission.kind === "climb" || mission.kind === "hold";
 
   return (
     <View style={styles.homeWrap}>
@@ -157,7 +162,7 @@ function ClubHome({ club }: { club: Club }) {
 
 
           <View style={styles.heroIdentity}>
-            <Hexagon size={44} color={tints.green} coreColor={palette.pulseGreen} />
+            <GameBadge icon="shield-checkmark-outline" tone="green" size={64} />
             <View style={styles.heroIdentityBody}>
               <View style={styles.heroNameRow}>
                 <Text style={styles.heroName}>{club.name}</Text>
@@ -195,16 +200,8 @@ function ClubHome({ club }: { club: Club }) {
 
       {/* One current mission */}
       <FadeSlideIn delay={STAGGER_MS}>
-        <View style={styles.missionCard}>
-          <View style={styles.missionIcon}>
-            <Ionicons name="flag-outline" size={20} color={palette.baseBlue} />
-          </View>
-          <View style={styles.missionBody}>
-            <Text style={styles.missionKicker}>Club mission</Text>
-            <Text style={styles.missionTitle}>{mission.title}</Text>
-            <Text style={styles.missionDetail}>{mission.detail}</Text>
-          </View>
-        </View>
+        <GroundPanel kicker="Your club mission" title={contributionMission ? "Grow your contribution" : mission.title}
+          detail={contributionMission ? "Your next saved route adds to your progress." : mission.detail} icon="flag-outline" tone="blue" />
       </FadeSlideIn>
       <FadeSlideIn delay={STAGGER_MS}>
         <Button label={mission.ctaLabel} icon="play" onPress={runMission} />
@@ -324,7 +321,7 @@ const styles = StyleSheet.create({
 
   heroIdentity: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xs },
   heroIdentityBody: { flex: 1, gap: 2 },
-  heroNameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  heroNameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   heroName: { ...type.heading, fontSize: 17 },
   heroMotto: { ...type.caption, fontSize: 12, fontStyle: "italic" },
   switchLink: { ...type.caption, fontSize: 12.5, fontWeight: "700", color: colors.primary },

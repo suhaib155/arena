@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { GameBadge } from "@/components/GameBadge";
 import { CountUpText } from "@/components/CountUpText";
 import { RoutePath } from "@/components/RoutePath";
 import { ShareCard } from "@/components/ShareCard";
@@ -81,9 +82,7 @@ export default function ResultScreen() {
         <View style={styles.compact}>
           <View style={styles.resultCard}>
             <View style={styles.crestRow}>
-              <View style={styles.crestMuted}>
-                <Ionicons name={view.icon as never} size={26} color={colors.textDim} />
-              </View>
+              <GameBadge icon={view.icon as never} tone="neutral" size={56} />
               <View style={styles.crestText}>
                 <Text style={styles.resultTitle}>{view.title}</Text>
                 {quest ? <Text style={styles.questName} numberOfLines={2}>{quest.title}</Text> : null}
@@ -146,13 +145,13 @@ export default function ResultScreen() {
         style={{ opacity: pop }}
       >
         <Animated.View style={[styles.badge, { transform: [{ scale: pop }] }]}>
-          <Ionicons name="checkmark" size={44} color={colors.surface} />
+          <GameBadge icon="checkmark" tone="green" size={84} />
         </Animated.View>
 
         <Text style={styles.title}>{view.title}</Text>
         <Text style={styles.questName}>{quest.title}</Text>
 
-        {/* Reward card: XP + Locked MOVE preview */}
+        {/* Earned quest progression */}
         <View style={styles.rewardCard}>
           <View style={styles.rewardRow}>
             <View style={[styles.rewardIcon, { backgroundColor: softTint(palette.moveGold) }]}>
@@ -164,19 +163,6 @@ export default function ResultScreen() {
               prefix="+"
               style={[styles.rewardValue, { color: ink.gold }]}
             />
-          </View>
-          <View style={styles.rewardDivider} />
-          <View style={styles.rewardRow}>
-            <View style={[styles.rewardIcon, { backgroundColor: softTint(palette.deedViolet) }]}>
-              <Hexagon size={15} color={palette.deedViolet} />
-            </View>
-            <View style={styles.rewardLabelWrap}>
-              <Text style={styles.rewardLabelPlain}>Locked MOVE</Text>
-              <Text style={styles.rewardSub}>preview · in-app progress</Text>
-            </View>
-            <Text style={[styles.rewardValue, { color: palette.deedViolet }]}>
-              +{lockedMoveGained}
-            </Text>
           </View>
         </View>
 
@@ -279,8 +265,8 @@ const styles = StyleSheet.create({
   xpZero: { ...type.title, fontSize: 20, color: colors.textDim },
   compactActions: { marginTop: "auto", paddingBottom: spacing.md, gap: spacing.sm },
   content: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
-  badge: { ...avatar(92), backgroundColor: palette.pulseGreen, marginBottom: spacing.sm, ...glow(palette.pulseGreen) },
-  title: { ...type.display, fontSize: 28 },
+  badge: { ...avatar(92), backgroundColor: colors.surfaceAlt, marginBottom: spacing.sm },
+  title: { ...type.display, fontSize: 28, lineHeight: 36, textAlign: "center" },
   questName: { ...type.body, fontSize: 16 },
   rewardCard: {
     alignSelf: "stretch",

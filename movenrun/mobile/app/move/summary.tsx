@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { DisplayHeading } from "@/components/DisplayHeading";
 import { mapBasemapAvailable } from "@/components/map/MovenMap";
 import { RouteMapPanel } from "@/components/RouteMapPanel";
 import { CountUpText } from "@/components/CountUpText";
@@ -323,9 +324,7 @@ export default function MoveSummaryScreen() {
             headline. A reader does not learn a fact twice by reading it twice —
             they start wondering whether the two are different facts. */}
         <View style={styles.header}>
-          <Text style={[styles.kicker, { color: toneAccent(completion.tone) }]}>{completion.kicker}</Text>
-          <Text style={styles.title}>{completion.headline}</Text>
-          <Text style={styles.headerDetail}>{completion.detail}</Text>
+          <DisplayHeading eyebrow={completion.kicker} title={completion.headline} detail={completion.detail} />
         </View>
 
         {gaps ? (

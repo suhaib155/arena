@@ -265,7 +265,7 @@ export default function RouteProofScreen() {
                 key={String(snapshot)}
               >
                 <RouteMotif size={38} />
-                <Text style={styles.noRouteText}>No route to show for this one.</Text>
+                <Text style={styles.noRouteText}>The next move is yours.</Text>
               </View>
             )}
 
@@ -356,16 +356,16 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   privacyText: { ...type.caption, fontSize: 11.5, fontWeight: "600" },
-  brandRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
-  brand: { ...type.heading, fontSize: 16 },
-  previewTag: { ...type.kicker, color: palette.baseBlue },
+  brandRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm, backgroundColor: colors.text, padding: spacing.md, borderRadius: radius.lg },
+  brand: { ...type.heading, fontSize: 16, letterSpacing: -0.4, color: colors.surface },
+  previewTag: { ...type.kicker, color: palette.voltMint },
 
 
   /* The one caption left from the old stat strip: the share error line. */
   stripLabel: { ...type.caption, fontSize: 11 },
 
   /* main run */
-  runTitle: { ...type.display, fontSize: 24, textAlign: "center", marginTop: -spacing.sm },
+  runTitle: { ...type.display, fontSize: 26, lineHeight: 34, textAlign: "center", marginTop: spacing.xs },
   statRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
   stat: { flexGrow: 1, flexBasis: 80, alignItems: "center", gap: 2 },
   statValue: { ...type.title, fontSize: 22, lineHeight: 34, includeFontPadding: true, fontVariant: ["tabular-nums"] },

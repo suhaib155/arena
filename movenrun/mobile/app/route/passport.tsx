@@ -1,4 +1,6 @@
 import { useEffect, useMemo } from "react";
+import { GameBadge } from "@/components/GameBadge";
+import { DisplayHeading } from "@/components/DisplayHeading";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,12 +61,11 @@ export default function RoutePassportScreen() {
         {/* Identity header */}
         <FadeSlideIn>
           <View style={styles.hero}>
-            <Text style={styles.heroKicker}>Route Signal Passport</Text>
-            <Text style={styles.heroTitle}>Your local movement record.</Text>
+            <DisplayHeading eyebrow="Route Passport" title="A journey worth keeping."
+              trailing={<GameBadge icon="compass-outline" tone="green" size={68} locked={!hasRoutes} />} />
             <View style={styles.pillRow}>
-              <StatusPill icon="eye-outline" label="Local preview" tone="primary" />
-              <StatusPill icon="phone-portrait-outline" label="On-device" tone="neutral" />
-              <StatusPill icon="lock-closed-outline" label="No raw GPS" tone="success" />
+              <StatusPill icon="footsteps-outline" label={`${p.reviewedRouteCount} route stamps`} tone="primary" />
+              <StatusPill icon="eye-outline" label="Preview" tone="neutral" />
             </View>
           </View>
         </FadeSlideIn>
@@ -85,7 +86,8 @@ export default function RoutePassportScreen() {
             <View style={styles.barTrack}>
               <View style={[styles.barFill, { width: `${p.readinessScore}%`, backgroundColor: tone.bar }]} />
             </View>
-            <Text style={styles.readyHint}>Local route reputation · not official verification</Text>
+            <Text style={styles.readyHint}>Local preview · not official verification</Text>
+            <Text style={styles.readyExplain}>Saved summaries only; no route coordinates in this passport.</Text>
           </View>
         </FadeSlideIn>
 
@@ -124,12 +126,11 @@ export default function RoutePassportScreen() {
             ) : (
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIcon}>
-                  <Ionicons name="footsteps-outline" size={26} color={colors.primary} />
+                  <GameBadge icon="footsteps-outline" tone="green" size={72} locked />
                 </View>
                 <Text style={styles.emptyTitle}>No routes recorded yet</Text>
                 <Text style={styles.emptyText}>
-                  Save a real movement session and your passport starts stamping —
-                  date, distance, trust, and territory, all on-device.
+                  Your first saved route becomes your first stamp.
                 </Text>
                 <Button
                   label="Start Move"
@@ -148,7 +149,7 @@ export default function RoutePassportScreen() {
         {/* Readiness checklist */}
         <FadeSlideIn delay={STAGGER_MS * 4}>
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Readiness checklist</Text>
+            <Text style={styles.sectionTitle}>Next milestones</Text>
             {p.checklist.map((item) => (
               <View key={item.label} style={styles.checkRow}>
                 <Ionicons
@@ -164,17 +165,8 @@ export default function RoutePassportScreen() {
           </View>
         </FadeSlideIn>
 
-        {/* Privacy */}
-        <FadeSlideIn delay={STAGGER_MS * 5}>
-          <View style={[styles.card, styles.privacyCard]}>
-            <View style={styles.privacyHead}>
-              <Ionicons name="lock-closed-outline" size={16} color={palette.baseBlue} />
-              <Text style={styles.privacyTitle}>Your data</Text>
-            </View>
-            <Text style={styles.privacyLine}>Only summary scores are saved.</Text>
-            <Text style={styles.privacyLine}>This passport holds no coordinates and no route path.</Text>
-          </View>
-        </FadeSlideIn>
+        <Button label="Privacy Policy" variant="ghost" icon="information-circle-outline"
+          onPress={() => router.push({ pathname: "/legal", params: { kind: "privacy" } })} />
 
         {hasRoutes ? (
           <FadeSlideIn delay={STAGGER_MS * 6}>
@@ -190,9 +182,6 @@ export default function RoutePassportScreen() {
           </FadeSlideIn>
         ) : null}
 
-        <Text style={styles.footerNote}>
-          Preview only · local signal · not official verification, not on-chain.
-        </Text>
       </ScrollView>
     </Screen>
   );
@@ -208,7 +197,7 @@ function StampRow({ stamp }: { stamp: PassportStamp }) {
       accessibilityLabel={`${stamp.dateLabel}, ${stamp.activity}, trust ${stamp.trustLabel}. ${meta}`}
     >
       <View style={styles.stampDate}>
-        <Ionicons name="footsteps-outline" size={16} color={palette.baseBlue} />
+        <GameBadge icon="footsteps-outline" tone="green" size={40} />
       </View>
       <View style={styles.stampBody}>
         <View style={styles.stampTitleRow}>
@@ -283,7 +272,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
     ...shadows.card,
   },
-  stampDate: { ...iconTile(34), backgroundColor: softTint(palette.baseBlue) },
+  stampDate: { alignItems: "center", justifyContent: "center" },
   stampBody: { flex: 1, gap: 2 },
   stampTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   stampActivity: { ...type.heading, fontSize: 14 },
@@ -305,7 +294,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyIcon: { ...avatar(56), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
+  emptyIcon: { alignItems: "center", justifyContent: "center", paddingVertical: spacing.sm, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 16, textAlign: "center" },
   emptyText: { ...type.body, fontSize: 13, lineHeight: 18, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },

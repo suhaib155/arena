@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { GameBadge } from "@/components/GameBadge";
+import { DisplayHeading } from "@/components/DisplayHeading";
+import { GroundPanel } from "@/components/GroundPanel";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -62,42 +65,31 @@ export default function CollectionsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <FadeSlideIn>
           <View style={styles.hero}>
-            <Text style={styles.heroKicker}>Zone Collections</Text>
-            <Text style={styles.heroTitle}>Your movement archive.</Text>
+            <DisplayHeading eyebrow="Collections" title="Small moves. Lasting marks."
+              trailing={<GameBadge icon="ribbon-outline" tone="gold" size={68} locked={!view.hasProgress} />} />
             <View style={styles.chipRow}>
               <View style={[styles.chip, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />
-                <Text style={[styles.chipText, { color: palette.baseBlue }]}>Local preview</Text>
-              </View>
-              <View style={[styles.chip, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name="gift-outline" size={13} color={colors.textDim} />
-                <Text style={[styles.chipText, { color: colors.textDim }]}>No rewards</Text>
+                <Text style={[styles.chipText, { color: palette.baseBlue }]}>Progress badges</Text>
               </View>
             </View>
           </View>
         </FadeSlideIn>
 
         <FadeSlideIn delay={STAGGER_MS}>
-          <ProgressHero
-            value={view.unlocked}
-            outOf={`/ ${view.total}`}
-            label="badges unlocked"
-            percent={view.completionPct}
-            statement={view.statement}
-            accent={heroAccent}
-          />
+          <GroundPanel kicker="Badge album" title={`${view.unlocked} / ${view.total} unlocked`}
+            detail={view.statement} icon="albums-outline" tone={view.completionPct === 100 ? "green" : "gold"} />
         </FadeSlideIn>
 
         {!view.hasProgress ? (
           <FadeSlideIn delay={STAGGER_MS * 2}>
             <View style={styles.emptyCard}>
               <View style={styles.emptyIcon}>
-                <Ionicons name="ribbon-outline" size={26} color={colors.primary} />
+                <GameBadge icon="ribbon-outline" tone="gold" size={72} locked />
               </View>
               <Text style={styles.emptyTitle}>Earn your first badge by moving</Text>
               <Text style={styles.emptyText}>
-                Save a route, capture a zone, or join a club — badges fill in from
-                your real local progress.
+                Save a route or explore a zone to start your collection.
               </Text>
               <Button
                 label="Start Move"
@@ -312,7 +304,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...shadows.card,
   },
-  emptyIcon: { ...avatar(56), backgroundColor: colors.primaryDim, marginBottom: spacing.xs },
+  emptyIcon: { alignItems: "center", justifyContent: "center", paddingVertical: spacing.sm, marginBottom: spacing.xs },
   emptyTitle: { ...type.heading, fontSize: 16.5, textAlign: "center" },
   emptyText: { ...type.body, fontSize: 13.5, lineHeight: 19, textAlign: "center" },
   emptyBtn: { alignSelf: "stretch", marginTop: spacing.sm },

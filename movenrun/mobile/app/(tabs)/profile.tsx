@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,11 +12,13 @@ import { RoutePath } from "@/components/RoutePath";
 import { Hexagon } from "@/components/Hexagon";
 import { FadeSlideIn, STAGGER_MS } from "@/components/FadeSlideIn";
 import { Button } from "@/components/Button";
+import { PlayerHud } from "@/components/PlayerHud";
+import { GameBadge } from "@/components/GameBadge";
+import { GroundPanel } from "@/components/GroundPanel";
 import { avatar, colors, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { getLevelInfo } from "@/lib/leveling";
-import { lockedMovePreview } from "@/lib/lockedMove";
 import { zoneStatus } from "@/lib/territory";
 import { getClubById, CLUBS } from "@/data/clubs";
 import { rankClubs, sessionsThisWeek } from "@/lib/clubs";
@@ -28,6 +30,7 @@ import { buildSeasonObjectives } from "@/lib/seasonObjectives";
 import { buildCityDistricts } from "@/lib/cityDistricts";
 import { buildProfileIdentity } from "@/lib/profileView";
 import { tapFeedback } from "@/lib/haptics";
+import { getLocalDateKey } from "@/lib/date";
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -69,6 +72,8 @@ export default function ProfileScreen() {
     hasEmbeddedWallet: wallets.some((w) => w.isEmbedded),
   });
 
+  const dayKey = getLocalDateKey();
+  const { collections, recap, seasonObjectives, city, passport, level, myRanked } = useMemo(() => {
   const statuses = zones.map((z) => ({ zone: z, status: zoneStatus(z) }));
   const atRiskCount = statuses.filter((e) => e.status.health !== "yours").length;
   const collections = buildCollections({
@@ -108,7 +113,6 @@ export default function ProfileScreen() {
   const city = buildCityDistricts(zones);
   const passport = computePassport(routeTrustHistory, { zonesOwned: zones.length, timesDefended });
   const level = getLevelInfo(totalXp);
-  const lockedMove = lockedMovePreview(totalXp);
   const myRanked = selectedClub
     ? rankClubs(CLUBS, selectedClub.id, {
         zonesOwned: zones.length,
@@ -118,6 +122,8 @@ export default function ProfileScreen() {
         sessionsThisWeek: sessionsThisWeek(history),
       }).find((r) => r.isUserClub) ?? null
     : null;
+  return { collections, recap, seasonObjectives, city, passport, level, myRanked };
+  }, [zones, routeTrustHistory, timesDefended, selectedClubId, selectedClub, viewedRoutePassport, viewedRouteProof, history, streak, totalXp, dayKey]);
 
   const go = (path: Href) => {
     tapFeedback();
@@ -138,32 +144,10 @@ export default function ProfileScreen() {
         {/* Identity header */}
         <FadeSlideIn>
           <View style={styles.hero}>
-            <View style={styles.avatarRing}>
-              <View style={styles.avatar}>
-                <Ionicons name="person" size={30} color={colors.primary} />
-              </View>
-            </View>
-            <Text style={styles.name}>Mover</Text>
-            <Text style={styles.subtitle}>
-              Level {level.level} · {totalXp.toLocaleString()} XP total
-            </Text>
+            <PlayerHud name="Mover" totalXp={totalXp} streak={streak} />
             <View style={styles.pillRow}>
-              <StatusPill
-                icon={identity.signedIn ? "person-circle-outline" : "phone-portrait-outline"}
-                label={identity.statusLabel}
-                tone={identity.signedIn ? "primary" : "neutral"}
-              />
-              <StatusPill
-                icon={identity.walletAvailable ? "wallet-outline" : "wallet-outline"}
-                label={identity.walletLabel}
-                tone={identity.walletAvailable ? "success" : "neutral"}
-              />
-            </View>
-            <View style={styles.heroBar}>
-              <RoutePath
-                progress={level.progress}
-                label={`${level.xpForLevel - level.xpIntoLevel} XP to level ${level.level + 1}`}
-              />
+              <StatusPill icon="ribbon-outline" label={`${collections.unlocked} badges unlocked`} tone="primary" />
+              <StatusPill icon="flag-outline" label={`${zones.length} zones`} tone="success" />
             </View>
           </View>
         </FadeSlideIn>
@@ -177,19 +161,10 @@ export default function ProfileScreen() {
           </View>
         </FadeSlideIn>
 
-        {/* Locked MOVE — in-app progress only */}
+        {/* Only earned in-app progression belongs in the player spotlight. */}
         <FadeSlideIn delay={STAGGER_MS * 2}>
-          <View style={styles.moveCard}>
-            <View style={styles.moveIcon}>
-              <Hexagon size={20} color={palette.moveGold} />
-            </View>
-            <View style={styles.moveText}>
-              <Text style={styles.moveValue}>{lockedMove.toLocaleString()} Locked MOVE</Text>
-              <Text style={styles.moveNote}>
-                Preview · in-app progress, not a payout. Unlocks with the territory beta.
-              </Text>
-            </View>
-          </View>
+          <GroundPanel kicker="Your collection" title={`${collections.unlocked} / ${collections.total} badges`}
+            detail="Every route adds to your story." icon="ribbon-outline" tone="gold" />
         </FadeSlideIn>
 
         {/* Current club */}
@@ -200,8 +175,8 @@ export default function ProfileScreen() {
             title={selectedClub ? selectedClub.name : "Choose your club"}
             subtitle={
               selectedClub
-                ? `City rank #${myRanked?.rank ?? "—"} · contribution +${myRanked?.userContribution ?? 0}`
-                : "Local preview · represent a club as you move"
+                ? `Your contribution ${myRanked?.userContribution ?? 0}`
+                : "Choose your colours"
             }
             onPress={() => go("/clubs")}
           />
@@ -218,39 +193,39 @@ export default function ProfileScreen() {
           <NavRow
             icon="ribbon-outline"
             title="Season Objectives"
-            subtitle={`${seasonObjectives.completed}/${seasonObjectives.total} complete · local preview`}
+            subtitle={`${seasonObjectives.completed}/${seasonObjectives.total} complete`}
             trailing={`${seasonObjectives.progressPct}%`}
             onPress={() => go("/season-objectives")}
           />
           <NavRow
             icon="bar-chart-outline"
             title="Weekly Recap"
-            subtitle={recap.hasActivity ? `${recap.weekLabel} · ${recap.momentumLabel}` : "Move to fill it in · local preview"}
+            subtitle={recap.hasActivity ? `${recap.weekLabel} · ${recap.momentumLabel}` : "Your week starts with a move"}
             onPress={() => go("/weekly-recap")}
           />
           <NavRow
             icon="medal-outline"
             title="Collections"
-            subtitle={`${collections.unlocked}/${collections.total} local badges · preview only`}
+            subtitle={`${collections.unlocked}/${collections.total} badges unlocked`}
             onPress={() => go("/collections")}
           />
           <NavRow
             icon="trending-up-outline"
             title="District Mastery"
-            subtitle="Long-term local progress · no ownership"
+            subtitle="Build your district progress"
             onPress={() => go("/district-mastery")}
           />
         </NavGroup>
 
         {/* Signal & routes */}
-        <NavGroup title="Signal & routes">
+        <NavGroup title="Your journey">
           <NavRow
             icon="shield-half-outline"
-            title="Route Signal Passport"
+            title="Route Passport"
             subtitle={
               passport.reviewedRouteCount > 0
                 ? `${passport.readinessLabel} · ${passport.reviewedRouteCount} route${passport.reviewedRouteCount === 1 ? "" : "s"}`
-                : "Local readiness preview · no raw GPS"
+                : "Your first route becomes your first stamp"
             }
             onPress={() => go("/route/passport")}
           />
@@ -271,7 +246,7 @@ export default function ProfileScreen() {
           <NavRow
             icon="map-outline"
             title="Territory Map"
-            subtitle={`${zones.length} zone${zones.length === 1 ? "" : "s"} · local board · no raw GPS`}
+            subtitle={`${zones.length} zone${zones.length === 1 ? "" : "s"} to explore`}
             onPress={() => go("/territory/map")}
           />
           <NavRow
@@ -279,21 +254,21 @@ export default function ProfileScreen() {
             title="City Districts"
             subtitle={
               city.hasZones
-                ? `${city.controlledDistricts}/${city.activeDistricts} controlled · local preview`
-                : "Local city preview · capture zones to reveal"
+                ? `${city.controlledDistricts}/${city.activeDistricts} districts progressing`
+                : "Explore more ground"
             }
             onPress={() => go("/city-districts")}
           />
           <NavRow
             icon="flag-outline"
             title="Club Territory"
-            subtitle="Local club command layer · preview"
+            subtitle="Your club’s ground · Preview"
             onPress={() => go("/club-territory")}
           />
           <NavRow
             icon="rocket-outline"
             title="Crew Missions"
-            subtitle="Local weekly crew goals · preview"
+            subtitle="Your weekly objectives"
             onPress={() => go("/crew-missions")}
           />
         </NavGroup>
@@ -303,7 +278,7 @@ export default function ProfileScreen() {
           <NavRow
             icon="wallet-outline"
             title="Account"
-            subtitle={identity.signedIn ? `Signed in · ${identity.walletLabel}` : "Local profile · sign in and wallets"}
+            subtitle={identity.signedIn ? "Signed in · Account security" : "Sign in when you’re ready"}
             onPress={() => go("/account")}
           />
           <NavRow
@@ -317,12 +292,8 @@ export default function ProfileScreen() {
         </NavGroup>
 
         {/* Beta & Preview — fictional/technical previews live here */}
-        <NavGroup title="Beta & Preview">
+        <NavGroup title="Discover">
           <NavRow icon="shapes-outline" tint={palette.deedViolet} title="Deeds" subtitle="Explore the collection preview" onPress={() => go("/deed-showroom")} />
-          <NavRow icon="flag-outline" tint={palette.deedViolet} title="City War Board" subtitle="Fictional season battle · no real users" onPress={() => go("/city-war")} />
-          <NavRow icon="color-wand-outline" tint={palette.deedViolet} title="Rival Ghosts" subtitle="Fictional local pressure · no real users" onPress={() => go("/rivals")} />
-          <NavRow icon="storefront-outline" tint={palette.deedViolet} title="Sponsor Zones" subtitle="Fictional future activations · no ads" onPress={() => go("/sponsor-zones")} />
-          <NavRow icon="sparkles-outline" tint={palette.deedViolet} title="Event Zones" subtitle="Fictional future city activity · no live events" onPress={() => go("/event-zones")} />
         </NavGroup>
 
         {/* Recent activity */}
@@ -395,7 +366,7 @@ const styles = StyleSheet.create({
   // Extra bottom padding clears the floating tab bar.
   content: { paddingTop: spacing.lg, paddingBottom: 120, gap: spacing.lg },
   hero: {
-    alignItems: "center",
+    alignItems: "stretch",
     gap: spacing.xs,
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
