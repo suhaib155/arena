@@ -20,6 +20,8 @@
  * Platform-free and pure, so the invariant is a property of a tested function
  * rather than of a screen being read carefully.
  */
+import type { FixRejection } from "@movenrun/shared/measurement";
+
 import type { GpsAcquisitionState } from "./gpsAcquisitionState";
 import type { TrackPoint } from "./geo";
 
@@ -69,6 +71,38 @@ export function gpsPresence({ acquisition, displayLocation, degraded = false }: 
   }
   if (degraded) return "weak";
   return acquisition === "ready" ? "ready" : "improving";
+}
+
+/**
+ * Whether a *rejected* fix means the signal itself has gone bad.
+ *
+ * The chip's quality half used to update only when a fix was accepted, which
+ * left a gap: once acquisition had succeeded, a session whose fixes were all
+ * being rejected for poor accuracy kept showing `GPS locked` while the distance
+ * silently stopped growing. The readiness was true when it was written and had
+ * quietly stopped being true.
+ *
+ * Only reasons that describe the *fix* are degradation:
+ *
+ * - `weak_accuracy` — the radio is reporting an uncertainty we will not measure
+ *   from.
+ * - `stale_fix` — the newest thing the radio has is too old to be current.
+ *
+ * `within_uncertainty` is deliberately excluded, and it is the common one. It
+ * means the player has not moved far enough to be sure they moved at all, which
+ * is exactly what standing still looks like — reporting a stationary player as
+ * having a bad signal would replace one false statement with another.
+ *
+ * The rest are excluded too: `non_increasing_time`, `future_fix`,
+ * `implausible_speed` and `invalid_fix` are single malformed samples rather than
+ * a signal condition, and `acquiring` is the warm-up state the acquisition
+ * policy already reports for itself.
+ *
+ * This changes nothing about acceptance. A rejected fix stays rejected, adds no
+ * distance and never becomes evidence; only the word on the chip changes.
+ */
+export function degradesSignal(reason: FixRejection | null): boolean {
+  return reason === "weak_accuracy" || reason === "stale_fix";
 }
 
 /** Whether this state asserts the app knows where the player is. */

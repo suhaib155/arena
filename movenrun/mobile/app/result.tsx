@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Animated, Easing, Share, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -79,7 +79,18 @@ export default function ResultScreen() {
     const target = formatDuration((quest?.durationSeconds ?? 0) * 1000);
     return (
       <Screen>
-        <View style={styles.compact}>
+        {/* Scrollable content, pinned actions.
+            The card is content-sized and its text does not shrink, so at the
+            largest supported font on a 320x640 screen a two-line quest title
+            plus reason plus progress plus the XP row can exceed the viewport.
+            As a plain flex column that clipped, with no way to reach what was
+            cut off. The actions stay outside the scroller so they are never the
+            thing that scrolls away. */}
+        <ScrollView
+          style={styles.compactScroll}
+          contentContainerStyle={styles.compact}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.resultCard}>
             <View style={styles.crestRow}>
               <GameBadge icon={view.icon as never} tone="neutral" size={56} />
@@ -104,17 +115,18 @@ export default function ResultScreen() {
             </View>
           </View>
 
-          <View style={styles.compactActions}>
-            <Button label="Back to Today" icon="home" onPress={() => router.replace("/(tabs)")} />
-            {view.retry && quest ? (
-              <Button
-                label="Try again"
-                icon="refresh"
-                variant="secondary"
-                onPress={() => router.replace({ pathname: "/quest/[id]", params: { id: quest.id } })}
-              />
-            ) : null}
-          </View>
+        </ScrollView>
+
+        <View style={styles.compactActions}>
+          <Button label="Back to Today" icon="home" onPress={() => router.replace("/(tabs)")} />
+          {view.retry && quest ? (
+            <Button
+              label="Try again"
+              icon="refresh"
+              variant="secondary"
+              onPress={() => router.replace({ pathname: "/quest/[id]", params: { id: quest.id } })}
+            />
+          ) : null}
         </View>
       </Screen>
     );
@@ -233,7 +245,9 @@ const styles = StyleSheet.create({
   /* Content-sized, top-aligned, with the actions pinned to the bottom. The old
      failure branch was `flex: 1` + `justifyContent: "center"`, which is what
      produced a short paragraph adrift in the middle of an empty page. */
-  compact: { flex: 1, paddingTop: spacing.xl, gap: spacing.lg },
+  compactScroll: { flex: 1 },
+  /* `flexGrow` so a short result still sits where it did, `gap` unchanged. */
+  compact: { flexGrow: 1, paddingTop: spacing.xl, gap: spacing.lg },
   resultCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
@@ -263,7 +277,9 @@ const styles = StyleSheet.create({
   /* Stated, not hidden. A zero the player cannot find reads as a screen that is
      still loading the number. */
   xpZero: { ...type.title, fontSize: 20, color: colors.textDim },
-  compactActions: { marginTop: "auto", paddingBottom: spacing.md, gap: spacing.sm },
+  /* Outside the scroller now, so `marginTop: auto` is no longer what holds it
+     down — it is simply the last child of the screen. */
+  compactActions: { paddingTop: spacing.md, paddingBottom: spacing.md, gap: spacing.sm },
   content: { alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg },
   badge: { ...avatar(92), backgroundColor: colors.surfaceAlt, marginBottom: spacing.sm },
   title: { ...type.display, fontSize: 28, lineHeight: 36, textAlign: "center" },

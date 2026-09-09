@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +9,7 @@ import { Hexagon } from "@/components/Hexagon";
 import { healthVisual } from "@/components/ZoneCard";
 import { colors, glow, iconTile, ink, palette, pressFade, radius, shadows, softTint, spacing, type } from "@/theme";
 import { useGameStore } from "@/store/useGameStore";
-import { getLastSession } from "@/services/moveSession";
+import { getLastSession, subscribeVerification } from "@/services/moveSession";
 import {
   FORTIFY_DEFENSE_GAIN,
   HEALTH_LABEL,
@@ -43,7 +43,25 @@ export default function ZoneDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const zone = useGameStore((s) => s.zones.find((z) => z.id === id));
   const fortifyZone = useGameStore((s) => s.fortifyZone);
-  const hasSession = getLastSession() !== null;
+  /**
+   * Whether a finished session is still being held for review.
+   *
+   * Subscribed rather than read once. As a plain render-time read this button
+   * could outlive the session it points at: the handoff is released when the
+   * summary is left, and a zone screen already mounted at that moment would go
+   * on offering "View route summary" for a session that no longer exists —
+   * opening either an empty summary or, worse, a previous walk's.
+   *
+   * `subscribeVerification` already fires on both `setLastSession` and
+   * `clearLastSession`, so this needs no new store, no new persistence and no
+   * polling. It is the same subscription the share screen uses to notice the
+   * session changing under it.
+   */
+  const hasSession = useSyncExternalStore(
+    subscribeVerification,
+    () => getLastSession() !== null,
+    () => false,
+  );
   const [justFortified, setJustFortified] = useState(false);
 
   const shield = useRef(EDGE_ANGLES.map(() => new Animated.Value(0))).current;

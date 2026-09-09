@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -25,6 +25,7 @@ import {
 import { MovementApiClient } from "@/services/movementApi";
 import { submitCompletedSession } from "@/services/verifySession";
 import { serverSealLabel, toVerifiedRecord, verificationLabel } from "@/lib/verifiedMovement";
+import { isVerifiable } from "@/lib/movementVerification";
 import { newCapturedZone } from "@/lib/zones";
 import { cellsForRoute } from "@/lib/territoryCells";
 import { touchedCells } from "@/lib/mapCells";
@@ -34,13 +35,13 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
 import { gapNotice, summarizeGaps } from "@/lib/trackPoints";
 import { resolveCompletion } from "@/lib/completionSummary";
-import { routeMapState } from "@/lib/routeMapState";
+import { hasDrawableRoute, routeMapState } from "@/lib/routeMapState";
 import type { Quest } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 /* One owner for this id: the Home board filters history by it to tell a real
    movement session apart from an indoor warmup quest. */
 import { SESSION_QUEST_ID } from "@/lib/sessionQuest";
-import { returnToToday } from "@/lib/todayNavigation";
+import { backIntent, returnToToday, type BackContext } from "@/lib/todayNavigation";
 
 /**
  * One synthetic quest id per local day gates session XP through the store's
@@ -105,6 +106,8 @@ export default function MoveSummaryScreen() {
   const [saved, setSaved] = useState(false);
   const [showRouteDetails, setShowRouteDetails] = useState(false);
   const savingRef = useRef(false);
+  /** The Back handler's inputs, refreshed each render. See `leave` below. */
+  const exitRef = useRef<BackContext>({ saveInFlight: false, unsavedProgress: false });
   const verification = useSyncExternalStore(subscribeVerification, getVerificationState, getVerificationState);
   const zonesTouched = useMemo(() => session ? cellsForRoute(session.points) : [], [session]);
   const seal = useMemo(() => session ? sealFinishedRoute(session) : null, [session]);
@@ -137,6 +140,45 @@ export default function MoveSummaryScreen() {
     [session],
   );
 
+  /**
+   * Android hardware Back.
+   *
+   * It used to pop the screen, which navigated without releasing the handoff:
+   * the route's raw coordinates and the display seed stayed in module memory, a
+   * still-unsaved session was discarded with no confirmation and no way back to
+   * it, and the leftover session made a "View route summary" button appear on
+   * unrelated zone screens. `gestureEnabled: false` in the stack does not cover
+   * this — it disables the swipe and has no effect on the hardware button.
+   *
+   * Every case now ends the way `Back to Today` does, through `returnToToday`,
+   * which releases the handoff. Registered above the no-session early return,
+   * because a hook after a conditional return is a hook that does not always
+   * run.
+   */
+  const done = useCallback(() => {
+    returnToToday(router, clearLastSession);
+  }, [router]);
+
+  const leave = useCallback(() => {
+    const intent = backIntent(exitRef.current);
+    if (intent === "block") return true;
+    if (intent === "leave") { done(); return true; }
+    Alert.alert(
+      "Leave without saving?",
+      "This session won't be saved, and its XP won't be earned.",
+      [
+        { text: "Keep summary", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: done },
+      ],
+    );
+    return true;
+  }, [done]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", leave);
+    return () => sub.remove();
+  }, [leave]);
+
   if (!session) {
     return (
       <Screen>
@@ -158,6 +200,32 @@ export default function MoveSummaryScreen() {
   const pace = formatPace(session.distanceM, session.durationMs);
   const saveable = session.mode === "gps" && isSaveable(session.distanceM, session.durationMs);
   const evidenceComplete = session.evidenceStatus !== "capacity_limited";
+  /**
+   * Did this session actually move?
+   *
+   * `isSaveable` is distance **OR** duration, so five minutes of standing still
+   * is saveable while having gone nowhere. That one conflation is what let a
+   * motionless session bank XP, bump the streak, refresh a zone's defence,
+   * increment the defend counter and play the capture celebration.
+   *
+   * `hasDrawableRoute` is the existing canonical predicate for "there is a
+   * route here" — the same one the map slot uses to decide whether a line can
+   * honestly be drawn, and the same evidence-break rule the polyline and the
+   * measured distance already share. Reusing it adds no new threshold and
+   * cannot drift from what the screen draws.
+   *
+   * The app's own words already set this bar: the defend collection reads
+   * "Defend a zone by moving over it".
+   */
+  const movedOverGround = hasDrawableRoute(session.points, mapPauses);
+  /* Whether Save will actually reach the server, so the upload disclosure is
+     shown exactly when it is true. Same predicate the submission itself uses. */
+  const willSubmit = isVerifiable({
+    mode: session.mode,
+    finished: true,
+    saveable,
+    points: session.points,
+  });
 
   /* Territory touched — the real H3 resolution-8 cells this route passed
      through, derived from the in-memory route through the same shared domain
@@ -204,6 +272,7 @@ export default function MoveSummaryScreen() {
   const completion = resolveCompletion({
     mode: session.mode,
     saveable,
+    movedOverGround,
     alreadySavedToday,
     saved,
     outcome: saved ? "saved" : null,
@@ -228,7 +297,12 @@ export default function MoveSummaryScreen() {
       icon: "navigate",
       instructions: [],
     };
-    completeQuest(sessionQuest);
+    /* Movement reward, movement streak and the movement history row all go
+       through this one action, and all three are earned by moving. A session
+       that recorded no route is saved without it: it still gets its
+       route-history record below, and Home's movement task — which filters
+       history by SESSION_QUEST_ID — correctly stays unsatisfied. */
+    if (movedOverGround) completeQuest(sessionQuest);
     /* Server verification of the completed route.
        Saving is the user's deliberate act of turning this session into
        progress, and it is the only path that is already gated to real GPS
@@ -263,7 +337,14 @@ export default function MoveSummaryScreen() {
     if (trust) setRouteTrust(trust.score, trust.label);
     successFeedback();
     /* Movement defend: the route touched zones you already own. */
-    const defendedCount = evidenceComplete ? defendZones(ownedTouched.map((t) => t.id)) : 0;
+    /* Territory defence needs movement over the ground, not time spent near it.
+       Without this a five-minute stand inside an owned zone refreshed its
+       defence and control, reset its decay clock, incremented `timesDefended`
+       — which feeds collections, season objectives, the questline, club
+       scoring and the passport — and redirected to the capture celebration. */
+    const defendedCount = evidenceComplete && movedOverGround
+      ? defendZones(ownedTouched.map((t) => t.id))
+      : 0;
     /* One common zone per saved session (and saves are once per day).
        New capture takes priority for the result moment; defended zones are
        reported alongside it. */
@@ -308,11 +389,21 @@ export default function MoveSummaryScreen() {
     setSaved(true);
   };
 
-  const done = () => {
-    returnToToday(router, clearLastSession);
-  };
-
   const showFooterSave = saveable && !saved && !alreadySavedToday;
+
+  /* Keep the exit decision's inputs current. Assigned during render rather
+     than held in state because nothing renders from it — the Back handler is
+     the only reader, and a state round-trip would re-render the route canvas
+     for a value the canvas does not use. */
+  exitRef.current = {
+    /* A save is one synchronous transaction; `savingRef` latches at its start
+       and `saved` marks it settled. The server submission it fires is
+       deliberately not waited on — it is single-flighted by session id and its
+       payload is built before the first await, so leaving cannot orphan it. */
+    saveInFlight: savingRef.current && !saved,
+    /* Only real, bankable progress is worth a prompt. */
+    unsavedProgress: showFooterSave && movedOverGround,
+  };
 
   return (
     <Screen>
@@ -456,7 +547,7 @@ export default function MoveSummaryScreen() {
               <Text style={styles.zoneEmpty}>All touched zones are already yours.</Text>
             )}
 
-            {ownedTouched.length > 0 && saveable && !alreadySavedToday && !saved && evidenceComplete ? (
+            {ownedTouched.length > 0 && saveable && movedOverGround && !alreadySavedToday && !saved && evidenceComplete ? (
               <Text style={styles.defendHint}>
                 {ownedTouched.length} of yours touched — defense refreshes when you
                 save.
@@ -583,7 +674,12 @@ export default function MoveSummaryScreen() {
                 Saving is what sends the route, so this is where the user finds
                 out — and it is shown only when signed in, because a local-beta
                 save genuinely uploads nothing. */}
-            {accountId && evidenceComplete ? (
+            {/* Only when saving will actually send something. `isVerifiable`
+                needs two points for the server to measure anything, so a
+                one-fix stationary session is never submitted — promising the
+                upload anyway would be the disclosure describing a request that
+                does not happen. */}
+            {accountId && evidenceComplete && willSubmit ? (
               <Text style={styles.uploadNote}>
                 Saving sends this session&apos;s route to MovenRun to verify the distance.
               </Text>

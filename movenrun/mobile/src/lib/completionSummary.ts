@@ -22,14 +22,33 @@ export type CompletionKind =
   | "too-short"
   | "already-saved"
   | "ready-to-save"
+  /** Long enough to keep, with no movement to reward. */
+  | "ready-to-record"
   | "saved-captured"
   | "saved-defended"
-  | "saved";
+  | "saved"
+  /** Kept in route history; earned nothing, because nothing moved. */
+  | "saved-unqualified";
 
 export interface CompletionInput {
   mode: "gps" | "demo";
   /** Meets the minimum distance/duration to be a real save. */
   saveable: boolean;
+  /**
+   * The session actually produced movement evidence — a route that can honestly
+   * be drawn.
+   *
+   * Deliberately a *separate* axis from `saveable`, because the two answer
+   * different questions and `isSaveable` answers its own with distance **OR**
+   * duration. Five minutes of standing still satisfies the duration branch, so
+   * it is saveable while having moved nowhere. Treating those as one fact is how
+   * a motionless session came to bank XP, bump the streak, refresh territory
+   * defence and play the capture celebration.
+   *
+   * Defaults to true so that older callers and fixtures — which predate the
+   * distinction and describe sessions that did move — keep their behaviour.
+   */
+  movedOverGround?: boolean;
   /** A session was already saved earlier today (no additional XP today). */
   alreadySavedToday: boolean;
   /** The user has completed the save action this session. */
@@ -62,6 +81,7 @@ export interface CompletionSummary {
 /** Resolve the truthful completion state from real session/save inputs. */
 export function resolveCompletion(input: CompletionInput): CompletionSummary {
   const rewardStatus = "local-preview" as const;
+  const moved = input.movedOverGround ?? true;
 
   // Demo routes are preview only — never saved as territory, never rewarded.
   if (input.mode === "demo") {
@@ -80,6 +100,23 @@ export function resolveCompletion(input: CompletionInput): CompletionSummary {
   }
 
   if (input.saved) {
+    /* Recorded, and honest about what that did not do. A session with no
+       movement keeps its place in route history and earns nothing — checked
+       before the outcome branches, because an unqualified session can never
+       have produced a capture or a defence to report. */
+    if (!moved) {
+      return {
+        kind: "saved-unqualified",
+        kicker: "Session recorded",
+        headline: "Recorded — no movement to reward",
+        detail: "It is in your route history. No XP, no streak and no territory change, because no movement was recorded.",
+        progressPersisted: false,
+        xpAwardedNow: false,
+        rewardStatus,
+        tone: "neutral",
+        showRewards: false,
+      };
+    }
     if (input.outcome === "captured") {
       return {
         kind: "saved-captured",
@@ -134,6 +171,23 @@ export function resolveCompletion(input: CompletionInput): CompletionSummary {
       xpAwardedNow: false,
       rewardStatus,
       tone: "warning",
+      showRewards: false,
+    };
+  }
+
+  /* Long enough to keep and with nothing to reward. Stated *before* saving so
+     the screen never previews XP it will not award — the reward block used to
+     promise it on the strength of `saveable` alone. */
+  if (!moved) {
+    return {
+      kind: "ready-to-record",
+      kicker: "Session complete",
+      headline: "No movement recorded",
+      detail: "Saving keeps this session in your route history. It earns no XP and changes no territory.",
+      progressPersisted: false,
+      xpAwardedNow: false,
+      rewardStatus,
+      tone: "neutral",
       showRewards: false,
     };
   }
