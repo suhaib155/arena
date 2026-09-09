@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Animated, BackHandler, Easing, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
@@ -77,10 +77,20 @@ export default function ZoneCapturedScreen() {
     ]).start();
   }, [fill, stamp, vertices, particles]);
 
-  const done = () => {
+  const done = useCallback(() => {
     clearLastSession();
     router.dismissAll();
-  };
+  }, [router]);
+
+  /* Hardware Back leaves the same way the button does. Popping this screen
+     instead would navigate away with the finished session — its route
+     coordinates and display seed — still held in module memory. Nothing here is
+     unsaved: the save that produced this celebration already completed, so
+     there is nothing to confirm. */
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => { done(); return true; });
+    return () => sub.remove();
+  }, [done]);
 
   if (!zone) {
     return (
@@ -95,7 +105,17 @@ export default function ZoneCapturedScreen() {
 
   return (
     <Screen>
-      <View style={styles.center}>
+      {/* Scrollable celebration, pinned actions.
+          The stage shrinks (Astra gave it a 160 floor) but the four text blocks
+          below it do not, so at the largest supported font on a 320x640 screen
+          the zone name, the meters line and the preview note could be clipped
+          with no way to reach them. Centred while it fits, scrollable when it
+          does not; the footer was already outside this column and stays there. */}
+      <ScrollView
+        style={styles.centerScroll}
+        contentContainerStyle={styles.center}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={[styles.kicker, isDefend ? styles.kickerDefend : null]}>
           {isDefend ? "Defense refreshed" : "Common Zone"}
         </Text>
@@ -215,7 +235,7 @@ export default function ZoneCapturedScreen() {
             in-app progress, not a payout.
           </Text>
         </View>
-      </View>
+      </ScrollView>
 
       <View style={styles.footer}>
         <Button
@@ -231,7 +251,10 @@ export default function ZoneCapturedScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
+  centerScroll: { flex: 1 },
+  /* `flexGrow` keeps the celebration vertically centred while it fits, and lets
+     it scroll once large text makes it taller than the screen. */
+  center: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
   kicker: { ...type.kicker, color: colors.text, letterSpacing: 2 },
   stage: {
     width: "100%",

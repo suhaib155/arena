@@ -263,8 +263,33 @@ test("submission is bound to the deliberate save action, not to finishing or mou
   // The summary submits from save(), never from an effect that a mount,
   // re-render, or reopen would replay.
   assert.match(summary, /void submitCompletedSession\(/);
-  const effects = summary.match(/useEffect\(/g) ?? [];
-  assert.deepEqual(effects, [], "no effect may trigger submission on mount or re-render");
+  /* The property is that submission is reachable only from `save()` — not that
+     the screen has no effects at all. Counting effects was a proxy for it, and
+     the proxy broke as soon as the screen needed an unrelated effect (the
+     hardware-Back handler). Assert the real thing: exactly one call site, and it
+     sits inside `save`. An effect that submitted would fall outside that span. */
+  assert.equal(
+    (summary.match(/submitCompletedSession\(/g) ?? []).length,
+    1,
+    "exactly one call site, and no more",
+  );
+  const call = summary.indexOf("void submitCompletedSession(");
+  const saveStart = summary.indexOf("const save = () => {");
+  const saveEnd = summary.indexOf("\n  const showFooterSave");
+  assert.ok(saveStart > 0 && saveEnd > saveStart, "save() was not found in the summary screen");
+  assert.ok(
+    call > saveStart && call < saveEnd,
+    "submission must be reachable only from the deliberate save action",
+  );
+  /* And no effect may reach it. Each effect's body is scanned rather than
+     counted, so the screen is free to have effects that do other work. */
+  for (const match of summary.matchAll(/useEffect\(\(\) => \{/g)) {
+    const body = summary.slice(match.index, summary.indexOf("\n  }, [", match.index));
+    assert.ok(
+      !body.includes("submitCompletedSession"),
+      "no effect may trigger submission on mount or re-render",
+    );
+  }
 });
 
 /* ── one logical submission ───────────────────────────────────────────────── */

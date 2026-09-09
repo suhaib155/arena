@@ -11,7 +11,7 @@ import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
 import { FinishSessionSheet } from "@/components/FinishSessionSheet";
 import { gpsTimings, type GpsAcquisitionState } from "@/lib/gpsAcquisitionState";
-import { gpsPresence, presenceLabel, type GpsPresence } from "@/lib/mapPresence";
+import { degradesSignal, gpsPresence, presenceLabel, type GpsPresence } from "@/lib/mapPresence";
 import { Button } from "@/components/Button";
 import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
@@ -239,6 +239,13 @@ export default function MoveSessionScreen() {
              marker jitter around a stationary person, or place them somewhere
              the app has already decided it does not believe. The display keeps
              the last position it had reason to trust. */
+          /* The fix is still rejected and still adds nothing. But a run of
+             rejections for a bad *signal* is something the chip must stop
+             hiding: readiness used to update only on accepted fixes, so a
+             session losing its signal kept saying `GPS locked` while the
+             distance stopped moving. `within_uncertainty` is excluded — that is
+             a stationary player, not a bad one. */
+          if (degradesSignal(decision.reason)) setSignal("degraded");
           distanceDiagnostics.record(p, decision, distanceRef.current, previewRef.current?.evidenceStats.retained ?? 0);
           return;
         }

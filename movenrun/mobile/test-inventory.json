@@ -36,6 +36,7 @@
     "src/lib/__tests__/phase4Guards.test.ts",
     "src/lib/__tests__/phase5Guards.test.ts",
     "src/lib/__tests__/playerCollectionPresentation.test.ts",
+    "src/lib/__tests__/preflightGuards.test.ts",
     "src/lib/__tests__/pressLayout.test.ts",
     "src/lib/__tests__/privacyTruth.test.ts",
     "src/lib/__tests__/profileView.test.ts",

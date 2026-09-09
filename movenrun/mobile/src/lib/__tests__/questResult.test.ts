@@ -114,7 +114,13 @@ test("the screen renders the resolved view and re-decides no reward rule", () =>
   /* The unfinished branch is content-sized, not a centred void. */
   assert.ok(!/styles\.center, \{ justifyContent: "center"/.test(screen),
     "the old centred-void layout is gone");
-  assert.match(screen, /style=\{styles\.compact\}/);
+  /* Scrollable content with the actions outside it, so large text can never put
+     Back to Today out of reach. */
+  assert.match(screen, /contentContainerStyle=\{styles\.compact\}/);
+  assert.match(screen, /<ScrollView\s+style=\{styles\.compactScroll\}/);
+  const closeScroll = screen.indexOf("</ScrollView>");
+  assert.ok(closeScroll > 0 && screen.indexOf("styles.compactActions") > closeScroll,
+    "the actions must sit outside the scroller");
   assert.match(screen, /label="Back to Today"/);
   assert.match(screen, /view\.retry && quest \? \(/);
   assert.match(screen, /\{view\.xpLabel\}/);

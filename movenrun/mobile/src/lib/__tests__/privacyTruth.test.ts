@@ -153,11 +153,18 @@ test("the save action tells the user what saving does, where saving happens", ()
   /* And only when signed in: a local-beta save uploads nothing, so claiming it
      does would be the same failure in the opposite direction. */
   const note = summary.slice(summary.indexOf("uploadNote"));
+  const beforeNote = summary.slice(0, summary.indexOf("Saving sends this session"));
   assert.match(
-    summary.slice(0, summary.indexOf("Saving sends this session")),
-    /accountId && evidenceComplete \?/,
+    beforeNote,
+    /accountId && evidenceComplete/,
     "the notice must be gated on an authenticated account",
   );
+  /* And on the submission actually happening. `isVerifiable` needs two points
+     for the server to measure anything, so a one-fix stationary session is
+     never sent — the disclosure must not describe a request that will not be
+     made. */
+  assert.match(beforeNote, /&& willSubmit \?/, "the notice must be gated on a real submission");
+  assert.match(summary, /const willSubmit = isVerifiable\(\{/);
   assert.ok(note.length > 0);
 });
 
