@@ -1,0 +1,110 @@
+{
+  "_comment": "Schema of the manifest that scripts/v3/deployBaseSepolia.ts writes to deployments/v3/base-sepolia.json. Every 0x0 address and every zero below is a placeholder filled in from real receipts at deployment time. This file never holds a private key, an RPC credential or an API key.",
+  "suiteVersion": "movenrun-v3.0.0",
+  "rulesVersion": 1,
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "gitCommit": "0000000000000000000000000000000000000000",
+  "gitWorkingTreeClean": true,
+  "deployer": "0x0000000000000000000000000000000000000000",
+  "deployedAt": "1970-01-01T00:00:00.000Z",
+  "roles": {
+    "admin": "0x0000000000000000000000000000000000000000",
+    "guardian": "0x0000000000000000000000000000000000000000",
+    "settlementSigner": "0x0000000000000000000000000000000000000000",
+    "reconciliationSigner": "0x0000000000000000000000000000000000000000",
+    "deedSigner": "0x0000000000000000000000000000000000000000",
+    "contestScoreSigner": "0x0000000000000000000000000000000000000000"
+  },
+  "parameters": {
+    "timelockDelaySeconds": 0,
+    "homeAdvantageBps": 500
+  },
+  "fixedConstants": {
+    "maxLifetimeMinted": "1000000000000000000000000000",
+    "playerMovementAllocation": "400000000000000000000000000",
+    "seasonOneBudget": "9000000000000000000000000",
+    "seasonBudgetFloor": "2000000000000000000000000",
+    "seasonLengthDays": 90,
+    "tollRateBps": 200,
+    "maxAutomaticBurnBps": 6000,
+    "contestNoticePeriodSeconds": 259200,
+    "contestScoringWindowSeconds": 604800,
+    "contestCountedScoringDays": 3,
+    "challengerCooldownSeconds": 2592000,
+    "defenderPeacePeriodSeconds": 1209600,
+    "maxFortificationBps": 1500
+  },
+  "compiler": {
+    "version": "0.8.24",
+    "optimizer": { "enabled": true, "runs": 200 },
+    "evmVersion": "cancun"
+  },
+  "contracts": {
+    "MovenRunTimelock": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "MovenRunToken": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "MovenRunRewards": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "MovenRunSettlement": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "MovenRunDeed": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "MovenRunDeedClaims": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "MovenRunContests": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "MovenRunMarketplace": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "MovenRunRegistry": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "deploymentTx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArguments": [],
+      "deployedBytecodeHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "verification": {
+    "MovenRunTimelock": { "status": "pending", "explorerUrl": "", "verifiedAt": "" },
+    "MovenRunToken": { "status": "pending", "explorerUrl": "", "verifiedAt": "" },
+    "MovenRunRewards": { "status": "pending", "explorerUrl": "", "verifiedAt": "" },
+    "MovenRunSettlement": { "status": "pending", "explorerUrl": "", "verifiedAt": "" },
+    "MovenRunDeed": { "status": "pending", "explorerUrl": "", "verifiedAt": "" },
+    "MovenRunDeedClaims": { "status": "pending", "explorerUrl": "", "verifiedAt": "" },
+    "MovenRunContests": { "status": "pending", "explorerUrl": "", "verifiedAt": "" },
+    "MovenRunMarketplace": { "status": "pending", "explorerUrl": "", "verifiedAt": "" },
+    "MovenRunRegistry": { "status": "pending", "explorerUrl": "", "verifiedAt": "" }
+  }
+}
