@@ -11,7 +11,12 @@
     "deploy:sepolia": "hardhat run scripts/deploy/baseSepolia.ts --network baseSepolia",
     "verify:sepolia": "hardhat run scripts/verify/verifyAll.ts --network baseSepolia",
     "verify": "hardhat run scripts/verify/verifyAll.ts --network baseSepolia",
-    "node": "hardhat node"
+    "node": "hardhat node",
+    "deploy:v3:sepolia": "hardhat run scripts/v3/deployBaseSepolia.ts --network baseSepolia",
+    "check:v3:sepolia": "hardhat run scripts/v3/checkDeployment.ts --network baseSepolia",
+    "showcase:v3:local": "hardhat run scripts/v3/MovenRunShowcase.ts",
+    "size:v3": "hardhat run scripts/v3/reportContractSizes.ts",
+    "test:v3": "hardhat test test/v3/*.test.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "2.0.0",
@@ -31,6 +36,7 @@
     "chai": "4.2.0",
     "dotenv": "^16.4.5",
     "ethers": "6.14.0",
+    "h3-js": "^4.1.0",
     "hardhat": "^2.22.3",
     "hardhat-gas-reporter": "1.0.8",
     "solidity-coverage": "~0.8.1",

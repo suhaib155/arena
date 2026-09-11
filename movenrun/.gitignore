@@ -10,6 +10,8 @@ artifacts/
 cache/
 typechain-types/
 deployments/
+# Deployment manifests are an auditable record of what is live, not build output.
+!contracts/deployments/
 
 # Yarn Berry (nodeLinker: node-modules) — local install-state cache only;
 # movenrun/yarn.lock is the committed, deterministic lockfile.
