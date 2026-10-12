@@ -354,6 +354,20 @@ export class MovementApiClient {
     return decodeVerification(body);
   }
 
+  /**
+   * The caller's own verified history, newest first. Owner-scoped by the
+   * server exactly like {@link get}; used to show what an account already
+   * holds after a reinstall or on a new phone.
+   */
+  async list(limit = 100): Promise<MovementVerification[]> {
+    const { body } = await this.send(`/movement/verifications?limit=${Math.max(1, Math.min(100, Math.floor(limit)))}`, {
+      method: "GET",
+    });
+    const items = (body as { verifications?: unknown } | null)?.verifications;
+    if (!Array.isArray(items)) throw new MovementApiError("malformed_response", 200, "malformed_response");
+    return items.map(decodeVerification);
+  }
+
   private async send(
     path: string,
     init: { method: string; body?: unknown },

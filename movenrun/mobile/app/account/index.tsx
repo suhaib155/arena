@@ -11,7 +11,7 @@
  * wallet *state* in words. Address-level detail lives on the dedicated wallet
  * screen, which the user opens deliberately.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,6 +30,8 @@ import { isAuthBusy } from "@/lib/authLifecycle";
 import { walletTypeLabel } from "@/lib/walletPresentation";
 import { buildDeviceLabel } from "@/lib/deviceLabel";
 import { isFeatureInRelease } from "@/lib/releaseScope";
+import { MovementApiClient } from "@/services/movementApi";
+import { summarizeAccountHistory } from "@/lib/accountHistory";
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -43,6 +45,8 @@ export default function AccountScreen() {
   const completeEmailOtp = useAuthStore((s) => s.completeEmailOtp);
   const retryRestore = useAuthStore((s) => s.retryRestore);
   const markSignedIn = useGameStore((s) => s.markSignedIn);
+  const client = useAuthStore((s) => s.client);
+  const [historyLabel, setHistoryLabel] = useState<string | null>(null);
 
   const backendConfigured = isBackendConfigured();
   const busy = isAuthBusy(operation);
@@ -55,6 +59,22 @@ export default function AccountScreen() {
   useEffect(() => {
     if (status === "signedIn") markSignedIn();
   }, [status, markSignedIn]);
+
+  /* What the account already holds on the server. Shown after a reinstall or
+     on a new phone, where local XP starts over but verified sessions do not.
+     A failed read shows nothing rather than a misleading zero. */
+  useEffect(() => {
+    if (status !== "signedIn" || !client) {
+      setHistoryLabel(null);
+      return;
+    }
+    let live = true;
+    new MovementApiClient(client.transport)
+      .list()
+      .then((items) => { if (live) setHistoryLabel(summarizeAccountHistory(items).label); })
+      .catch(() => { if (live) setHistoryLabel(null); });
+    return () => { live = false; };
+  }, [status, client]);
 
   if (status === "signedIn" && user) {
     return (
@@ -71,6 +91,7 @@ export default function AccountScreen() {
                 ? "You\u2019re signed in. This is your permanent MovenRun identity \u2014 your wallets and sign-in methods link to it, so switching wallets never moves your progress."
                 : "You\u2019re signed in with your email. Your verified movement sessions are saved to this account."}
             </Text>
+            {historyLabel ? <Text style={styles.caption}>{historyLabel}</Text> : null}
           </View>
 
           {walletsInRelease ? <View style={styles.card}>
