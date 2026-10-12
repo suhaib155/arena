@@ -1,0 +1,19 @@
+# Decisions (Play v1)
+
+Each decision records what was chosen, why, and what would reverse it.
+
+| ID | Decision | Why | Reversal |
+|---|---|---|---|
+| D-01 | Play v1 is **Path A, Movement Game v1**: walk/run sessions, missions, XP, streaks, badges, personal ground preview, share image, optional email account. No tokens, wallets, NFTs, Deeds, clubs or multiplayer competition | Owner mandate. Those surfaces depend on economy, density and policy work that is not launch-ready, and Play financial/blockchain declarations would follow from them | A later release flips a flag in `releaseScope.ts` after its own review |
+| D-02 | Deferred features are **hidden, not deleted**: `mobile/src/lib/releaseScope.ts` switches them off, the root layout guard sends deferred routes home, and `releaseScope.test.ts` fails if any entry point stays reachable | Repository working agreement: preserved assets are not deleted | Set a feature to `true` |
+| D-03 | Android id stays `io.movenrun.app`; version code is managed remotely by EAS (`appVersionSource: remote`, `autoIncrement` on production) | A package name cannot change after first upload; remote version codes avoid collisions between CI and local builds | None |
+| D-04 | Release manifest declares only fine and coarse foreground location; background location, foreground service, overlay, storage, media and audio are removed with `blockedPermissions` | Avoids the background location and foreground service declarations; matches the foreground-only product | A feature that genuinely needs one, with its Play declaration |
+| D-05 | Account deletion is a **hard delete** of every row tied to the account in one transaction, leaving one anonymous `account_deleted` audit row. Available in app and on the web (`website/account-deletion/`) | Play account deletion policy; nothing in v1 needs retained personal data | A legal hold requirement would add a documented retention exception |
+| D-06 | Reviewer access is a server-side **review email + fixed six-digit code** (`IDENTITY_REVIEW_EMAIL`, `IDENTITY_REVIEW_CODE`), not a bypass. Guessable codes are refused; all OTP limits still apply; no email is sent for that one address | Reviewers cannot receive codes at our test inbox; the code never sits in the repo | Unset both variables after review if desired |
+| D-07 | After reinstall, the account shows its **verified sessions (count and distance) from the server**; local XP, streaks and quests are device-only in v1 and do not restore | Restoring game progress server-side is a larger feature; v1 copy never claims it does | A progress sync feature |
+| D-08 | The production AAB is built only by **EAS in GitHub Actions** (`eas-production-aab.yml`), after lint, tests, Hermes export, prebuild and a manifest permission check, in the `play-release` environment | No Android SDK download is possible in this workspace; keeps signing in EAS and the build reproducible from a commit | None |
+| D-09 | Signing: **Play App Signing** with an EAS-managed upload key | Google holds the app signing key; a lost upload key can be reset | None |
+| D-10 | Hosting is **not chosen yet** (X-03). `render.yaml` is ready but its plans are paid, which needs owner approval. A free Postgres (for example the owner's Supabase project, used as plain Postgres through `DATABASE_URL`) plus a Node host is the alternative | The mandate forbids spending without approval | Owner choice |
+| D-11 | An unused third-party AI SDK dependency was removed from the backend (no imports) | Smaller attack surface; no AI feature in v1 | None |
+| D-12 | Store listing describes only what v1 does; "ground" is called a personal preview kept on the device, never ownership or earnings | Play deceptive behaviour and financial policies | None |
+| D-13 | No pull request is merged and nothing is published by this work; the owner merges and presses Publish | Mandate section A | None |

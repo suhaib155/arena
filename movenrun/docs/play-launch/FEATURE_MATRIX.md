@@ -19,7 +19,7 @@ source, not deleted.
 | Collections, weekly recap, season objectives, questline | `/collections`, `/weekly-recap`, `/season-objectives`, `/questline` | ON | Device | Local history | Club items removed in v1 |
 | Route passport, proof, review history | `/route/*` | ON | Device | Route summaries without coordinates | |
 | Profile | `/profile` | ON | Device + account | Local + `/identity/me` | Club, district, deed rows hidden |
-| Account sign-in (email OTP) | `/account` | ON when `EXPO_PUBLIC_API_URL` is set | Server | `/identity/auth/email/*` | Wallet card hidden in v1 |
+| Account sign-in (email OTP) | `/account` | ON when `EXPO_PUBLIC_API_URL` is set | Server | `/identity/auth/email/*`, `/movement/verifications` | Wallet card hidden; shows verified sessions held by the account |
 | Account security, sessions, sign out, **delete account** | `/account/security` | ON | Server | `/identity/sessions`, `/identity/account/delete` | Non-custodial wallet note hidden |
 | Help, Legal (Terms, Privacy) | `/help`, `/legal` | ON | Static | In-app copy | Deeds and Clubs guides hidden |
 | Technical info | `/settings/technical` | ON | Device | Build/connection info | |
@@ -30,5 +30,6 @@ source, not deleted.
 
 Backend surfaces used by v1: `/health`, `/ready`, `/identity/auth/email/begin|complete`,
 `/identity/auth/refresh`, `/identity/me`, `/identity/sessions*`, `/identity/session/*`,
-`/identity/account/delete`, `/movement/verify`. Wallet routes exist server-side
+`/identity/account/delete`, `/movement/verify`, `/movement/verifications` (the
+Account screen's verified-session count). Wallet routes exist server-side
 but no v1 client path reaches them, and no provider is wired (they fail closed).

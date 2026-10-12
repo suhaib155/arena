@@ -32,5 +32,8 @@ on the **Play internal-test install** (R gate, adds steps 15 to 17).
 | 20 | Reduced motion on | No essential information lost |
 
 Two-account check (B gate): accounts A and B on two phones (or reinstall
-between). Each saves a session; reinstall the app; sign in again; each sees only
-their own verified sessions; delete A; B unaffected.
+between). Each signs in and saves a verified session. Reinstall the app and sign
+in again: Profile → Account shows "N verified sessions saved to this account"
+with that account's own count and distance only. Local XP, streaks and quests do
+not come back after a reinstall (known v1 limit, DECISIONS D-07). Delete A; sign
+in as B: B's count is unchanged.

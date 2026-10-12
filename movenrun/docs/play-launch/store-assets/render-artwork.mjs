@@ -1,4 +1,5 @@
-import { chromium } from "/opt/node-tools/node_modules/playwright/index.mjs";
+// Playwright is not a project dependency: point PLAYWRIGHT_MODULE at an install if it is not resolvable.
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
 import { readFileSync } from "node:fs";
 const [,, nm, outDir] = process.argv;
 const sora = readFileSync(`${nm}/@expo-google-fonts/sora/800ExtraBold/Sora_800ExtraBold.ttf`).toString("base64");
@@ -71,7 +72,7 @@ const feature = `
     <div style="position:absolute;left:66px;top:328px;width:500px;font-size:27px;line-height:37px;color:#33425C">Turn everyday walks and runs into missions and real-world progress.</div>
   </div>`;
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" }).catch(() => chromium.launch());
+const browser = await (process.env.CHROMIUM_PATH ? chromium.launch({ executablePath: process.env.CHROMIUM_PATH }) : chromium.launch());
 const page = await browser.newPage({ deviceScaleFactor: 1 });
 for (const [name, [w, h, body]] of Object.entries(pages)) {
   await page.setViewportSize({ width: w, height: h });

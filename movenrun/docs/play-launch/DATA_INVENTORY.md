@@ -22,7 +22,7 @@ table changes.
 | `users` | Opaque id, status, timestamps | Account | Until deletion |
 | `auth_identities` | Normalized email (provider subject) | Sign-in | Until deletion |
 | `auth_sessions` | Device label ("Android device"), hashed user agent, keyed hash of refresh token, times | Sessions and device list | Until deletion (revoked rows kept until deletion) |
-| `email_otp_challenges` | Email, keyed hash of code, hashed request source | One-time codes, throttling | Expire in 5 min; rows removed for the account's emails on deletion. Open item P-10: purge expired rows for emails that never signed up |
+| `email_otp_challenges` | Email, keyed hash of code, hashed request source | One-time codes, throttling | Expire in 5 min; deleted one day after expiry (swept on each code request), and at once for the account's emails on deletion |
 | `movement_verifications` | Distance, duration, pause total, mode, rules version, times, H3 res-8 cells crossed (~0.74 km² each), confidence, rejection reasons, seal summary | Verified progress, dedupe | Until deletion |
 | `security_audit_events` | User id, event type, redacted metadata | Security | Deleted with the account; one anonymous `account_deleted` row kept |
 | `wallets`, `wallet_link_challenges` | None created in v1 | Deferred | Deleted with the account |

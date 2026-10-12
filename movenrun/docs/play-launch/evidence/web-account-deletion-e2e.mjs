@@ -1,10 +1,11 @@
 // End-to-end: public deletion page in Chromium → same-origin proxy → built API → PostgreSQL.
-import { chromium } from "/opt/node-tools/node_modules/playwright/index.mjs";
+// Playwright is not a project dependency: point PLAYWRIGHT_MODULE at an install if it is not resolvable.
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { spawn } from "node:child_process";
-import pg from "/home/claude/arena/movenrun/node_modules/pg/lib/index.js";
+const { default: pg } = await import(new URL("../../../node_modules/pg/lib/index.js", import.meta.url).href);
 
 const [, , site, backend, dbUrl] = process.argv;
 const REVIEW = { email: "play-review@movenrun.test", code: "730518" };
