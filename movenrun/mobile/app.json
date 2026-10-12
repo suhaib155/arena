@@ -22,7 +22,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-monochrome.png",
-        "backgroundColor": "#246BFE"
+        "backgroundColor": "#F8FAF7"
       },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
