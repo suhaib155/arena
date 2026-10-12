@@ -101,6 +101,9 @@ interface AuthState {
   signOut: () => Promise<void>;
   /** Server-side revoke-all (every device), then local credential clear. */
   signOutEverywhere: () => Promise<void>;
+  /** Permanently delete the account on the server, then sign out locally.
+   *  Resolves true only after the server confirmed the deletion. */
+  deleteAccount: () => Promise<boolean>;
 }
 
 function codeOf(err: unknown): string {
@@ -604,6 +607,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (generation !== sessionGeneration) return;
       set(signedOut({ accountErrorCode: codeOf(err) }));
     }
+  },
+
+  deleteAccount: async () => {
+    const client = get().client;
+    if (!client || get().pendingSessionAction !== null) return false;
+    set({ pendingSessionAction: "delete-account", accountErrorCode: null });
+    try {
+      await client.deleteAccount();
+    } catch (err) {
+      if (isAuthLost(err)) {
+        set(signedOut({ accountErrorCode: codeOf(err) }));
+        return false;
+      }
+      set({ pendingSessionAction: null, accountErrorCode: codeOf(err) });
+      return false;
+    }
+    beginSessionGeneration();
+    set(signedOut({ accountErrorCode: null }));
+    return true;
   },
 
   signOutEverywhere: async () => {

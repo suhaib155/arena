@@ -422,6 +422,25 @@ export class IdentityApiClient {
     }
   }
 
+  /**
+   * Permanently delete the signed-in account and everything the server holds
+   * for it. Local credentials and queued verifications are cleared only after
+   * the server confirms, so a failed request leaves the person signed in and
+   * able to try again instead of locally signed out with a live account.
+   */
+  async deleteAccount(): Promise<void> {
+    await this.request<{ deleted: boolean }>("/identity/account/delete", {
+      method: "POST",
+      auth: true,
+      body: { confirm: "DELETE" },
+    });
+    setVerificationAccount(null);
+    const clearing = clearPendingQueue();
+    void clearing.catch(() => {});
+    const generation = verificationGeneration();
+    await Promise.all([clearing, this.writeCredentials(generation, () => this.store.clear())]);
+  }
+
   // ---- reads --------------------------------------------------------------
   me(): Promise<{ user: PublicUser; session: SessionEnvelope; identities: PublicIdentity[] }> {
     return this.request("/identity/me", { auth: true });

@@ -23,6 +23,8 @@ import {
 } from "@/lib/sessionPresentation";
 import { displayDeviceLabel } from "@/lib/deviceLabel";
 import { isFeatureInRelease } from "@/lib/releaseScope";
+import { authErrorMessage } from "@/lib/emailAuth";
+import { useGameStore } from "@/store/useGameStore";
 
 function providerLabel(provider: string): string {
   switch (provider) {
@@ -91,6 +93,9 @@ export default function SecurityScreen() {
   const revokeOtherSessions = useAuthStore((s) => s.revokeOtherSessions);
   const signOut = useAuthStore((s) => s.signOut);
   const signOutEverywhere = useAuthStore((s) => s.signOutEverywhere);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
+  const accountErrorCode = useAuthStore((s) => s.accountErrorCode);
+  const resetProgress = useGameStore((s) => s.reset);
   const [busy, setBusy] = useState(false);
 
   const signedIn = status === "signedIn";
@@ -162,6 +167,36 @@ export default function SecurityScreen() {
       [
         { text: "Cancel", style: "cancel" },
         { text: "Sign out everywhere", style: "destructive", onPress: doSignOutEverywhere },
+      ]
+    );
+  };
+
+  const doDeleteAccount = async () => {
+    setBusy(true);
+    const deleted = await deleteAccount();
+    if (deleted) {
+      // The account is gone from the server; this device's copy of the
+      // progress goes with it, so nothing tied to the account stays behind.
+      try {
+        await resetProgress();
+      } catch {
+        /* The account itself is already deleted; local data can still be
+           cleared from Profile with Reset progress. */
+      }
+    }
+    setBusy(false);
+    if (!deleted) return;
+    Alert.alert("Account deleted", "Your MovenRun account and its saved sessions have been permanently deleted.");
+    router.replace("/account");
+  };
+
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      "Delete your account?",
+      "This permanently deletes your MovenRun account, your email sign-in, and every verified session saved to it, and signs out all devices. Progress on this device is cleared too. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete account", style: "destructive", onPress: () => void doDeleteAccount() },
       ]
     );
   };
@@ -280,6 +315,27 @@ export default function SecurityScreen() {
           disabled={!signedIn || anyActionInFlight}
           style={styles.spaced}
         />
+
+        <SectionHeader title="Delete account" />
+        <View style={styles.card}>
+          <Text style={styles.caption}>
+            Deleting your account removes your email sign-in and every verified session saved to it from
+            MovenRun. It cannot be undone.
+          </Text>
+          {accountErrorCode && pendingSessionAction === null ? (
+            <Text style={styles.errorText} accessibilityLiveRegion="polite">
+              {authErrorMessage(accountErrorCode) ?? "Your account could not be deleted. Please try again."}
+            </Text>
+          ) : null}
+          <Button
+            label="Delete account"
+            icon="trash-outline"
+            variant="danger"
+            onPress={confirmDeleteAccount}
+            loading={pendingSessionAction === "delete-account"}
+            disabled={!signedIn || anyActionInFlight}
+          />
+        </View>
 
         {isFeatureInRelease("wallets") ? <View style={[styles.card, styles.noteCard]}>
           <Text style={styles.noteTitle}>MovenRun is non-custodial</Text>

@@ -267,6 +267,45 @@ test("signOutEverywhere (revoke-all) clears SecureStore, runtime state, and the 
   assert.equal(calls.filter((c) => c.url.includes("/auth/refresh")).length, 0);
 });
 
+test("deleteAccount sends the exact confirmation, then clears credentials and signs out", async () => {
+  const calls = stubFetch({
+    "/identity/account/delete": () => ({ status: 200, json: { deleted: true, erased: { users: 1 } } }),
+  });
+  assert.equal(await useAuthStore.getState().deleteAccount(), true);
+  const st = useAuthStore.getState();
+  assert.equal(st.status, "signedOut");
+  assert.equal(st.user, null);
+  assert.equal(st.pendingSessionAction, null);
+  assert.equal(st.accountErrorCode, null);
+  assert.equal(await createSecureSessionStore(backend).load(), null, "credentials wiped");
+  const deletes = calls.filter((c) => c.url.includes("/identity/account/delete"));
+  assert.equal(deletes.length, 1);
+  assert.equal(deletes[0].method, "POST");
+  assert.deepEqual(JSON.parse(deletes[0].body ?? "null"), { confirm: "DELETE" });
+});
+
+test("a failed deleteAccount keeps the person signed in so they can retry", async () => {
+  stubFetch({
+    "/identity/account/delete": () => ({ status: 503, json: { error: { code: "provider_not_configured" } } }),
+  });
+  assert.equal(await useAuthStore.getState().deleteAccount(), false);
+  const st = useAuthStore.getState();
+  assert.equal(st.status, "signedIn");
+  assert.equal(st.pendingSessionAction, null);
+  assert.equal(st.accountErrorCode, "provider_not_configured");
+  assert.deepEqual(await createSecureSessionStore(backend).load(), TOKENS, "credentials untouched");
+});
+
+test("deleteAccount refuses to run while another session action is in flight", async () => {
+  const calls = stubFetch({
+    "/identity/account/delete": () => ({ status: 200, json: { deleted: true } }),
+  });
+  useAuthStore.setState({ pendingSessionAction: "revoke-others" });
+  assert.equal(await useAuthStore.getState().deleteAccount(), false);
+  assert.equal(calls.length, 0);
+  assert.equal(useAuthStore.getState().status, "signedIn");
+});
+
 test("no token or hash material ever enters the store's session state", async () => {
   stubFetch({ "/identity/sessions": () => ({ status: 200, json: { sessions: [makeSession({ isCurrent: true })] } }) });
   await useAuthStore.getState().loadSessions();
