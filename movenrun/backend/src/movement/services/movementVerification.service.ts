@@ -107,6 +107,12 @@ export class MovementVerificationService {
   async get(userId: string, clientSessionId: string): Promise<MovementVerificationRecord | null> {
     return this.deps.repository.findByUserSession(userId, clientSessionId);
   }
+
+  /** The user's own verified history, newest first, so a reinstalled app can
+   *  show what the account already holds. */
+  async list(userId: string, limit: number): Promise<MovementVerificationRecord[]> {
+    return this.deps.repository.listByUser(userId, limit);
+  }
 }
 
 /**

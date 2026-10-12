@@ -164,6 +164,8 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     assert.equal((await request("/identity/me", undefined, otherToken)).status, 200);
     const otherRows = await pool.query("select count(*)::int as count from movement_verifications where client_session_id = $1", [otherMovement.sessionId]);
     assert.equal(otherRows.rows[0].count, 1);
+    const history = await (await request("/movement/verifications", undefined, otherToken)).json();
+    assert.deepEqual(history.verifications.map((v: { sessionId: string }) => v.sessionId), [otherMovement.sessionId]);
 
     // The same email can sign up again and starts with a brand new account.
     const freshToken = await signIn(email);

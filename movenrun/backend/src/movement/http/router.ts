@@ -150,5 +150,21 @@ export function createMovementRouter(deps: MovementRouterDeps): Router {
     })
   );
 
+  /**
+   * GET /movement/verifications?limit=N — the caller's OWN verified history,
+   * newest first (default 50, at most 100). Summaries only, exactly the shape
+   * of a single result; no route points exist server-side to return.
+   */
+  router.get(
+    "/verifications",
+    authed(async (req, res, user) => {
+      const raw = req.query.limit;
+      const limit = raw === undefined ? 50 : Number(raw);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new IdentityError("invalid_request");
+      const records = await deps.service.list(user.userId, limit);
+      res.json({ verifications: records.map(toPublicVerification) });
+    })
+  );
+
   return router;
 }

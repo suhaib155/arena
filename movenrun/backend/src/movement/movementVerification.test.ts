@@ -186,6 +186,7 @@ test("two concurrent retries converge on one row via the DB constraint", async (
       return inner.findByUserSession(userId, sessionId);
     },
     create: (input: CreateMovementVerificationInput) => inner.create(input),
+    listByUser: (userId, limit) => inner.listByUser(userId, limit),
   };
   let verifications = 0;
   const service = new MovementVerificationService({
@@ -241,6 +242,7 @@ test("a conflict with no readable winner fails closed rather than verifying twic
   const lying: MovementVerificationRepository = {
     async findByUserSession() { return null; },
     async create() { throw new MovementSessionConflictError(); },
+    async listByUser() { return []; },
   };
   const service = buildService(lying);
   await assert.rejects(

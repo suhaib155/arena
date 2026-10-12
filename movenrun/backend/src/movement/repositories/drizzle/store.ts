@@ -12,7 +12,7 @@
  * than in a process-local cache, so the guarantee survives a restart and holds
  * across replicas.
  */
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { isSealMethod, type SealMethod } from "@movenrun/shared/sealing";
 import type { Db } from "../../../db/client.js";
 import { movementVerifications } from "../../../db/movement.schema.js";
@@ -87,6 +87,16 @@ export class DrizzleMovementVerificationRepository
       if (isSessionConflict(err)) throw new MovementSessionConflictError();
       throw err;
     }
+  }
+
+  async listByUser(userId: string, limit: number): Promise<MovementVerificationRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(movementVerifications)
+      .where(eq(movementVerifications.userId, userId))
+      .orderBy(desc(movementVerifications.endTime), desc(movementVerifications.createdAt))
+      .limit(limit);
+    return rows.map(toRecord);
   }
 
   async findByUserSession(

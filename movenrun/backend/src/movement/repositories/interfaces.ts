@@ -98,6 +98,9 @@ export interface MovementVerificationRepository {
     userId: string,
     clientSessionId: string,
   ): Promise<MovementVerificationRecord | null>;
+  /** The user's own verifications, newest first, at most `limit`. Scoped by
+   *  userId exactly like the lookup above. */
+  listByUser(userId: string, limit: number): Promise<MovementVerificationRecord[]>;
 }
 
 /** In-memory implementation for tests. Mirrors the DB's uniqueness exactly. */
@@ -123,6 +126,13 @@ export class InMemoryMovementVerificationRepository
     const record: MovementVerificationRecord = { ...input, createdAt: new Date() };
     this.byKey.set(key, record);
     return record;
+  }
+
+  async listByUser(userId: string, limit: number): Promise<MovementVerificationRecord[]> {
+    return [...this.byKey.values()]
+      .filter((record) => record.userId === userId)
+      .sort((a, b) => b.endTime - a.endTime)
+      .slice(0, limit);
   }
 
   async findByUserSession(

@@ -334,3 +334,37 @@ test("HTTP provenance: authentication remains authoritative and reads remain own
     assert.deepEqual(await own.json(), mine.body);
   });
 });
+
+test("verified history lists only the caller's own sessions, newest first, within bounds", async () => {
+  await withServer(async (base) => {
+    const root = base.replace(/\/verify$/, "");
+    const post = (token: string, body: unknown) => fetch(base, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const list = (token: string | null, query = "") => fetch(`${root}/verifications${query}`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    const older = requestBody("session-history-old1");
+    const newer = { ...requestBody("session-history-new1"), startTime: T0 + 200_000, endTime: T0 + 310_000,
+      points: requestBody().points.map((p) => ({ ...p, timestamp: p.timestamp + 200_000 })),
+      session: { ...requestBody().session, startedAt: T0 + 199_000, finishedAt: T0 + 330_000, pauses: [] } };
+    assert.equal((await post("user-a-token", older)).status, 201);
+    assert.equal((await post("user-a-token", newer)).status, 201);
+    assert.equal((await post("user-b-token", requestBody("session-history-bbb1"))).status, 201);
+
+    assert.equal((await list(null)).status, 401);
+    const mine = await (await list("user-a-token")).json() as { verifications: { sessionId: string }[] };
+    assert.deepEqual(mine.verifications.map((v) => v.sessionId), ["session-history-new1", "session-history-old1"]);
+    const theirs = await (await list("user-b-token")).json() as { verifications: { sessionId: string }[] };
+    assert.deepEqual(theirs.verifications.map((v) => v.sessionId), ["session-history-bbb1"]);
+    const one = await (await list("user-a-token", "?limit=1")).json() as { verifications: unknown[] };
+    assert.equal(one.verifications.length, 1);
+    for (const bad of ["?limit=0", "?limit=101", "?limit=abc", "?limit=1.5"]) {
+      assert.equal((await list("user-a-token", bad)).status, 400, bad);
+    }
+    // Summaries only: no coordinates leave the server.
+    assert.ok(!JSON.stringify(mine).includes("12.97"));
+  });
+});
