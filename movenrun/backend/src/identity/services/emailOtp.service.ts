@@ -23,6 +23,9 @@ import type { OtpChallengeRepository } from "../repositories/interfaces.js";
 import type { EmailOtpDeliveryProvider } from "../providers/types.js";
 import type { AuditService } from "./audit.service.js";
 
+/** How long an expired sign-in challenge is kept before it is deleted. */
+export const EXPIRED_CHALLENGE_RETENTION_MS = 24 * 60 * 60 * 1000;
+
 export interface EmailOtpConfig {
   otpPepper: string;
   otpTtlSeconds: number;
@@ -82,6 +85,10 @@ export class EmailOtpService {
     if (!email) throw new IdentityError("invalid_request", "invalid email");
 
     const now = this.now();
+    // Expired challenges are useless after a day (throttling only reads live
+    // ones), so each request sweeps them away, including those for emails that
+    // never finished signing up.
+    await this.otpChallenges.purgeExpired(new Date(now.getTime() - EXPIRED_CHALLENGE_RETENTION_MS));
     const existing = await this.otpChallenges.findActiveByEmail(email, now);
     if (existing) {
       const sinceLastSent = (now.getTime() - existing.lastSentAt.getTime()) / 1000;

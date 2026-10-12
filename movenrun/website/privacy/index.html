@@ -64,7 +64,7 @@
 <h2 id="retention">How long we keep data</h2>
 <ul>
   <li><strong>Account data</strong> (email, sign-in sessions, verified session summaries) is kept until you delete your account.</li>
-  <li><strong>Sign-in codes</strong> are stored only as a one-way hash and expire after 5 minutes.</li>
+  <li><strong>Sign-in codes</strong> are stored only as a one-way hash, expire after 5 minutes and are deleted within a day of expiring.</li>
   <li><strong>Unsent sessions</strong> waiting for a connection are kept on your phone for up to 7 days, and are deleted when they are sent, expire, are discarded, or you sign out.</li>
   <li><strong>On your phone</strong>, game progress stays until you reset progress, delete your account in the app, or uninstall the app.</li>
   <li><strong>Backups</strong> of the database are kept by our hosting provider for up to {{BACKUP_RETENTION_DAYS}} days, after which deleted data no longer exists in any backup.</li>

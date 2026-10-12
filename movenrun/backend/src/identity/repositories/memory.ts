@@ -474,6 +474,16 @@ export class InMemoryOtpChallengeRepository implements OtpChallengeRepository {
     r.consumedAt = at;
     return clone(r);
   }
+  async purgeExpired(before: Date): Promise<number> {
+    let removed = 0;
+    for (const [id, r] of this.rows) {
+      if (r.expiresAt.getTime() < before.getTime()) {
+        this.rows.delete(id);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
 }
 
 export class InMemoryAuditEventRepository implements AuditEventRepository {

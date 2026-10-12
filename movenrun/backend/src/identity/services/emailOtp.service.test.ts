@@ -154,3 +154,20 @@ test("without review configuration the review email is an ordinary email", async
   assert.equal(h.delivery.lastCodeFor(REVIEW.email), "246810");
   await expectError(() => h.emailOtp.complete({ email: REVIEW.email, code: REVIEW.code }), "verification_failed");
 });
+
+test("expired challenges are deleted a day later, even for emails that never signed in", async () => {
+  const h = createHarness({ otpGen: () => "246810" });
+  await h.emailOtp.begin({ email: "abandoned@example.com" });
+  h.advanceSeconds(24 * 60 * 60 + 10 * 60);
+  await h.emailOtp.begin({ email: "later@example.com" });
+  // Only the new, live challenge is left: sweeping everything now removes just it.
+  assert.equal(await h.stores.otpChallenges.purgeExpired(new Date(h.now().getTime() + 24 * 60 * 60 * 1000)), 1);
+});
+
+test("a recently expired challenge is kept until its day has passed", async () => {
+  const h = createHarness({ otpGen: () => "246810" });
+  await h.emailOtp.begin({ email: "recent@example.com" });
+  h.advanceSeconds(60 * 60);
+  await h.emailOtp.begin({ email: "other@example.com" });
+  assert.equal(await h.stores.otpChallenges.purgeExpired(new Date(h.now().getTime() + 24 * 60 * 60 * 1000)), 2);
+});

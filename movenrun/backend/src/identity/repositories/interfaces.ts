@@ -230,6 +230,8 @@ export interface OtpChallengeRepository {
   incrementAttempts(id: string): Promise<EmailOtpChallengeRecord | null>;
   /** Atomically consume (single-use). Returns the row only if it transitioned. */
   consume(id: string, at: Date): Promise<EmailOtpChallengeRecord | null>;
+  /** Delete challenges that expired before `before`, for any email. Returns how many went. */
+  purgeExpired(before: Date): Promise<number>;
 }
 
 export interface CreateAuditEventInput {

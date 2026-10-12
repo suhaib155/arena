@@ -167,8 +167,15 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     const history = await (await request("/movement/verifications", undefined, otherToken)).json();
     assert.deepEqual(history.verifications.map((v: { sessionId: string }) => v.sessionId), [otherMovement.sessionId]);
 
+    // A code requested two days ago by someone who never signed in is swept by the next request.
+    await pool.query(
+      "insert into email_otp_challenges (id, normalized_email, purpose, code_hash, max_attempts, expires_at) values ('stale-challenge', 'never.finished@example.com', 'auth', 'x', 5, now() - interval '2 days')"
+    );
+
     // The same email can sign up again and starts with a brand new account.
     const freshToken = await signIn(email);
+    const stale = await pool.query("select count(*)::int as count from email_otp_challenges where normalized_email = 'never.finished@example.com'");
+    assert.equal(stale.rows[0].count, 0);
     const fresh = await (await request("/identity/me", undefined, freshToken)).json();
     assert.notEqual(fresh.user.id, userId);
     const freshRows = await pool.query("select count(*)::int as count from movement_verifications where user_id = $1", [fresh.user.id]);

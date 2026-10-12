@@ -13,7 +13,7 @@
  *  - "set sole active wallet" and "create user + first identity" run inside a
  *    transaction so their invariants hold under concurrency.
  */
-import { and, desc, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "../../../db/client.js";
 import {
   authIdentities,
@@ -502,6 +502,13 @@ export class DrizzleOtpChallengeRepository implements OtpChallengeRepository {
       .where(and(eq(emailOtpChallenges.id, id), isNull(emailOtpChallenges.consumedAt)))
       .returning();
     return row ? toOtp(row) : null;
+  }
+  async purgeExpired(before: Date): Promise<number> {
+    const rows = await this.db
+      .delete(emailOtpChallenges)
+      .where(lt(emailOtpChallenges.expiresAt, before))
+      .returning({ id: emailOtpChallenges.id });
+    return rows.length;
   }
 }
 
