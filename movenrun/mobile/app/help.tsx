@@ -8,6 +8,7 @@ import { FirstTimeGuide } from "@/components/FirstTimeGuide";
 import { LegalLinks } from "@/components/LegalAcceptance";
 import { EDUCATION_TOPICS, type EducationTopic } from "@/lib/education";
 import { colors, radius, spacing, type } from "@/theme";
+import { isFeatureInRelease } from "@/lib/releaseScope";
 
 export default function HelpScreen() {
   const { topic } = useLocalSearchParams<{ topic?: string }>();
@@ -18,8 +19,8 @@ export default function HelpScreen() {
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.title}>Find your next move</Text>
       <Button label="Territory guide" icon="map-outline" variant="secondary" onPress={() => setReplay("territory")} />
-      <Button label="Deeds guide" icon="albums-outline" variant="secondary" onPress={() => setReplay("deeds")} />
-      <Button label="Clubs guide" icon="people-outline" variant="secondary" onPress={() => setReplay("clubs")} />
+      {isFeatureInRelease("deeds") ? <Button label="Deeds guide" icon="albums-outline" variant="secondary" onPress={() => setReplay("deeds")} /> : null}
+      {isFeatureInRelease("clubs") ? <Button label="Clubs guide" icon="people-outline" variant="secondary" onPress={() => setReplay("clubs")} /> : null}
       <View style={styles.card}>
         <Text style={styles.heading}>Quest rewards</Text>
         <Text style={styles.body}>Complete the countdown to earn XP. Paused time does not count. Each quest awards XP once per day.</Text>

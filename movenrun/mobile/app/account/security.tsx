@@ -22,6 +22,7 @@ import {
   sessionStatusLabel,
 } from "@/lib/sessionPresentation";
 import { displayDeviceLabel } from "@/lib/deviceLabel";
+import { isFeatureInRelease } from "@/lib/releaseScope";
 
 function providerLabel(provider: string): string {
   switch (provider) {
@@ -280,14 +281,14 @@ export default function SecurityScreen() {
           style={styles.spaced}
         />
 
-        <View style={[styles.card, styles.noteCard]}>
+        {isFeatureInRelease("wallets") ? <View style={[styles.card, styles.noteCard]}>
           <Text style={styles.noteTitle}>MovenRun is non-custodial</Text>
           <Text style={styles.caption}>
             You control your wallet. MovenRun never holds, stores, or asks for your recovery phrase or private
             keys, and support can never move your funds. Anyone asking for your recovery phrase is trying to
             scam you.
           </Text>
-        </View>
+        </View> : null}
       </ScrollView>
     </Screen>
   );

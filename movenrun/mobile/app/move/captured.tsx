@@ -231,8 +231,8 @@ export default function ZoneCapturedScreen() {
 
         <View style={styles.noteCard}>
           <Text style={styles.noteText}>
-            Local territory preview · on-device simulation. Locked MOVE remains
-            in-app progress, not a payout.
+            Your ground is a personal preview kept on this device. It is not
+            ownership of a place and never pays out.
           </Text>
         </View>
       </ScrollView>

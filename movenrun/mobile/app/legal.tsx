@@ -13,7 +13,7 @@ const PRIVACY = [
   ["Your choices", "Location permission is requested separately through your device. This acknowledgment does not replace OS permissions. You can stop or discard a move, sign out, or reset local progress. Help-guide choices and this policy acknowledgment are stored for this installation, without account or location details."],
 ];
 const TERMS = [
-  ["Current demo", "MovenRun is a movement-game preview. XP and progress are in-app features. This build offers no purchase, reward payout or minting. Territory and Deed previews do not establish permanent ownership."],
+  ["About this version", "MovenRun is a movement game. XP, levels and badges are in-app progress with no cash value. This version offers no purchase, reward payout or minting, and has no tokens or wallets. Your ground on the map is a personal preview; territory and Deed previews do not establish permanent ownership of any place."],
   ["Move with care", "Choose safe places and activities suitable for you. Pay attention to your surroundings and stop when you need to. Quest timers and GPS estimates are game features, not medical or navigation advice."],
   ["Accounts and availability", "You can explore without an account. Sign-in and session verification require an available account service. Local progress is not a promise of cloud backup or future rewards."],
   ["Permissions and sharing", "Use the device permission controls to manage location access. Share only images you are comfortable sending to the selected app, and retain the map provider attribution in shared map images."],

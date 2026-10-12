@@ -244,8 +244,8 @@ export default function CollectionsScreen() {
         ) : null}
 
         <Text style={styles.footerNote}>
-          Badges are local previews. They do not affect rewards, ownership, or
-          on-chain status.
+          Badges are in-app progress. They have no cash value and grant no
+          ownership.
         </Text>
       </ScrollView>
     </Screen>
