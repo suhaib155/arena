@@ -1,0 +1,44 @@
+# Dedicated preview resources; no automatic deployment or merge.
+services:
+  - type: web
+    name: movenrun-preview-api
+    runtime: node
+    plan: starter
+    region: singapore
+    branch: fix/preview-v3-api-runtime
+    rootDir: movenrun
+    autoDeployTrigger: off
+    numInstances: 1
+    buildCommand: corepack enable && yarn install --immutable && yarn workspace @movenrun/backend build
+    preDeployCommand: yarn workspace @movenrun/backend db:migrate
+    startCommand: yarn workspace @movenrun/backend start
+    healthCheckPath: /ready
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: movenrun-preview-db
+          property: connectionString
+      - key: IDENTITY_SESSION_PEPPER
+        generateValue: true
+      - key: IDENTITY_OTP_PEPPER
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: IDENTITY_EMAIL_FROM
+        sync: false
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+databases:
+  - name: movenrun-preview-db
+    region: singapore
+    plan: basic-256mb
+    databaseName: movenrun_preview
+    user: movenrun_preview
+    postgresMajorVersion: "16"
+    ipAllowList: []

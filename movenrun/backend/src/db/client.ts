@@ -1,6 +1,5 @@
 import { Pool } from "pg";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { getConfig } from "../config.js";
 import * as routeSchema from "./schema.js";
 import * as identitySchema from "./identity.schema.js";
 import * as providerSchema from "./provider.schema.js";
@@ -24,8 +23,22 @@ let _db: Db | null = null;
  */
 export function getDb(): Db {
   if (_db) return _db;
-  const config = getConfig();
-  _pool = new Pool({ connectionString: config.DATABASE_URL });
+  // Database access does not require the legacy worker/oracle configuration.
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString || !/^postgres(?:ql)?:\/\//.test(connectionString)) {
+    throw new Error("DATABASE_URL must be a PostgreSQL connection URL");
+  }
+  _pool = new Pool({ connectionString, connectionTimeoutMillis: 5000, query_timeout: 10000, statement_timeout: 10000, max: 10 });
+  // An idle connection can fail during database maintenance. Never print the
+  // underlying error, which can include connection details.
+  _pool.on("error", () => { console.error("Database connection unavailable"); });
   _db = drizzle(_pool, { schema });
   return _db;
+}
+
+export async function closeDb(): Promise<void> {
+  const pool = _pool;
+  _pool = null;
+  _db = null;
+  await pool?.end();
 }
