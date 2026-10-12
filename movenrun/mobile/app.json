@@ -9,6 +9,7 @@
     "newArchEnabled": false,
     "backgroundColor": "#F8FAF7",
     "splash": {
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#F8FAF7"
     },
@@ -19,7 +20,9 @@
     "android": {
       "package": "io.movenrun.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F8FAF7"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-monochrome.png",
+        "backgroundColor": "#246BFE"
       },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -53,6 +56,7 @@
       "eas": {
         "projectId": "73abbcb8-9466-4e52-b912-e2812e170abc"
       }
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }
