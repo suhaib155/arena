@@ -13,6 +13,7 @@
     "src/lib/__tests__/designSystem.test.ts",
     "src/lib/__tests__/deviceMovementUi.test.ts",
     "src/lib/__tests__/distanceIntegrity.test.ts",
+    "src/lib/__tests__/easReleaseConfig.test.ts",
     "src/lib/__tests__/education.test.ts",
     "src/lib/__tests__/emailAuth.test.ts",
     "src/lib/__tests__/firstRun.test.ts",

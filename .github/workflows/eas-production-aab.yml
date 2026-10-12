@@ -1,0 +1,106 @@
+name: EAS Production AAB
+
+# Manually-triggered Google Play release build via EAS Build.
+#
+# Produces a signed Android App Bundle (production profile) for upload to the
+# Play Console. It never submits to Google Play: the first upload is done by a
+# person in the Play Console, and later uploads still need a human decision.
+#
+# Gates before the build: the full mobile suite, a Hermes export and an Android
+# prebuild whose manifest is checked for foreground-only location.
+#
+# Requirements:
+#   - EXPO_TOKEN Actions secret (an Expo access token).
+#   - A GitHub environment named "play-release" with required reviewers, so
+#     every production build waits for an explicit approval.
+#   - EAS "production" environment variables, set in the Expo dashboard:
+#       EXPO_PUBLIC_API_URL          (public HTTPS API base URL)
+#       GOOGLE_MAPS_ANDROID_API_KEY  (restricted to io.movenrun.app + the
+#                                     Play App Signing and upload SHA-1s)
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "build" to start a production AAB build'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: Release gates
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'build' }}
+    defaults:
+      run:
+        working-directory: movenrun
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies (immutable)
+        run: yarn install --immutable
+      - name: Type-check mobile
+        run: yarn workspace @movenrun/mobile lint
+      - name: Test mobile
+        run: yarn workspace @movenrun/mobile test
+      - name: Hermes export (Android)
+        working-directory: movenrun/mobile
+        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/export"
+      - name: Android prebuild and manifest check
+        working-directory: movenrun/mobile
+        run: |
+          npx expo prebuild -p android --no-install
+          manifest=android/app/src/main/AndroidManifest.xml
+          grep -q "applicationId 'io.movenrun.app'" android/app/build.gradle
+          for p in ACCESS_BACKGROUND_LOCATION FOREGROUND_SERVICE_LOCATION SYSTEM_ALERT_WINDOW WRITE_EXTERNAL_STORAGE; do
+            if grep "android.permission.$p\"" "$manifest" | grep -vq 'tools:node="remove"'; then
+              echo "::error::$p is requested by the release manifest"
+              exit 1
+            fi
+          done
+
+  build:
+    name: Build production AAB (EAS)
+    needs: gates
+    runs-on: ubuntu-latest
+    environment: play-release
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Verify EXPO_TOKEN secret is present
+        run: |
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo "::error::EXPO_TOKEN secret is not set."
+            exit 1
+          fi
+      - name: Install dependencies (immutable)
+        working-directory: movenrun
+        run: yarn install --immutable
+      - name: Build Android App Bundle (EAS production profile)
+        working-directory: movenrun/mobile
+        run: npx eas-cli@latest build -p android --profile production --non-interactive --json > "$RUNNER_TEMP/eas-build.json"
+      - name: Record build
+        working-directory: movenrun/mobile
+        run: |
+          node -e '
+            const [b] = require(process.argv[1]);
+            const out = {
+              buildId: b.id, status: b.status, profile: b.buildProfile,
+              appVersion: b.appVersion, versionCode: b.appBuildVersion,
+              commit: b.gitCommitHash, artifact: b.artifacts && b.artifacts.applicationArchiveUrl,
+            };
+            console.log(JSON.stringify(out, null, 2));
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              "### Production AAB\n\n```json\n" + JSON.stringify(out, null, 2) + "\n```\n");
+          ' "$RUNNER_TEMP/eas-build.json"

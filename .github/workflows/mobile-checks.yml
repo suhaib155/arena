@@ -50,3 +50,9 @@ jobs:
       # network, no native module — see mobile/src/lib/secureSession.ts).
       - name: Test @movenrun/mobile
         run: yarn workspace @movenrun/mobile test
+
+      # The release build compiles this exact bundle with Hermes. Exporting it
+      # here catches a bundling failure on every PR instead of on EAS.
+      - name: Hermes export (Android)
+        working-directory: movenrun/mobile
+        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/export"
