@@ -5,7 +5,7 @@ services:
     runtime: node
     plan: starter
     region: singapore
-    branch: fix/preview-v3-api-runtime
+    branch: release/android-v1-cxfdbd
     rootDir: movenrun
     autoDeployTrigger: off
     numInstances: 1
@@ -34,6 +34,11 @@ services:
         sync: false
       - key: TRUST_PROXY_HOPS
         value: "1"
+      # App-review sign-in (optional). Set both in the dashboard, never here.
+      - key: IDENTITY_REVIEW_EMAIL
+        sync: false
+      - key: IDENTITY_REVIEW_CODE
+        sync: false
 databases:
   - name: movenrun-preview-db
     region: singapore

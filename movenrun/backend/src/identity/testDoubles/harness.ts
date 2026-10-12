@@ -27,6 +27,7 @@ export interface HarnessOptions {
   smartAccountVerifier?: SmartAccountSignatureVerifier;
   walletChangePolicy?: WalletChangePolicy;
   otpGen?: () => string;
+  reviewAccess?: { email: string; code: string } | null;
 }
 
 export interface Harness {
@@ -79,6 +80,7 @@ export function createHarness(opts: HarnessOptions = {}): Harness {
     authDomain: TEST_DOMAIN,
     uri: TEST_URI,
     allowedChainIds: [TEST_CHAIN_ID],
+    reviewAccess: opts.reviewAccess ?? null,
   };
 
   const audit = new AuditService(stores.audit, nextId);

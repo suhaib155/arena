@@ -105,3 +105,52 @@ test("email OTP integrates with identity to create a canonical user", async () =
   assert.equal(auth.created, true);
   assert.equal(auth.identity.provider, "email_otp");
 });
+
+// ---- app-review sign-in ----------------------------------------------------
+
+const REVIEW = { email: "play-review@movenrun.test", code: "730518" };
+
+test("the review email signs in with the configured code and nothing is emailed", async () => {
+  const h = createHarness({ otpGen: () => "999999", reviewAccess: REVIEW });
+  const { challengeId } = await h.emailOtp.begin({ email: "Play-Review@MovenRun.test" });
+  assert.ok(challengeId);
+  assert.equal(h.delivery.lastCodeFor(REVIEW.email), undefined, "no email is sent for the review account");
+  const stored = await h.stores.otpChallenges.findActiveByEmail(REVIEW.email, h.now());
+  assert.ok(stored);
+  assert.notEqual(stored!.codeHash, REVIEW.code, "the review code is stored hashed like any other");
+  const result = await h.emailOtp.complete({ email: REVIEW.email, code: REVIEW.code });
+  assert.equal(result.providerSubject, REVIEW.email);
+});
+
+test("the review code works only for the review email, only after begin, and only once", async () => {
+  const h = createHarness({ otpGen: () => "999999", reviewAccess: REVIEW });
+  // No challenge yet: the static code alone is not a sign-in.
+  await expectError(() => h.emailOtp.complete({ email: REVIEW.email, code: REVIEW.code }), "verification_failed");
+  // Any other email gets a normal emailed code; the review code is useless there.
+  await h.emailOtp.begin({ email: "someone@example.com" });
+  assert.equal(h.delivery.lastCodeFor("someone@example.com"), "999999");
+  await expectError(() => h.emailOtp.complete({ email: "someone@example.com", code: REVIEW.code }), "verification_failed");
+  // Single use.
+  await h.emailOtp.begin({ email: REVIEW.email });
+  await h.emailOtp.complete({ email: REVIEW.email, code: REVIEW.code });
+  await expectError(() => h.emailOtp.complete({ email: REVIEW.email, code: REVIEW.code }), "verification_failed");
+});
+
+test("the review account keeps the attempt cap, expiry and resend throttle", async () => {
+  const h = createHarness({ reviewAccess: REVIEW });
+  await h.emailOtp.begin({ email: REVIEW.email });
+  await expectError(() => h.emailOtp.begin({ email: REVIEW.email }), "too_many_attempts");
+  for (let i = 0; i < 5; i++) {
+    await expectError(() => h.emailOtp.complete({ email: REVIEW.email, code: "000001" }), "verification_failed");
+  }
+  await expectError(() => h.emailOtp.complete({ email: REVIEW.email, code: REVIEW.code }), "too_many_attempts");
+  h.advanceSeconds(301);
+  await expectError(() => h.emailOtp.complete({ email: REVIEW.email, code: REVIEW.code }), "verification_failed");
+});
+
+test("without review configuration the review email is an ordinary email", async () => {
+  const h = createHarness({ otpGen: () => "246810" });
+  await h.emailOtp.begin({ email: REVIEW.email });
+  assert.equal(h.delivery.lastCodeFor(REVIEW.email), "246810");
+  await expectError(() => h.emailOtp.complete({ email: REVIEW.email, code: REVIEW.code }), "verification_failed");
+});
