@@ -30,6 +30,7 @@ import {
   walletIdSchema,
 } from "./validation.js";
 import { sanitizeDeviceLabel } from "../domain/deviceLabel.js";
+import { ACCOUNT_DELETION_CONFIRMATION, type AccountDeletionStore } from "../accountDeletion.js";
 import {
   toPublicIdentity,
   toPublicSession,
@@ -54,7 +55,12 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
   };
 }
 
-export function createIdentityRouter(services: IdentityServices): Router {
+export interface IdentityRouterOptions {
+  /** Account erasure. Absent → the delete route fails closed. */
+  accountDeletion?: AccountDeletionStore | null;
+}
+
+export function createIdentityRouter(services: IdentityServices, options: IdentityRouterOptions = {}): Router {
   const router = Router();
 
   // Bearer-auth guard. Reads `Authorization: Bearer <accessToken>` and returns
@@ -238,6 +244,21 @@ export function createIdentityRouter(services: IdentityServices): Router {
     authed(async (_req, res, session) => {
       const count = await services.sessions.revokeAll(session.userId, "revoke_all");
       res.json({ revoked: count });
+    })
+  );
+
+  // ---- authenticated: account deletion ------------------------------------
+  // Erases the signed-in account and everything held for it. The body must
+  // carry the literal confirmation so a stray request cannot delete an
+  // account. The response carries counts only; nothing about the account.
+  router.post(
+    "/account/delete",
+    authed(async (req, res, session) => {
+      const confirm = (req.body as { confirm?: unknown } | undefined)?.confirm;
+      if (confirm !== ACCOUNT_DELETION_CONFIRMATION) throw new IdentityError("invalid_request", "confirmation required");
+      if (!options.accountDeletion) throw new IdentityError("provider_not_configured", "account deletion is not available");
+      const erased = await options.accountDeletion.erase(session.userId);
+      res.json({ deleted: true, erased });
     })
   );
 

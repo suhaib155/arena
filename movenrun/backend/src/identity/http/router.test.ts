@@ -229,3 +229,54 @@ test("a full wallet-link challenge round-trip works over HTTP", async () => {
   assert.equal(complete.status, 200, JSON.stringify(complete.json));
   assert.equal(complete.json.wallet.ownershipStatus, "verified");
 });
+
+test("account deletion fails closed when no erasure store is wired", async () => {
+  const { accessToken } = await login("erase-unwired@example.com");
+  assert.equal((await post("/identity/account/delete", { confirm: "DELETE" })).status, 401);
+  assert.equal((await post("/identity/account/delete", {}, accessToken)).status, 400);
+  const res = await post("/identity/account/delete", { confirm: "DELETE" }, accessToken);
+  assert.equal(res.status, 503);
+  assert.equal(res.json.error.code, "provider_not_configured");
+  // Failing closed deletes nothing and signs nobody out.
+  assert.equal((await get("/identity/me", accessToken)).status, 200);
+});
+
+test("account deletion erases only the signed-in account, after the exact confirmation", async () => {
+  const erased: string[] = [];
+  const deletionApp = express();
+  deletionApp.use(express.json());
+  deletionApp.use("/identity", createIdentityRouter(services, {
+    accountDeletion: {
+      async erase(userId) {
+        erased.push(userId);
+        return { users: 1, identities: 1, sessions: 1, otpChallenges: 0, wallets: 0, walletChallenges: 0, auditEvents: 2, movementSessions: 3 };
+      },
+    },
+  }));
+  const deletionServer = await new Promise<Server>((resolve) => {
+    const s = deletionApp.listen(0, "127.0.0.1", () => resolve(s));
+  });
+  try {
+    const url = `http://127.0.0.1:${(deletionServer.address() as AddressInfo).port}/identity/account/delete`;
+    const send = (body: unknown, token: string) => fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const { accessToken } = await login("erase-me@example.com");
+    const me = await get("/identity/me", accessToken);
+    for (const wrong of [{}, { confirm: "delete" }, { confirm: true }, { confirm: "DELETE " }]) {
+      assert.equal((await send(wrong, accessToken)).status, 400);
+    }
+    assert.deepEqual(erased, []);
+    const res = await send({ confirm: "DELETE" }, accessToken);
+    assert.equal(res.status, 200);
+    const body = await res.json() as { deleted: boolean; erased: { movementSessions: number } };
+    assert.equal(body.deleted, true);
+    assert.equal(body.erased.movementSessions, 3);
+    // The user id comes from the bearer session, never from the request.
+    assert.deepEqual(erased, [me.json.user.id]);
+  } finally {
+    await new Promise<void>((resolve) => deletionServer.close(() => resolve()));
+  }
+});

@@ -128,7 +128,9 @@ export type AuditEventType =
   | "provider_event_ignored"
   // Operational security events.
   | "config_invalid"
-  | "key_rotation_activated";
+  | "key_rotation_activated"
+  // Privacy lifecycle. Recorded without a user id (see accountDeletion.ts).
+  | "account_deleted";
 
 export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   "signup",
@@ -161,4 +163,5 @@ export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   "provider_event_ignored",
   "config_invalid",
   "key_rotation_activated",
+  "account_deleted",
 ] as const;

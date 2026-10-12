@@ -111,6 +111,67 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     assert.equal(rows.rowCount, 1);
     assert.ok(!JSON.stringify(rows.rows).includes("12.9716"));
     assert.ok(!("points" in rows.rows[0]));
+    // Account deletion: a second, independent account must be untouched when
+    // the first is erased, and the erased email can start over from nothing.
+    const signIn = async (address: string) => {
+      assert.equal((await request("/identity/auth/email/begin", { email: address })).status, 202);
+      const completed = await request("/identity/auth/email/complete", { email: address, code: deliveredCode });
+      assert.equal(completed.status, 200);
+      return (await completed.json()).session.accessToken as string;
+    };
+    const otherEmail = "pacer@example.com";
+    const otherToken = await signIn(otherEmail);
+    const otherMovement = { ...movement, sessionId: "preview-runtime-test-other" };
+    assert.equal((await request("/movement/verify", otherMovement, otherToken)).status, 201);
+    const me = await (await request("/identity/me", undefined, token)).json();
+    const userId = me.user.id as string;
+    assert.ok(userId);
+
+    assert.equal((await request("/identity/account/delete", {})).status, 401);
+    assert.equal((await request("/identity/account/delete", {}, token)).status, 400);
+    assert.equal((await request("/identity/account/delete", { confirm: "delete" }, token)).status, 400);
+    const deleted = await request("/identity/account/delete", { confirm: "DELETE" }, token);
+    assert.equal(deleted.status, 200);
+    const deletedBody = await deleted.json();
+    assert.equal(deletedBody.deleted, true);
+    assert.equal(deletedBody.erased.users, 1);
+    assert.equal(deletedBody.erased.movementSessions, 1);
+    assert.ok(!JSON.stringify(deletedBody).includes(email));
+    assert.ok(!JSON.stringify(deletedBody).includes(userId));
+
+    // The deleted account's token is dead everywhere.
+    assert.equal((await request("/identity/me", undefined, token)).status, 401);
+    assert.equal((await request("/movement/verify", movement, token)).status, 401);
+    assert.equal((await request("/identity/account/delete", { confirm: "DELETE" }, token)).status, 401);
+
+    // Nothing that identifies the account remains in any table.
+    for (const [table, column] of [
+      ["users", "id"], ["auth_identities", "user_id"], ["auth_sessions", "user_id"], ["wallets", "user_id"],
+      ["wallet_link_challenges", "user_id"], ["security_audit_events", "user_id"], ["movement_verifications", "user_id"],
+    ] as const) {
+      const left = await pool.query(`select count(*)::int as count from ${table} where ${column} = $1`, [userId]);
+      assert.equal(left.rows[0].count, 0, `${table} still holds the deleted account`);
+    }
+    for (const table of ["auth_identities", "email_otp_challenges"]) {
+      const dump = JSON.stringify((await pool.query(`select * from ${table}`)).rows);
+      assert.ok(!dump.includes(email), `${table} still holds the deleted email`);
+    }
+    const deletionEvents = await pool.query("select user_id, subject_id, metadata from security_audit_events where event_type = 'account_deleted'");
+    assert.equal(deletionEvents.rowCount, 1);
+    assert.deepEqual(deletionEvents.rows[0], { user_id: null, subject_id: null, metadata: null });
+
+    // The other account is intact and still signed in.
+    assert.equal((await request("/identity/me", undefined, otherToken)).status, 200);
+    const otherRows = await pool.query("select count(*)::int as count from movement_verifications where client_session_id = $1", [otherMovement.sessionId]);
+    assert.equal(otherRows.rows[0].count, 1);
+
+    // The same email can sign up again and starts with a brand new account.
+    const freshToken = await signIn(email);
+    const fresh = await (await request("/identity/me", undefined, freshToken)).json();
+    assert.notEqual(fresh.user.id, userId);
+    const freshRows = await pool.query("select count(*)::int as count from movement_verifications where user_id = $1", [fresh.user.id]);
+    assert.equal(freshRows.rows[0].count, 0);
+
     await pool.query("alter table auth_identities rename column provider_subject to unavailable_provider_subject");
     assert.equal((await request("/ready")).status, 503);
   } finally {

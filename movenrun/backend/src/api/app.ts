@@ -8,6 +8,7 @@ import { createIdentityServices } from "../identity/http/wiring.js";
 import { createIdentityRouter } from "../identity/http/router.js";
 import { createResendEmailDelivery, EmailOtpDeliveryError } from "../identity/providers/resendEmail.js";
 import { createProductionMovementRouter } from "../movement/http/productionRouter.js";
+import { createDrizzleAccountDeletionStore } from "../identity/accountDeletion.js";
 import { createCorsMiddleware, createSecurityHeadersMiddleware } from "../middleware/security.js";
 import { createGlobalRateLimiter, createWriteRateLimiter } from "../middleware/rateLimit.js";
 import type { ApiConfig } from "./config.js";
@@ -40,7 +41,7 @@ export function createApiApp(config: ApiConfig) {
   app.use(express.json({ limit: "2mb" }));
   // Authentication entry is public, but still subject to the write limit.
   app.use("/identity/auth", createWriteRateLimiter(config));
-  app.use("/identity", createIdentityRouter(identity));
+  app.use("/identity", createIdentityRouter(identity, { accountDeletion: createDrizzleAccountDeletionStore(db) }));
   app.use("/movement", createProductionMovementRouter(config));
   app.use((_req, res) => { res.status(404).json({ error: "not_found" }); });
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
