@@ -67,6 +67,8 @@ const BASE: TodayBoardInput = {
   dailyQuestXp: 40,
   dailyQuestDone: false,
   hasClub: false,
+  // These suites cover the club milestone itself, which v1 defers.
+  clubsInRelease: true,
 };
 
 /** Inputs chosen to surface every one of the six task kinds at least once. */

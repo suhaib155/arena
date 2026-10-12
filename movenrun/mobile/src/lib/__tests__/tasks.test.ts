@@ -29,6 +29,8 @@ const BASE: TodayBoardInput = {
   dailyQuestXp: 40,
   dailyQuestDone: false,
   hasClub: true,
+  // These suites cover the club milestone itself, which v1 defers.
+  clubsInRelease: true,
 };
 
 const board = (over: Partial<TodayBoardInput> = {}) => buildTodayBoard({ ...BASE, ...over });

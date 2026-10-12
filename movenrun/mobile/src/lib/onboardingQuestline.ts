@@ -7,6 +7,7 @@
  * it does NOT gate XP, capture, defend, fortify, clubs, or ownership, and it
  * touches no backend, network, wallet, or chain.
  */
+import { isFeatureInRelease } from "@/lib/releaseScope";
 export type StepStatus = "locked" | "ready" | "complete";
 
 /** Semantic CTA action — resolved to a concrete route by the screen. */
@@ -155,10 +156,12 @@ const STEP_DEFS: StepDef[] = [
 
 /** Deterministically build the questline from local state. */
 export function buildQuestline(input: QuestlineInput): Questline {
-  const done = STEP_DEFS.map((d) => d.done(input));
+  // The club step only exists while clubs are part of the release.
+  const stepDefs = STEP_DEFS.filter((d) => d.action !== "clubs" || isFeatureInRelease("clubs"));
+  const done = stepDefs.map((d) => d.done(input));
   const firstIncomplete = done.findIndex((d) => !d);
 
-  const steps: QuestlineStep[] = STEP_DEFS.map((d, idx) => {
+  const steps: QuestlineStep[] = stepDefs.map((d, idx) => {
     let status: StepStatus;
     if (done[idx]) status = "complete";
     else if (idx === firstIncomplete) status = "ready";

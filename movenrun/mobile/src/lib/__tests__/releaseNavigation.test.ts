@@ -11,9 +11,10 @@
  *  2. The movement/result screens keep `gestureEnabled: false`, so an in-progress
  *     or just-finished movement can't be dismissed by an accidental swipe-back
  *     (movement state lives only in memory during that flow).
- *  3. The bottom navigation stays a five-destination bar (Home · Territory ·
- *     Move · Clubs · Profile) with no sixth destination, and respects the bottom
- *     safe-area inset.
+ *  3. The bottom navigation stays at most five destinations (Home · Territory ·
+ *     Move · Clubs · Profile, where Clubs only renders when the release scope
+ *     ships it; see releaseScope.test.ts) with no sixth destination, and
+ *     respects the bottom safe-area inset.
  *  4. The not-found screen offers a recovery action (no dead end).
  */
 import { test } from "node:test";

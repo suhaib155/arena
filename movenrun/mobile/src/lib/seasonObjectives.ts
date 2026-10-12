@@ -13,6 +13,7 @@
  * screen feeds it values derived from existing helpers (weekly recap, zone
  * status, collections).
  */
+import { isFeatureInRelease } from "@/lib/releaseScope";
 export type ObjectiveStatus = "locked" | "active" | "complete";
 
 export type ObjectiveGroupKey =
@@ -387,7 +388,9 @@ function progressLabelFor(status: ObjectiveStatus, current: number, target: numb
 export function buildSeasonObjectives(input: SeasonObjectivesInput): SeasonObjectivesOverview {
   const now = input.now ?? Date.now();
 
-  const objectives: SeasonObjective[] = OBJECTIVE_DEFS.map((d) => {
+  // Club objectives only exist while clubs are part of the release.
+  const defs = OBJECTIVE_DEFS.filter((d) => d.group !== "club" || isFeatureInRelease("clubs"));
+  const objectives: SeasonObjective[] = defs.map((d) => {
     const raw = d.current(input);
     const current = Math.max(0, Math.min(raw, d.target));
     const isComplete = raw >= d.target;
@@ -416,7 +419,7 @@ export function buildSeasonObjectives(input: SeasonObjectivesInput): SeasonObjec
     };
   });
 
-  const groups: ObjectiveGroup[] = GROUP_ORDER.map((key) => {
+  const groups: ObjectiveGroup[] = GROUP_ORDER.filter((key) => key !== "club" || isFeatureInRelease("clubs")).map((key) => {
     const group = objectives.filter((o) => o.group === key);
     return {
       key,

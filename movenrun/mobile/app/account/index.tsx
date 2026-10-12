@@ -29,6 +29,7 @@ import { authErrorMessage } from "@/lib/emailAuth";
 import { isAuthBusy } from "@/lib/authLifecycle";
 import { walletTypeLabel } from "@/lib/walletPresentation";
 import { buildDeviceLabel } from "@/lib/deviceLabel";
+import { isFeatureInRelease } from "@/lib/releaseScope";
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -46,6 +47,7 @@ export default function AccountScreen() {
   const backendConfigured = isBackendConfigured();
   const busy = isAuthBusy(operation);
   const activeWallet = wallets.find((w) => w.isActive) ?? null;
+  const walletsInRelease = isFeatureInRelease("wallets");
 
   /* Signing in later (from Account rather than first run) keeps local progress
      and records the confirmed mode. `markSignedIn` never demotes a user who has
@@ -65,12 +67,13 @@ export default function AccountScreen() {
           <View style={styles.card}>
             <SectionHeader title="MovenRun identity" />
             <Text style={styles.body}>
-              You&apos;re signed in. This is your permanent MovenRun identity — your wallets and
-              sign-in methods link to it, so switching wallets never moves your progress.
+              {walletsInRelease
+                ? "You\u2019re signed in. This is your permanent MovenRun identity \u2014 your wallets and sign-in methods link to it, so switching wallets never moves your progress."
+                : "You\u2019re signed in with your email. Your verified movement sessions are saved to this account."}
             </Text>
           </View>
 
-          <View style={styles.card}>
+          {walletsInRelease ? <View style={styles.card}>
             <SectionHeader title="Active wallet" trailing="Base Sepolia · testnet" />
             {activeWallet ? (
               <>
@@ -85,9 +88,9 @@ export default function AccountScreen() {
                 Your wallet is being set up. Check the Wallets screen for status.
               </Text>
             )}
-          </View>
+          </View> : null}
 
-          <Button label="Manage wallets" icon="wallet-outline" onPress={() => router.push("/account/wallets")} />
+          {walletsInRelease ? <Button label="Manage wallets" icon="wallet-outline" onPress={() => router.push("/account/wallets")} /> : null}
           <Button
             label="Account security"
             icon="shield-checkmark-outline"

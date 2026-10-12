@@ -7,6 +7,7 @@
  * previews only** — not real rewards, tokens, NFTs, or ownership — and they
  * touch no backend, network, wallet, chain, or raw GPS. Badges gate nothing.
  */
+import { isFeatureInRelease } from "@/lib/releaseScope";
 export type BadgeStatus = "locked" | "in-progress" | "unlocked";
 
 export type CollectionName =
@@ -131,7 +132,9 @@ function statusFor(current: number, target: number): BadgeStatus {
 
 /** Deterministically build collections from local state. */
 export function buildCollections(input: BadgeInput): CollectionsOverview {
-  const badges: Badge[] = BADGE_DEFS.map((d) => {
+  // The Club Starter collection only exists while clubs are part of the release.
+  const clubsLive = isFeatureInRelease("clubs");
+  const badges: Badge[] = BADGE_DEFS.filter((d) => d.collection !== "Club Starter" || clubsLive).map((d) => {
     const current = Math.min(d.current(input), d.target);
     return {
       id: d.id,
@@ -146,7 +149,7 @@ export function buildCollections(input: BadgeInput): CollectionsOverview {
     };
   });
 
-  const collections: BadgeCollection[] = COLLECTION_ORDER.map((name) => {
+  const collections: BadgeCollection[] = COLLECTION_ORDER.filter((name) => name !== "Club Starter" || clubsLive).map((name) => {
     const group = badges.filter((b) => b.collection === name);
     return {
       name,

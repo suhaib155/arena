@@ -20,6 +20,7 @@ import {
 import { buildZoneCommand } from "@/lib/zoneCommand";
 import type { IoniconName } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
+import { isFeatureInRelease } from "@/lib/releaseScope";
 
 function formatWhen(iso: string | null): string {
   if (!iso) return "never";
@@ -296,7 +297,7 @@ export default function ZoneDetailScreen() {
           </Pressable>
         </View>
 
-        <Pressable
+        {isFeatureInRelease("deeds") ? <Pressable
           style={pressFade(styles.deedPreviewCard)}
           onPress={() => {
             tapFeedback();
@@ -307,7 +308,7 @@ export default function ZoneDetailScreen() {
           <Text style={styles.deedPreviewText}>Future deed preview</Text>
           <Text style={styles.deedPreviewNote}>Local · no wallet</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
-        </Pressable>
+        </Pressable> : null}
 
         <Text style={styles.safetyNote}>
           This is a local preview zone. It does not represent live ownership or

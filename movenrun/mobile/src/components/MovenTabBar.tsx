@@ -7,6 +7,7 @@ import { avatar, colors, glow, radius, shadows, spacing, type } from "@/theme";
 import type { IoniconName } from "@/types";
 import { ScalePress } from "./ScalePress";
 import { tapFeedback } from "@/lib/haptics";
+import { isFeatureInRelease } from "@/lib/releaseScope";
 
 /**
  * Five-destination floating bottom navigation: Home · Territory · Move · Clubs
@@ -17,6 +18,10 @@ import { tapFeedback } from "@/lib/haptics";
  * `/territory/map` and `/move` routes — so nothing was relocated and every
  * existing route keeps working. Active state tracks the three tab screens; the
  * push destinations never claim the active state.
+ *
+ * Clubs is a deferred feature in the Play v1 release scope (see
+ * `lib/releaseScope.ts`), so its slot is only rendered when that feature ships;
+ * until then the bar is Home · Territory · Move · Profile.
  */
 
 /** Tab-screen route names, in navigator order. */
@@ -68,12 +73,14 @@ export function MovenTabBar({ state, navigation }: BottomTabBarProps) {
 
         <MoveButton onPress={() => push("/move")} />
 
-        <TabButton
-          label="Clubs"
-          icon={activeName === "clubs" ? "people" : "people-outline"}
-          active={activeName === "clubs"}
-          onPress={() => goTab("clubs")}
-        />
+        {isFeatureInRelease("clubs") ? (
+          <TabButton
+            label="Clubs"
+            icon={activeName === "clubs" ? "people" : "people-outline"}
+            active={activeName === "clubs"}
+            onPress={() => goTab("clubs")}
+          />
+        ) : null}
         <TabButton
           label="Profile"
           icon={activeName === "profile" ? "person" : "person-outline"}

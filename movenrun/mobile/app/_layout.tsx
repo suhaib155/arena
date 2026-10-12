@@ -5,7 +5,7 @@ import { Sora_800ExtraBold } from "@expo-google-fonts/sora/800ExtraBold";
 import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
 import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
 import { StyleSheet, Text, View } from "react-native";
-import { Stack, useRootNavigationState, useRouter } from "expo-router";
+import { Stack, usePathname, useRootNavigationState, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors, palette, radius, spacing, type } from "@/theme";
@@ -19,6 +19,7 @@ import { installExpoSecureSessionStore } from "@/lib/secureSessionExpo";
 import { installAsyncVerificationQueueStore } from "@/services/verificationQueueStorage";
 import { useVerificationRetry } from "@/hooks/useVerificationRetry";
 import { ensureShareCacheClean } from "@/services/shareCache";
+import { isRouteInRelease } from "@/lib/releaseScope";
 
 // Install the OS-keystore session store before anything can touch auth state.
 // Until this runs, getSecureSessionStore() throws — there is no insecure
@@ -36,7 +37,7 @@ function SplashView() {
     <View style={styles.splash}>
       <Hexagon size={44} color={palette.pulseGreen} coreColor={colors.surface} />
       <Text style={styles.splashText}>MovenRun</Text>
-      <Text style={styles.splashLoop}>Move → Capture → Defend → Own</Text>
+      <Text style={styles.splashLoop}>Walk · Run · Make your mark</Text>
     </View>
   );
 }
@@ -112,6 +113,23 @@ function useStartupRouting(route: StartupRoute): boolean {
   return (route === "account" || route === "intro") && applied !== route;
 }
 
+/**
+ * Keep deferred features unreachable. Entry points are already hidden; this
+ * catches whatever else could land on one of those routes (a stale deep link,
+ * an old shared link) and sends the player home instead of into a preview of
+ * something that does not exist yet. See `src/lib/releaseScope.ts`.
+ */
+function useReleaseRouteGuard() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const navState = useRootNavigationState();
+  const navigatorReady = Boolean(navState?.key);
+  useEffect(() => {
+    if (!navigatorReady || isRouteInRelease(pathname)) return;
+    router.replace("/");
+  }, [navigatorReady, pathname, router]);
+}
+
 function RootNavigator() {
   useEffect(() => { void ensureShareCacheClean().catch(() => { /* Sharing fails closed if cleanup is unavailable. */ }); }, []);
   const decision = useAppBootstrap();
@@ -122,6 +140,7 @@ function RootNavigator() {
   const retryRestore = useAuthStore((s) => s.retryRestore);
   const acknowledgeRestoreError = useAuthStore((s) => s.acknowledgeRestoreError);
   const navigationPending = useStartupRouting(decision.route);
+  useReleaseRouteGuard();
 
   const deciding = isDecidingStartup(decision) || navigationPending;
 

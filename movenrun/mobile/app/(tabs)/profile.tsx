@@ -31,6 +31,7 @@ import { buildCityDistricts } from "@/lib/cityDistricts";
 import { buildProfileIdentity } from "@/lib/profileView";
 import { tapFeedback } from "@/lib/haptics";
 import { getLocalDateKey } from "@/lib/date";
+import { isFeatureInRelease } from "@/lib/releaseScope";
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -168,7 +169,7 @@ export default function ProfileScreen() {
         </FadeSlideIn>
 
         {/* Current club */}
-        <FadeSlideIn delay={STAGGER_MS * 2}>
+        {isFeatureInRelease("clubs") ? <FadeSlideIn delay={STAGGER_MS * 2}>
           <NavRow
             icon={selectedClub ? "people" : "people-outline"}
             tint={selectedClub ? palette.pulseGreen : colors.primary}
@@ -180,7 +181,7 @@ export default function ProfileScreen() {
             }
             onPress={() => go("/clubs")}
           />
-        </FadeSlideIn>
+        </FadeSlideIn> : null}
 
         {/* Progress */}
         <NavGroup title="Progress">
@@ -209,12 +210,12 @@ export default function ProfileScreen() {
             subtitle={`${collections.unlocked}/${collections.total} badges unlocked`}
             onPress={() => go("/collections")}
           />
-          <NavRow
+          {isFeatureInRelease("competition") ? <NavRow
             icon="trending-up-outline"
             title="District Mastery"
             subtitle="Build your district progress"
             onPress={() => go("/district-mastery")}
-          />
+          /> : null}
         </NavGroup>
 
         {/* Signal & routes */}
@@ -242,14 +243,14 @@ export default function ProfileScreen() {
         </NavGroup>
 
         {/* Territory & clubs */}
-        <NavGroup title="Territory & clubs">
+        <NavGroup title={isFeatureInRelease("clubs") ? "Territory & clubs" : "Your ground"}>
           <NavRow
             icon="map-outline"
             title="Territory Map"
             subtitle={`${zones.length} zone${zones.length === 1 ? "" : "s"} to explore`}
             onPress={() => go("/territory/map")}
           />
-          <NavRow
+          {isFeatureInRelease("competition") ? <NavRow
             icon="business-outline"
             title="City Districts"
             subtitle={
@@ -258,25 +259,25 @@ export default function ProfileScreen() {
                 : "Explore more ground"
             }
             onPress={() => go("/city-districts")}
-          />
-          <NavRow
+          /> : null}
+          {isFeatureInRelease("clubs") ? <NavRow
             icon="flag-outline"
             title="Club Territory"
             subtitle="Your club’s ground · Preview"
             onPress={() => go("/club-territory")}
-          />
-          <NavRow
+          /> : null}
+          {isFeatureInRelease("clubs") ? <NavRow
             icon="rocket-outline"
             title="Crew Missions"
             subtitle="Your weekly objectives"
             onPress={() => go("/crew-missions")}
-          />
+          /> : null}
         </NavGroup>
 
         {/* Account & network */}
         <NavGroup title="Settings">
           <NavRow
-            icon="wallet-outline"
+            icon="person-circle-outline"
             title="Account"
             subtitle={identity.signedIn ? "Signed in · Account security" : "Sign in when you’re ready"}
             onPress={() => go("/account")}
@@ -292,9 +293,9 @@ export default function ProfileScreen() {
         </NavGroup>
 
         {/* Beta & Preview — fictional/technical previews live here */}
-        <NavGroup title="Discover">
+        {isFeatureInRelease("deeds") ? <NavGroup title="Discover">
           <NavRow icon="shapes-outline" tint={palette.deedViolet} title="Deeds" subtitle="Explore the collection preview" onPress={() => go("/deed-showroom")} />
-        </NavGroup>
+        </NavGroup> : null}
 
         {/* Recent activity */}
         <SectionHeader title="Recent activity" trailing={history.length ? `${history.length}` : undefined} />
@@ -326,7 +327,7 @@ export default function ProfileScreen() {
         {/* Account & security + support */}
         <Button
           label={identity.primaryActionLabel}
-          icon="wallet-outline"
+          icon="person-circle-outline"
           variant="secondary"
           onPress={() => go("/account")}
         />

@@ -19,6 +19,7 @@ import type { IoniconName, Zone } from "@/types";
 import { getLocalDateKey } from "./date";
 import { isMovementSession } from "./sessionQuest";
 import { zoneStatus } from "./territory";
+import { isFeatureInRelease } from "@/lib/releaseScope";
 
 /** The closed set of tasks the board can ask for. Each one appears at most
  *  once, so this doubles as a task's identity — see {@link Task.id}. */
@@ -110,6 +111,12 @@ export interface TodayBoardInput {
   dailyQuestDone: boolean;
   /** The player has picked a club. */
   hasClub: boolean;
+  /**
+   * Whether clubs ship in this build. Defaults to the release scope
+   * (`lib/releaseScope.ts`); without clubs the "Pick a club" milestone never
+   * appears, because it would point at a screen the player cannot reach.
+   */
+  clubsInRelease?: boolean;
 }
 
 export interface TodayBoard {
@@ -310,7 +317,7 @@ export function buildTodayBoard(input: TodayBoardInput): TodayBoard {
   }
 
   // Milestone — drops off the board once a club is chosen.
-  if (!input.hasClub) {
+  if (!input.hasClub && (input.clubsInRelease ?? isFeatureInRelease("clubs"))) {
     board.push({
       id: "club",
       title: "Pick a club",
