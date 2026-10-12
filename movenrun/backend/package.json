@@ -17,7 +17,6 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.3",
     "@movenrun/shared": "workspace:*",
     "bullmq": "^5.7.8",
     "cors": "^2.8.6",
