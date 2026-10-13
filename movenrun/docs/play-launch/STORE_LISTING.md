@@ -1,7 +1,7 @@
 # Google Play store listing (draft, English)
 
-Describes only what the v1 build does. No tokens, payouts, ownership, wallets,
-NFTs, clubs or multiplayer competition.
+Describes only what the v1 build does. No tokens, payouts, ownership, NFTs,
+clubs or multiplayer competition. A wallet is mentioned only as a sign-in option.
 
 **App name (30):** MovenRun
 
@@ -28,7 +28,7 @@ NFTs, clubs or multiplayer competition.
 >
 > PRIVACY FIRST
 > • Location is used only while the app is open and a session is running. MovenRun never tracks you in the background
-> • Play without an account, or sign in with your email to save verified sessions
+> • Play as a guest, or sign in with Google or your wallet to save verified sessions. Wallet sign-in is a message signature only: no transactions, no fees
 > • Delete your account and its data at any time, in the app or on the web
 > • No ads
 >

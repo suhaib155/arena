@@ -16,6 +16,6 @@ Persistent record of the Google Play v1 launch for MovenRun.
 | `STORE_LISTING.md`, `store-assets/` | Listing text and graphics |
 | `HANDSET_TEST_SCRIPT.md` | Phone acceptance steps |
 | `PR_DESCRIPTION.md` | Pull request text for the release branch |
-| `HOSTING_SUPABASE_FREE.md` | No-cost staging setup (Supabase + Render Free) |
+| `HOSTING_SUPABASE_FREE.md` | No-cost setup: Supabase Free (Google and wallet sign-in, PostgreSQL) + Render Free |
 | `POST_LAUNCH_MONITORING.md` | First 48 hours after a release |
 | `evidence/` | Scripts and screenshots behind evidence rows |

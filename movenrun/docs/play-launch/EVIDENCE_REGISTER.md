@@ -3,7 +3,7 @@
 Only what was actually run is recorded as evidence. A gate with no evidence row
 is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 
-## Recorded (2026-10-12 and 2026-10-13)
+## Recorded before the auth change (2026-10-12 and 2026-10-13)
 
 | ID | Gate | What was run | Result | Commit |
 |---|---|---|---|---|
@@ -17,21 +17,51 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-08 | M | `npx expo export -p android` (Hermes bytecode) | 4.36 MB `.hbc`. Searched for keys, tokens, `.env` values and private URLs: none found | 626f3c0 |
 | E-09 | P | `runtime.test.ts` on real Postgres: delete account erases every account row in one transaction, a second account is untouched, the same email signs up fresh afterwards, one anonymous audit row remains, no coordinate reaches stored rows | Pass | cf0947a |
 | E-10 | P | Mobile `sessionManagement.test.ts`: delete refuses during another session action, clears credentials and the pending queue only after the server confirms, reports errors | Pass | 6e3d148 |
-| E-11 | P | `evidence/web-account-deletion-e2e.mjs`: Chromium against the real API on Postgres: email → code → confirm → DELETE; account gone afterwards. Screenshots `web-deletion-confirm.png`, `web-deletion-done.png` | Pass | 60f4ad1 |
-| E-12 | B | Review access tests (`emailOtp.service.test.ts`, `config.test.ts`): fixed code only for the configured email, no email sent, expiry, single use, attempt cap and throttle still apply; guessable codes refused | Pass | 58237e4 |
+| E-11 | P | **Superseded by E-24** (email-code web deletion was replaced) | Pass at the time | 60f4ad1 |
+| E-12 | B | **Withdrawn (D-21): review access code removed.** Was: review access tests (`emailOtp.service.test.ts`, `config.test.ts`): fixed code only for the configured email, no email sent, expiry, single use, attempt cap and throttle still apply; guessable codes refused | Pass | 58237e4 |
 | E-13 | B | Verified-session history: `GET /movement/verifications` returns only the caller's rows, newest first, limit 1–100; mobile counts only `verified` results | Pass (backend router test, runtime test, `accountHistory.test.ts`) | 9ead53d, fa3b927 |
 | E-14 | G | `nativeAssets.test.ts`: app icon, adaptive foreground and monochrome 1024×1024, adaptive background Morning White, Play icon 512×512, feature graphic 1024×500 without alpha | Pass | bab3a1b |
 | E-16 | P | Expired sign-in challenges deleted a day after expiry on the next code request, for any email (`emailOtp.service.test.ts`, Postgres check in `runtime.test.ts`). Backend now **382/382**, API 9/9 | Pass | a55fd35 |
 | E-17 | B | Local PostgreSQL switched to TLS-only connections with a private CA (the same shape as Supabase). Backend suite, the `drizzle-kit migrate` deployment command and the built API run with `sslmode=verify-full&sslrootcert=<ca>`; without the CA the connection is refused (`unable to verify the first certificate`) | 382/382, API 9/9, 0 skipped | 0a48e0d |
 | E-18 | B | Migration `0006_row_level_security`: runtime test runs as a **non-superuser, no-bypass table owner** and the whole flow still works; it asserts every `public` table has RLS on. Probe: a separate role granted SELECT/INSERT on all tables reads 0 rows from `users` and its insert is refused | Pass | 0a48e0d |
-| E-15 | P | `scripts/check-launch-placeholders.mjs` | Fails as designed while 10 owner placeholders remain in the website pages (X-02, X-03) | 60f4ad1 |
+| E-15 | P | `scripts/check-launch-placeholders.mjs` (now also checks `sign-in/`) | Fails as designed on 3 values only the deployed services provide: `{{API_BASE_URL}}` ×2, `{{SUPABASE_PUBLISHABLE_KEY}}` (X-06, X-21). Contact, developer name, host and backup text are filled | dbeed8d |
+
+## Auth change: Google and wallet sign-in (2026-10-13)
+
+| ID | Gate | What was run | Result | Commit |
+|---|---|---|---|---|
+| E-19 | B | `backend`: typecheck, build, `yarn test` on PostgreSQL 16 with `MOVENRUN_TEST_DATABASE_URL`; `yarn test:api` 5 times in a row | **397/397, 0 skipped**; API **10/10** every run | 8dfecd2 |
+| E-20 | B | `supabaseAuth.test.ts`: ES256/RS256 via JWKS, issuer, audience, role, expiry, anonymous users refused, key rotation throttled; `supabaseSignIn.service.test.ts`: EIP-4361 message shape, single use, tampering, other signer, expiry, Google needs an OAuth session, provider-user cleanup and retry | Pass | 674ef5f |
+| E-21 | B | Account cap over HTTP with max 2: Google + wallet count together, existing players still sign in, deletion frees a place; **8 concurrent first sign-ins at the last free place on real Postgres admit exactly 1**, the other 7 get 403 and their 7 provider users are deleted; hook SQL returns 403 when full and `{}` when open | Pass (`runtime.test.ts`, `supabaseSignIn.service.test.ts`) | 674ef5f |
+| E-22 | B | Wallet handoff (app path): code only with the right PKCE verifier, spent once, typed with spaces/lower case accepted, expired codes release their provider user unless the same wallet has a newer or spent code; same on real Postgres | Pass | 8dfecd2 |
+| E-23 | M | `mobile`: `npx tsc --noEmit`, `yarn test` (inventory regenerated), `npx expo export -p android` | **904/904**; Hermes bundle builds (4.4 MB) with expo-web-browser and expo-crypto. New tests: RFC 7636 PKCE vectors, exact redirect matching, code alphabet shared with the server, publishable-key-only config, store commit/cancel/error/one-at-a-time | 40ea135 |
+| E-24 | P | `evidence/web-sign-in-deletion-e2e.mjs`: Chromium + built API + real Postgres + a local HTTPS stand-in for Supabase Auth. Google sign-in on the deletion page (PKCE redirect, token exchange, Supabase session signed out) → delete; wallet-only account (no email) signs in with an injected key → delete; both provider users deleted; the page asked the wallet only for `eth_requestAccounts` and `personal_sign`; `/sign-in/` handoff code works only with the app verifier and once; all four public pages fit 320 px. Screenshots in `evidence/screens/` | **23/23 pass** | dbeed8d |
+| E-25 | M | Shared: `yarn test` | 156/156 | dbeed8d |
+
+## Evidence level by capability
+
+Levels: **implemented** → **locally tested** (tests or browser here, providers
+replaced by stand-ins) → **hosted tested** (real Supabase + Render) → **APK
+handset tested** → **Play-installed tested**. Nothing above "locally tested"
+has been run for sign-in yet.
+
+| Capability | Level reached | Next level blocked by |
+|---|---|---|
+| Continue with Google (app) | Locally tested (E-23; server side E-19, E-20) | X-05, X-06, X-08 (hosted), X-04, X-10 (APK) |
+| Continue with Google (web deletion page) | Locally tested (E-24) | X-05, X-06, X-21 |
+| Continue with Wallet (app, via wallet browser + code) | Locally tested (E-22, E-23, E-24) | X-05, X-06, X-21, then X-10 with a real wallet app. **Device proof due 24 Oct (D-19)** |
+| Wallet sign-in on the web deletion page | Locally tested (E-24) | X-05, X-06, X-21 |
+| 1,000-account cap and hook | Locally tested (E-21) | X-06, X-07 |
+| Account deletion, both methods, provider user removal | Locally tested (E-21, E-24) | Hosted: X-06; handset: X-10 |
+| Verified movement | Locally tested (E-13, runtime test) | Hosted: X-06; handset: X-10 |
+| Play internal test install | Blocked | X-01, X-09, X-11, X-12, X-14 |
 
 ## Not yet run (blocked externally)
 
 | Gate | Needed evidence | Blocker |
 |---|---|---|
-| M | Preview APK on a physical phone, `HANDSET_TEST_SCRIPT.md` steps 1–14, 18–20 | X-04 (trigger build), X-10 (phone) |
-| B | Hosted API `/health` and `/ready`, real email code delivery, two-account check | X-03, X-05, X-06 (runbook: `HOSTING_SUPABASE_FREE.md`) |
+| M | Preview APK on a physical phone, `HANDSET_TEST_SCRIPT.md` steps 1–15f, 18–20 (Google, wallet with a real wallet app, deletion) | X-04, X-08, X-10 |
+| B | Hosted API `/health` and `/ready`, real Google and wallet sign-in through Supabase, hook at the cap, two-account check | X-05, X-06, X-07 (runbook: `HOSTING_SUPABASE_FREE.md`) |
 | R | Production AAB from the release commit, merged manifest of the AAB, 16 KB page size and 64-bit check (Play Console App bundle explorer) | X-08, X-09 |
 | R | Play internal test install, Google map tiles with the Play App Signing SHA-1, steps 15–17 | X-11, X-12 |
 | G | Phone screenshots from the Play-bound build | X-13 |

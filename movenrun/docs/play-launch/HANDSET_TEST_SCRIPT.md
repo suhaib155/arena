@@ -6,7 +6,9 @@ commit, plus a screenshot or short screen recording. Paste results into
 `EVIDENCE_REGISTER.md`. A step not run is NOT a pass.
 
 Run once on the **preview APK** from the exact release commit (M gate) and again
-on the **Play internal-test install** (R gate, adds steps 15 to 17).
+on the **Play internal-test install** (R gate, adds steps 16 to 17). Steps
+15a–15f need a wallet app installed (no funds needed) and must pass on a phone
+by 24 Oct, otherwise the release flags `WALLET_LOGIN_BLOCKED` (DECISIONS D-19).
 
 | # | Step | Expected |
 |---|---|---|
@@ -24,8 +26,13 @@ on the **Play internal-test install** (R gate, adds steps 15 to 17).
 | 12 | Share route image to a messaging app | Image arrives; endpoints hidden by default; no raw coordinates text |
 | 13 | Kill app during and after a session, relaunch | No old route resurrects on zone detail or summary |
 | 14 | Airplane mode during save (signed in) | Shows pending; after network returns, verified once (not twice) |
-| 15 | Sign in with a real email (code arrives) and with the review account | Both sign in; Account shows no wallet copy |
-| 16 | Account security → Delete account | Confirm dialog; account deleted; signed out; local progress cleared; signing in again creates a fresh account |
+| 15a | Continue with Google (Chrome Custom Tab opens, pick an account) | Returns to the app signed in; no "unmatched route" screen; Account shows verified-session count |
+| 15b | Sign out, Continue with Google again with the same Google account | Same account (same verified-session count) |
+| 15c | Continue with Wallet → MetaMask (or Coinbase Wallet / Trust Wallet) | Wallet opens movenrun.xyz/sign-in/; the message names movenrun.xyz and says it is not a transaction; no transaction, network switch or approval is requested |
+| 15d | Sign in the wallet | Wallet returns to MovenRun signed in. If it does not, the page shows a 12-character code; typing it in the app signs in. Record which happened per wallet app |
+| 15e | Save a verified session while signed in with the wallet, then Account security → Delete account | Session verifies; deletion succeeds; signing in with the same wallet again creates a fresh account with 0 sessions |
+| 15f | Kill the app while the wallet is open, sign in the wallet, reopen MovenRun | The code field is shown; the code from the page signs in |
+| 16 | Google account: Account security → Delete account; then delete on the web for a second account at movenrun.xyz/account-deletion/ | Confirm dialog; account deleted; signed out; local progress cleared; signing in again creates a fresh account; web deletion signs out the phone |
 | 17 | Play-installed build: map tiles | Real Google map tiles (not grey). Grey tiles mean the Play App Signing SHA-1 is missing from the Maps key |
 | 18 | Smallest supported screen / largest font size | No clipped CTAs; Move, Finish, Back reachable |
 | 19 | Gesture nav and 3-button nav | Back behaves the same |

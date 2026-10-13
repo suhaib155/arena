@@ -2,32 +2,39 @@
 
 The shortest path, in order. Each step names the item in `EXTERNAL_ACTIONS.md`.
 
-1. **Answer X-01, X-02, X-03.** Fill the website placeholders; run
-   `node scripts/check-launch-placeholders.mjs` in `movenrun/` until it passes.
-2. **Provision the backend (X-05, X-06, X-07)** with `HOSTING_SUPABASE_FREE.md`. Migrations run on start; open
-   `/ready`, sign in with a real email and with the review account.
-3. **Deploy the website** (Vercel project for `movenrun/website`). Open
-   `/privacy/`, `/account-deletion/` and `/support/` in a private window.
-4. **Preview APK (X-04)** with `EXPO_PUBLIC_API_URL` set in the EAS preview
-   environment. Run the handset script (X-10). Fix anything that fails before
-   continuing.
-5. **Merge (X-14)** after review of `PR_DESCRIPTION.md`.
-6. **Production AAB (X-08, X-09):** set EAS production variables, approve the
-   `play-release` run, download the `.aab`.
-7. **Play Console (X-11):** create the app, App content from
-   `PLAY_CONSOLE_WORKSHEET.md`, listing from `STORE_LISTING.md`.
-8. **Internal testing (X-12):** upload the AAB, opt in, install from Play, add
-   the Play App Signing SHA-1 to the Maps key, run handset steps 15–17, check
-   the App bundle explorer (64-bit, 16 KB).
-9. **Screenshots (X-13).**
-10. **Closed test if required (X-15)**, then apply for production.
-11. **Production (X-16):** staged rollout, owner presses Publish.
-12. **First 48 hours (X-18):** `POST_LAUNCH_MONITORING.md`; record every check.
+1. **Answer X-01 and X-20** (Play account type and date; accept separate
+   Google and wallet accounts).
+2. **Supabase providers (X-05, approval)** in project `movenrun` only:
+   Google, Web3 Wallet, redirect list, email and anonymous sign-in off, Web3
+   rate limit raised. `HOSTING_SUPABASE_FREE.md` §2.
+3. **API on Render Free (X-06, approval)** from `render.yaml`; the first start
+   applies migrations 0000–0008 to the live database. Then the Before User
+   Created hook (X-07). Open `/ready`.
+4. **Website at movenrun.xyz (X-21)**: fill the API URL and publishable key;
+   `node scripts/check-launch-placeholders.mjs` must pass. Open `/privacy/`,
+   `/account-deletion/`, `/support/` and `/sign-in/` in a private window.
+5. **Preview APK (X-08, X-04)** with the API and Supabase public settings in
+   the EAS preview environment. Run the handset script (X-10), including
+   Google, wallet with a real wallet app, verified movement and deletion.
+   **Wallet must pass on the phone by 24 Oct** or the release is flagged
+   `WALLET_LOGIN_BLOCKED` and the owner chooses Google-only or a deferral.
+6. **Merge (X-14, approval)** after review of `PR_DESCRIPTION.md`.
+7. **Production AAB (X-09):** approve the `play-release` run, download the `.aab`.
+8. **Play Console (X-11, approval):** App content from
+   `PLAY_CONSOLE_WORKSHEET.md` (wallet sign-in described exactly as written
+   there), listing from `STORE_LISTING.md`.
+9. **Internal testing (X-12, approval):** upload, install from Play, add the
+   Play App Signing SHA-1 to the Maps key, re-run steps 15a–17, check the App
+   bundle explorer (64-bit, 16 KB). GO/NO-GO by 2 Nov.
+10. **Screenshots (X-13).**
+11. **Closed test if required (X-15)**, then apply for production.
+12. **Production (X-16, approval):** staged rollout, owner presses Publish.
+13. **First 48 hours (X-18):** `POST_LAUNCH_MONITORING.md`; record every check.
 
 ## How to resume engineering in a new session
 
 - Branch `release/android-v1-cxfdbd`; read `EXECUTION_STATUS.md` then
-  `TASK_REGISTER.md` (OPEN rows are unblocked engineering).
+  `TASK_REGISTER.md` (BLOCKED_CODE rows are unblocked engineering).
 - Yarn 4 through corepack. If repo.yarnpkg.com is blocked, set
   `COREPACK_NPM_REGISTRY=https://registry.npmjs.org`.
 - Local Postgres TLS check: see EVIDENCE E-17 for the URL shape.
@@ -37,3 +44,7 @@ The shortest path, in order. Each step names the item in `EXTERNAL_ACTIONS.md`.
   adding a mobile test file.
 - Store artwork is rendered by `store-assets/render-artwork.mjs` (Playwright
   Chromium).
+- The web e2e (`evidence/web-sign-in-deletion-e2e.mjs`) binds 127.0.0.1:443 for
+  its Supabase stand-in and needs a migrated database; see its header.
+- `mobile/app/auth/callback.tsx` and `auth/wallet.tsx` are the deep-link
+  landings for `movenrun://auth/...`; keep them in release scope.

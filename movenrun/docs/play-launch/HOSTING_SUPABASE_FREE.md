@@ -1,58 +1,118 @@
-# No-cost staging: Supabase PostgreSQL + Render free web service
+# No-cost setup: Supabase Free (Auth + PostgreSQL) and Render Free
 
-This is the default staging path while X-03 is open. It costs nothing. The API
-runs unchanged; Supabase is used only as a plain PostgreSQL server (no Supabase
-SDK, auth or storage), so the app never talks to Supabase directly.
+This is the v1 hosting path (DECISIONS D-16, D-23). It costs nothing. Supabase
+project **`movenrun`**, ref **`tavxmwuwkeynbnzfwove`** (us-east-1) provides
+sign-in (Google and wallet) and the PostgreSQL database. The Express API on
+Render keeps all game data and issues the app's own sessions. **Do not touch
+the owner's other Supabase project, and do not create another one.**
 
-Proven locally (EVIDENCE E-17, E-18): the full backend suite, the migration
-command and the built API run over **verified TLS** (`sslmode=verify-full` with a
-private CA, the same shape as Supabase), as a **non-superuser table owner**, with
-**row level security on every table**; a REST-style role with full grants reads
-0 rows and cannot insert.
+Every step below is a dashboard action for the owner. Never paste a password,
+client secret or secret key into chat or the repository. Steps marked
+**APPROVAL** change a live service; they are listed so the owner can approve
+and run them.
 
-## 1. Supabase (project "MovenRun", Free plan)
+Proven locally (EVIDENCE E-17, E-18, E-20–E-24): the API, migrations and tests
+over verified TLS as a non-superuser owner with row level security on every
+table; Google and wallet sign-in, the cap, the hook SQL and deletion against a
+stand-in for Supabase Auth.
+
+## 1. Database (Supabase → project `movenrun`)
 
 1. Project Settings → Database → **SSL Configuration**: turn on *Enforce SSL on
    incoming connections* and **Download certificate** (`prod-ca-2021.crt`).
-2. Project Settings → **Data API**: turn the Data API off (or remove `public`
-   from *Exposed schemas*). Migration `0006_row_level_security` already blocks
-   it; this is the second lock.
-3. Connect → **Session pooler** connection string (IPv4; Render has no IPv6
-   egress, so do not use the direct `db.<ref>.supabase.co` host). It looks like
-   `postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`.
-   Do not use the transaction pooler (port 6543) for migrations.
-4. Database password: generate a long random one in the dashboard. Never paste
-   it in chat or the repository.
+2. Project Settings → **Data API**: turn it off, or remove `public` from
+   *Exposed schemas*. Migration `0006` already blocks it (RLS with no policies);
+   this is the second lock.
+3. Connect → **Session pooler** string (IPv4; Render has no IPv6 egress):
+   `postgresql://postgres.tavxmwuwkeynbnzfwove:<password>@aws-0-us-east-1.pooler.supabase.com:5432/postgres`.
+   Not the transaction pooler (6543) for migrations.
+4. Database password: generate a long random one in the dashboard.
 
-Free plan limits to know: the project pauses after about a week without
-traffic (restore from the dashboard), 500 MB database, daily backups are not
-included on Free. Set `{{BACKUP_RETENTION_DAYS}}` on the website accordingly
-(for example "0 (no provider backups on the free plan)") or upgrade later with
-approval.
+Free plan: pauses after about a week without traffic (restore in the
+dashboard), 500 MB database, 50,000 monthly active auth users, **no database
+backups**. The privacy policy says so; if backups are ever turned on, update
+`website/privacy/` and `website/account-deletion/`.
 
-## 2. Render web service (Free instance)
+## 2. Sign-in providers (Supabase → Authentication)
 
-Create → Web Service → repository `suhaib155/arena`:
+**2a. Google** (APPROVAL: enabling a provider)
+
+1. Google Cloud Console (any project you own) → APIs & Services → **OAuth
+   consent screen**: External, app name MovenRun, support email
+   `info@movenrun.xyz`, scopes **openid, email, profile only**, authorised
+   domain `movenrun.xyz` and `supabase.co`. Publish to production (basic scopes
+   need no verification review).
+2. Credentials → Create OAuth client ID → **Web application**. Authorised
+   redirect URI: `https://tavxmwuwkeynbnzfwove.supabase.co/auth/v1/callback`.
+3. Supabase → Authentication → Sign In / Providers → **Google**: enable, paste
+   the client ID and client secret **here only**. Leave "Skip nonce check" off.
+
+**2b. Wallet** (APPROVAL: enabling a provider)
+
+Authentication → Sign In / Providers → **Web3 Wallet → Ethereum**: enable.
+
+**2c. URL configuration**
+
+Authentication → URL Configuration:
+
+| Field | Value |
+|---|---|
+| Site URL | `https://movenrun.xyz` |
+| Redirect URLs | `movenrun://auth/callback` · `https://movenrun.xyz/sign-in/` · `https://movenrun.xyz/account-deletion/` |
+
+The wallet message's URI (`https://movenrun.xyz/sign-in/`) must be on this
+list or Supabase refuses wallet sign-in.
+
+**2d. Settings that must stay this way**
+
+- Authentication → Sign In / Providers → **Email: disable** (no email sign-up,
+  no magic links). **Anonymous sign-ins: off.** **Manual linking: off** (D-17).
+- Authentication → Rate Limits → **Web3 sign-ins**: raise from 30 to about 300
+  per 5 minutes. Every wallet sign-in reaches Supabase from the API's single
+  address, so the per-IP limit is shared by all players.
+
+## 3. Database changes (APPROVAL: applying migrations to the live database)
+
+Migrations `0000`–`0008` are applied by the API's start command
+(`drizzle-kit migrate`, idempotent). They create the game tables,
+`account_capacity` (max 1,000), the wallet sign-in tables and the function
+`public.movenrun_before_user_created`. Nothing runs until the owner deploys.
+
+After the first deploy, Authentication → **Hooks → Before User Created**:
+choose *Postgres function* → schema `public` → `movenrun_before_user_created`.
+The migration already grants it to `supabase_auth_admin` only.
+
+Check in the SQL editor (read only):
+
+```sql
+select max_accounts from account_capacity;                    -- 1000
+select count(*) from users;                                    -- admitted players
+select public.movenrun_before_user_created('{}'::jsonb);      -- {} while open
+```
+
+To change the cap later: `update account_capacity set max_accounts = <n>;`
+(owner decision, D-20).
+
+## 4. API (Render → New → Blueprint, or Web Service)
+
+`render.yaml` at the repository root describes the free service. Manual setup:
 
 | Setting | Value |
 |---|---|
 | Name | `movenrun-staging-api` |
-| Branch | `release/android-v1-cxfdbd` |
+| Branch | `release/android-v1-cxfdbd` (switch to `main` after merge) |
 | Root directory | `movenrun` |
-| Runtime | Node |
 | Instance type | **Free** |
-| Build command | `corepack enable && yarn install --immutable && yarn workspace @movenrun/backend build` |
-| Start command | `yarn workspace @movenrun/backend db:migrate && yarn workspace @movenrun/backend start` |
-| Health check path | `/ready` |
+| Region | Virginia (next to us-east-1) |
+| Build | `corepack enable && yarn install --immutable && yarn workspace @movenrun/backend build` |
+| Start | `yarn workspace @movenrun/backend db:migrate && yarn workspace @movenrun/backend start` |
+| Health check | `/ready` |
 | Auto-deploy | Off |
 
-Migrations run in the start command because pre-deploy commands need a paid
-instance. The migration command is idempotent (the runtime test runs it twice).
+**Secret file**: `supabase-ca.crt` with the downloaded certificate
+(appears at `/etc/secrets/supabase-ca.crt`).
 
-**Secret file** (Environment → Secret Files): name `supabase-ca.crt`, contents
-of the downloaded certificate. It appears at `/etc/secrets/supabase-ca.crt`.
-
-**Environment variables:**
+**Environment** (values in the dashboard only):
 
 | Key | Value |
 |---|---|
@@ -60,27 +120,35 @@ of the downloaded certificate. It appears at `/etc/secrets/supabase-ca.crt`.
 | `NODE_ENV` | `production` |
 | `DATABASE_URL` | session pooler string + `?sslmode=verify-full&sslrootcert=/etc/secrets/supabase-ca.crt` |
 | `IDENTITY_SESSION_PEPPER` | random, 32+ bytes (Render "Generate") |
-| `IDENTITY_OTP_PEPPER` | a different random value |
-| `CORS_ORIGINS` | website origin, e.g. `https://movenrun-website.vercel.app` |
-| `RESEND_API_KEY` | from Resend (X-06) |
-| `IDENTITY_EMAIL_FROM` | address on the Resend-verified domain |
+| `SUPABASE_URL` | `https://tavxmwuwkeynbnzfwove.supabase.co` |
+| `SUPABASE_PUBLISHABLE_KEY` | Project Settings → API Keys → publishable key (`sb_publishable_…`) |
+| `SUPABASE_SECRET_KEY` | Project Settings → API Keys → a secret key (`sb_secret_…`). Server only; used only to delete auth users (account deletion and the cap) |
+| `IDENTITY_AUTH_DOMAIN` | `movenrun.xyz` |
+| `CORS_ORIGINS` | `https://movenrun.xyz` |
 | `TRUST_PROXY_HOPS` | `1` |
-| `IDENTITY_REVIEW_EMAIL`, `IDENTITY_REVIEW_CODE` | X-07 |
 
-Check: open `https://<service>.onrender.com/health` and `/ready` (both 200).
+Not needed any more: `IDENTITY_OTP_PEPPER`, `RESEND_API_KEY`,
+`IDENTITY_EMAIL_FROM`, `IDENTITY_REVIEW_EMAIL`, `IDENTITY_REVIEW_CODE`.
 
-## 3. Point the app and website at it
+Check: `https://<service>.onrender.com/health` → `{"status":"ok"}`;
+`/ready` → `{"status":"ready","database":"ready","signIn":"supabase"}`.
 
-- EAS → Environment variables → **preview**: `EXPO_PUBLIC_API_URL=https://<service>.onrender.com`.
-- Website: replace `{{API_BASE_URL}}` and `{{HOSTING_PROVIDER}}` ("Render (web
-  service) and Supabase (PostgreSQL)"), then run
-  `node scripts/check-launch-placeholders.mjs`.
+## 5. App and website
 
-## Limits of the free path (why production may need approval)
+- EAS → Environment variables (**preview** and **production**):
+  `EXPO_PUBLIC_API_URL=https://<service>.onrender.com`,
+  `EXPO_PUBLIC_SUPABASE_URL=https://tavxmwuwkeynbnzfwove.supabase.co`,
+  `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>` (never the secret key;
+  the app refuses `sb_secret_` keys).
+- Website: point `movenrun.xyz` at the Vercel project for `movenrun/website`
+  (X-21). Replace `{{API_BASE_URL}}` (deletion and sign-in pages) and
+  `{{SUPABASE_PUBLISHABLE_KEY}}` (deletion page), then
+  `node scripts/check-launch-placeholders.mjs` must pass.
 
-A Render free instance sleeps after 15 minutes idle and takes up to about a
-minute to wake. The first sign-in after a quiet period is slow, and a session
-save can time out once (the app keeps it pending and retries, so nothing is
-lost). That is acceptable for internal and closed testing. For production, an
-always-on instance (Render Starter or similar) is recommended; that is a paid
-plan and needs owner approval (X-03).
+## Limits of the free path
+
+A free Render instance sleeps after 15 idle minutes and takes up to about a
+minute to wake; the first sign-in after a quiet period is slow, and a session
+save can time out once (the app keeps it pending and retries). Acceptable for
+internal and closed testing. An always-on instance is a paid plan and needs
+owner approval.
