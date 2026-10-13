@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler } from "express";
 import {
   users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs,
+  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations,
 } from "../db/identity.schema.js";
 import { movementVerifications } from "../db/movement.schema.js";
 import { getDb } from "../db/client.js";
@@ -18,6 +18,7 @@ import { DEFAULT_WALLET_CHAIN_ID, SupabaseSignInService } from "../identity/serv
 import { createCorsMiddleware, createSecurityHeadersMiddleware } from "../middleware/security.js";
 import { createGlobalRateLimiter, createWriteRateLimiter } from "../middleware/rateLimit.js";
 import type { ApiConfig } from "./config.js";
+import { createMaintenance } from "./maintenance.js";
 
 export function createApiApp(config: ApiConfig) {
   // Sign-in is Google or wallet through Supabase Auth only. The email-code
@@ -35,28 +36,26 @@ export function createApiApp(config: ApiConfig) {
     eoaVerifier: new EoaSignatureVerifier(),
     config: { authDomain: config.IDENTITY_AUTH_DOMAIN, chainId: identityConfig.allowedChainIds[0] ?? DEFAULT_WALLET_CHAIN_ID },
   });
-  // Provider users left behind by an erased account (provider unreachable at
-  // the time) are removed in the background until the provider confirms.
-  // Wallet sign-in codes the app never collected release their provider user too.
-  const retryDeletions = () => {
-    supabaseSignIn.expireHandoffs()
-      .then(() => supabaseSignIn.retryPendingDeletions())
-      .catch(() => console.error("Pending sign-in deletions could not be retried"));
-  };
-  const retryTimer = setInterval(retryDeletions, 5 * 60 * 1000);
-  retryTimer.unref();
-  setTimeout(retryDeletions, 5_000).unref();
-  // Provider users that never became a MovenRun account (see sweepOrphanProviderUsers).
-  const sweepOrphans = () => {
-    supabaseSignIn.sweepOrphanProviderUsers()
-      .catch(() => console.error("Unused sign-in records could not be swept"));
-  };
-  const sweepTimer = setInterval(sweepOrphans, 30 * 60 * 1000);
-  sweepTimer.unref();
-  setTimeout(sweepOrphans, 60_000).unref();
+  // Background clean-up, run when due on start, after requests and once a
+  // minute while awake, so a free host that sleeps still catches up on wake
+  // (see maintenance.ts). Nothing here guards a request: the cap, quota,
+  // expiry and revocation are checked in the database when used.
+  //  - Provider users left by an erased account (provider unreachable at the
+  //    time) and by wallet codes the app never collected.
+  //  - Provider users that never became a MovenRun account (sweepOrphanProviderUsers).
+  const maintenance = createMaintenance([
+    {
+      name: "pending sign-in deletions",
+      everyMs: 5 * 60 * 1000,
+      run: async () => (await supabaseSignIn.expireHandoffs()) + (await supabaseSignIn.retryPendingDeletions()),
+    },
+    { name: "unused sign-in records", everyMs: 30 * 60 * 1000, run: () => supabaseSignIn.sweepOrphanProviderUsers() },
+  ]);
+  maintenance.start();
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", config.TRUST_PROXY_HOPS);
+  app.use(maintenance.afterResponse);
   app.use(createSecurityHeadersMiddleware(), createCorsMiddleware(config));
   app.use(createGlobalRateLimiter(config));
   app.get("/health", (_req, res) => { res.json({ status: "ok" }); });
@@ -65,7 +64,7 @@ export function createApiApp(config: ApiConfig) {
       // Probe migrated columns, not just database connectivity. No rows or
       // coordinates are selected and no connection errors reach the logs.
       for (const table of [users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, movementVerifications]) {
+        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, movementVerifications]) {
         await db.select().from(table).limit(0);
       }
       res.json({ status: "ready", database: "ready", signIn: "supabase" });

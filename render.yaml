@@ -1,14 +1,20 @@
 # Staging API on Render's free instance, database on the Supabase Free project
-# (see movenrun/docs/play-launch/HOSTING_SUPABASE_FREE.md). No automatic deploy.
-# Free instances have no pre-deploy step, so migrations run before start; the
-# migration command is idempotent.
+# (see movenrun/docs/play-launch/LIVE_SETUP_OPERATOR_GUIDE.md). No automatic
+# deploy. Free instances have no pre-deploy step, so migrations run before
+# start; the migration command is idempotent and runs in one transaction.
+#
+# The service deploys `deploy/render-free-staging`, a branch that moves only
+# when the owner approves a new deployable commit (the approved full SHA is
+# recorded in docs/play-launch/LIVE_SETUP_OPERATOR_GUIDE.md). Never point it
+# at a branch that predates the security fixes. Guarded by
+# backend/src/api/renderBlueprint.test.ts.
 services:
   - type: web
     name: movenrun-staging-api
     runtime: node
     plan: free
     region: virginia
-    branch: release/android-v1-cxfdbd
+    branch: deploy/render-free-staging
     rootDir: movenrun
     autoDeployTrigger: off
     numInstances: 1

@@ -86,6 +86,7 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     // real ES256 JWTs that the API verifies exactly as it would Supabase's.
     const keys = generateKeyPairSync("ec", { namedCurve: "P-256" });
     const deletedProviderUsers: string[] = [];
+    let adminListings = 0;
     const walletUsers = new Map<string, string>();
     const mint = (sub: string, method: string, email: string | null) => {
       const now = Math.floor(Date.now() / 1000);
@@ -110,6 +111,11 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
         assert.equal((init.headers as Record<string, string>).apikey, "sb_secret_test");
         deletedProviderUsers.push(admin[1]);
         return new Response("{}", { status: 200 });
+      }
+      if (url.startsWith(`${SUPABASE_URL}/auth/v1/admin/users?`) && (init?.method ?? "GET") === "GET") {
+        assert.equal((init?.headers as Record<string, string>).apikey, "sb_secret_test");
+        adminListings += 1;
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
       throw new Error(`unexpected outbound request: ${url}`);
     };
@@ -280,6 +286,10 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email) })).status, 200);
     await pool.query("update account_capacity set max_new_per_hour = 50");
 
+    // Clean-up does not wait for a timer: the first requests after start
+    // (a wake from sleep on the free host) already ran the orphan sweep,
+    // which listed provider users once and only once while it was due.
+    assert.equal(adminListings, 1);
     await pool.query("alter table auth_identities rename column provider_subject to unavailable_provider_subject");
     assert.equal((await request("/ready")).status, 503);
   } finally {
