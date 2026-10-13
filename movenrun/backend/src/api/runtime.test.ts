@@ -38,7 +38,15 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
         }));
     }
     const migrationRows = await pool.query("select count(*)::int as count from drizzle.__drizzle_migrations");
-    assert.equal(migrationRows.rows[0].count, 6);
+    assert.equal(migrationRows.rows[0].count, 7);
+    // A hosted database's automatic REST API must not reach any table: every
+    // table has row level security on (and no policies).
+    const openTables = await pool.query(
+      "select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity"
+    );
+    assert.deepEqual(openTables.rows, []);
+    const tableCount = await pool.query("select count(*)::int as count from pg_tables where schemaname = 'public'");
+    assert.ok(tableCount.rows[0].count >= 10);
 
     const reserve = createServer().listen(0, "127.0.0.1");
     await once(reserve, "listening");
