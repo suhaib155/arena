@@ -4,33 +4,33 @@
 <rect width="360" height="408" rx="18" fill="#F8FAF7"/>
 <text x="24" y="34" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="17" font-weight="800" fill="#111827">How a cell is claimed</text>
 <text x="24" y="72" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">While you move</text>
-<polygon points="90,95 111.65,107.5 111.65,132.5 90,145 68.35,132.5 68.35,107.5" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
-<polygon points="135,95 156.65,107.5 156.65,132.5 135,145 113.35,132.5 113.35,107.5" fill="#E2F8EF" stroke="#246BFE" stroke-width="2.5"/>
-<polygon points="180,95 201.65,107.5 201.65,132.5 180,145 158.35,132.5 158.35,107.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="2.5"/>
-<polygon points="225,95 246.65,107.5 246.65,132.5 225,145 203.35,132.5 203.35,107.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="2.5"/>
-<polygon points="270,95 291.65,107.5 291.65,132.5 270,145 248.35,132.5 248.35,107.5" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2"/>
+<path d="M74.8 103.7 L104.8 102.6 Q111.8 102.3 111.3 109.3 L109.5 131.6 Q109 138.5 102 138.3 L77.5 137.6 Q70.5 137.4 69.9 130.4 L68.3 111 Q67.8 104 74.8 103.7Z" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<path d="M118.9 100.4 L152.3 99.4 Q159.3 99.2 158.7 106.2 L156.2 134.2 Q155.6 141.2 148.6 141.1 L121.1 140.9 Q114.1 140.8 113.7 133.8 L112.3 107.6 Q111.9 100.6 118.9 100.4Z" fill="#E2F8EF" stroke="#246BFE" stroke-width="2.5"/>
+<path d="M163.5 100 L194.7 100.8 Q201.7 100.9 201.7 107.9 L201.8 133.3 Q201.9 140.3 194.9 139.5 L167.3 136.3 Q160.4 135.5 159.6 128.6 L157.3 106.8 Q156.5 99.8 163.5 100Z" fill="#FFFFFF" stroke="#246BFE" stroke-width="2.5"/>
+<path d="M210.6 99.2 L237.7 101 Q244.7 101.4 244.9 108.4 L245.6 130.2 Q245.8 137.2 238.8 137.2 L210.5 136.9 Q203.5 136.9 203.5 129.9 L203.6 105.8 Q203.6 98.8 210.6 99.2Z" fill="#FFFFFF" stroke="#246BFE" stroke-width="2.5"/>
+<path d="M257.5 102 L284 98.2 Q290.9 97.2 290.4 104.1 L288.2 131 Q287.7 138 280.7 138.3 L253.9 139.3 Q246.9 139.5 247.6 132.6 L249.9 110 Q250.6 103 257.5 102Z" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2"/>
 <polyline points="34,162 66,156 96,148 118,138 135,128 156,122 180,116 205,112 226,108" fill="none" stroke="#246BFE" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="34" cy="162" r="3.5" fill="#246BFE"/>
 <circle cx="226" cy="108" r="3.5" fill="#246BFE"/>
 <text x="24" y="196" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">When you save the session</text>
-<polygon points="90,219 111.65,231.5 111.65,256.5 90,269 68.35,256.5 68.35,231.5" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
-<polygon points="135,214.5 160.55,229.25 160.55,258.75 135,273.5 109.45,258.75 109.45,229.25" fill="none" stroke="#18C987" stroke-width="1.4"/>
-<polygon points="135,219 156.65,231.5 156.65,256.5 135,269 113.35,256.5 113.35,231.5" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
-<polygon points="180,219 201.65,231.5 201.65,256.5 180,269 158.35,256.5 158.35,231.5" fill="#F4F1FF" stroke="#7657FF" stroke-width="2.5"/>
-<polygon points="225,219 246.65,231.5 246.65,256.5 225,269 203.35,256.5 203.35,231.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="2"/>
-<polygon points="270,219 291.65,231.5 291.65,256.5 270,269 248.35,256.5 248.35,231.5" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2"/>
+<path d="M74.7 226 L103.8 222 Q110.7 221.1 110.5 228.1 L109.7 253.6 Q109.5 260.6 102.5 260.7 L73.8 261.5 Q66.8 261.7 67 254.7 L67.5 233.9 Q67.7 226.9 74.7 226Z" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<path d="M118 220.4 L148.6 218.7 Q156.9 218.3 156.6 226.5 L155.6 260.8 Q155.4 269 147.1 268.2 L119.5 265.6 Q111.3 264.8 111 256.5 L110.1 229.1 Q109.8 220.8 118 220.4Z" fill="none" stroke="#18C987" stroke-width="1.4"/>
+<path d="M120.6 224 L146.5 222.6 Q153.5 222.2 153.3 229.2 L152.5 258.2 Q152.3 265.2 145.3 264.5 L121.9 262.3 Q114.9 261.6 114.7 254.6 L113.9 231.4 Q113.6 224.4 120.6 224Z" fill="#E2F8EF" stroke="#18C987" stroke-width="2"/>
+<path d="M167.2 224.5 L195.8 222.4 Q202.8 221.8 201.8 228.8 L198 257.2 Q197.1 264.1 190.1 263.8 L165.6 263 Q158.6 262.8 158.9 255.8 L160 232 Q160.3 225 167.2 224.5Z" fill="#F4F1FF" stroke="#7657FF" stroke-width="2.5"/>
+<path d="M209.9 223.3 L240.5 222.7 Q247.5 222.6 247.4 229.6 L246.9 256.3 Q246.7 263.3 239.8 262.8 L208.3 261 Q201.3 260.6 201.6 253.6 L202.6 230.5 Q202.9 223.5 209.9 223.3Z" fill="#FFFFFF" stroke="#246BFE" stroke-width="2"/>
+<path d="M257.1 224.9 L283.5 222.1 Q290.4 221.4 290.6 228.4 L291.5 255.7 Q291.7 262.7 284.7 262.8 L256.6 263 Q249.6 263.1 249.7 256.1 L250 232.6 Q250.1 225.6 257.1 224.9Z" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="2"/>
 <path d="M 26 296 L 42 296" fill="none" stroke="#246BFE" stroke-width="2.5" stroke-linecap="round"/>
 <circle cx="26" cy="296" r="3" fill="#246BFE"/>
 <circle cx="42" cy="296" r="3" fill="#246BFE"/>
 <text x="50" y="300" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Your route</text>
-<polygon points="202,289 208.06,292.5 208.06,299.5 202,303 195.94,299.5 195.94,292.5" fill="#FFFFFF" stroke="#246BFE" stroke-width="1.8"/>
+<path d="M198.5 291 L206.4 290.5 Q208.3 290.3 208.2 292.3 L207.6 300.3 Q207.5 302.3 205.5 302.2 L198.6 301.7 Q196.6 301.6 196.6 299.6 L196.6 293.1 Q196.6 291.2 198.5 291Z" fill="#FFFFFF" stroke="#246BFE" stroke-width="1.8"/>
 <text x="218" y="300" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Cell it touched</text>
-<polygon points="34,313 40.06,316.5 40.06,323.5 34,327 27.94,323.5 27.94,316.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
+<path d="M29.7 314.5 L38.8 313.8 Q40.8 313.7 40.6 315.7 L39.8 323.7 Q39.7 325.6 37.7 325.4 L29.2 324.6 Q27.3 324.4 27.4 322.4 L27.6 316.6 Q27.7 314.7 29.7 314.5Z" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
 <text x="50" y="324" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Ground you hold</text>
-<polygon points="202,309.5 211.09,314.75 211.09,325.25 202,330.5 192.91,325.25 192.91,314.75" fill="none" stroke="#18C987" stroke-width="1.4"/>
-<polygon points="202,314 207.2,317.0 207.2,323.0 202,326 196.8,323.0 196.8,317.0" fill="#E2F8EF" stroke="#18C987" stroke-width="1.6"/>
+<path d="M196.6 313 L207.8 311.9 Q210.8 311.6 210.6 314.5 L209.9 325.1 Q209.7 328 206.7 327.9 L196.3 327.5 Q193.4 327.4 193.5 324.5 L193.6 316.3 Q193.7 313.3 196.6 313Z" fill="none" stroke="#18C987" stroke-width="1.4"/>
+<path d="M198.9 316 L205.3 315.3 Q207 315.2 206.9 316.9 L206.5 322.9 Q206.4 324.6 204.7 324.5 L198.8 324.3 Q197.1 324.3 197.1 322.6 L197.2 317.9 Q197.2 316.2 198.9 316Z" fill="#E2F8EF" stroke="#18C987" stroke-width="1.6"/>
 <text x="218" y="324" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Hold refreshed</text>
-<polygon points="34,337 40.06,340.5 40.06,347.5 34,351 27.94,347.5 27.94,340.5" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.8"/>
+<path d="M30.3 339.5 L38.4 339.3 Q40.3 339.2 40.2 341.2 L40 348 Q39.9 349.9 38 349.8 L29.2 349.3 Q27.2 349.2 27.4 347.3 L28.1 341.5 Q28.3 339.5 30.3 339.5Z" fill="#F4F1FF" stroke="#7657FF" stroke-width="1.8"/>
 <text x="50" y="348" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Claimed this session</text>
 <text x="24" y="376" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">One cell is claimed, the first you did not hold.</text>
 <text x="24" y="392" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">The held cell on your route is refreshed.</text>

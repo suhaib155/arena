@@ -35,31 +35,90 @@
     }
   }, 2600);
 
-  /* ───────────────────────── hex grid helper ───────────────────── */
-  /* Pointy-top hexes covering a viewBox. Returns [{el,x,y,ring}]. */
-  function genHexGrid(svg, vw, vh, r, cx, cy) {
-    var hexes = [];
-    var hw = r * Math.sqrt(3) / 2;
-    var rowH = r * 1.5;
-    var row = 0;
-    for (var y = -r; y < vh + r; y += rowH, row++) {
-      var off = (row % 2) * hw;
-      for (var x = -hw + off; x < vw + hw; x += hw * 2) {
-        var pts = [];
-        for (var k = 0; k < 6; k++) {
-          var a = Math.PI / 180 * (60 * k - 30);
-          pts.push((x + r * Math.cos(a)).toFixed(1) + "," + (y + r * Math.sin(a)).toFixed(1));
-        }
-        var poly = document.createElementNS(SVGNS, "polygon");
-        poly.setAttribute("points", pts.join(" "));
-        svg.appendChild(poly);
-        var dx = x - (cx != null ? cx : vw / 2);
-        var dy = y - (cy != null ? cy : vh / 2);
-        hexes.push({ el: poly, x: x, y: y, dist: Math.sqrt(dx * dx + dy * dy) });
+  /* ───────────────────────── map area helper ───────────────────── */
+  /* Seeded PRNG (mulberry32) so every map draws the same way on every load. */
+  function seededRandom(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* A closed path through `pts` with every corner rounded, so parcels read
+     as blocks and parks on a street map rather than a geometric lattice. */
+  function roundedPath(pts, rad) {
+    var n = pts.length, d = "";
+    function toward(a, b, dist) {
+      var dx = b[0] - a[0], dy = b[1] - a[1], len = Math.sqrt(dx * dx + dy * dy) || 1;
+      dist = Math.min(dist, len / 2.4);
+      return [a[0] + dx / len * dist, a[1] + dy / len * dist];
+    }
+    function f(p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }
+    for (var i = 0; i <= n; i++) {
+      var p1 = pts[i % n], p0 = pts[(i - 1 + n) % n], p2 = pts[(i + 1) % n];
+      var a = toward(p1, p0, rad), b = toward(p1, p2, rad);
+      d += i === 0 ? "M" + f(b) : " L" + f(a) + " Q" + f(p1) + " " + f(b);
+    }
+    return d + "Z";
+  }
+
+  /* Irregular territory parcels covering a viewBox: a jittered street grid
+     whose blocks are sometimes split, each block inset (the "street") and
+     drawn with rounded corners. Returns [{el,x,y,dist}] for the scene animations,
+     with x/y the parcel's centre. `r` is the approximate parcel radius. */
+  function genAreaGrid(svg, vw, vh, r, cx, cy, seed) {
+    var rand = seededRandom(seed || (vw * 31 + vh * 17 + r * 7));
+    var s = r * 1.62;
+    var cols = Math.ceil((vw + 2 * s) / s), rows = Math.ceil((vh + 2 * s) / s);
+    var grid = [];
+    for (var j = 0; j <= rows; j++) {
+      grid.push([]);
+      for (var i = 0; i <= cols; i++) {
+        grid[j].push([-s + i * s + (rand() - 0.5) * s * 0.42, -s + j * s + (rand() - 0.5) * s * 0.42]);
       }
     }
-    return hexes;
+    function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+    var ox = cx != null ? cx : vw / 2, oy = cy != null ? cy : vh / 2;
+    var areas = [];
+    function add(quad) {
+      var mx = 0, my = 0, k;
+      for (k = 0; k < quad.length; k++) { mx += quad[k][0]; my += quad[k][1]; }
+      mx /= quad.length; my /= quad.length;
+      /* inset toward the centre leaves a street between neighbours */
+      var inset = quad.map(function (p) { return mix(p, [mx, my], 0.1); });
+      var path = document.createElementNS(SVGNS, "path");
+      path.setAttribute("d", roundedPath(inset, s * 0.2));
+      path.setAttribute("stroke-linejoin", "round");
+      svg.appendChild(path);
+      var dx = mx - ox, dy = my - oy;
+      areas.push({ el: path, x: mx, y: my, dist: Math.sqrt(dx * dx + dy * dy) });
+    }
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        var a = grid[y][x], b = grid[y][x + 1], c = grid[y + 1][x + 1], d = grid[y + 1][x];
+        var roll = rand();
+        if (roll < 0.2) {
+          /* split across: two long thin blocks */
+          var t = 0.38 + rand() * 0.24;
+          var ab = mix(a, d, t), bc = mix(b, c, t);
+          add([a, b, bc, ab]); add([ab, bc, c, d]);
+        } else if (roll < 0.36) {
+          /* split down: two narrow blocks side by side */
+          var u = 0.38 + rand() * 0.24;
+          var top = mix(a, b, u), bot = mix(d, c, u);
+          add([a, top, bot, d]); add([top, b, c, bot]);
+        } else {
+          add([a, b, c, d]);
+        }
+      }
+    }
+    return areas;
   }
+  var mapRand = seededRandom(20260611);
 
   /* ───────────────────────── scene engine ──────────────────────── */
   var scenes = [];
@@ -92,7 +151,7 @@
   /* ───────────────────── the journey spine ─────────────────────
      One continuous route drawn from the hero to the final CTA. The
      path is rebuilt from section positions, drawn by scroll, and a
-     glowing runner orb travels it with milestone hexes lighting up. */
+     glowing runner orb travels it with milestone markers lighting up. */
   var journey = $("#journey");
   var journeyTrack = $("#journeyTrack"), journeyFill = $("#journeyFill");
   var journeyNodesG = $("#journeyNodes"), journeyOrb = $("#journeyOrb");
@@ -150,20 +209,17 @@
       journeyLUT.push([journeyLen * k / SAMPLES, pt.x, pt.y]);
     }
 
-    /* milestone hexes at each section waypoint */
+    /* milestone markers at each section waypoint */
     journeyNodesG.innerHTML = "";
     journeyNodeList = [];
     pts.forEach(function (p, idx) {
       if (idx === 0) return;
-      var poly = document.createElementNS(SVGNS, "polygon");
-      var str = [];
-      for (var k2 = 0; k2 < 6; k2++) {
-        var a = Math.PI / 180 * (60 * k2 - 30);
-        str.push((p[0] + 9 * Math.cos(a)).toFixed(1) + "," + (p[1] + 9 * Math.sin(a)).toFixed(1));
-      }
-      poly.setAttribute("points", str.join(" "));
-      journeyNodesG.appendChild(poly);
-      journeyNodeList.push({ el: poly, y: p[1] });
+      var dot = document.createElementNS(SVGNS, "circle");
+      dot.setAttribute("cx", p[0].toFixed(1));
+      dot.setAttribute("cy", p[1].toFixed(1));
+      dot.setAttribute("r", "7.5");
+      journeyNodesG.appendChild(dot);
+      journeyNodeList.push({ el: dot, y: p[1] });
     });
   }
 
@@ -200,7 +256,7 @@
       heroRot += 0.045;
       heroGlobe.render({
         rotation: heroRot,
-        hexAlpha: 0.55,
+        gridAlpha: 0.55,
         gpsPulse: (t % 1800) / 1800,
         cloudDrift: t * 0.0015
       });
@@ -228,15 +284,15 @@
   var descentMeterFill = $("#descentMeterFill");
   var phases = $all(".descent-phase");
 
-  var cityHexes = [];
+  var cityAreas = [];
   (function () {
-    var svg = $("#cityHexes");
+    var svg = $("#cityAreas");
     if (!svg) return;
-    cityHexes = genHexGrid(svg, 1000, 1000, 56, 500, 500);
-    cityHexes.forEach(function (h) {
+    cityAreas = genAreaGrid(svg, 1000, 1000, 56, 500, 500, 11);
+    cityAreas.forEach(function (h) {
       h.ring = Math.round(h.dist / 97);
       h.el.style.transitionDelay = (h.ring * 0.055) + "s";
-      h.captured = h.ring <= 1 && Math.random() < 0.6;
+      h.captured = h.ring <= 1 && mapRand() < 0.6;
     });
   })();
 
@@ -260,7 +316,7 @@
     if (canvasFade > 0.01) {
       descentGlobe.render({
         rotation: rot, radius: R, cx: cx, cy: cy,
-        hexAlpha: 0.5, detail: Math.max(detail, 0.15),
+        gridAlpha: 0.5, detail: Math.max(detail, 0.15),
         gpsPulse: (t % 1500) / 1500, arcs: p < 0.25,
         cloudDrift: t * 0.0015
       });
@@ -292,8 +348,8 @@
     cityPlane.style.transform = "translateY(" + tz.toFixed(1) + "px) rotateX(" + rx.toFixed(2) + "deg) scale(" + sc.toFixed(3) + ")";
 
     if (cityMarker) cityMarker.classList.toggle("on", p > 0.6);
-    for (var i = 0; i < cityHexes.length; i++) {
-      var hx = cityHexes[i];
+    for (var i = 0; i < cityAreas.length; i++) {
+      var hx = cityAreas[i];
       var on = p > 0.62 + hx.ring * 0.035;
       hx.el.classList.toggle("on", on);
       hx.el.classList.toggle("captured", on && hx.captured && p > 0.88);
@@ -352,8 +408,8 @@
       '<path d="M -10 230 C 60 210 140 250 250 220 L 250 310 L -10 310 Z" fill="#DCEEFB"/>' +
       '<g stroke="#E4E9EE" stroke-width="7" stroke-linecap="round"><path d="M 0 120 H 240 M 0 190 H 240 M 70 0 V 300 M 160 0 V 300"/></g>';
     svg.appendChild(g);
-    var hexes = genHexGrid(svg, 240, 300, 26, 120, 165);
-    hexes.forEach(function (h) {
+    var areas = genAreaGrid(svg, 240, 300, 26, 120, 165, 23);
+    areas.forEach(function (h) {
       h.el.setAttribute("fill", h.dist < 60 ? "rgba(24,201,135,0.16)" : "rgba(36,107,254,0.02)");
       h.el.setAttribute("stroke", h.dist < 60 ? "rgba(24,201,135,0.65)" : "rgba(163,170,184,0.4)");
       h.el.setAttribute("stroke-width", "1.3");
@@ -383,25 +439,25 @@
   var sessionMarkerEl = $("#sessionMarker");
   var ssDist = $("#ssDist"), ssTime = $("#ssTime"), ssPace = $("#ssPace"), ssRing = $("#ssRing");
   var zoneToast = $("#zoneToast");
-  var routeLen = 0, sessionHexes = [], captureHexes = [], toastTimer = null, lastZone = -1;
+  var routeLen = 0, sessionAreas = [], captureAreas = [], toastTimer = null, lastZone = -1;
 
   (function () {
     if (!sessionRoute) return;
     routeLen = sessionRoute.getTotalLength();
     sessionRoute.style.strokeDasharray = routeLen;
     sessionRoute.style.strokeDashoffset = routeLen;
-    var svg = $("#sessionHexes");
-    sessionHexes = genHexGrid(svg, 960, 520, 38, 480, 260);
-    /* mark the hexes the route passes through as capture targets */
+    var svg = $("#sessionAreas");
+    sessionAreas = genAreaGrid(svg, 960, 520, 38, 480, 260, 37);
+    /* mark the areas the route passes through as capture targets */
     var thresholds = [0.10, 0.26, 0.42, 0.58, 0.74, 0.90];
     thresholds.forEach(function (th, i) {
       var pt = sessionRoute.getPointAtLength(routeLen * th);
       var best = null, bd = 1e9;
-      sessionHexes.forEach(function (h) {
+      sessionAreas.forEach(function (h) {
         var d = Math.pow(h.x - pt.x, 2) + Math.pow(h.y - pt.y, 2);
         if (d < bd) { bd = d; best = h; }
       });
-      if (best) captureHexes.push({ hex: best, th: th, contested: i === 3 });
+      if (best) captureAreas.push({ area: best, th: th, contested: i === 3 });
     });
   })();
 
@@ -424,13 +480,13 @@
     ssRing.style.strokeDashoffset = 94.2 * (1 - dp);
 
     var zone = -1;
-    captureHexes.forEach(function (c, i) {
+    captureAreas.forEach(function (c, i) {
       var hit = dp > c.th;
       if (c.contested) {
-        c.hex.el.classList.toggle("contested", hit && dp < c.th + 0.18);
-        c.hex.el.classList.toggle("captured", dp >= c.th + 0.18);
+        c.area.el.classList.toggle("contested", hit && dp < c.th + 0.18);
+        c.area.el.classList.toggle("captured", dp >= c.th + 0.18);
       } else {
-        c.hex.el.classList.toggle("captured", hit);
+        c.area.el.classList.toggle("captured", hit);
       }
       if (hit) zone = i;
     });
@@ -466,19 +522,21 @@
   /* ───────────────────────── reward moment ─────────────────────── */
   var rewardCard = $("#rewardCard");
   (function () {
-    var svg = $("#rewardHexCluster");
+    var svg = $("#rewardAreaCluster");
     if (!svg) return;
-    var centers = [[150, 110], [186, 131], [114, 131], [150, 152], [186, 89]];
-    centers.forEach(function (c, i) {
-      var pts = [];
-      for (var k = 0; k < 6; k++) {
-        var a = Math.PI / 180 * (60 * k - 30);
-        pts.push((c[0] + 24 * Math.cos(a)).toFixed(1) + "," + (c[1] + 24 * Math.sin(a)).toFixed(1));
-      }
-      var poly = document.createElementNS(SVGNS, "polygon");
-      poly.setAttribute("points", pts.join(" "));
-      poly.style.transitionDelay = (0.5 + i * 0.18) + "s";
-      svg.appendChild(poly);
+    /* five neighbouring parcels along the replayed route */
+    var parcels = [
+      [[128, 92], [170, 88], [172, 128], [126, 130]],
+      [[178, 112], [212, 106], [216, 148], [180, 150]],
+      [[96, 118], [120, 114], [122, 150], [92, 152]],
+      [[128, 138], [172, 136], [170, 170], [132, 174]],
+      [[178, 64], [214, 60], [212, 98], [180, 102]]
+    ];
+    parcels.forEach(function (pts, i) {
+      var path = document.createElementNS(SVGNS, "path");
+      path.setAttribute("d", roundedPath(pts, 9));
+      path.style.transitionDelay = (0.5 + i * 0.18) + "s";
+      svg.appendChild(path);
     });
   })();
 
@@ -502,7 +560,7 @@
           vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
           life: 0, max: 90 + Math.random() * 70,
           c: colors[(Math.random() * colors.length) | 0],
-          hex: Math.random() < 0.5,
+          chip: Math.random() < 0.5,
           s: 1.6 + Math.random() * 3,
           rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.1,
           ph: Math.random() * Math.PI * 2,          /* 3D flip phase */
@@ -531,19 +589,20 @@
         ctx.fillStyle = pp.c;
         ctx.shadowColor = pp.c;
         ctx.shadowBlur = 9;
-        if (pp.hex) {
-          /* tiny hex with a slow 3D flip (scaleX oscillation) */
+        if (pp.chip) {
+          /* tiny rounded confetti chip with a slow 3D flip (scaleX oscillation) */
           var flip = Math.cos(pp.ph + pp.life * 0.07);
+          var cw = pp.s * 1.7, ch = pp.s * 1.2, cr = pp.s * 0.4;
           ctx.save();
           ctx.translate(pp.x, pp.y);
           ctx.rotate(pp.rot);
           ctx.scale(Math.max(0.12, Math.abs(flip)), 1);
           ctx.beginPath();
-          for (var k = 0; k < 6; k++) {
-            var a2 = Math.PI / 180 * (60 * k - 30);
-            var px = pp.s * Math.cos(a2), py = pp.s * Math.sin(a2);
-            if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-          }
+          ctx.moveTo(-cw / 2 + cr, -ch / 2);
+          ctx.arcTo(cw / 2, -ch / 2, cw / 2, ch / 2, cr);
+          ctx.arcTo(cw / 2, ch / 2, -cw / 2, ch / 2, cr);
+          ctx.arcTo(-cw / 2, ch / 2, -cw / 2, -ch / 2, cr);
+          ctx.arcTo(-cw / 2, -ch / 2, cw / 2, -ch / 2, cr);
           ctx.closePath(); ctx.fill();
           ctx.restore();
         } else {
@@ -558,21 +617,21 @@
     requestAnimationFrame(frame);
   }
 
-  /* ───────────────────────── economy hexes ─────────────────────── */
-  function fillEcoHexes(id, ratio) {
+  /* ───────────────────────── economy areas ─────────────────────── */
+  function fillEcoAreas(id, ratio, seed) {
     var svg = $(id);
     if (!svg) return;
-    var hexes = genHexGrid(svg, 320, 180, 24, 160, 90);
-    hexes.sort(function (a, b) { return a.dist - b.dist; });
-    hexes.forEach(function (h, i) {
-      if (i < hexes.length * ratio) {
+    var areas = genAreaGrid(svg, 320, 180, 24, 160, 90, seed);
+    areas.sort(function (a, b) { return a.dist - b.dist; });
+    areas.forEach(function (h, i) {
+      if (i < areas.length * ratio) {
         h.el.classList.add("lit");
         h.el.style.transitionDelay = (0.15 + i * 0.045) + "s";
       }
     });
   }
-  fillEcoHexes("#ecoFreeHexes", 0.5);
-  fillEcoHexes("#ecoDeedHexes", 0.28);
+  fillEcoAreas("#ecoFreeAreas", 0.5, 41);
+  fillEcoAreas("#ecoDeedAreas", 0.28, 43);
 
   /* ───────────────────────── clubs / city war ──────────────────── */
   var CLUB_COLORS = [
@@ -581,26 +640,26 @@
     ["rgba(247,185,85,0.34)", "rgba(247,185,85,0.85)"],
     ["rgba(255,107,74,0.28)", "rgba(255,107,74,0.7)"]
   ];
-  var warHexes = [];
+  var warAreas = [];
   (function () {
     var svg = $("#warMap");
     if (!svg) return;
-    warHexes = genHexGrid(svg, 460, 340, 27, 230, 170);
+    warAreas = genAreaGrid(svg, 460, 340, 27, 230, 170, 53);
     var seeds = [[110, 90], [340, 100], [140, 260], [360, 250]];
-    warHexes.forEach(function (h) {
+    warAreas.forEach(function (h) {
       var best = 0, bd = 1e9;
       seeds.forEach(function (s, i) {
-        var d = Math.pow(h.x - s[0], 2) + Math.pow(h.y - s[1], 2) + Math.random() * 5200;
+        var d = Math.pow(h.x - s[0], 2) + Math.pow(h.y - s[1], 2) + mapRand() * 5200;
         if (d < bd) { bd = d; best = i; }
       });
       h.club = best;
       h.el.style.fill = "rgba(208,213,221,0.15)";
       h.el.style.stroke = "rgba(163,170,184,0.35)";
-      h.el.style.transitionDelay = (Math.random() * 0.9) + "s";
+      h.el.style.transitionDelay = (mapRand() * 0.9) + "s";
     });
   })();
   function paintWar() {
-    warHexes.forEach(function (h) {
+    warAreas.forEach(function (h) {
       h.el.style.fill = CLUB_COLORS[h.club][0];
       h.el.style.stroke = CLUB_COLORS[h.club][1];
     });
@@ -610,7 +669,7 @@
     if (warFlipTimer || REDUCED) return;
     warFlipTimer = setInterval(function () {
       for (var i = 0; i < 3; i++) {
-        var h = warHexes[Math.floor(Math.random() * warHexes.length)];
+        var h = warAreas[Math.floor(Math.random() * warAreas.length)];
         h.club = (h.club + 1 + Math.floor(Math.random() * 3)) % 4;
         h.el.style.transitionDelay = "0s";
         h.el.style.fill = CLUB_COLORS[h.club][0];
@@ -618,18 +677,6 @@
       }
     }, 1800);
   }
-
-  /* countdown */
-  (function () {
-    var el = $("#warTimer");
-    if (!el) return;
-    var secs = 23 * 3600 + 59 * 60 + 42;
-    setInterval(function () {
-      secs = Math.max(0, secs - 1);
-      var hh = Math.floor(secs / 3600), mm = Math.floor((secs % 3600) / 60), ss = secs % 60;
-      el.textContent = ("0" + hh).slice(-2) + ":" + ("0" + mm).slice(-2) + ":" + ("0" + ss).slice(-2);
-    }, 1000);
-  })();
 
   /* leaderboard reorder */
   (function () {
@@ -653,7 +700,7 @@
         var domIdx = club;
         row.style.transform = "translateY(" + ((pos - domIdx) * rowH) + "px)";
         var span = row.querySelector(".club-info span");
-        span.textContent = counts[club] + " hexes";
+        span.textContent = counts[club] + " areas";
         var trend = row.querySelector(".club-trend");
         trend.className = "club-trend " + (pos < domIdx || (pos === domIdx && Math.random() < 0.6) ? "up" : "down");
         trend.textContent = trend.classList.contains("up") ? "▲" : "▼";
@@ -689,16 +736,16 @@
 
   /* ───────────────────────── final scene ───────────────────────── */
   var finalSection = $("#join");
-  var finalHexes = [];
+  var finalAreas = [];
   (function () {
-    var svg = $("#finalHexes");
+    var svg = $("#finalAreas");
     if (!svg) return;
-    finalHexes = genHexGrid(svg, 1400, 760, 46, 700, 380);
-    finalHexes.forEach(function (h) {
-      if (Math.random() < 0.4) {
+    finalAreas = genAreaGrid(svg, 1400, 760, 46, 700, 380, 61);
+    finalAreas.forEach(function (h) {
+      if (mapRand() < 0.4) {
         h.lit = true;
-        h.violet = Math.random() < 0.22;
-        h.el.style.transitionDelay = (Math.random() * 2.2) + "s";
+        h.violet = mapRand() < 0.22;
+        h.el.style.transitionDelay = (mapRand() * 2.2) + "s";
       }
     });
   })();
@@ -744,7 +791,7 @@
       if (!e.isIntersecting) return;
       e.target.classList.add("in");
       finalStart = performance.now();
-      finalHexes.forEach(function (h) {
+      finalAreas.forEach(function (h) {
         if (h.lit) h.el.classList.add("lit");
         if (h.violet) h.el.classList.add("v");
       });
@@ -783,17 +830,19 @@
   function onResize() {
     if (heroGlobe) heroGlobe.resize();
     if (descentGlobe) descentGlobe.resize();
+    /* no frame loop under reduced motion, so redraw the one static frame */
+    if (REDUCED && heroGlobe) heroGlobe.render({ rotation: 30, gridAlpha: 0.5, gpsPulse: 0.3 });
   }
   window.addEventListener("resize", onResize);
 
   if (REDUCED) {
     /* static, accessible rendering: one globe frame, everything revealed */
-    if (heroGlobe) heroGlobe.render({ rotation: 30, hexAlpha: 0.5, gpsPulse: 0.3 });
+    if (heroGlobe) heroGlobe.render({ rotation: 30, gridAlpha: 0.5, gpsPulse: 0.3 });
     $all(".reveal, .loop-card, .eco-card").forEach(function (el) { el.classList.add("in"); });
     $all(".num[data-count]").forEach(runCounter);
     phases.forEach(function (el) { el.classList.add("on"); });
     if (cityStage) { cityStage.style.opacity = 1; cityPlane.style.transform = "rotateX(30deg)"; }
-    cityHexes.forEach(function (h) { h.el.classList.add("on"); });
+    cityAreas.forEach(function (h) { h.el.classList.add("on"); });
     pscreens[0] && pscreens[0].classList.add("on");
     roadPhases.forEach(function (ph) { ph.classList.add("unlocked"); });
     if (roadFill) roadFill.style.strokeDashoffset = 0;

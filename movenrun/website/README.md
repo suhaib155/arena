@@ -10,16 +10,16 @@ Two static surfaces, one folder, zero build steps:
    a printable whitepaper (`/docs/whitepaper/`, print styles + a
    Print/Save-as-PDF control). The docs describe the movement game that exists
    today and the onchain layer it is designed to grow into, and they are
-   explicit about which is which: the contracts are deployed to Base Sepolia,
-   nothing has been minted, and no wallet or gas sponsorship has been built.
+   explicit about which is which: deeds are planned and not live, nothing has
+   been minted, and no wallet or gas sponsorship has been built.
    See `docs/README.md` for the voice rules that keep it that way. They are
    the project's source of truth and link to no external references.
 
 The docs are integrated into the landing page: a **Docs** link in desktop and
-mobile navigation, a **Read the docs** CTA in the final section, and
-Docs / Whitepaper / Current status links in the footer. The primary social
-CTA is **Follow on X** (`https://x.com/` — temporary destination until an
-official MovenRun profile exists; no handle is invented).
+mobile navigation, and **Read the whitepaper** (`/docs/`) as the primary CTA in
+the navigation, the final section and the mobile sticky bar, with a secondary
+**How it works** link. There is no social, waitlist, beta, download or
+app-store CTA, and no placeholder external link.
 `sitemap.xml` and `robots.txt` cover both surfaces.
 
 Docs maintenance (voice, self-contained rule, the non-negotiable
@@ -29,7 +29,7 @@ documented in **`docs/README.md`**.
 Cinematic single-page marketing site for MovenRun, built in the **“Daylight
 Cartography”** design language: bright light-mode, frosted glass cards, a
 procedural daylight globe, and scroll-driven 3D storytelling that walks from
-orbit → city → hex grid → movement session → wellbeing summary → community →
+orbit → city → map areas → movement session → wellbeing summary → community →
 responsible Web3 → roadmap → final CTA.
 
 ## Positioning
@@ -40,17 +40,19 @@ The site presents MovenRun **health-first**:
    consistency, personal goals, exploration, and wellbeing. No medical claims.
 2. **Territory and play** — the city as a movement playground: capturing and
    strengthening zones, streaks, clubs, and friendly city challenges.
-3. **Responsible Web3** — a *planned* ownership layer on Base, described in
-   the future tense because it does not exist. The contracts are on Base
-   Sepolia, nothing has been minted, and no wallet or gas sponsorship has
-   been built. Never required to play, never framed as income or a financial
+3. **Responsible Web3** — a *planned* ownership layer, described in the
+   future tense because it does not exist. Nothing has been minted, and no
+   wallet or gas sponsorship has been built. Never required to play, never framed as income or a financial
    return.
 
 Public-facing copy deliberately avoids speculative language: no earnings
 promises, no token or launch metrics, no grid or coordinate internals, and no
-unverified numbers. It does *not* avoid the testnet. Where the site mentions
-Base it says **Base Sepolia**, plainly and not in a footnote, because the
-alternative is a claim that the code contradicts. The footer and the
+unverified numbers. Marketing pages name no chain environment (no test
+network or mainnet labels) and show no contract addresses; deeds are labelled
+as planned and not live. The single technical statement about deployment
+lives on the docs roadmap: mainnet deployment is an objective for the official
+launch and has not happened. Pages carry no publication, effective or launch
+dates and no countdowns. The footer and the
 wellbeing and ownership sections carry explicit “no financial promises”
 disclaimers.
 
@@ -111,8 +113,7 @@ functional without it.
 - **≤480px** — single-column footer; the menu dropdown stays within the
   viewport (`min(340px, 100vw - 32px)`).
 
-“Follow the launch” points at the GitHub repository until an official
-waitlist or download page exists. All external links use
+“Read the whitepaper” points at `/docs/`. All external links use
 `target="_blank" rel="noopener noreferrer"`; there are no `href="#"` dead links.
 
 ## Footer
@@ -125,7 +126,8 @@ disclaimer. Collapses 4 → 2 → 1 columns at 920px / 480px.
 ## Design & animation notes
 
 - Design language: **Daylight Cartography** — bright light-mode, frosted
-  glass, hex-territory identity, Base Blue / Pulse Green / Volt Mint / Deed
+  glass, map-territory identity (rounded parcels on a real street map; the
+  internal grid is never drawn), Base Blue / Pulse Green / Volt Mint / Deed
   Violet accents. No dark crypto-dashboard visuals.
 - One continuous "journey" route threads the whole page; it draws with scroll
   and a glowing runner orb travels it. Hidden ≤1100px and under reduced motion.
@@ -154,7 +156,7 @@ Checked with headless Chromium (Playwright) after the polish pass:
 | 1920 × 1080 | pass | none | large-desktop layout |
 
 Also verified at multiple scroll positions per viewport: splash dismissal,
-hero globe + route draw, globe-to-city descent and hex cascade, all six phone
+hero globe + route draw, globe-to-city descent and area cascade, all six phone
 walkthrough screens, live session counters and zone toasts, reward count-ups
 and particles, economy cards, clubs map + leaderboard, roadmap orb, final
 route animation, mobile menu open/close (pointer + keyboard), anchor

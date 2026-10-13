@@ -227,7 +227,7 @@
   }
 
   var MESSAGES = {
-    unavailable: "Online sign-in is not available right now. Use the app or email us; both work.",
+    unavailable: "Wallet sign-in is not available right now. Go back to the MovenRun app and try again later; you can keep playing as a guest meanwhile. Never share your recovery phrase, private key or a sign-in code with anyone, including us.",
     no_wallet: "No wallet was found in this browser. Open this page in your wallet app's browser, or use a browser with a wallet extension.",
     no_account: "Your wallet did not share an address. Unlock it and try again.",
     signature_declined: "The signature was declined, so nothing happened. You can try again.",
@@ -242,7 +242,7 @@
   };
 
   function message(err) {
-    return MESSAGES[err && err.code] || "Sign-in didn't complete. Please try again, or email us.";
+    return MESSAGES[err && err.code] || "Sign-in didn't complete. Please try again.";
   }
 
   window.MovenRunAuth = {

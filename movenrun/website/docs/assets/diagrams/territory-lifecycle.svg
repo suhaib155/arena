@@ -21,13 +21,13 @@
 <text x="180.0" y="348.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">dropped off your map</text>
 <path d="M 292 338 C 330 338 330 96 292 92" fill="none" stroke="#18C987" stroke-width="2" marker-end="url(#a)"/>
 <text x="344" y="227.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" font-weight="700" fill="#0A8F60">visit</text>
-<polygon points="34,373 40.06,376.5 40.06,383.5 34,387 27.94,383.5 27.94,376.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
+<path d="M30.2 375.4 L38.5 374.8 Q40.4 374.6 40.3 376.6 L40 383 Q39.9 385 37.9 385 L29.1 384.9 Q27.1 384.9 27.3 383 L28 377.5 Q28.3 375.6 30.2 375.4Z" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
 <text x="50" y="384" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Held</text>
-<polygon points="202,373 208.06,376.5 208.06,383.5 202,387 195.94,383.5 195.94,376.5" fill="#FFF9EE" stroke="#F7B955" stroke-width="1.8"/>
+<path d="M198.4 374.3 L206.9 374.7 Q208.8 374.8 208.6 376.8 L207.9 384.2 Q207.7 386.2 205.8 385.9 L198.6 384.8 Q196.6 384.5 196.6 382.6 L196.5 376.2 Q196.5 374.2 198.4 374.3Z" fill="#FFF9EE" stroke="#F7B955" stroke-width="1.8"/>
 <text x="218" y="384" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">At risk</text>
-<polygon points="34,397 40.06,400.5 40.06,407.5 34,411 27.94,407.5 27.94,400.5" fill="#FDECEC" stroke="#FF6B4A" stroke-width="1.8"/>
+<path d="M30.9 398.8 L37.6 398.6 Q39.6 398.5 39.6 400.5 L39.6 407.5 Q39.7 409.4 37.7 409.5 L29.5 409.7 Q27.5 409.8 27.8 407.8 L28.7 400.8 Q28.9 398.8 30.9 398.8Z" fill="#FDECEC" stroke="#FF6B4A" stroke-width="1.8"/>
 <text x="50" y="408" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Contested</text>
-<polygon points="202,397 208.06,400.5 208.06,407.5 202,411 195.94,407.5 195.94,400.5" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.8"/>
+<path d="M198.3 399.3 L206.1 398.2 Q208.1 397.9 207.9 399.8 L207.2 406.9 Q207 408.8 205.1 408.9 L198.2 409.2 Q196.3 409.3 196.3 407.3 L196.3 401.6 Q196.4 399.6 198.3 399.3Z" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.8"/>
 <text x="218" y="408" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Dormant</text>
 <text x="24" y="434" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Only time away moves a cell down this list.</text>
 </svg>

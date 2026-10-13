@@ -4,12 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Capture and the map · MovenRun Docs</title>
-<meta name="description" content="How a MovenRun route becomes claimed ground: the hexagonal cell grid, what one session claims, and what the map shows you afterwards." />
+<meta name="description" content="How a MovenRun route becomes claimed ground: areas on the real map, what one session claims, and what the map shows you afterwards." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/capture/" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Capture and the map · MovenRun Docs" />
-<meta property="og:description" content="How a MovenRun route becomes claimed ground: the hexagonal cell grid, what one session claims, and what the map shows you afterwards." />
+<meta property="og:description" content="How a MovenRun route becomes claimed ground: areas on the real map, what one session claims, and what the map shows you afterwards." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/capture/" />
 
 
@@ -18,17 +18,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/docs/assets/docs.css" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill-rule='evenodd' d='M16 30.5C16 30.5 5 20.4 5 12.6A11 11 0 0 1 27 12.6C27 20.4 16 30.5 16 30.5ZM16 8.2A4.4 4.4 0 1 0 16 17A4.4 4.4 0 1 0 16 8.2Z' fill='%2318C987'/%3E%3C/svg%3E" />
 </head>
 <body>
 <a class="skip-link" href="#doc-main">Skip to content</a>
 <header class="dhead">
   <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
-  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-mark" aria-hidden="true"><path fill-rule="evenodd" d="M20 42C20 42 5 28.2 5 17.2A15 15 0 0 1 35 17.2C35 28.2 20 42 20 42ZM20 11.2A6 6 0 1 0 20 23.2A6 6 0 1 0 20 11.2Z"/></svg><span>MovenRun</span><em>Docs</em></a>
   <div class="dhead-actions">
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
-    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
@@ -46,13 +45,13 @@
 <h1>Capture and the map</h1>
 <p class="lead">Finishing a session turns part of your route into ground you hold. One cell per session, and the map keeps the record.</p>
 
-<h2 id="cells">The cell grid</h2>
-<p>The map is a grid of hexagons. Every point on it falls inside exactly one cell, and a cell is the smallest piece of ground you can hold.</p>
-<p>Hexagons rather than squares because each one borders six neighbours at an equal distance. Ground spreads outward evenly, and there are no awkward diagonal corners where two cells meet at a point.</p>
+<h2 id="cells">Areas on the map</h2>
+<p>You play on the real map of your streets, parks and paths. It is divided into small areas, and every point on it falls inside exactly one of them. An area, which the app calls a cell, is the smallest piece of ground you can hold.</p>
+<p>Behind the scenes, territory is computed on an internal grid so that every area has a fixed boundary. You never need to think about that grid. What the map shows is the ground you have covered, drawn over the places you actually walked, ran or rode.</p>
 <p>Cells in the current build are roughly 300 metres across. The grid is generated on your device, so the same street always resolves to the same cell for you. Moving to a shared global grid, where the same corner is the same cell for every player, is planned and is what districts and clubs are waiting on.</p>
 
 <h2 id="claiming">What one session claims</h2>
-<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/capture.svg" alt="A route crosses three hexagonal cells, two of which are already held. Saving the session claims the one touched cell that was not already held, and refreshes the hold on the two that were." width="360" height="378" /><figcaption>A session claims the first cell on your route that you did not already hold.</figcaption></figure>
+<figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/capture.svg" alt="A route crosses three areas on the map, two of which are already held. Saving the session claims the one touched cell that was not already held, and refreshes the hold on the two that were." width="360" height="378" /><figcaption>A session claims the first cell on your route that you did not already hold.</figcaption></figure>
 <p>Your route passes through a run of cells. When you save the session, the app walks that list in order and claims the first one you do not already hold. That is one new cell per saved session, however far you went.</p>
 <p>The rest of the touched cells are not wasted. Any that you already hold have their hold refreshed, which is the main way ground stays yours. A long route through your own neighbourhood might claim nothing new and still be the most useful session of the week.</p>
 <p>A session has to cover 200 metres or last five minutes before it can be saved at all. Below that it is treated as noise rather than a walk.</p>

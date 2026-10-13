@@ -60,8 +60,8 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 }
 .dbrand { display: inline-flex; align-items: center; gap: 9px; font: 700 17px var(--font-display); color: var(--ink); letter-spacing: -0.02em; }
 .dbrand:hover { text-decoration: none; }
-.dbrand-hex { width: 21px; }
-.dbrand-hex polygon { fill: none; stroke: var(--green); stroke-width: 3.5; }
+.dbrand-mark { width: 21px; }
+.dbrand-mark path { fill: none; stroke: var(--green); stroke-width: 3.5; }
 .dbrand em { font: 600 12px var(--font-body); color: var(--blue); background: rgba(36,107,254,0.08); padding: 4px 9px; border-radius: 999px; }
 .dhead-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .dhead-link { font: 600 13.5px var(--font-body); color: var(--graphite); padding: 10px 12px; border-radius: 12px; }
@@ -272,13 +272,14 @@ h2:hover .hanchor, h3:hover .hanchor, .hanchor:focus-visible { opacity: 1; }
   .dsidebar.open { transform: none; }
   .dsidebar-inner { position: static; max-height: 100vh; height: 100%; padding: 18px 16px calc(30px + env(safe-area-inset-bottom, 0px)); }
   .dmain { max-width: 760px; margin: 0 auto; }
-  .dhead-link:not(.dhead-x) { display: none; }
+  .dhead-link { display: none; }
 }
 @media (max-width: 640px) {
   .dsearch-btn span { display: none; }
   .dsearch-btn kbd { display: none; }
   .dbrand em { display: none; }
-  .dhead-x { display: none; }
+  .dsearch-btn { min-width: 44px; min-height: 44px; justify-content: center; }
+  .dbrand { min-height: 44px; }
   .dnav-word { display: none; }
   .cardrow { grid-template-columns: 1fr; }
   .dpagenav { grid-template-columns: 1fr; }
