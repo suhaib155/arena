@@ -47,6 +47,14 @@ export class RegistrationClosedError extends Error {
   }
 }
 
+/** A new account was refused because too many were created in the last hour. */
+export class RegistrationBusyError extends Error {
+  constructor() {
+    super("registration busy: hourly new-account quota reached");
+    this.name = "RegistrationBusyError";
+  }
+}
+
 export class UniqueConstraintError extends Error {
   readonly constraint: UniqueConstraint;
   constructor(constraint: UniqueConstraint) {

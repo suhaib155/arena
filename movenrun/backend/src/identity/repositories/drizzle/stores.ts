@@ -26,6 +26,7 @@ import {
   wallets,
 } from "../../../db/identity.schema.js";
 import {
+  RegistrationBusyError,
   RegistrationClosedError,
   UniqueConstraintError,
   type AuditEventRepository,
@@ -564,10 +565,18 @@ export function createDrizzleStores(db: Db): IdentityStores {
         // two sign-ups at 999 accounts produce exactly one 1,000th account.
         // A missing capacity row admits nobody (fail closed).
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext('movenrun_account_admission'))`);
-        const [capacity] = await tx.select({ maxAccounts: accountCapacity.maxAccounts }).from(accountCapacity).limit(1);
+        const [capacity] = await tx
+          .select({ maxAccounts: accountCapacity.maxAccounts, maxNewPerHour: accountCapacity.maxNewPerHour })
+          .from(accountCapacity).limit(1);
         const maxAccounts = capacity?.maxAccounts ?? 0;
         const [{ admitted }] = await tx.select({ admitted: sql<number>`count(*)::int` }).from(users);
         if (admitted >= maxAccounts) throw new RegistrationClosedError();
+        // Hourly quota, so a script cannot fill the cap in one burst (0009).
+        const [{ recent }] = await tx
+          .select({ recent: sql<number>`count(*)::int` })
+          .from(users)
+          .where(sql`${users.createdAt} > now() - interval '1 hour'`);
+        if (recent >= (capacity?.maxNewPerHour ?? 0)) throw new RegistrationBusyError();
         const [userRow] = await tx.insert(users).values({ id: userId, status: "active" }).returning();
         try {
           const [idRow] = await tx

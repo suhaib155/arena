@@ -21,7 +21,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Failure with no token, key or provider payload attached. */
 export class SupabaseAuthError extends Error {
-  constructor(readonly reason: string) {
+  /** HTTP status from the provider, when it answered. */
+  constructor(readonly reason: string, readonly status?: number) {
     super(`Supabase auth: ${reason}`);
     this.name = "SupabaseAuthError";
   }
@@ -173,6 +174,12 @@ export class SupabaseTokenVerifier {
   }
 }
 
+export interface ProviderUserSummary {
+  id: string;
+  createdAt: Date;
+  lastSignInAt: Date | null;
+}
+
 export interface Web3Session {
   accessToken: string;
 }
@@ -198,6 +205,33 @@ export class SupabaseAuthClient {
     const accessToken = body && typeof body === "object" ? (body as { access_token?: unknown }).access_token : undefined;
     if (typeof accessToken !== "string" || !accessToken) throw new SupabaseAuthError("web3_grant_failed");
     return { accessToken };
+  }
+
+  /**
+   * One page of auth users, oldest first as the provider lists them. Only the
+   * id and two timestamps are kept; nothing else about the user is read.
+   */
+  async listUsers(page: number, perPage: number): Promise<ProviderUserSummary[]> {
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(perPage) || perPage < 1 || perPage > 1000) {
+      throw new SupabaseAuthError("bad_page");
+    }
+    const body = await this.call("GET", `/admin/users?page=${page}&per_page=${perPage}`, this.config.secretKey);
+    const users = body && typeof body === "object" ? (body as { users?: unknown }).users : undefined;
+    if (!Array.isArray(users)) throw new SupabaseAuthError("malformed_response");
+    const out: ProviderUserSummary[] = [];
+    for (const u of users) {
+      const row = u as { id?: unknown; created_at?: unknown; last_sign_in_at?: unknown };
+      const createdAt = typeof row.created_at === "string" ? new Date(row.created_at) : null;
+      // A row that cannot be read is skipped, never treated as old enough to remove.
+      if (typeof row.id !== "string" || !UUID.test(row.id) || !createdAt || Number.isNaN(createdAt.getTime())) continue;
+      const lastSignInAt = typeof row.last_sign_in_at === "string" ? new Date(row.last_sign_in_at) : null;
+      out.push({
+        id: row.id.toLowerCase(),
+        createdAt,
+        lastSignInAt: lastSignInAt && !Number.isNaN(lastSignInAt.getTime()) ? lastSignInAt : null,
+      });
+    }
+    return out;
   }
 
   /** Delete an auth user. A user that is already gone counts as deleted. */
@@ -230,7 +264,7 @@ export class SupabaseAuthClient {
     if (!response.ok) {
       await response.body?.cancel();
       // 4xx from the grant means the provider refused the proof; anything else is an outage.
-      throw new SupabaseAuthError(response.status >= 400 && response.status < 500 ? "rejected" : "unavailable");
+      throw new SupabaseAuthError(response.status >= 400 && response.status < 500 ? "rejected" : "unavailable", response.status);
     }
     const text = await response.text();
     if (!text) return null;

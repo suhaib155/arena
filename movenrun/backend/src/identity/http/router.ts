@@ -142,9 +142,9 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
         userAgentHash: undefined,
       });
     } catch (err) {
-      // Refused at the account cap: the provider user it just created must not
+      // Refused at the account cap or the hourly quota: the provider user it just created must not
       // linger, so it is removed (or queued for removal) before answering.
-      if (isIdentityError(err) && err.code === "registration_closed") {
+      if (isIdentityError(err) && (err.code === "registration_closed" || err.code === "registration_busy")) {
         await options.supabaseSignIn?.removeProviderUsers([verified.subject]);
       }
       throw err;

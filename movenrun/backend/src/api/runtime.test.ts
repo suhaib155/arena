@@ -45,7 +45,7 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
         }));
     }
     const migrationRows = await pool.query("select count(*)::int as count from drizzle.__drizzle_migrations");
-    assert.equal(migrationRows.rows[0].count, 9);
+    assert.equal(migrationRows.rows[0].count, 10);
     // A hosted database's automatic REST API must not reach any table: every
     // table has row level security on (and no policies).
     const openTables = await pool.query(
@@ -91,7 +91,7 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
       const now = Math.floor(Date.now() / 1000);
       const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
       const head = enc({ alg: "ES256", kid: "k1", typ: "JWT" });
-      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], is_anonymous: false });
+      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], app_metadata: { provider: method === "oauth" ? "google" : "web3", providers: [method === "oauth" ? "google" : "web3"] }, is_anonymous: false });
       return `${head}.${body}.${sign("sha256", Buffer.from(`${head}.${body}`), { key: keys.privateKey, dsaEncoding: "ieee-p1363" }).toString("base64url")}`;
     };
     globalThis.fetch = async (input, init) => {
@@ -263,6 +263,22 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     await pool.query("update account_capacity set max_accounts = 1000");
     const hookOpen = await pool.query("select public.movenrun_before_user_created('{}'::jsonb) as r");
     assert.deepEqual(hookOpen.rows[0].r, {});
+    // The hook's hourly quota (0009): it records each user it lets through and
+    // refuses with 429 once the hour's quota is used, whoever called the provider.
+    assert.equal((await pool.query("select count(*)::int as count from auth_user_creations")).rows[0].count, 1);
+    await pool.query("update account_capacity set max_new_per_hour = 1");
+    const hookBusy = await pool.query("select public.movenrun_before_user_created('{}'::jsonb) as r");
+    assert.equal(hookBusy.rows[0].r.error.http_code, 429);
+    // The API applies the same hourly quota to new players, on real Postgres.
+    const recentPlayers = (await pool.query("select count(*)::int as count from users where created_at > now() - interval '1 hour'")).rows[0].count as number;
+    await pool.query("update account_capacity set max_new_per_hour = $1", [recentPlayers]);
+    const busyUser = randomUUID();
+    const busy = await request("/identity/auth/google/complete", { accessToken: mint(busyUser, "oauth", null) });
+    assert.equal(busy.status, 429);
+    assert.equal((await busy.json()).error.code, "registration_busy");
+    assert.ok(deletedProviderUsers.includes(busyUser));
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email) })).status, 200);
+    await pool.query("update account_capacity set max_new_per_hour = 50");
 
     await pool.query("alter table auth_identities rename column provider_subject to unavailable_provider_subject");
     assert.equal((await request("/ready")).status, 503);

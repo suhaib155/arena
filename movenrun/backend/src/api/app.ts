@@ -46,6 +46,14 @@ export function createApiApp(config: ApiConfig) {
   const retryTimer = setInterval(retryDeletions, 5 * 60 * 1000);
   retryTimer.unref();
   setTimeout(retryDeletions, 5_000).unref();
+  // Provider users that never became a MovenRun account (see sweepOrphanProviderUsers).
+  const sweepOrphans = () => {
+    supabaseSignIn.sweepOrphanProviderUsers()
+      .catch(() => console.error("Unused sign-in records could not be swept"));
+  };
+  const sweepTimer = setInterval(sweepOrphans, 30 * 60 * 1000);
+  sweepTimer.unref();
+  setTimeout(sweepOrphans, 60_000).unref();
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", config.TRUST_PROXY_HOPS);

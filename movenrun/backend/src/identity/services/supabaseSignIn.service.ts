@@ -26,7 +26,7 @@ import { getAddress } from "ethers";
 import { IdentityError } from "../domain/errors.js";
 import type { IdentityStores } from "../repositories/interfaces.js";
 import type { SignInStores } from "../repositories/signInStores.js";
-import { SupabaseAuthError, type VerifiedSupabaseUser } from "../providers/supabaseAuth.js";
+import { SupabaseAuthError, type ProviderUserSummary, type VerifiedSupabaseUser } from "../providers/supabaseAuth.js";
 import type { WalletOwnershipVerifier } from "../providers/types.js";
 
 export const SUPABASE_PROVIDER = "supabase" as const;
@@ -66,7 +66,11 @@ export interface SupabaseTokenCheck {
 export interface SupabaseAuthCalls {
   signInWithEthereum(message: string, signature: string): Promise<{ accessToken: string }>;
   deleteUser(subject: string): Promise<void>;
+  listUsers(page: number, perPage: number): Promise<ProviderUserSummary[]>;
 }
+
+/** How long a provider user may exist without a MovenRun account before the sweep removes it. */
+export const ORPHAN_GRACE_MS = 60 * 60 * 1000;
 
 export interface SupabaseSignInConfig {
   /** The domain written into wallet messages; must also be on Supabase's redirect allow list. */
@@ -113,7 +117,7 @@ export class SupabaseSignInService {
     }
     // Only an OAuth login may come in this way. A Web3 session must go through
     // the wallet routes, where the nonce and message are checked.
-    if (!user.methods.includes("oauth")) throw new IdentityError("verification_failed");
+    if (!user.methods.includes("oauth") || !user.providers.includes("google")) throw new IdentityError("verification_failed");
     return { subject: user.subject, email: user.email, method: "google" };
   }
 
@@ -164,9 +168,14 @@ export class SupabaseSignInService {
     try {
       ({ accessToken } = await this.deps.auth.signInWithEthereum(message, signature));
     } catch (err) {
-      // A refusal (for example the account cap in the provider's hook) is final;
-      // an outage is worth retrying with a new message.
-      if (err instanceof SupabaseAuthError && err.reason === "rejected") throw new IdentityError("verification_failed");
+      // A refusal is final; an outage is worth retrying with a new message. The
+      // provider's hook answers 403 at the account cap and 429 at the hourly
+      // quota (0009); 429 is also the provider's own sign-in rate limit.
+      if (err instanceof SupabaseAuthError && err.reason === "rejected") {
+        if (err.status === 403) throw new IdentityError("registration_closed");
+        if (err.status === 429) throw new IdentityError("too_many_attempts");
+        throw new IdentityError("verification_failed");
+      }
       throw new IdentityError("provider_not_configured");
     }
     let user: VerifiedSupabaseUser;
@@ -242,6 +251,35 @@ export class SupabaseSignInService {
       }
     }
     return { removed, pending };
+  }
+
+  /**
+   * Provider users nobody turned into a MovenRun account: a Google sign-in
+   * abandoned before the app reached the API, or a wallet grant made straight
+   * against the provider with the public key (a script, not the app). Each
+   * one counts toward the provider's free monthly users, so they are removed
+   * once both their creation and their last sign-in are older than the grace
+   * period. Users mapped to an account, or with a wallet code still waiting,
+   * are never touched.
+   */
+  async sweepOrphanProviderUsers(opts: { graceMs?: number; perPage?: number; maxPages?: number } = {}): Promise<number> {
+    const graceMs = opts.graceMs ?? ORPHAN_GRACE_MS;
+    const perPage = opts.perPage ?? 100;
+    const maxPages = opts.maxPages ?? 20;
+    const now = this.now();
+    const cutoff = now.getTime() - graceMs;
+    const candidates: string[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const users = await this.deps.auth.listUsers(page, perPage);
+      for (const u of users) {
+        if (u.createdAt.getTime() > cutoff) continue;
+        if (u.lastSignInAt && u.lastSignInAt.getTime() > cutoff) continue;
+        if (await this.deps.signIn.walletHandoffs.inUse(u.id, now)) continue;
+        candidates.push(u.id);
+      }
+      if (users.length < perPage) break;
+    }
+    return (await this.removeProviderUsers(candidates)).removed.length;
   }
 
   /** Retry provider deletions that failed earlier. Safe to run repeatedly. */

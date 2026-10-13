@@ -13,6 +13,7 @@
  * "atomic consume" / "set sole active" invariants require.
  */
 import {
+  RegistrationBusyError,
   RegistrationClosedError,
   UniqueConstraintError,
   type AuditEventRepository,
@@ -85,6 +86,12 @@ export class InMemoryUserRepository implements UserRepository {
   /** Number of accounts, for the admission check. */
   _count(): number {
     return this.rows.size;
+  }
+  /** Accounts created after `since`, for the hourly quota. */
+  _countCreatedAfter(since: Date): number {
+    let n = 0;
+    for (const r of this.rows.values()) if (r.createdAt.getTime() > since.getTime()) n += 1;
+    return n;
   }
   /** Rollback-only removal for the atomic createUserWithIdentity path. Users
    *  are never deleted through the public API — this undoes an uncommitted
@@ -523,9 +530,10 @@ export class InMemoryAuditEventRepository implements AuditEventRepository {
  *  the service clock). */
 export function createInMemoryStores(
   now: () => Date = () => new Date(),
-  opts: { maxAccounts?: number } = {},
+  opts: { maxAccounts?: number; maxNewPerHour?: number } = {},
 ): IdentityStores {
   const maxAccounts = opts.maxAccounts ?? 1000;
+  const maxNewPerHour = opts.maxNewPerHour ?? Number.MAX_SAFE_INTEGER;
   const users = new InMemoryUserRepository(now);
   const identities = new InMemoryAuthIdentityRepository(now);
   return {
@@ -549,6 +557,7 @@ export function createInMemoryStores(
       // Admission: the count and the insert below run in one synchronous step
       // (no await in between), so concurrent sign-ups cannot overshoot.
       if (users._count() >= maxAccounts) throw new RegistrationClosedError();
+      if (users._countCreatedAfter(new Date(now().getTime() - 60 * 60 * 1000)) >= maxNewPerHour) throw new RegistrationBusyError();
       const user = await users.create({ id: userId });
       try {
         const created = await identities.create({ ...identity, userId });

@@ -16,7 +16,7 @@
 import { newId } from "../crypto/secure.js";
 import { IdentityError } from "../domain/errors.js";
 import type { AssuranceLevel, AuthProviderKind } from "../domain/types.js";
-import { RegistrationClosedError, UniqueConstraintError, type IdentityStores } from "../repositories/interfaces.js";
+import { RegistrationBusyError, RegistrationClosedError, UniqueConstraintError, type IdentityStores } from "../repositories/interfaces.js";
 import type { AuthIdentityRecord, SessionRecord, UserRecord } from "../repositories/records.js";
 import type { AuditService } from "./audit.service.js";
 import type { SessionService } from "./session.service.js";
@@ -104,6 +104,7 @@ export class IdentityService {
       return { user, identity, created: true };
     } catch (err) {
       if (err instanceof RegistrationClosedError) throw new IdentityError("registration_closed");
+      if (err instanceof RegistrationBusyError) throw new IdentityError("registration_busy");
       // Lost the create race — re-resolve to the user that won.
       if (err instanceof UniqueConstraintError) {
         const winner = await this.stores.identities.findActiveByProviderSubject(
