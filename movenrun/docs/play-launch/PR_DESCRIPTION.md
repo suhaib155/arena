@@ -37,16 +37,18 @@ behind `mobile/src/lib/releaseScope.ts`, not deleted.
   before-user-created hook, provider users removed on deletion or refusal,
   `POST /identity/account/delete`, `GET /movement/verifications`, row level
   security on every table, email codes never wired into the hosted API, reviewer
-  code removed.
+  code removed, an hourly new-account quota in the Supabase hook and the API
+  (migration 0009), and a sweep of unused sign-in users.
 - Website: privacy policy and support page for Google and wallet sign-in,
   account deletion with Google or wallet, the `/sign-in/` page for the app, and a
-  check that fails while deployment values are missing.
+  check that fails while deployment values are missing; EIP-6963 wallet choice
+  and anti-framing headers. Security review in `docs/play-launch/AUTH_SECURITY_REVIEW.md`.
 - Hosting: `render.yaml` for a Render Free service with the Supabase Free database.
 - CI: manual `EAS Production AAB` workflow behind the `play-release` environment;
   Hermes export in mobile checks.
 - Launch ledger in `movenrun/docs/play-launch/`.
 
-**Tests:** mobile 908/908, backend 397/397 on PostgreSQL 16 (0 skipped), backend
+**Tests:** mobile 910/910, backend 399/399 on PostgreSQL 16 (0 skipped), backend
 API 10/10, shared 156/156, website sign-in and deletion in Chromium 23/23;
 typechecks clean; Android Hermes bundle builds. Supabase Auth was replaced by a
 local stand-in in these tests. Hosted and phone testing have not been done yet

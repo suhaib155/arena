@@ -4,12 +4,12 @@ The shortest path, in order. Each step names the item in `EXTERNAL_ACTIONS.md`.
 
 1. **Answer X-01 and X-20** (Play account type and date; accept separate
    Google and wallet accounts).
-2. **Supabase providers (X-05, approval)** in project `movenrun` only:
-   Google, Web3 Wallet, redirect list, email and anonymous sign-in off, Web3
-   rate limit raised. `HOSTING_SUPABASE_FREE.md` §2.
-3. **API on Render Free (X-06, approval)** from `render.yaml`; the first start
-   applies migrations 0000–0008 to the live database. Then the Before User
-   Created hook (X-07). Open `/ready`.
+2. **API on Render Free (X-06, approval)** from `render.yaml`; the first start
+   applies migrations 0000–0009 to the live database. Then attach the Before
+   User Created hook (X-07) and run its checks. Open `/ready`.
+3. **Supabase providers (X-05, approval), only after step 2** in project
+   `movenrun` only: Google, Web3 Wallet, redirect list, email and anonymous
+   sign-in off, Web3 rate limit left at its default. `HOSTING_SUPABASE_FREE.md` §2.
 4. **Website at movenrun.xyz (X-21)**: fill the API URL and publishable key;
    `node scripts/check-launch-placeholders.mjs` must pass. Open `/privacy/`,
    `/account-deletion/`, `/support/` and `/sign-in/` in a private window.

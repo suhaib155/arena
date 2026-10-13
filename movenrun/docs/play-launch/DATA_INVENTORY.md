@@ -28,7 +28,8 @@ table changes.
 | `wallet_sign_in_challenges` | Public wallet address, the sign-in message, times | Single-use wallet sign-in | Expire in 5 min; deleted a day after expiry |
 | `wallet_sign_in_handoffs` | SHA-256 of the one-time code, PKCE challenge, Supabase user id | Carry a wallet sign-in to the app | Expire in 5 min; uncollected ones release their provider user; spent ones deleted after a day |
 | `pending_auth_user_deletions` | Supabase user id | Retry removing a provider user after deletion or refusal | Until Supabase confirms |
-| `account_capacity` | None (the cap number) | 1,000-account limit | — |
+| `account_capacity` | None (the cap and the hourly new-account quota) | 1,000-account limit, at most 50 new accounts an hour | — |
+| `auth_user_creations` | None (a timestamp only, no user id) | Hourly new-account quota in the Supabase hook | Deleted after a day |
 | `movement_verifications` | Distance, duration, pause total, mode, rules version, times, H3 res-8 cells crossed (~0.74 km² each), confidence, rejection reasons, seal summary | Verified progress, dedupe | Until deletion |
 | `security_audit_events` | User id, event type, redacted metadata | Security | Deleted with the account; one anonymous `account_deleted` row kept |
 | `wallets`, `wallet_link_challenges` | None created in v1 | Deferred | Deleted with the account |

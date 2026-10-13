@@ -13,7 +13,7 @@ Play to act or be reachable) · **BLOCKED_CODE** (engineering left to do) ·
 
 | Days | Work | State |
 |---|---|---|
-| 13–15 Oct | Decisions and data model | DONE (D-16–D-23, migrations 0007–0008) |
+| 13–15 Oct | Decisions and data model | DONE (D-16–D-23, migrations 0007–0009) |
 | 16–18 Oct | Providers, JWT, admission | Code DONE early (E-19–E-22). Live provider setup BLOCKED_OWNER (X-05–X-07) |
 | 19–21 Oct | Native flows and deletion | Code DONE early (E-23, E-24). Hosted run BLOCKED_OWNER (X-06, X-08, X-21) |
 | 22–24 Oct | Device gate | BLOCKED_OWNER (X-04, X-10). Wallet must be proven on a phone by 24 Oct (D-19) |
@@ -37,6 +37,8 @@ Play to act or be reachable) · **BLOCKED_CODE** (engineering left to do) ·
 | M-10 | "Continue with Wallet" in the app (wallet's browser + PKCE-bound one-time code, link back or typed) | DONE (locally tested) | E-22–E-24, D-19 |
 | M-11 | Remove the email code form from first run and Account; guest play kept | DONE | 40ea135 |
 | M-12 | In-app legal and account copy for Google and wallet; legal version bumped so testers accept the new policy | DONE | dbeed8d |
+| M-15 | Sign-in method switch (`SIGN_IN_METHODS`): turning wallet off hides the button and disarms the return link, the fallback for WALLET_LOGIN_BLOCKED. Both stay on | DONE (locally tested) | E-30 |
+| M-16 | App copy: enter only a code from the page you just opened; `registration_busy` message keeps guest play open | DONE (locally tested) | E-30 |
 | M-14 | Sign-in survives a sleeping free host: wake-up call when sign-in is shown, 90 s limit, retry copy (app and website) | DONE (locally tested) | E-28 |
 | M-13 | Prove Google and wallet sign-in on a phone with the preview APK | BLOCKED_OWNER | X-04, X-05, X-06, X-08, X-10. Due 24 Oct |
 | B-01 | Hard account erasure endpoint | DONE | E-09 |
@@ -57,6 +59,10 @@ Play to act or be reachable) · **BLOCKED_CODE** (engineering left to do) ·
 | B-16 | Remove reviewer code and email delivery from v1 requirements | DONE | 674ef5f |
 | B-17 | Enable Google and Web3 providers, redirect list, rate limit, hook in Supabase | BLOCKED_OWNER | X-05, X-07 (approval to enable providers) |
 | B-18 | Linking Google and wallet to one account | DEFERRED | D-17; owner acceptance X-20 |
+| B-20 | Hourly new-account quota (default 50) in the Supabase hook and the API admission transaction, migration 0009 (F-01) | DONE (tested with stand-in, real PostgreSQL) | E-29 |
+| B-21 | Sweep of unused Supabase sign-in users older than an hour (F-03) | DONE (tested with stand-in) | E-29 |
+| B-22 | Provider refusals keep their meaning (403 cap, 429 quota/rate limit); Google route requires a Google session (F-08, F-09) | DONE (tested with stand-in) | E-29 |
+| B-23 | Security review and wallet provider decision | DONE | `AUTH_SECURITY_REVIEW.md`, `WALLET_AUTH_PROVIDER_DECISION.md` |
 | B-19 | Email codes cannot be switched on in the hosted API by an environment variable; `RESEND_API_KEY` and `IDENTITY_OTP_PEPPER` play no part in config | DONE | E-27 |
 | P-01 | Data inventory | DONE | `DATA_INVENTORY.md` (Google, wallet, Supabase) |
 | P-02 | Privacy policy page | DONE | `website/privacy/` |
@@ -64,6 +70,8 @@ Play to act or be reachable) · **BLOCKED_CODE** (engineering left to do) ·
 | P-04 | Support page | DONE | `website/support/` |
 | P-05 | Fill public placeholders | BLOCKED_OWNER | Contact and name done; API URL and publishable key exist only after X-06, X-21 |
 | P-06 | Deploy the website at `movenrun.xyz`, check every URL loads without sign-in | BLOCKED_OWNER | X-21 |
+| P-11 | Website: EIP-6963 wallet discovery and chooser; API error codes read correctly; anti-phishing copy on `/sign-in/` (F-04, F-06, F-07) | DONE (tested in Chromium with stand-ins) | E-31 |
+| P-12 | Website security headers (`vercel.json`: no framing, nosniff, no-referrer, HSTS, permissions) (F-10) | DONE; live once X-21 | — |
 | P-07 | Wallet sign-in page `/sign-in/` for the app | DONE (locally tested) | E-24 |
 | P-10 | Purge expired OTP rows | DONE | E-16 |
 | A-01 | App icon, adaptive icon, monochrome icon, splash | DONE | E-14 |
@@ -77,6 +85,7 @@ Play to act or be reachable) · **BLOCKED_CODE** (engineering left to do) ·
 | R-05 | Play App Signing SHA-1 on the Maps key | BLOCKED_OWNER | X-08, X-11 |
 | QA-01 | Handset script on the preview APK (both sign-in methods, verified movement, deletion) | BLOCKED_OWNER | X-04, X-10 |
 | QA-02 | Two-account and cap check on the hosted API | BLOCKED_OWNER | B-05, B-17 |
+| QA-04 | On the phone: does each wallet's browser hand `movenrun://` back to the app; would a verified App Link for the return work there (F-06 residual); handset step 15h | BLOCKED_OWNER | X-10 |
 | QA-03 | Handset script on the Play internal test install | BLOCKED_OWNER | X-12 |
 | O-01 | Play Console app, declarations, listing | BLOCKED_OWNER | X-11 |
 | O-02 | Closed test (12 testers, 14 days) if the account requires it | BLOCKED_OWNER | X-01, X-15 |

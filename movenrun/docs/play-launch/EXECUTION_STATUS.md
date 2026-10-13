@@ -1,6 +1,7 @@
 # Execution status
 
-**Updated:** 2026-10-13 · **Branch:** `release/android-v1-cxfdbd` (based on `main` d344c3b, not merged) · **Target:** 2 Nov 2026 · **Gate:** STOP — AUTH/RELEASE BLOCKER
+**Updated:** 2026-10-13 (security review) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `fix/play-auth-security-gate`, a descendant of it · **Target:** 2 Nov 2026
+**Security gate:** PASS — SECURITY REVIEWED, READY FOR LIVE AUTH DEVICE GATE (`AUTH_SECURITY_REVIEW.md`) · **Release gate:** STOP — AUTH/RELEASE BLOCKER (nothing hosted or on a phone yet)
 
 Start here when resuming. Then read `TASK_REGISTER.md` and `EXTERNAL_ACTIONS.md`.
 
@@ -64,6 +65,21 @@ to it as a draft pull request (no force-push, nothing merged):
 
 Supabase, Render, movenrun.xyz and Expo are still unreachable from this
 workspace (proxy denies them), so nothing hosted could be tested.
+
+## Checkpoint 2026-10-13 (security review)
+
+Owner asked for a security-first pass. Done on the working branch:
+- Provider decision: keep Supabase Web3 behind the API; Reown and Privy both
+  stop at 500 monthly users on their free plans and would add a second
+  identity system (`WALLET_AUTH_PROVIDER_DECISION.md`).
+- Review of every sign-in path (`AUTH_SECURITY_REVIEW.md`): one High and
+  four Medium findings fixed (account-cap flooding, setup order, orphan
+  sign-in users, wallet choice on the web, Web3 rate limit), one Medium
+  mitigated with a phone check left (F-06), four Low fixed.
+- New migration 0009 (hourly new-account quota). The live database still has
+  none of 0000–0009; applying them is X-06.
+- Wallet sign-in can now be switched off in one place if it fails the phone
+  gate; it stays on.
 
 ## Open owner decisions
 

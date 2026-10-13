@@ -46,6 +46,14 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-27 | B | Email codes unwired from the hosted API: `createApiApp` builds no email delivery and never mounts `/identity/auth/email/*`; `RESEND_API_KEY` no longer changes config validation. `runtime.test.ts` now starts the built API **with** `RESEND_API_KEY` and `IDENTITY_EMAIL_FROM` set and gets 404 from both email routes | Backend 397/397, API 10/10 (3 runs) | 728165e |
 | E-28 | M, P | Sleeping free host. App: sign-in requests (Google complete, wallet exchange) time out after 90 s with `request_timeout` and store nothing; the sign-in block sends one unauthenticated `GET /health` when it appears; new copy for the timeout (`signInTimeout.test.ts`, 4 tests). Website: same wake-up on page load and a 90 s limit on API calls with its own message, checked in Chromium against an API that never answers (`evidence/web-cold-host-check.mjs`, timer shortened) | Mobile 908/908, typecheck clean, `npx expo export -p android` builds the Hermes bundle (4.4 MB); web check 3/3; website e2e 23/23 re-run on the changed script | 1f69dfc |
 
+## Recorded 2026-10-13, security review
+
+| ID | Gate | What was run | Result | Commit |
+|---|---|---|---|---|
+| E-29 | B | Backend after the security fixes: `yarn test` on PostgreSQL 16 (new: orphan sweep keeps recent/mapped/waiting users and pages; hourly quota over HTTP refuses the 3rd of 2, removes its provider user, lets existing players in, reopens after an hour; provider 403/429 mapping; non-Google OAuth refused). `yarn test:api`: migrations 0000–0009 on real PostgreSQL, RLS on every table including `auth_user_creations`, hook records one row per user and answers 429 at the quota, API answers 429 `registration_busy` and removes the provider user, existing player still 200 | **399/399**, API **10/10**, 0 skipped | see branch |
+| E-30 | M | App: `npx tsc --noEmit`, `yarn test`, `npx expo export -p android` (new: `registration_busy` copy; both sign-in methods on and the wallet switch wired into the button and the return route) | **910/910**, Hermes bundle 4.4 MB | see branch |
+| E-31 | P | Website in Chromium: `evidence/web-wallet-discovery-check.mjs` (EIP-6963 chooser, only the picked wallet asked, names rendered as text, Cancel asks nothing, `window.ethereum` only as fallback, API refusal shows its own message) **8/8**; `web-sign-in-deletion-e2e.mjs` re-run **23/23**; `web-cold-host-check.mjs` **3/3**; shared **156/156**; history-wide secret scan: no Supabase secret key, `service_role` token, private key or Resend key in any commit | Pass | see branch |
+
 ## Evidence level by capability
 
 Levels: **implemented** → **locally tested** (tests or browser here, providers
@@ -62,6 +70,8 @@ has been run for sign-in yet.
 | 1,000-account cap and hook | Locally tested (E-21) | X-06, X-07 |
 | Account deletion, both methods, provider user removal | Locally tested (E-21, E-24) | Hosted: X-06; handset: X-10 |
 | Sign-in when the free API is asleep (wake-up, 90 s limit, retry copy) | Locally tested (E-28) | Hosted: X-06; handset: X-10 step 15g |
+| Hourly new-account quota (hook and API) and orphan sweep | Locally tested (E-29) | Hosted: X-06, X-07 (Supabase must call the hook) |
+| Website wallet choice (EIP-6963) | Locally tested (E-31) | X-21, then a desktop browser with two wallet extensions |
 | Email codes unreachable on the hosted API | Locally tested (E-27) | Hosted: X-06 (check `/identity/auth/email/begin` answers 404) |
 | Verified movement | Locally tested (E-13, runtime test) | Hosted: X-06; handset: X-10 |
 | Play internal test install | Blocked | X-01, X-09, X-11, X-12, X-14 |
