@@ -48,10 +48,10 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | **L0** | Launch integration and old-PR reconciliation | `release/android-v1-cxfdbd`; PR list below | DONE (classification) | 31 of 42 open PRs are ancestors of the release tree (`git merge-base --is-ancestor`, 13 Oct) | Owner decides whether to close the included PRs (see below) |
 | **L1** | X-06 live backend and free-host reliability | `deploy/render-free-staging` dd83065 | BLOCKED_OWNER | Render connected through Composio on 13 Oct. Its workspace has no services or Blueprints yet, and the connector cannot create one | Owner creates the Blueprint service in the Render dashboard (`LIVE_SETUP_OPERATOR_GUIDE.md` X-06); then I verify the service, deploy, logs, `/health`, `/ready` and migration hashes through the connector |
 | **L2** | Supabase hook, providers, live Google + wallet + deletion + cap | — | BLOCKED_OWNER | Code tested locally (E-19–E-28, hook contract on PostgreSQL) | X-07, then X-05, each with its own approval, after L1 |
-| **L3** | Session retention and storage capacity | `chore/post-security-launch-prep` (f6ce3c5) | IN_REVIEW | CODE TESTED LOCALLY: backend 409/409, API 17/17, DB size measured (E-39, E-40) | X-24 approval after L1; X-25 decision (proposal below) |
+| **L3** | Session retention and storage capacity | `chore/post-security-launch-prep` (f6ce3c5), draft #106 | IN_REVIEW | CODE TESTED LOCALLY: backend 409/409, API 17/17, DB size measured (E-39, E-40) | X-24 approval after L1; X-25 decision (proposal below) |
 | **W1** | Responsive website review version | `web/w1-review-preview` | IN_PROGRESS | Review packet `docs/play-launch/WEBSITE_W1_REVIEW_PACKET.md` | Owner reviews; X-21 NOT approved |
 | **G0** | Canonical product spec (V3 economy, settlement invariants, threat model) | — | NOT_STARTED | PR #88 holds an older V3 roadmap; it is stale on deployment facts | Reconcile #88 into `docs/GAME_ECONOMY_V3.md` once the owner shares the V3 source document again (it is not in the repository) |
-| **G1** | Server-authoritative spatial pipeline and map geometry contract | `feat/g1-territory-geometry` | IN_REVIEW | CODE TESTED LOCALLY: shared 164/164 (8 new), backend 411/411 (2 new), API 17/17, build | Review. Next G1 step: path-interpolated cells (route crossing a cell without a sample in it) |
+| **G1** | Server-authoritative spatial pipeline and map geometry contract | `feat/g1-territory-geometry`, draft #107 | IN_REVIEW | CODE TESTED LOCALLY: shared 164/164 (8 new), backend 411/411 (2 new), API 17/17, build | Review. Next G1 step: path-interpolated cells (route crossing a cell without a sample in it) |
 | **G2** | Sealing claims, solid/shade, one holder per unit | — | NOT_STARTED | Sealing engine exists (`shared/src/domain/sealing.ts`, #93, included) | Needs G0's solid/shade rule text; then enclosed-area computation and the territory ledger |
 | **G3** | Strength, erosion, defence, credits settlement | — | NOT_STARTED | — | After G2 |
 | **G4** | Clubs, contributions, districts, seasons | — | NOT_STARTED | Website and app show clubs as preview/mockup only | After G2; no seeded-as-live leaderboards |
@@ -118,4 +118,14 @@ I have not closed or merged any PR. Closing is the owner's call.
 
 | PR | Packet | Base ← head |
 |---|---|---|
-| (filled in when opened) | | |
+| #106 (draft) | L1/L3 launch hardening | `release/android-v1-cxfdbd` ← `chore/post-security-launch-prep` |
+| #107 (draft) | G1 map regions and coverage | `chore/post-security-launch-prep` ← `feat/g1-territory-geometry` |
+
+**Vercel note.** The repository's Vercel Git integration builds a *preview*
+deployment for every pushed branch and PR. These include the
+`movenrun-website` project, on `*.vercel.app` URLs. Previews are not
+production and do not touch `movenrun.xyz` or DNS, but they exist on the
+internet. Whether they need a Vercel login depends on the project's
+Deployment Protection setting, which this workspace cannot see. On #107
+three other Vercel projects (`arena`, `arena-pchb`, `arena-qg9n`) report
+build errors; they predate this work.
