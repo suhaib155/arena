@@ -31,7 +31,7 @@ service and wait for the owner's explicit go.
 | X-21 | **HELD: review the four page previews first** (`WEBSITE_REVIEW_PREVIEW.md`). Then point **`movenrun.xyz`** at the Vercel project for `movenrun/website` (Vercel → Domains, then the DNS records it shows). Wallets compare the sign-in message's domain with the page they show; it must be `movenrun.xyz`. Then fill `{{API_BASE_URL}}` and `{{SUPABASE_PUBLISHABLE_KEY}}` and run `node scripts/check-launch-placeholders.mjs` |
 | X-22 | Make sure `info@movenrun.xyz` receives mail (it is the public contact on the website, the Google consent screen and Play) |
 | X-24 | **APPROVAL (deploy commit)**: after X-06 is verified, approve moving `deploy/render-free-staging` from dd83065 to **f6ce3c5** (device list fix F-17 and session clean-up F-18; no new migration, still 0000–0009). Then Render → the service → Manual Deploy → "Deploy latest commit", and check the deploy shows f6ce3c5 and `/ready` returns 200 |
-| X-25 | **DECISION (security log retention)**: `security_audit_events` is kept until the account is deleted, about 1.2 MB a day for 1,000 hourly players (E-39). Proposal: routine refresh rows 30 days, security rows 180 days, anonymous deletion row kept (`product-roadmap/PR_QUEUE.md` §X-25). Nothing is deleted until you decide |
+| X-25 | **DECISION (security log retention)**: `security_audit_events` is kept until the account is deleted, about 1.2 MB a day for 1,000 hourly players (E-39). Proposal: 30 days for audit rows (about 36 MB, supportable on the 500 MB free database), anonymous deletion row kept; longer retention for security-relevant rows is the alternative (`product-roadmap/PR_QUEUE.md` §X-25). Nothing is deleted until you decide |
 
 ## Build and signing
 

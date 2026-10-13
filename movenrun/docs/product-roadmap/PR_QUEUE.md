@@ -71,21 +71,24 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 ## X-25 proposal: security log retention (decision only; nothing deleted)
 
 **Today:** `security_audit_events` keeps every row until the account is
-deleted. Each 10-minute token refresh writes one row, about 0.19 KB (E-39).
+deleted. Each 10-minute token refresh writes one row, about 0.19 KB (E-39):
+roughly 1.2 MB a day at 1,000 hourly players.
 
-**Proposal for the owner:**
-- Delete routine `session_refreshed` rows after **30 days**.
-- Keep security-relevant rows for **180 days**. These are replay detection,
-  revocations, sign-in and wallet events.
-- Keep the anonymous `account_deleted` row as now.
+**Proposal for the owner (per the roadmap's "30 days if supportable"):**
+- Keep audit rows for **30 days**. At the measured rate that is about 36 MB,
+  well inside the 500 MB free database, so 30 days is supportable.
+- Keep the anonymous `account_deleted` row as now (deletion evidence).
+- Alternative if you want a longer incident trail: keep security-relevant
+  rows (replay detection, revocations, sign-in and wallet events) for longer
+  and only routine `session_refreshed` rows for 30 days.
 
-**Why 30 days is enough for refreshes:**
-- They are the bulk of the table and carry no incident signal.
-- Supabase Free keeps its own auth logs for only about a day, so these rows
-  are the investigation trail.
+**Why 30 days is enough:** refresh rows are the bulk and carry no incident
+signal, and Supabase Free keeps its own auth logs for only about a day, so
+these rows are the investigation trail for the first month.
 
-**Implementation:** a maintenance task like the session clean-up. It is not
-built; it waits for the owner's decision.
+**No automatic erasure until you decide.** The clean-up task (like the
+session clean-up) is not built and nothing is deleted. It is built only
+after your decision, with tests.
 
 ## Existing open PRs (live on 13 Oct 2026)
 
