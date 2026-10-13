@@ -169,10 +169,15 @@ export interface SessionRepository {
   findById(id: string): Promise<SessionRecord | null>;
   findByRefreshHash(refreshTokenHash: string): Promise<SessionRecord | null>;
   listActiveByUser(userId: string): Promise<SessionRecord[]>;
-  /** Bounded, newest-first (by issuedAt) list of ALL of one user's sessions —
-   *  the caller (SessionService.listSessions) applies ordering, retention,
+  /** Bounded, newest-first (by issuedAt) list of one user's sessions,
+   *  leaving out rotated refresh-chain links (a phone that refreshes every
+   *  10 minutes would otherwise push every other device past the limit).
+   *  The caller (SessionService.listSessions) applies ordering, retention,
    *  and public-view mapping. Never returns another user's rows. */
   listByUser(userId: string, limit: number): Promise<SessionRecord[]>;
+  /** Deletes up to `limit` sessions of any status whose refresh expiry is
+   *  before `cutoff`. Returns how many were deleted. */
+  deleteExpiredBefore(cutoff: Date, limit: number): Promise<number>;
   /**
    * Atomically revoke ONE session iff it belongs to `userId` and is not yet
    * revoked (conditional UPDATE — safe under concurrent attempts; exactly one

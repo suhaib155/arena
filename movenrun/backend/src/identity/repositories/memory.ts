@@ -303,10 +303,21 @@ export class InMemorySessionRepository implements SessionRepository {
   }
   async listByUser(userId: string, limit: number): Promise<SessionRecord[]> {
     return [...this.rows.values()]
-      .filter((r) => r.userId === userId)
+      .filter((r) => r.userId === userId && r.rotatedAt === null)
       .sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime() || (a.id < b.id ? -1 : 1))
       .slice(0, limit)
       .map(clone);
+  }
+  async deleteExpiredBefore(cutoff: Date, limit: number): Promise<number> {
+    let n = 0;
+    for (const [id, r] of this.rows) {
+      if (n >= limit) break;
+      if (r.expiresAt.getTime() < cutoff.getTime()) {
+        this.rows.delete(id);
+        n++;
+      }
+    }
+    return n;
   }
   async revokeOwned(
     sessionId: string,

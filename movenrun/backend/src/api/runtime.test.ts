@@ -81,6 +81,13 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     const graph = JSON.parse(await readFile("dist/api-inputs.json", "utf8")) as string[];
     assert.ok(!graph.some(path => /src\/(workers|routes|blockchain)\//.test(path)));
 
+    // A session a week past its refresh expiry, and a live one: the clean-up
+    // run at start deletes only the first (the batch delete is real SQL).
+    await pool.query("insert into users (id) values ('prune-check')");
+    await pool.query(`insert into auth_sessions (id, user_id, family_id, refresh_token_hash, expires_at)
+      values ('prune-old', 'prune-check', 'f1', 'h-old', now() - interval '8 days'),
+             ('prune-live', 'prune-check', 'f2', 'h-live', now() + interval '1 day')`);
+
     // Supabase Auth is the only thing replaced: a stand-in that publishes a
     // signing key, issues Web3 sessions and accepts admin deletions. Tokens are
     // real ES256 JWTs that the API verifies exactly as it would Supabase's.
@@ -290,6 +297,8 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     // (a wake from sleep on the free host) already ran the orphan sweep,
     // which listed provider users once and only once while it was due.
     assert.equal(adminListings, 1);
+    const pruneLeft = await pool.query("select id from auth_sessions where user_id = 'prune-check' order by id");
+    assert.deepEqual(pruneLeft.rows.map(r => r.id), ["prune-live"]);
     await pool.query("alter table auth_identities rename column provider_subject to unavailable_provider_subject");
     assert.equal((await request("/ready")).status, 503);
   } finally {

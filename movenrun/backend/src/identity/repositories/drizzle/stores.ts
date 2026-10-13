@@ -13,7 +13,7 @@
  *  - "set sole active wallet" and "create user + first identity" run inside a
  *    transaction so their invariants hold under concurrency.
  */
-import { and, desc, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "../../../db/client.js";
 import {
   accountCapacity,
@@ -328,10 +328,17 @@ export class DrizzleSessionRepository implements SessionRepository {
     const rows = await this.db
       .select()
       .from(authSessions)
-      .where(eq(authSessions.userId, userId))
+      .where(and(eq(authSessions.userId, userId), isNull(authSessions.rotatedAt)))
       .orderBy(desc(authSessions.issuedAt), authSessions.id)
       .limit(limit);
     return rows.map(toSession);
+  }
+  async deleteExpiredBefore(cutoff: Date, limit: number): Promise<number> {
+    // Bounded batch: each run deletes at most `limit` rows, so a large backlog
+    // after a long sleep is worked off over several runs, not in one long lock.
+    const due = this.db.select({ id: authSessions.id }).from(authSessions).where(lt(authSessions.expiresAt, cutoff)).limit(limit);
+    const rows = await this.db.delete(authSessions).where(inArray(authSessions.id, due)).returning({ id: authSessions.id });
+    return rows.length;
   }
   async revokeOwned(
     sessionId: string,

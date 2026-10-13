@@ -43,6 +43,8 @@ export function createApiApp(config: ApiConfig) {
   //  - Provider users left by an erased account (provider unreachable at the
   //    time) and by wallet codes the app never collected.
   //  - Provider users that never became a MovenRun account (sweepOrphanProviderUsers).
+  //  - Sign-in sessions a week past their refresh expiry: every refresh adds
+  //    a row, and Supabase Free holds 500 MB (FREE_HOSTING_READINESS.md).
   const maintenance = createMaintenance([
     {
       name: "pending sign-in deletions",
@@ -50,6 +52,7 @@ export function createApiApp(config: ApiConfig) {
       run: async () => (await supabaseSignIn.expireHandoffs()) + (await supabaseSignIn.retryPendingDeletions()),
     },
     { name: "unused sign-in records", everyMs: 30 * 60 * 1000, run: () => supabaseSignIn.sweepOrphanProviderUsers() },
+    { name: "expired sign-in sessions", everyMs: 60 * 60 * 1000, run: () => identity.sessions.pruneExpiredSessions() },
   ]);
   maintenance.start();
   const app = express();
