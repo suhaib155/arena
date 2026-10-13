@@ -38,6 +38,14 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-24 | P | `evidence/web-sign-in-deletion-e2e.mjs`: Chromium + built API + real Postgres + a local HTTPS stand-in for Supabase Auth. Google sign-in on the deletion page (PKCE redirect, token exchange, Supabase session signed out) → delete; wallet-only account (no email) signs in with an injected key → delete; both provider users deleted; the page asked the wallet only for `eth_requestAccounts` and `personal_sign`; `/sign-in/` handoff code works only with the app verifier and once; all four public pages fit 320 px. Screenshots in `evidence/screens/` | **23/23 pass** | dbeed8d |
 | E-25 | M | Shared: `yarn test` | 156/156 | dbeed8d |
 
+## Recorded 2026-10-13, second session
+
+| ID | Gate | What was run | Result | Commit |
+|---|---|---|---|---|
+| E-26 | B, M, P | Re-run of every suite on a fresh checkout of 991ac6a before any change (PostgreSQL 16, Chromium 1194) | Backend 397/397, API 10/10 (after `yarn build`; without a build the runtime test fails because `dist/api.cjs` is missing), shared 156/156, mobile 904/904, website 23/23. Matches the earlier session's claims | 991ac6a |
+| E-27 | B | Email codes unwired from the hosted API: `createApiApp` builds no email delivery and never mounts `/identity/auth/email/*`; `RESEND_API_KEY` no longer changes config validation. `runtime.test.ts` now starts the built API **with** `RESEND_API_KEY` and `IDENTITY_EMAIL_FROM` set and gets 404 from both email routes | Backend 397/397, API 10/10 (3 runs) | 728165e |
+| E-28 | M, P | Sleeping free host. App: sign-in requests (Google complete, wallet exchange) time out after 90 s with `request_timeout` and store nothing; the sign-in block sends one unauthenticated `GET /health` when it appears; new copy for the timeout (`signInTimeout.test.ts`, 4 tests). Website: same wake-up on page load and a 90 s limit on API calls with its own message, checked in Chromium against an API that never answers (`evidence/web-cold-host-check.mjs`, timer shortened) | Mobile 908/908, typecheck clean, `npx expo export -p android` builds the Hermes bundle (4.4 MB); web check 3/3; website e2e 23/23 re-run on the changed script | 1f69dfc |
+
 ## Evidence level by capability
 
 Levels: **implemented** → **locally tested** (tests or browser here, providers
@@ -53,6 +61,8 @@ has been run for sign-in yet.
 | Wallet sign-in on the web deletion page | Locally tested (E-24) | X-05, X-06, X-21 |
 | 1,000-account cap and hook | Locally tested (E-21) | X-06, X-07 |
 | Account deletion, both methods, provider user removal | Locally tested (E-21, E-24) | Hosted: X-06; handset: X-10 |
+| Sign-in when the free API is asleep (wake-up, 90 s limit, retry copy) | Locally tested (E-28) | Hosted: X-06; handset: X-10 step 15g |
+| Email codes unreachable on the hosted API | Locally tested (E-27) | Hosted: X-06 (check `/identity/auth/email/begin` answers 404) |
 | Verified movement | Locally tested (E-13, runtime test) | Hosted: X-06; handset: X-10 |
 | Play internal test install | Blocked | X-01, X-09, X-11, X-12, X-14 |
 

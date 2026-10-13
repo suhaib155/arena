@@ -18,7 +18,7 @@ wallet sign-in work against the hosted API with the real Supabase project.
 
 | Gate | Meaning | State |
 |---|---|---|
-| A | Google and wallet sign-in, cap, deletion | Code DONE, locally tested (E-19–E-24). Hosted: BLOCKED_OWNER (X-05, X-06, X-07, X-21) |
+| A | Google and wallet sign-in, cap, deletion | Code DONE, locally tested (E-19–E-28). Hosted: BLOCKED_OWNER (X-05, X-06, X-07, X-21) |
 | M | Mobile release candidate | Code DONE (E-23). Phone run BLOCKED_OWNER (X-04, X-08, X-10); wallet proof due 24 Oct (D-19) |
 | B | Backend hosted | Runbook and `render.yaml` (Free) DONE. Provisioning BLOCKED_OWNER (X-06) |
 | P | Privacy policy and deletion | Pages DONE for Google and wallet; contact filled. Deployment at movenrun.xyz BLOCKED_OWNER (X-21) |
@@ -47,6 +47,23 @@ Owner replaced email codes with Google and wallet sign-in through Supabase Auth
 Remote re-checked before each push: nobody else pushed to the release branch.
 Supabase, Google and Expo are not reachable from this workspace (network
 policy), so no provider was enabled and no live migration was applied.
+
+## Checkpoint 2026-10-13 (second session)
+
+Fresh checkout of 991ac6a: every suite re-run and matches the ledger (E-26).
+Nobody had pushed to the release branch since. New work is on
+`claude/project-thread-lj1gny`, a descendant of the release branch, proposed
+to it as a draft pull request (no force-push, nothing merged):
+
+- The hosted API can no longer be switched into sending email codes by an
+  environment variable; the email routes answer 404 even with a Resend key
+  set (B-19, E-27).
+- Sign-in on a sleeping free host: the app and website wake the API as soon
+  as sign-in is shown, wait at most 90 s, then show a retry message instead
+  of spinning (M-14, E-28). Handset step 15g checks it on a phone.
+
+Supabase, Render, movenrun.xyz and Expo are still unreachable from this
+workspace (proxy denies them), so nothing hosted could be tested.
 
 ## Open owner decisions
 

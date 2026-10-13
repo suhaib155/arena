@@ -149,6 +149,8 @@ Check: `https://<service>.onrender.com/health` → `{"status":"ok"}`;
 
 A free Render instance sleeps after 15 idle minutes and takes up to about a
 minute to wake; the first sign-in after a quiet period is slow, and a session
-save can time out once (the app keeps it pending and retries). Acceptable for
+save can time out once (the app keeps it pending and retries). The app and the
+website send a wake-up request as soon as sign-in is shown and wait up to 90
+seconds for a sign-in answer before showing a retry message (E-28). Acceptable for
 internal and closed testing. An always-on instance is a paid plan and needs
 owner approval.

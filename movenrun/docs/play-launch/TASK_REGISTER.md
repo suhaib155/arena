@@ -37,6 +37,7 @@ Play to act or be reachable) · **BLOCKED_CODE** (engineering left to do) ·
 | M-10 | "Continue with Wallet" in the app (wallet's browser + PKCE-bound one-time code, link back or typed) | DONE (locally tested) | E-22–E-24, D-19 |
 | M-11 | Remove the email code form from first run and Account; guest play kept | DONE | 40ea135 |
 | M-12 | In-app legal and account copy for Google and wallet; legal version bumped so testers accept the new policy | DONE | dbeed8d |
+| M-14 | Sign-in survives a sleeping free host: wake-up call when sign-in is shown, 90 s limit, retry copy (app and website) | DONE (locally tested) | E-28 |
 | M-13 | Prove Google and wallet sign-in on a phone with the preview APK | BLOCKED_OWNER | X-04, X-05, X-06, X-08, X-10. Due 24 Oct |
 | B-01 | Hard account erasure endpoint | DONE | E-09 |
 | B-02 | Reviewer sign-in through server secrets | DEFERRED | Withdrawn by D-21 (code removed) |
@@ -56,6 +57,7 @@ Play to act or be reachable) · **BLOCKED_CODE** (engineering left to do) ·
 | B-16 | Remove reviewer code and email delivery from v1 requirements | DONE | 674ef5f |
 | B-17 | Enable Google and Web3 providers, redirect list, rate limit, hook in Supabase | BLOCKED_OWNER | X-05, X-07 (approval to enable providers) |
 | B-18 | Linking Google and wallet to one account | DEFERRED | D-17; owner acceptance X-20 |
+| B-19 | Email codes cannot be switched on in the hosted API by an environment variable; `RESEND_API_KEY` and `IDENTITY_OTP_PEPPER` play no part in config | DONE | E-27 |
 | P-01 | Data inventory | DONE | `DATA_INVENTORY.md` (Google, wallet, Supabase) |
 | P-02 | Privacy policy page | DONE | `website/privacy/` |
 | P-03 | Web account deletion with Google or wallet (works for wallet-only accounts) | DONE (locally tested) | E-24 |

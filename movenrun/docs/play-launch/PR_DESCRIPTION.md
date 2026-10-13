@@ -36,7 +36,7 @@ behind `mobile/src/lib/releaseScope.ts`, not deleted.
   exchange, a 1,000-account cap enforced under a database lock and by a Supabase
   before-user-created hook, provider users removed on deletion or refusal,
   `POST /identity/account/delete`, `GET /movement/verifications`, row level
-  security on every table, email codes off unless a delivery key is set, reviewer
+  security on every table, email codes never wired into the hosted API, reviewer
   code removed.
 - Website: privacy policy and support page for Google and wallet sign-in,
   account deletion with Google or wallet, the `/sign-in/` page for the app, and a
@@ -46,7 +46,7 @@ behind `mobile/src/lib/releaseScope.ts`, not deleted.
   Hermes export in mobile checks.
 - Launch ledger in `movenrun/docs/play-launch/`.
 
-**Tests:** mobile 904/904, backend 397/397 on PostgreSQL 16 (0 skipped), backend
+**Tests:** mobile 908/908, backend 397/397 on PostgreSQL 16 (0 skipped), backend
 API 10/10, shared 156/156, website sign-in and deletion in Chromium 23/23;
 typechecks clean; Android Hermes bundle builds. Supabase Auth was replaced by a
 local stand-in in these tests. Hosted and phone testing have not been done yet
