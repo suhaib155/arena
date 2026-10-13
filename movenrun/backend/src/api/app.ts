@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler } from "express";
 import {
   users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions,
+  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs,
 } from "../db/identity.schema.js";
 import { movementVerifications } from "../db/movement.schema.js";
 import { getDb } from "../db/client.js";
@@ -37,8 +37,13 @@ export function createApiApp(config: ApiConfig) {
   });
   // Provider users left behind by an erased account (provider unreachable at
   // the time) are removed in the background until the provider confirms.
-  const retryDeletions = () => { supabaseSignIn.retryPendingDeletions().catch(() => console.error("Pending sign-in deletions could not be retried")); };
-  const retryTimer = setInterval(retryDeletions, 10 * 60 * 1000);
+  // Wallet sign-in codes the app never collected release their provider user too.
+  const retryDeletions = () => {
+    supabaseSignIn.expireHandoffs()
+      .then(() => supabaseSignIn.retryPendingDeletions())
+      .catch(() => console.error("Pending sign-in deletions could not be retried"));
+  };
+  const retryTimer = setInterval(retryDeletions, 5 * 60 * 1000);
   retryTimer.unref();
   setTimeout(retryDeletions, 5_000).unref();
   const app = express();
@@ -52,7 +57,7 @@ export function createApiApp(config: ApiConfig) {
       // Probe migrated columns, not just database connectivity. No rows or
       // coordinates are selected and no connection errors reach the logs.
       for (const table of [users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, movementVerifications]) {
+        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, movementVerifications]) {
         await db.select().from(table).limit(0);
       }
       res.json({ status: "ready", database: "ready", signIn: "supabase" });

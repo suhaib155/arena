@@ -8,7 +8,8 @@ import { createInMemoryStores } from "../repositories/memory.js";
 import { createInMemorySignInStores } from "../repositories/signInStores.js";
 import { EoaSignatureVerifier } from "../providers/eoaVerifier.js";
 import { SupabaseAuthError, type VerifiedSupabaseUser } from "../providers/supabaseAuth.js";
-import { SupabaseSignInService, WALLET_MESSAGE_TTL_MS } from "./supabaseSignIn.service.js";
+import { createHash, randomBytes } from "node:crypto";
+import { SupabaseSignInService, WALLET_HANDOFF_TTL_MS, WALLET_MESSAGE_TTL_MS } from "./supabaseSignIn.service.js";
 import { resolveIdentityConfig } from "../config.js";
 import { createIdentityServices } from "../http/wiring.js";
 import { createIdentityRouter } from "../http/router.js";
@@ -237,6 +238,70 @@ test("wallet sign-in over HTTP: begin, sign, complete", async () => {
     const replay = await post("/identity/auth/wallet/complete", { message: begin.json.message, signature: await wallet.signMessage(begin.json.message) });
     assert.equal(replay.status, 401);
   });
+});
+
+const pkcePair = () => {
+  const verifier = randomBytes(32).toString("base64url");
+  return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
+};
+
+test("wallet sign-in started by the app: the wallet's browser gets a one-time code that only the app's verifier can spend", async () => {
+  await withApp(1000, async ({ post }) => {
+    const wallet = Wallet.createRandom();
+    const pkce = pkcePair();
+    const begin = await post("/identity/auth/wallet/begin", { address: wallet.address });
+    const signature = await wallet.signMessage(begin.json.message);
+    // A malformed challenge is refused before the message is spent.
+    assert.equal((await post("/identity/auth/wallet/complete", { message: begin.json.message, signature, handoffChallenge: "!".repeat(43) })).status, 400);
+    const done = await post("/identity/auth/wallet/complete", { message: begin.json.message, signature, handoffChallenge: pkce.challenge });
+    assert.equal(done.status, 200);
+    assert.equal(done.json.session, undefined); // no session in the wallet's browser
+    assert.match(done.json.handoff.code, /^[A-Z2-9]{12}$/);
+
+    const attacker = pkcePair();
+    assert.equal((await post("/identity/auth/wallet/exchange", { code: done.json.handoff.code, codeVerifier: attacker.verifier })).status, 401);
+    // Typed by hand: lower case and spaces are tolerated.
+    const typed = done.json.handoff.code.toLowerCase().replace(/(....)/g, "$1 ").trim();
+    const app = await post("/identity/auth/wallet/exchange", { code: typed, codeVerifier: pkce.verifier, deviceLabel: "Android device" });
+    assert.equal(app.status, 200);
+    assert.ok(app.json.session.accessToken);
+    assert.equal((await post("/identity/auth/wallet/exchange", { code: done.json.handoff.code, codeVerifier: pkce.verifier })).status, 401);
+
+    // The same wallet signed in directly is the same player.
+    const again = await post("/identity/auth/wallet/begin", { address: wallet.address });
+    const direct = await post("/identity/auth/wallet/complete", { message: again.json.message, signature: await wallet.signMessage(again.json.message) });
+    assert.equal(direct.json.user.id, app.json.user.id);
+  });
+});
+
+test("an uncollected handoff code expires and releases its provider user, unless the wallet signed in another way", async () => {
+  const { service, supabase, advance, stores } = setup();
+  const lost = Wallet.createRandom();
+  const b1 = await service.beginWallet(lost.address);
+  const v1 = await service.completeWallet(b1.message, await lost.signMessage(b1.message));
+  const p1 = pkcePair();
+  const h1 = await service.createHandoff(v1, p1.challenge);
+  assert.equal(h1.expiresAt.getTime() - T0.getTime(), WALLET_HANDOFF_TTL_MS);
+
+  const retried = Wallet.createRandom();
+  const b2 = await service.beginWallet(retried.address);
+  const v2 = await service.completeWallet(b2.message, await retried.signMessage(b2.message));
+  await service.createHandoff(v2, pkcePair().challenge); // abandoned
+  advance(WALLET_HANDOFF_TTL_MS - 1000);
+  const b3 = await service.beginWallet(retried.address);
+  const v3 = await service.completeWallet(b3.message, await retried.signMessage(b3.message));
+  const p3 = pkcePair();
+  const h3 = await service.createHandoff(v3, p3.challenge); // the retry, still live
+  advance(2000);
+
+  assert.equal(await code(service.exchangeHandoff(h1.code, p1.verifier)), "verification_failed"); // expired
+  assert.equal(await service.expireHandoffs(), 1);
+  assert.deepEqual(supabase.deleted, [v1.subject]);
+  assert.equal(await service.expireHandoffs(), 0);
+  // The retried wallet's newer code still works.
+  assert.equal((await service.exchangeHandoff(h3.code, p3.verifier)).subject, v3.subject);
+  assert.equal(await code(service.createHandoff(v3, "short")), "invalid_request");
+  assert.equal(await code(service.exchangeHandoff("0OIL0OIL0OIL", p3.verifier)), "verification_failed");
 });
 
 test("the account cap counts Google and wallet players together, lets existing players in, and frees a place on deletion", async () => {

@@ -280,6 +280,27 @@ export const walletSignInChallenges = pgTable(
 /** Supabase Auth users whose MovenRun account is gone but whose auth record
  *  still has to be removed at the provider. Retried until the provider
  *  confirms; holds only the provider's opaque user id. */
+/**
+ * One-time codes that carry a finished wallet sign-in from a wallet's own
+ * browser back to the app. Only a hash of the code is stored, and the code is
+ * bound to the app's PKCE challenge, so a code seen in transit is useless
+ * without the verifier that never left the app.
+ */
+export const walletSignInHandoffs = pgTable(
+  "wallet_sign_in_handoffs",
+  {
+    codeHash: text("code_hash").primaryKey(),
+    codeChallenge: text("code_challenge").notNull(),
+    subject: text("subject").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+  },
+  (t) => ({
+    expiresIdx: index("wallet_sign_in_handoffs_expires_idx").on(t.expiresAt),
+  })
+);
+
 export const pendingAuthUserDeletions = pgTable("pending_auth_user_deletions", {
   subject: text("subject").primaryKey(),
   requestedAt: timestamp("requested_at").defaultNow().notNull(),

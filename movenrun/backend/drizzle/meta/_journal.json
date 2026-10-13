@@ -57,6 +57,13 @@
       "when": 1784832000000,
       "tag": "0007_supabase_auth_admission",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784918400000,
+      "tag": "0008_wallet_sign_in_handoff",
+      "breakpoints": true
     }
   ]
 }

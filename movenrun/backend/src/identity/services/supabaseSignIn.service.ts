@@ -9,6 +9,11 @@
  * Supabase access token, which is verified here and must come from an OAuth
  * login.
  *
+ * Wallet in the app: the signing happens in the wallet's own browser, on the
+ * MovenRun sign-in page. That page finishes the wallet sign-in with a PKCE
+ * challenge from the app and receives a one-time code instead of a session;
+ * the app exchanges the code with its verifier. The code alone is worthless.
+ *
  * Wallet: the server writes the EIP-4361 message (domain, URI, chain, a
  * single-use nonce, five-minute expiry), the wallet signs it, and the server
  * checks the nonce, the exact message and the signature before passing it to
@@ -16,7 +21,7 @@
  * sent on chain and no funds are needed. Only plain EOA wallets are accepted;
  * contract wallets (EIP-1271) are refused until a verifier for them exists.
  */
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { getAddress } from "ethers";
 import { IdentityError } from "../domain/errors.js";
 import type { IdentityStores } from "../repositories/interfaces.js";
@@ -30,6 +35,29 @@ export const WALLET_SIGN_IN_STATEMENT =
   "Sign in to MovenRun. This only proves you control this address: it is not a transaction and costs nothing.";
 /** Base mainnet. Only the chain id written into the message; nothing is sent to any chain. */
 export const DEFAULT_WALLET_CHAIN_ID = 8453;
+/** How long a wallet sign-in may wait in the wallet's browser before the app collects it. */
+export const WALLET_HANDOFF_TTL_MS = 5 * 60 * 1000;
+/** Handoff codes use an unambiguous alphabet so a person can type one if the redirect fails. */
+const HANDOFF_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+const HANDOFF_CODE_LENGTH = 12;
+export const HANDOFF_CODE_RE = /^[ABCDEFGHJKMNPQRSTVWXYZ23456789]{12}$/;
+/** RFC 7636: S256 challenge, 43 base64url characters. */
+export const PKCE_CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
+export const PKCE_VERIFIER_RE = /^[A-Za-z0-9._~-]{43,128}$/;
+
+const sha256 = (value: string) => createHash("sha256").update(value).digest();
+export const pkceChallengeOf = (verifier: string) => sha256(verifier).toString("base64url");
+
+function randomHandoffCode(): string {
+  // Rejection sampling keeps every character equally likely.
+  let out = "";
+  while (out.length < HANDOFF_CODE_LENGTH) {
+    for (const byte of randomBytes(32)) {
+      if (byte < 240 && out.length < HANDOFF_CODE_LENGTH) out += HANDOFF_ALPHABET[byte % HANDOFF_ALPHABET.length];
+    }
+  }
+  return out;
+}
 
 export interface SupabaseTokenCheck {
   verify(token: string): Promise<VerifiedSupabaseUser>;
@@ -55,6 +83,7 @@ interface Deps {
   config: SupabaseSignInConfig;
   now?: () => Date;
   nonce?: () => string;
+  handoffCode?: () => string;
 }
 
 export interface VerifiedSignIn {
@@ -66,10 +95,12 @@ export interface VerifiedSignIn {
 export class SupabaseSignInService {
   private readonly now: () => Date;
   private readonly nonce: () => string;
+  private readonly handoffCode: () => string;
 
   constructor(private readonly deps: Deps) {
     this.now = deps.now ?? (() => new Date());
     this.nonce = deps.nonce ?? (() => randomBytes(12).toString("hex"));
+    this.handoffCode = deps.handoffCode ?? randomHandoffCode;
   }
 
   /** Verify a Supabase session from Google sign-in. */
@@ -145,6 +176,48 @@ export class SupabaseSignInService {
       throw new IdentityError("verification_failed");
     }
     return { subject: user.subject, email: null, method: "wallet" };
+  }
+
+  /**
+   * Park a finished wallet sign-in for the app. The code is returned once and
+   * only its hash is kept; it can be spent once, within a few minutes, by the
+   * holder of the verifier behind `codeChallenge`.
+   */
+  async createHandoff(verified: VerifiedSignIn, codeChallenge: string): Promise<{ code: string; expiresAt: Date }> {
+    if (!PKCE_CHALLENGE_RE.test(codeChallenge)) throw new IdentityError("invalid_request", "invalid code challenge");
+    const code = this.handoffCode();
+    const expiresAt = new Date(this.now().getTime() + WALLET_HANDOFF_TTL_MS);
+    await this.deps.signIn.walletHandoffs.create({
+      codeHash: sha256(code).toString("hex"),
+      codeChallenge,
+      subject: verified.subject,
+      expiresAt,
+    });
+    return { code, expiresAt };
+  }
+
+  /** Spend a handoff code with the app's verifier. */
+  async exchangeHandoff(rawCode: string, verifier: string): Promise<VerifiedSignIn> {
+    const code = rawCode.trim().toUpperCase().replace(/[\s-]/g, "");
+    if (!HANDOFF_CODE_RE.test(code) || !PKCE_VERIFIER_RE.test(verifier)) throw new IdentityError("verification_failed");
+    const subject = await this.deps.signIn.walletHandoffs.consume(sha256(code).toString("hex"), pkceChallengeOf(verifier), this.now());
+    if (!subject) throw new IdentityError("verification_failed");
+    return { subject, email: null, method: "wallet" };
+  }
+
+  /**
+   * Codes nobody collected: the provider user behind each one is removed
+   * unless it already belongs to a MovenRun account.
+   */
+  async expireHandoffs(limit = 50): Promise<number> {
+    const now = this.now();
+    await this.deps.signIn.walletHandoffs.purgeConsumed(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+    const expired = [...new Set(await this.deps.signIn.walletHandoffs.takeExpired(now, limit))];
+    // The same wallet always maps to the same provider user, so a newer code
+    // (or one already spent) for that user keeps it.
+    const abandoned: string[] = [];
+    for (const subject of expired) if (!(await this.deps.signIn.walletHandoffs.inUse(subject, now))) abandoned.push(subject);
+    return (await this.removeProviderUsers(abandoned)).removed.length;
   }
 
   /**

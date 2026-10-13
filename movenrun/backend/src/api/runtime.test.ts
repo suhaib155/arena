@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { createServer } from "node:net";
 import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { Wallet } from "ethers";
 import { resolveApiConfig } from "./config.js";
 
@@ -33,6 +33,8 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
       CORS_ORIGINS: "https://preview.example.com",
       SUPABASE_URL: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test", SUPABASE_SECRET_KEY: "sb_secret_test",
       IDENTITY_AUTH_DOMAIN: "movenrun.xyz",
+      // This one test makes more sign-in calls from one address than a person would.
+      RATE_LIMIT_WRITE_MAX: "60",
     });
     // Exercise the actual deployment command, including its migration journal.
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -42,7 +44,7 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
         }));
     }
     const migrationRows = await pool.query("select count(*)::int as count from drizzle.__drizzle_migrations");
-    assert.equal(migrationRows.rows[0].count, 8);
+    assert.equal(migrationRows.rows[0].count, 9);
     // A hosted database's automatic REST API must not reach any table: every
     // table has row level security on (and no policies).
     const openTables = await pool.query(
@@ -169,6 +171,20 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     const otherToken = (await walletDone.json()).session.accessToken as string;
     // Replaying the same signed message is refused by the database's single-use check.
     assert.equal((await request("/identity/auth/wallet/complete", { message: walletBegin.message, signature: walletSignature })).status, 401);
+    // The same wallet from the app: signed in the wallet's browser, collected by the app with its PKCE verifier.
+    const verifier = randomBytes(32).toString("base64url");
+    const challenge = createHash("sha256").update(verifier).digest("base64url");
+    const handoffBegin = await (await request("/identity/auth/wallet/begin", { address: wallet.address })).json();
+    const handoffDone = await (await request("/identity/auth/wallet/complete", {
+      message: handoffBegin.message, signature: await wallet.signMessage(handoffBegin.message), handoffChallenge: challenge,
+    })).json();
+    assert.equal(handoffDone.session, undefined);
+    assert.equal((await request("/identity/auth/wallet/exchange", { code: handoffDone.handoff.code, codeVerifier: randomBytes(32).toString("base64url") })).status, 401);
+    const collected = await request("/identity/auth/wallet/exchange", { code: handoffDone.handoff.code, codeVerifier: verifier });
+    assert.equal(collected.status, 200);
+    const collectedMe = await (await request("/identity/me", undefined, (await collected.json()).session.accessToken)).json();
+    assert.equal(collectedMe.user.id, (await (await request("/identity/me", undefined, otherToken)).json()).user.id);
+    assert.equal((await request("/identity/auth/wallet/exchange", { code: handoffDone.handoff.code, codeVerifier: verifier })).status, 401);
     const otherMovement = { ...movement, sessionId: "preview-runtime-test-other" };
     assert.equal((await request("/movement/verify", otherMovement, otherToken)).status, 201);
     const me = await (await request("/identity/me", undefined, token)).json();

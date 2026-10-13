@@ -48,6 +48,15 @@ export const walletCompleteSchema = z
     message: z.string().min(50).max(2000),
     signature: z.string().min(10).max(200),
     deviceLabel: z.string().max(200).optional(),
+    /** Present when the app started this sign-in: answer with a one-time code instead of a session. */
+    handoffChallenge: z.string().min(43).max(43).optional(),
+  })
+  .strict();
+export const walletExchangeSchema = z
+  .object({
+    code: z.string().min(12).max(32),
+    codeVerifier: z.string().min(43).max(128),
+    deviceLabel: z.string().max(200).optional(),
   })
   .strict();
 

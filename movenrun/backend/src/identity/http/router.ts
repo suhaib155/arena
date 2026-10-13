@@ -25,6 +25,7 @@ import {
   googleCompleteSchema,
   walletBeginSchema,
   walletCompleteSchema,
+  walletExchangeSchema,
   linkBeginSchema,
   linkCompleteSchema,
   parseBody,
@@ -34,7 +35,7 @@ import {
 } from "./validation.js";
 import { sanitizeDeviceLabel } from "../domain/deviceLabel.js";
 import { ACCOUNT_DELETION_CONFIRMATION, type AccountDeletionStore } from "../accountDeletion.js";
-import { SUPABASE_PROVIDER, type SupabaseSignInService, type VerifiedSignIn } from "../services/supabaseSignIn.service.js";
+import { PKCE_CHALLENGE_RE, SUPABASE_PROVIDER, type SupabaseSignInService, type VerifiedSignIn } from "../services/supabaseSignIn.service.js";
 import type { SignupOrLoginResult } from "../services/authOrchestrator.service.js";
 import {
   toPublicIdentity,
@@ -175,7 +176,28 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
     handle(async (req, res) => {
       if (!options.supabaseSignIn) throw new IdentityError("provider_not_configured");
       const body = parseBody(walletCompleteSchema, req.body);
+      // Checked before the message is spent, so a malformed request costs nothing.
+      if (body.handoffChallenge !== undefined && !PKCE_CHALLENGE_RE.test(body.handoffChallenge)) {
+        throw new IdentityError("invalid_request", "invalid code challenge");
+      }
       const verified = await options.supabaseSignIn.completeWallet(body.message, body.signature);
+      if (body.handoffChallenge !== undefined) {
+        // Signed in the wallet's browser on behalf of the app: no session here,
+        // only a code the app can spend with its verifier.
+        const handoff = await options.supabaseSignIn.createHandoff(verified, body.handoffChallenge);
+        res.json({ handoff: { code: handoff.code, expiresAt: handoff.expiresAt.toISOString() } });
+        return;
+      }
+      res.json(signInResponse(await signInWithSupabase(verified, body.deviceLabel)));
+    })
+  );
+
+  router.post(
+    "/auth/wallet/exchange",
+    handle(async (req, res) => {
+      if (!options.supabaseSignIn) throw new IdentityError("provider_not_configured");
+      const body = parseBody(walletExchangeSchema, req.body);
+      const verified = await options.supabaseSignIn.exchangeHandoff(body.code, body.codeVerifier);
       res.json(signInResponse(await signInWithSupabase(verified, body.deviceLabel)));
     })
   );

@@ -121,6 +121,7 @@ test("Google, wallet and Base entry points fail closed when no provider is wired
     ["/identity/auth/google/complete", { accessToken: "x".repeat(40) }],
     ["/identity/auth/wallet/begin", { address: "0x" + "1".repeat(40) }],
     ["/identity/auth/wallet/complete", { message: "m".repeat(60), signature: "0x" + "a".repeat(130) }],
+    ["/identity/auth/wallet/exchange", { code: "ABCDEFGHJKMN", codeVerifier: "v".repeat(43) }],
     ["/identity/auth/base/begin", {}],
   ] as const) {
     const res = await post(path, body);
