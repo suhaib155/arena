@@ -157,7 +157,11 @@ app CTAs (D-35). Done:
 - **Board:** the durable board `product-roadmap/PR_QUEUE.md`.
 - **G1:** map regions plus `GET /movement/coverage` on
   `feat/g1-territory-geometry` (24ab525, tested locally).
-- **W1:** the website review version on `web/w1-review-preview`.
+- **G1 (2):** bounded route-cell interpolation for sealing (6257d9a,
+  shared 170/170). Draft #107; repository checks green.
+- **W1:** the website review version on `web/w1-review-preview` (8c4d55b),
+  draft #108. Local checks pass, including the sign-in/deletion e2e 23/23.
+  Not published (X-21).
 - **Render:** connected through Composio. The workspace is empty, so the
   first service still has to be created in the dashboard (X-06).
 

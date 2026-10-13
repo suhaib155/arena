@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-10-13 | Product roadmap restart: G1 map regions and route cells, W1 website review | 6257d9a (G1), 8c4d55b (W1) | [MOVENRUN_2026-10-13_PRODUCT_ROADMAP_RESTART_G1_W1_FINAL_REPORT_6257d9a.md](MOVENRUN_2026-10-13_PRODUCT_ROADMAP_RESTART_G1_W1_FINAL_REPORT_6257d9a.md) |
 | 2026-10-13 | Session storage fixes (F-17, F-18), database size measured, operator checklist | f6ce3c5 | [MOVENRUN_2026-10-13_SESSION_STORAGE_AND_OPERATOR_CHECKLIST_FINAL_REPORT_f6ce3c5.md](MOVENRUN_2026-10-13_SESSION_STORAGE_AND_OPERATOR_CHECKLIST_FINAL_REPORT_f6ce3c5.md) |
 | 2026-10-13 | X-06 approved: operator handoff, website previews, backup drill | dd83065 | [MOVENRUN_2026-10-13_X06_OPERATOR_HANDOFF_FINAL_REPORT_dd83065.md](MOVENRUN_2026-10-13_X06_OPERATOR_HANDOFF_FINAL_REPORT_dd83065.md) |
 | 2026-10-13 | Free hosting readiness (Render Free + Supabase Free) | dd83065 | [MOVENRUN_2026-10-13_FREE_HOSTING_READINESS_FINAL_REPORT_dd83065.md](MOVENRUN_2026-10-13_FREE_HOSTING_READINESS_FINAL_REPORT_dd83065.md) |
