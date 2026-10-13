@@ -67,10 +67,13 @@ export interface SupabaseAuthCalls {
   signInWithEthereum(message: string, signature: string): Promise<{ accessToken: string }>;
   deleteUser(subject: string): Promise<void>;
   listUsers(page: number, perPage: number): Promise<ProviderUserSummary[]>;
+  getUser(subject: string): Promise<ProviderUserSummary | null>;
 }
 
 /** How long a provider user may exist without a MovenRun account before the sweep removes it. */
 export const ORPHAN_GRACE_MS = 60 * 60 * 1000;
+/** Most provider users one sweep may delete; the rest wait for the next run. */
+export const ORPHAN_SWEEP_MAX_DELETES = 100;
 
 export interface SupabaseSignInConfig {
   /** The domain written into wallet messages; must also be on Supabase's redirect allow list. */
@@ -100,6 +103,7 @@ export class SupabaseSignInService {
   private readonly now: () => Date;
   private readonly nonce: () => string;
   private readonly handoffCode: () => string;
+  private sweeping: Promise<number> | null = null;
 
   constructor(private readonly deps: Deps) {
     this.now = deps.now ?? (() => new Date());
@@ -261,25 +265,49 @@ export class SupabaseSignInService {
    * once both their creation and their last sign-in are older than the grace
    * period. Users mapped to an account, or with a wallet code still waiting,
    * are never touched.
+   *
+   * Each candidate is read again just before it is deleted, so a person who
+   * signed in after the listing keeps their sign-in user. One run deletes at
+   * most `maxDeletes`, and a run that starts while another is going joins it
+   * instead of listing twice.
    */
-  async sweepOrphanProviderUsers(opts: { graceMs?: number; perPage?: number; maxPages?: number } = {}): Promise<number> {
+  sweepOrphanProviderUsers(opts: { graceMs?: number; perPage?: number; maxPages?: number; maxDeletes?: number } = {}): Promise<number> {
+    if (!this.sweeping) {
+      this.sweeping = this.sweepOnce(opts).finally(() => {
+        this.sweeping = null;
+      });
+    }
+    return this.sweeping;
+  }
+
+  private async sweepOnce(opts: { graceMs?: number; perPage?: number; maxPages?: number; maxDeletes?: number }): Promise<number> {
     const graceMs = opts.graceMs ?? ORPHAN_GRACE_MS;
     const perPage = opts.perPage ?? 100;
     const maxPages = opts.maxPages ?? 20;
-    const now = this.now();
-    const cutoff = now.getTime() - graceMs;
+    const maxDeletes = opts.maxDeletes ?? ORPHAN_SWEEP_MAX_DELETES;
+    const stale = (u: ProviderUserSummary, cutoff: number) =>
+      u.createdAt.getTime() <= cutoff && (!u.lastSignInAt || u.lastSignInAt.getTime() <= cutoff);
+    const listedAt = this.now();
     const candidates: string[] = [];
     for (let page = 1; page <= maxPages; page++) {
       const users = await this.deps.auth.listUsers(page, perPage);
       for (const u of users) {
-        if (u.createdAt.getTime() > cutoff) continue;
-        if (u.lastSignInAt && u.lastSignInAt.getTime() > cutoff) continue;
-        if (await this.deps.signIn.walletHandoffs.inUse(u.id, now)) continue;
+        if (!stale(u, listedAt.getTime() - graceMs)) continue;
+        if (await this.deps.signIn.walletHandoffs.inUse(u.id, listedAt)) continue;
         candidates.push(u.id);
       }
       if (users.length < perPage) break;
     }
-    return (await this.removeProviderUsers(candidates)).removed.length;
+    let removed = 0;
+    for (const subject of candidates) {
+      if (removed >= maxDeletes) break;
+      const now = this.now();
+      const current = await this.deps.auth.getUser(subject);
+      if (!current || !stale(current, now.getTime() - graceMs)) continue;
+      if (await this.deps.signIn.walletHandoffs.inUse(subject, now)) continue;
+      removed += (await this.removeProviderUsers([subject])).removed.length;
+    }
+    return removed;
   }
 
   /** Retry provider deletions that failed earlier. Safe to run repeatedly. */

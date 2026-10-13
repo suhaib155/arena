@@ -89,8 +89,27 @@ test("issuer, audience, role, expiry, subject and anonymous users are checked", 
   await rejects(v, token({ ...good, exp: nowS - 1 }), "expired");
   await rejects(v, token({ ...good, exp: nowS + 10 }), "expired"); // inside the skew margin
   await rejects(v, token({ ...good, iat: nowS + 3600 }), "not_yet_valid");
+  await rejects(v, token({ ...good, nbf: nowS + 3600 }), "not_yet_valid");
+  await rejects(v, token({ ...good, nbf: "soon" }), "not_yet_valid");
+  assert.equal((await v.verify(token({ ...good, nbf: nowS - 5 }))).subject, SUB);
+  assert.equal((await v.verify(token({ ...good, aud: ["other", "authenticated"] }))).subject, SUB);
+  await rejects(v, token({ ...good, aud: ["anon", "service_role"] }), "wrong_audience");
   await rejects(v, token({ ...good, sub: "user-1" }), "bad_subject");
   await rejects(v, token({ ...good, is_anonymous: true }), "anonymous_user");
+});
+
+test("a token marking any header critical, or naming none or another algorithm, is refused", async () => {
+  const v = verifier();
+  const withHeader = (extra: Record<string, unknown>) => {
+    const t = token(good);
+    const [h, b, sig] = t.split(".");
+    const header = { ...JSON.parse(Buffer.from(h, "base64url").toString()), ...extra };
+    return `${Buffer.from(JSON.stringify(header)).toString("base64url")}.${b}.${sig}`;
+  };
+  await rejects(v, withHeader({ crit: ["b64"], b64: false }), "bad_signature");
+  await rejects(v, withHeader({ alg: "none" }), "bad_signature");
+  await rejects(v, withHeader({ alg: "ES384" }), "bad_signature");
+  await rejects(v, token(good, { alg: "HS256", hmac: "guess" }), "bad_signature"); // no legacy secret configured
 });
 
 test("the legacy HS256 secret works only when configured", async () => {
@@ -141,6 +160,26 @@ test("a refused grant and an outage are told apart; an already deleted user coun
   await new SupabaseAuthClient(cfg, status(200)).deleteUser(SUB);
   await assert.rejects(new SupabaseAuthClient(cfg, status(500)).deleteUser(SUB));
   await assert.rejects(new SupabaseAuthClient(cfg, status(200)).deleteUser("../other"));
+});
+
+test("reading one auth user returns only its id and timestamps; a missing user is null, not an error", async () => {
+  const cfg = { url: URL_, publishableKey: "sb_publishable_x", secretKey: "sb_secret_y" };
+  const seen: string[] = [];
+  const reply = (code: number, body: unknown) => (async (url: string, init: RequestInit) => {
+    seen.push(`${init.method} ${url} ${(init.headers as Record<string, string>).apikey}`);
+    return new Response(JSON.stringify(body), { status: code });
+  }) as unknown as typeof fetch;
+  const user = await new SupabaseAuthClient(cfg, reply(200, {
+    id: SUB, created_at: "2026-10-13T10:00:00Z", last_sign_in_at: null, email: "x@example.com", phone: "1",
+  })).getUser(SUB);
+  assert.deepEqual(user, { id: SUB, createdAt: new Date("2026-10-13T10:00:00Z"), lastSignInAt: null });
+  assert.equal(seen[0], `GET ${URL_}/auth/v1/admin/users/${SUB} sb_secret_y`);
+  assert.equal(await new SupabaseAuthClient(cfg, reply(404, {})).getUser(SUB), null);
+  // Unreadable or someone else's record: an error, so the sweep keeps the user.
+  await assert.rejects(new SupabaseAuthClient(cfg, reply(200, { id: SUB })).getUser(SUB));
+  await assert.rejects(new SupabaseAuthClient(cfg, reply(200, { id: "7f6c2a1e-4b7d-4c8e-9f10-112233445566", created_at: "2026-10-13T10:00:00Z" })).getUser(SUB));
+  await assert.rejects(new SupabaseAuthClient(cfg, reply(500, {})).getUser(SUB));
+  await assert.rejects(new SupabaseAuthClient(cfg, reply(200, {})).getUser("../users"));
 });
 
 test("configuration is all or nothing", () => {

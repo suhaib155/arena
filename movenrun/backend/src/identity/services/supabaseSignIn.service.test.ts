@@ -26,6 +26,8 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failD
   const tokens = new Map<string, VerifiedSupabaseUser>();
   const deleted: string[] = [];
   const grants: string[] = [];
+  const listCalls = { n: 0 };
+  const listGate: { wait: Promise<void> | null } = { wait: null };
   let n = 0;
   const mint = (subject: string, methods: string[], email: string | null, providers: string[] = []) => {
     const t = `token-${n++}-${"x".repeat(30)}`;
@@ -36,6 +38,8 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failD
     deleted,
     grants,
     listed,
+    listCalls,
+    listGate,
     googleToken: (subject = GOOGLE_SUB, email: string | null = "runner@example.com", providers = ["google"]) => mint(subject, ["oauth"], email, providers),
     web3Token: (subject: string) => mint(subject, ["web3"], null),
     tokens: {
@@ -63,7 +67,12 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failD
         if (at >= 0) listed.splice(at, 1);
       },
       async listUsers(page: number, perPage: number) {
+        listCalls.n += 1;
+        await listGate.wait;
         return listed.slice((page - 1) * perPage, page * perPage);
+      },
+      async getUser(subject: string) {
+        return listed.find((u) => u.id === subject) ?? null;
       },
     },
   };
@@ -382,6 +391,58 @@ test("the orphan sweep removes only old provider users with no account, no recen
   advance(3 * 3600_000);
   await service.sweepOrphanProviderUsers({ perPage: 2 });
   assert.deepEqual(supabase.deleted.sort(), [id(1), id(2), id(3), id(4), id(6)]);
+});
+
+test("the orphan sweep re-reads each user before deleting: one who signed in since the listing is kept", async () => {
+  const { service, supabase } = setup();
+  const id = (n: number) => `55555555-5555-4555-8555-${n.toString(16).padStart(12, "0")}`;
+  const old = new Date(T0.getTime() - 2 * 3600_000);
+  supabase.listed.push({ id: id(1), createdAt: old, lastSignInAt: old }, { id: id(2), createdAt: old, lastSignInAt: old });
+  // The listing is taken while both look abandoned...
+  let release!: () => void;
+  supabase.listGate.wait = new Promise<void>((r) => { release = r; });
+  const run = service.sweepOrphanProviderUsers();
+  await new Promise((r) => setImmediate(r));
+  // ...then user 1 signs in before the delete; user 2 is deleted by someone else.
+  supabase.listed[0] = { id: id(1), createdAt: old, lastSignInAt: T0 };
+  supabase.listed.splice(1, 1);
+  supabase.listGate.wait = null;
+  release();
+  assert.equal(await run, 0);
+  assert.deepEqual(supabase.deleted, []);
+});
+
+test("one sweep deletes at most its cap, and a sweep started during another joins it", async () => {
+  const { service, supabase } = setup();
+  const id = (n: number) => `55555555-5555-4555-8555-${n.toString(16).padStart(12, "0")}`;
+  const old = new Date(T0.getTime() - 2 * 3600_000);
+  for (let i = 1; i <= 5; i++) supabase.listed.push({ id: id(i), createdAt: old, lastSignInAt: null });
+  let release!: () => void;
+  supabase.listGate.wait = new Promise<void>((r) => { release = r; });
+  const first = service.sweepOrphanProviderUsers({ maxDeletes: 3 });
+  const second = service.sweepOrphanProviderUsers({ maxDeletes: 3 });
+  assert.equal(first, second);
+  supabase.listGate.wait = null;
+  release();
+  assert.equal(await first, 3);
+  assert.equal(supabase.listCalls.n, 1);
+  assert.equal(supabase.deleted.length, 3);
+  // The next run picks up the rest.
+  assert.equal(await service.sweepOrphanProviderUsers({ maxDeletes: 3 }), 2);
+  assert.equal(supabase.listed.length, 0);
+});
+
+test("a sweep that fails part-way lets the next one start, and a failed read keeps the user", async () => {
+  const { service, supabase } = setup();
+  const id = (n: number) => `55555555-5555-4555-8555-${n.toString(16).padStart(12, "0")}`;
+  const old = new Date(T0.getTime() - 2 * 3600_000);
+  supabase.listed.push({ id: id(1), createdAt: old, lastSignInAt: null });
+  const getUser = supabase.auth.getUser;
+  supabase.auth.getUser = async () => { throw new SupabaseAuthError("unavailable"); };
+  await assert.rejects(service.sweepOrphanProviderUsers());
+  assert.deepEqual(supabase.deleted, []);
+  supabase.auth.getUser = getUser;
+  assert.equal(await service.sweepOrphanProviderUsers(), 1);
 });
 
 test("the hourly new-account quota refuses a burst over HTTP, removes the refused provider user, and reopens an hour later", async () => {
