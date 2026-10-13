@@ -368,3 +368,68 @@ test("verified history lists only the caller's own sessions, newest first, withi
     assert.ok(!JSON.stringify(mine).includes("12.97"));
   });
 });
+
+test("coverage returns the caller's own covered ground as map regions, with no cells or session ids", async () => {
+  await withServer(async (base) => {
+    const root = base.replace(/\/verify$/, "");
+    const post = (token: string, body: unknown) => fetch(base, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const coverage = (token: string | null, query = "") => fetch(`${root}/coverage${query}`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    assert.equal((await coverage(null)).status, 401);
+    const empty = await coverage("user-a-token");
+    assert.equal(empty.status, 200);
+    assert.equal(empty.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await empty.json(), { type: "FeatureCollection", features: [], basis: { sessionsUsed: 0, truncated: false, skippedCells: 0 } });
+
+    const submitted = await post("user-a-token", requestBody("session-coverage-a1"));
+    assert.equal(submitted.status, 201);
+    const verified = await submitted.json() as { status: string; traversedHexIds: string[] };
+    assert.equal(verified.status, "verified");
+
+    const mine = await coverage("user-a-token");
+    const body = await mine.json() as {
+      type: string;
+      features: { id: string; geometry: { type: string }; properties: { state: string; cellCount: number; outline: string } }[];
+      basis: { sessionsUsed: number };
+    };
+    assert.equal(body.type, "FeatureCollection");
+    assert.ok(body.features.length >= 1);
+    assert.equal(body.basis.sessionsUsed, 1);
+    assert.equal(body.features.reduce((n, f) => n + f.properties.cellCount, 0), new Set(verified.traversedHexIds).size);
+    for (const f of body.features) {
+      assert.equal(f.geometry.type, "MultiPolygon");
+      assert.equal(f.properties.state, "covered");
+      assert.equal(f.properties.outline, "exact");
+    }
+    const text = JSON.stringify(body);
+    for (const cell of verified.traversedHexIds) assert.ok(!text.includes(cell), "no cell id in the response");
+    assert.ok(!text.includes("session-coverage-a1"), "no session id in the response");
+
+    const smooth = await (await coverage("user-a-token", "?outline=smoothed")).json() as typeof body;
+    assert.ok(smooth.features.every((f) => f.properties.outline === "smoothed"));
+    assert.equal((await coverage("user-a-token", "?outline=hex")).status, 400);
+
+    // Another user sees none of it.
+    const theirs = await (await coverage("user-b-token")).json() as typeof body;
+    assert.deepEqual(theirs.features, []);
+  });
+});
+
+test("coverage skips rejected sessions and invalid stored cells, and reports both honestly", async () => {
+  const repository = new InMemoryMovementVerificationRepository();
+  const service = new MovementVerificationService({ repository, generateId: () => "x" } as never);
+  const valid = new HexService().getHexIdsForPoints([{ lat: 12.97, lng: 77.59 }]);
+  const base = { userId: "u", distanceMeters: 1, durationSeconds: 1, confidence: 1, rejectionReasons: [], startTime: 1, endTime: 2, createdAt: new Date(), movementMode: null, rulesVersion: null, startedAt: null, finishedAt: null, pausedMs: null, sealed: null, sealMethods: null, sealEventCount: null };
+  await repository.create({ ...base, id: "1", clientSessionId: "s-1", status: "verified", traversedHexIds: [...valid, "not-a-cell"] } as never);
+  await repository.create({ ...base, id: "2", clientSessionId: "s-2", status: "rejected", traversedHexIds: valid, endTime: 3 } as never);
+  const result = await service.coverage("u", "exact");
+  assert.equal(result.sessionsUsed, 1);
+  assert.equal(result.skippedCells, 1);
+  assert.equal(result.truncated, false);
+  assert.equal(result.regions.features.length, 1);
+});
