@@ -67,3 +67,8 @@ test("waking the server is one unauthenticated GET /health, shared while it runs
   globalThis.fetch = (async () => ({ ok: false, status: 503, json: async () => ({}) }) as Response) as typeof fetch;
   await c.wakeServer();
 });
+
+test("a paused sign-up has its own copy that keeps guest play open", () => {
+  const text = authErrorMessage("registration_busy");
+  assert.ok(text && /try again later/.test(text) && /guest/.test(text));
+});

@@ -77,3 +77,16 @@ export function deferredFeatureFor(pathname: string): ReleaseFeature | null {
 export function isRouteInRelease(pathname: string): boolean {
   return deferredFeatureFor(pathname) === null;
 }
+
+/**
+ * Sign-in methods in this build. Both were requested by the owner. Turning
+ * `wallet` off hides "Continue with Wallet" and makes the wallet return link
+ * do nothing; it is the agreed fallback if wallet sign-in fails the phone
+ * gate (WALLET_LOGIN_BLOCKED), and needs the owner's approval to ship.
+ * Guest play is not a sign-in method and is always available.
+ */
+export const SIGN_IN_METHODS = Object.freeze({ google: true, wallet: true });
+
+export function isSignInMethodEnabled(method: keyof typeof SIGN_IN_METHODS): boolean {
+  return SIGN_IN_METHODS[method] === true;
+}

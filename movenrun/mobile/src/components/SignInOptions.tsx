@@ -20,6 +20,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { authErrorMessage } from "@/lib/emailAuth";
 import { buildDeviceLabel } from "@/lib/deviceLabel";
 import { normalizeHandoffCode, WALLET_APPS, type WalletAppId } from "@/lib/signInMethods";
+import { isSignInMethodEnabled } from "@/lib/releaseScope";
 import {
   finishWalletSignIn,
   hasPendingWalletSignIn,
@@ -49,7 +50,8 @@ export function SignInOptions({ disabled = false, onBusyChange }: SignInOptionsP
 
   const busy = operation !== "idle";
   const locked = disabled || busy || inFlight.current;
-  const googleAvailable = isGoogleSignInConfigured();
+  const googleAvailable = isSignInMethodEnabled("google") && isGoogleSignInConfigured();
+  const walletAvailable = isSignInMethodEnabled("wallet");
   const errorText = authErrorMessage(localError ?? authErrorCode);
 
   /* A wallet sign-in started earlier (the app may have been closed while the
@@ -125,6 +127,7 @@ export function SignInOptions({ disabled = false, onBusyChange }: SignInOptionsP
         />
       ) : null}
 
+      {walletAvailable ? (
       <Button
         label="Continue with Wallet"
         icon="wallet-outline"
@@ -133,8 +136,9 @@ export function SignInOptions({ disabled = false, onBusyChange }: SignInOptionsP
         disabled={locked}
         accessibilityHint="Sign in by signing a message in your wallet app. No transaction, no fee."
       />
+      ) : null}
 
-      {choosingWallet ? (
+      {walletAvailable && choosingWallet ? (
         <View style={styles.panel}>
           <Text style={styles.body}>
             Choose your wallet. It opens MovenRun&apos;s sign-in page and asks you to sign one message. That
@@ -146,11 +150,11 @@ export function SignInOptions({ disabled = false, onBusyChange }: SignInOptionsP
         </View>
       ) : null}
 
-      {awaitingCode ? (
+      {walletAvailable && awaitingCode ? (
         <View style={styles.panel}>
           <Text style={styles.body}>
             After signing, your wallet brings you back here. If it doesn&apos;t, enter the code shown on the
-            sign-in page.
+            sign-in page you just opened. Never enter a code someone sent you.
           </Text>
           <TextInput
             style={styles.input}
@@ -173,8 +177,9 @@ export function SignInOptions({ disabled = false, onBusyChange }: SignInOptionsP
       ) : null}
 
       <Text style={styles.helper}>
-        New here? Your account is created the first time you sign in. Google and wallet sign-ins are
-        separate accounts, so use the same one each time.
+        {walletAvailable && googleAvailable
+          ? "New here? Your account is created the first time you sign in. Google and wallet sign-ins are separate accounts, so use the same one each time."
+          : "New here? Your account is created the first time you sign in."}
       </Text>
 
       {errorText ? (

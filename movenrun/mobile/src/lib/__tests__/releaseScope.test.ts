@@ -13,9 +13,11 @@ import { join, relative, sep } from "node:path";
 import {
   FEATURE_ROUTES,
   RELEASE_FEATURES,
+  SIGN_IN_METHODS,
   deferredFeatureFor,
   isFeatureInRelease,
   isRouteInRelease,
+  isSignInMethodEnabled,
   type ReleaseFeature,
 } from "../releaseScope";
 import { buildTodayBoard, type TodayBoardInput } from "../tasks";
@@ -228,4 +230,15 @@ test("no deferred screen file was deleted to get here", () => {
     ];
     assert.ok(candidates.some(existsSync), `${route} screen is preserved for post-v1`);
   }
+});
+
+test("both owner-requested sign-in methods are on, and the wallet switch is honoured everywhere it matters", () => {
+  assert.deepEqual({ ...SIGN_IN_METHODS }, { google: true, wallet: true });
+  assert.equal(isSignInMethodEnabled("wallet"), true);
+  // The fallback for WALLET_LOGIN_BLOCKED must hide the button and disarm the return link.
+  const options = readFileSync(join(ROOT, "src/components/SignInOptions.tsx"), "utf8");
+  assert.match(options, /isSignInMethodEnabled\("wallet"\)/);
+  assert.match(options, /\{walletAvailable \? \(\s*<Button\s+label="Continue with Wallet"/);
+  const walletReturn = readFileSync(join(APP, "auth/wallet.tsx"), "utf8");
+  assert.match(walletReturn, /!isSignInMethodEnabled\("wallet"\)/);
 });

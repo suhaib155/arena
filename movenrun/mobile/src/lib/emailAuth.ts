@@ -76,6 +76,8 @@ export function authErrorMessage(code: string | null): string | null {
       return "Sign-in didn't complete. Please try again.";
     case "registration_closed":
       return "MovenRun's first release is full, so new accounts can't be created right now. You can still play as a guest.";
+    case "registration_busy":
+      return "Lots of new players are joining right now, so new accounts are paused for a little while. Please try again later. You can still play as a guest.";
     case "wallet_sign_in_expired":
       return "That wallet sign-in has expired. Choose your wallet again to start a new one.";
     case "wallet_app_unavailable":
