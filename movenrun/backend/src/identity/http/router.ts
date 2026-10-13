@@ -22,6 +22,9 @@ import type { IdentityServices } from "./wiring.js";
 import {
   emailOtpBeginSchema,
   emailOtpCompleteSchema,
+  googleCompleteSchema,
+  walletBeginSchema,
+  walletCompleteSchema,
   linkBeginSchema,
   linkCompleteSchema,
   parseBody,
@@ -31,6 +34,8 @@ import {
 } from "./validation.js";
 import { sanitizeDeviceLabel } from "../domain/deviceLabel.js";
 import { ACCOUNT_DELETION_CONFIRMATION, type AccountDeletionStore } from "../accountDeletion.js";
+import { SUPABASE_PROVIDER, type SupabaseSignInService, type VerifiedSignIn } from "../services/supabaseSignIn.service.js";
+import type { SignupOrLoginResult } from "../services/authOrchestrator.service.js";
 import {
   toPublicIdentity,
   toPublicSession,
@@ -58,6 +63,25 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
 export interface IdentityRouterOptions {
   /** Account erasure. Absent → the delete route fails closed. */
   accountDeletion?: AccountDeletionStore | null;
+  /** Google and wallet sign-in through Supabase Auth. Absent → those routes fail closed. */
+  supabaseSignIn?: SupabaseSignInService | null;
+  /** Email one-time codes. Off unless a delivery provider is configured; off in Play v1. */
+  emailOtpEnabled?: boolean;
+}
+
+/** The session payload every successful sign-in returns. */
+function signInResponse(result: SignupOrLoginResult) {
+  return {
+    user: toPublicUser(result.user),
+    session: {
+      ...toPublicSession(result.session.session),
+      accessToken: result.session.accessToken,
+      accessTokenExpiresAt: result.session.accessTokenExpiresAt.toISOString(),
+      refreshToken: result.session.refreshToken,
+      refreshTokenExpiresAt: result.session.refreshTokenExpiresAt.toISOString(),
+    },
+    embeddedWallet: result.embeddedWallet ? toPublicWallet(result.embeddedWallet) : null,
+  };
 }
 
 export function createIdentityRouter(services: IdentityServices, options: IdentityRouterOptions = {}): Router {
@@ -102,7 +126,61 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
   );
 
   // ---- unauthenticated auth entry ----------------------------------------
+  // Supabase sign-in (Google, wallet) → one MovenRun account per Supabase user.
+  const signInWithSupabase = async (verified: VerifiedSignIn, rawDeviceLabel: string | undefined) => {
+    try {
+      return await services.orchestrator.signupOrLogin({
+        providerIdentity: {
+          provider: SUPABASE_PROVIDER,
+          providerSubject: verified.subject,
+          normalizedEmail: verified.email,
+          emailVerified: verified.email !== null,
+          assuranceLevel: "aal2",
+        },
+        deviceLabel: sanitizeDeviceLabel(rawDeviceLabel),
+        userAgentHash: undefined,
+      });
+    } catch (err) {
+      // Refused at the account cap: the provider user it just created must not
+      // linger, so it is removed (or queued for removal) before answering.
+      if (isIdentityError(err) && err.code === "registration_closed") {
+        await options.supabaseSignIn?.removeProviderUsers([verified.subject]);
+      }
+      throw err;
+    }
+  };
+
   router.post(
+    "/auth/google/complete",
+    handle(async (req, res) => {
+      if (!options.supabaseSignIn) throw new IdentityError("provider_not_configured");
+      const body = parseBody(googleCompleteSchema, req.body);
+      const verified = await options.supabaseSignIn.verifyGoogle(body.accessToken);
+      res.json(signInResponse(await signInWithSupabase(verified, body.deviceLabel)));
+    })
+  );
+
+  router.post(
+    "/auth/wallet/begin",
+    handle(async (req, res) => {
+      if (!options.supabaseSignIn) throw new IdentityError("provider_not_configured");
+      const body = parseBody(walletBeginSchema, req.body);
+      const challenge = await options.supabaseSignIn.beginWallet(body.address);
+      res.json({ message: challenge.message, expiresAt: challenge.expiresAt.toISOString() });
+    })
+  );
+
+  router.post(
+    "/auth/wallet/complete",
+    handle(async (req, res) => {
+      if (!options.supabaseSignIn) throw new IdentityError("provider_not_configured");
+      const body = parseBody(walletCompleteSchema, req.body);
+      const verified = await options.supabaseSignIn.completeWallet(body.message, body.signature);
+      res.json(signInResponse(await signInWithSupabase(verified, body.deviceLabel)));
+    })
+  );
+
+  if (options.emailOtpEnabled) router.post(
     "/auth/email/begin",
     handle(async (req, res) => {
       const body = parseBody(emailOtpBeginSchema, req.body);
@@ -111,7 +189,7 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
     })
   );
 
-  router.post(
+  if (options.emailOtpEnabled) router.post(
     "/auth/email/complete",
     handle(async (req, res) => {
       const body = parseBody(emailOtpCompleteSchema, req.body);
@@ -129,23 +207,13 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
         deviceLabel: sanitizeDeviceLabel(body.deviceLabel),
         userAgentHash: undefined,
       });
-      res.json({
-        user: toPublicUser(result.user),
-        session: {
-          ...toPublicSession(result.session.session),
-          accessToken: result.session.accessToken,
-          accessTokenExpiresAt: result.session.accessTokenExpiresAt.toISOString(),
-          refreshToken: result.session.refreshToken,
-          refreshTokenExpiresAt: result.session.refreshTokenExpiresAt.toISOString(),
-        },
-        embeddedWallet: result.embeddedWallet ? toPublicWallet(result.embeddedWallet) : null,
-      });
+      res.json(signInResponse(result));
     })
   );
 
-  // Google / Base account entry points exist in the contract but ship no wired
-  // provider in this PR → fail closed rather than fake a login.
-  for (const path of ["/auth/google/begin", "/auth/google/complete", "/auth/base/begin", "/auth/base/complete"]) {
+  // Base Account entry points exist in the contract but ship no wired provider
+  // → fail closed rather than fake a login.
+  for (const path of ["/auth/base/begin", "/auth/base/complete"]) {
     router.post(
       path,
       handle(async () => {
@@ -257,8 +325,17 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
       const confirm = (req.body as { confirm?: unknown } | undefined)?.confirm;
       if (confirm !== ACCOUNT_DELETION_CONFIRMATION) throw new IdentityError("invalid_request", "confirmation required");
       if (!options.accountDeletion) throw new IdentityError("provider_not_configured", "account deletion is not available");
-      const erased = await options.accountDeletion.erase(session.userId);
-      res.json({ deleted: true, erased });
+      const { providerSubjects, ...erased } = await options.accountDeletion.erase(session.userId);
+      // The sign-in record at Supabase goes right after the MovenRun data; if the
+      // provider is unreachable it stays queued and is retried until removed.
+      let signInRecord: "removed" | "pending" | "none" = "none";
+      if (providerSubjects.length) {
+        const outcome = options.supabaseSignIn
+          ? await options.supabaseSignIn.removeProviderUsers(providerSubjects)
+          : { removed: [], pending: providerSubjects };
+        signInRecord = outcome.pending.length ? "pending" : "removed";
+      }
+      res.json({ deleted: true, erased, signInRecord });
     })
   );
 

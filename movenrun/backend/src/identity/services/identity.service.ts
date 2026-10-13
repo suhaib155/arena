@@ -16,10 +16,13 @@
 import { newId } from "../crypto/secure.js";
 import { IdentityError } from "../domain/errors.js";
 import type { AssuranceLevel, AuthProviderKind } from "../domain/types.js";
-import { UniqueConstraintError, type IdentityStores } from "../repositories/interfaces.js";
+import { RegistrationClosedError, UniqueConstraintError, type IdentityStores } from "../repositories/interfaces.js";
 import type { AuthIdentityRecord, SessionRecord, UserRecord } from "../repositories/records.js";
 import type { AuditService } from "./audit.service.js";
 import type { SessionService } from "./session.service.js";
+
+/** Shares of the account cap at which an alert is recorded (80 %, 90 %, 95 %). */
+const CAPACITY_ALERTS = [0.8, 0.9, 0.95];
 
 export interface ProviderIdentityInput {
   provider: AuthProviderKind;
@@ -80,7 +83,7 @@ export class IdentityService {
 
     const assurance = input.assuranceLevel ?? this.defaultAssurance(input.provider);
     try {
-      const { user, identity } = await this.stores.createUserWithIdentity({
+      const { user, identity, admittedCount, maxAccounts } = await this.stores.createUserWithIdentity({
         userId: this.idGen(),
         identity: {
           id: this.idGen(),
@@ -93,8 +96,14 @@ export class IdentityService {
       });
       await this.stores.identities.markAuthenticated(identity.id, this.now());
       await this.audit.record("signup", { userId: user.id, subjectId: identity.id, metadata: { provider: input.provider } });
+      if (CAPACITY_ALERTS.some((share) => admittedCount === Math.ceil(maxAccounts * share)) || admittedCount === maxAccounts) {
+        // Counts only: no account, provider or person is named.
+        await this.audit.record("account_capacity_threshold", { metadata: { admitted: admittedCount, maxAccounts } });
+        console.warn(`Account capacity: ${admittedCount} of ${maxAccounts} registered accounts in use`);
+      }
       return { user, identity, created: true };
     } catch (err) {
+      if (err instanceof RegistrationClosedError) throw new IdentityError("registration_closed");
       // Lost the create race — re-resolve to the user that won.
       if (err instanceof UniqueConstraintError) {
         const winner = await this.stores.identities.findActiveByProviderSubject(

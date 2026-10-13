@@ -139,12 +139,11 @@ test("full signup orchestration creates user, session, provisioning request, and
   assert.equal(result.embeddedWallet!.isActive, true);
 });
 
-test("signup orchestration records a provisioning request even when provider is disabled", async () => {
+test("with embedded wallets off, sign-up creates no wallet row at all", async () => {
   const h = createHarness({ embeddedWalletEnabled: false });
   const result = await h.orchestrator.signupOrLogin({
     providerIdentity: { provider: "google", providerSubject: "orch-2" },
   });
-  assert.ok(result.embeddedWallet);
-  assert.equal(result.embeddedWallet!.provisioningState, "requested");
-  assert.equal(result.embeddedWallet!.isActive, false);
+  assert.equal(result.embeddedWallet, null);
+  assert.deepEqual(await h.stores.wallets.listByUser(result.user.id), []);
 });

@@ -62,8 +62,9 @@ export class AuthOrchestrator {
     });
 
     let embeddedWallet: WalletRecord | null = null;
-    if (created) {
-      // Always record the provisioning intent on first signup (idempotent).
+    if (created && this.deps.config.embeddedWalletEnabled) {
+      // Record the provisioning intent on first signup (idempotent). With
+      // embedded wallets off (Play v1) no wallet row is created at all.
       embeddedWallet = await this.deps.provisioning.request(user.id, EMBEDDED_WALLET_SOURCE);
       if (this.deps.config.embeddedWalletEnabled && this.deps.config.provisionSynchronously) {
         // Only runs when a provider is actually wired; otherwise provision()
@@ -76,7 +77,7 @@ export class AuthOrchestrator {
           embeddedWallet = await this.deps.provisioning.status(embeddedWallet.id);
         }
       }
-    } else {
+    } else if (!created) {
       // Returning user: surface their existing embedded wallet if any.
       embeddedWallet = await this.deps.provisioning.getEmbeddedWallet(user.id, EMBEDDED_WALLET_SOURCE);
     }

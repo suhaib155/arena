@@ -6,9 +6,12 @@ import { once } from "node:events";
 import { createServer } from "node:net";
 import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
+import { generateKeyPairSync, sign } from "node:crypto";
+import { Wallet } from "ethers";
 import { resolveApiConfig } from "./config.js";
 
 const databaseUrl = process.env.MOVENRUN_TEST_DATABASE_URL;
+const SUPABASE_URL = "https://movenrun-test.supabase.co";
 
 test("built API, migrations and real session/PostgreSQL flow (delivery transport mocked only)", { skip: !databaseUrl }, async () => {
   const databaseName = `preview_test_${randomUUID().replaceAll("-", "")}`;
@@ -28,7 +31,8 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
       IDENTITY_SESSION_PEPPER: randomBytes(32).toString("hex"),
       IDENTITY_OTP_PEPPER: randomBytes(32).toString("hex"),
       CORS_ORIGINS: "https://preview.example.com",
-      RESEND_API_KEY: "re_test_transport_only", IDENTITY_EMAIL_FROM: "signin@preview.example.com",
+      SUPABASE_URL: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test", SUPABASE_SECRET_KEY: "sb_secret_test",
+      IDENTITY_AUTH_DOMAIN: "movenrun.xyz",
     });
     // Exercise the actual deployment command, including its migration journal.
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -38,7 +42,7 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
         }));
     }
     const migrationRows = await pool.query("select count(*)::int as count from drizzle.__drizzle_migrations");
-    assert.equal(migrationRows.rows[0].count, 7);
+    assert.equal(migrationRows.rows[0].count, 8);
     // A hosted database's automatic REST API must not reach any table: every
     // table has row level security on (and no policies).
     const openTables = await pool.query(
@@ -74,13 +78,37 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     const graph = JSON.parse(await readFile("dist/api-inputs.json", "utf8")) as string[];
     assert.ok(!graph.some(path => /src\/(workers|routes|blockchain)\//.test(path)));
 
-    // The service generates the OTP; only the external delivery transport is
-    // replaced. This is an integration test, not deployed authentication.
-    let deliveredCode = "";
+    // Supabase Auth is the only thing replaced: a stand-in that publishes a
+    // signing key, issues Web3 sessions and accepts admin deletions. Tokens are
+    // real ES256 JWTs that the API verifies exactly as it would Supabase's.
+    const keys = generateKeyPairSync("ec", { namedCurve: "P-256" });
+    const deletedProviderUsers: string[] = [];
+    const walletUsers = new Map<string, string>();
+    const mint = (sub: string, method: string, email: string | null) => {
+      const now = Math.floor(Date.now() / 1000);
+      const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+      const head = enc({ alg: "ES256", kid: "k1", typ: "JWT" });
+      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], is_anonymous: false });
+      return `${head}.${body}.${sign("sha256", Buffer.from(`${head}.${body}`), { key: keys.privateKey, dsaEncoding: "ieee-p1363" }).toString("base64url")}`;
+    };
     globalThis.fetch = async (input, init) => {
-      assert.equal(input, "https://api.resend.com/emails");
-      deliveredCode = JSON.parse(String(init?.body)).text.match(/code is (\d{6})/)[1];
-      return new Response(JSON.stringify({ id: "test-delivery" }), { status: 200 });
+      const url = String(input);
+      if (url === `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`) {
+        return new Response(JSON.stringify({ keys: [{ ...keys.publicKey.export({ format: "jwk" }), kid: "k1", use: "sig", alg: "ES256" }] }), { status: 200 });
+      }
+      if (url === `${SUPABASE_URL}/auth/v1/token?grant_type=web3`) {
+        const { message } = JSON.parse(String(init?.body));
+        const address = String(message).split("\n")[1];
+        if (!walletUsers.has(address)) walletUsers.set(address, randomUUID());
+        return new Response(JSON.stringify({ access_token: mint(walletUsers.get(address)!, "web3", null) }), { status: 200 });
+      }
+      const admin = new RegExp(`^${SUPABASE_URL}/auth/v1/admin/users/([0-9a-f-]{36})$`).exec(url);
+      if (admin && init?.method === "DELETE") {
+        assert.equal((init.headers as Record<string, string>).apikey, "sb_secret_test");
+        deletedProviderUsers.push(admin[1]);
+        return new Response("{}", { status: 200 });
+      }
+      throw new Error(`unexpected outbound request: ${url}`);
     };
     const { createApiApp } = await import("./app.js");
     const { closeDb } = await import("../db/client.js");
@@ -97,15 +125,25 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
       headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    const signIn = async (subject: string, address: string) => {
+      const completed = await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", address) });
+      assert.equal(completed.status, 200);
+      return (await completed.json()).session.accessToken as string;
+    };
     assert.equal((await request("/movement/verify", {})).status, 401);
     assert.equal((await request("/identity/me")).status, 401);
+    // Email codes are not part of this deployment.
+    assert.equal((await request("/identity/auth/email/begin", { email: "runner@example.com" })).status, 404);
     const email = "runner@example.com";
-    assert.equal((await request("/identity/auth/email/begin", { email })).status, 202);
-    const auth = await request("/identity/auth/email/complete", { email, code: deliveredCode });
-    assert.equal(auth.status, 200);
-    const token = (await auth.json()).session.accessToken;
+    const subject = randomUUID();
+    const token = await signIn(subject, email);
     assert.equal((await request("/identity/me", undefined, token)).status, 200);
-    assert.notEqual((await request("/identity/auth/email/complete", { email, code: deliveredCode })).status, 200);
+    // A token not signed by the project's key gets nothing.
+    const forged = mint(subject, "oauth", email).replace(/\.[^.]+$/, ".AAAA");
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: forged })).status, 401);
+    // The same Google user is the same player.
+    const again = await (await request("/identity/me", undefined, await signIn(subject, email))).json();
+    assert.equal(again.user.id, (await (await request("/identity/me", undefined, token)).json()).user.id);
     const start = Date.now() - 180000;
     const movement = {
       sessionId: "preview-runtime-test", startTime: start, endTime: start + 120000,
@@ -121,14 +159,16 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     assert.ok(!("points" in rows.rows[0]));
     // Account deletion: a second, independent account must be untouched when
     // the first is erased, and the erased email can start over from nothing.
-    const signIn = async (address: string) => {
-      assert.equal((await request("/identity/auth/email/begin", { email: address })).status, 202);
-      const completed = await request("/identity/auth/email/complete", { email: address, code: deliveredCode });
-      assert.equal(completed.status, 200);
-      return (await completed.json()).session.accessToken as string;
-    };
-    const otherEmail = "pacer@example.com";
-    const otherToken = await signIn(otherEmail);
+    // The second account signs in with a wallet: message from the API, signed
+    // by a real key, checked by the API and passed to the provider.
+    const wallet = Wallet.createRandom();
+    const walletBegin = await (await request("/identity/auth/wallet/begin", { address: wallet.address })).json();
+    const walletSignature = await wallet.signMessage(walletBegin.message);
+    const walletDone = await request("/identity/auth/wallet/complete", { message: walletBegin.message, signature: walletSignature });
+    assert.equal(walletDone.status, 200);
+    const otherToken = (await walletDone.json()).session.accessToken as string;
+    // Replaying the same signed message is refused by the database's single-use check.
+    assert.equal((await request("/identity/auth/wallet/complete", { message: walletBegin.message, signature: walletSignature })).status, 401);
     const otherMovement = { ...movement, sessionId: "preview-runtime-test-other" };
     assert.equal((await request("/movement/verify", otherMovement, otherToken)).status, 201);
     const me = await (await request("/identity/me", undefined, token)).json();
@@ -163,7 +203,12 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     for (const table of ["auth_identities", "email_otp_challenges"]) {
       const dump = JSON.stringify((await pool.query(`select * from ${table}`)).rows);
       assert.ok(!dump.includes(email), `${table} still holds the deleted email`);
+      assert.ok(!dump.includes(subject), `${table} still holds the deleted provider user`);
     }
+    // The provider's user went too, and nothing is left queued.
+    assert.equal(deletedBody.signInRecord, "removed");
+    assert.deepEqual(deletedProviderUsers, [subject]);
+    assert.equal((await pool.query("select count(*)::int as count from pending_auth_user_deletions")).rows[0].count, 0);
     const deletionEvents = await pool.query("select user_id, subject_id, metadata from security_audit_events where event_type = 'account_deleted'");
     assert.equal(deletionEvents.rowCount, 1);
     assert.deepEqual(deletionEvents.rows[0], { user_id: null, subject_id: null, metadata: null });
@@ -175,19 +220,31 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     const history = await (await request("/movement/verifications", undefined, otherToken)).json();
     assert.deepEqual(history.verifications.map((v: { sessionId: string }) => v.sessionId), [otherMovement.sessionId]);
 
-    // A code requested two days ago by someone who never signed in is swept by the next request.
-    await pool.query(
-      "insert into email_otp_challenges (id, normalized_email, purpose, code_hash, max_attempts, expires_at) values ('stale-challenge', 'never.finished@example.com', 'auth', 'x', 5, now() - interval '2 days')"
-    );
-
-    // The same email can sign up again and starts with a brand new account.
-    const freshToken = await signIn(email);
-    const stale = await pool.query("select count(*)::int as count from email_otp_challenges where normalized_email = 'never.finished@example.com'");
-    assert.equal(stale.rows[0].count, 0);
+    // The same person can sign up again and starts with a brand new account.
+    const freshToken = await signIn(subject, email);
     const fresh = await (await request("/identity/me", undefined, freshToken)).json();
     assert.notEqual(fresh.user.id, userId);
     const freshRows = await pool.query("select count(*)::int as count from movement_verifications where user_id = $1", [fresh.user.id]);
     assert.equal(freshRows.rows[0].count, 0);
+
+    // Account cap, enforced by PostgreSQL: with one place left, eight
+    // simultaneous new players produce exactly one new account.
+    const before = (await pool.query("select count(*)::int as count from users")).rows[0].count as number;
+    await pool.query("update account_capacity set max_accounts = $1", [before + 1]);
+    const rush = await Promise.all(Array.from({ length: 8 }, () =>
+      request("/identity/auth/google/complete", { accessToken: mint(randomUUID(), "oauth", null) })));
+    assert.deepEqual(rush.map(r => r.status).sort(), [200, 403, 403, 403, 403, 403, 403, 403]);
+    assert.equal((await pool.query("select count(*)::int as count from users")).rows[0].count, before + 1);
+    // The seven refused provider users were removed again.
+    assert.equal(deletedProviderUsers.length, 1 + 7);
+    // Existing players still get in when full.
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email) })).status, 200);
+    // The Supabase "before user created" hook reads the same cap.
+    const hookFull = await pool.query("select public.movenrun_before_user_created('{}'::jsonb) as r");
+    assert.equal(hookFull.rows[0].r.error.http_code, 403);
+    await pool.query("update account_capacity set max_accounts = 1000");
+    const hookOpen = await pool.query("select public.movenrun_before_user_created('{}'::jsonb) as r");
+    assert.deepEqual(hookOpen.rows[0].r, {});
 
     await pool.query("alter table auth_identities rename column provider_subject to unavailable_provider_subject");
     assert.equal((await request("/ready")).status, 503);
@@ -200,6 +257,13 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     await pool.end();
     // The name is generated above and only this disposable database is removed.
     if (!/^preview_test_[a-f0-9]{32}$/.test(databaseName)) throw new Error("Unexpected test database name");
+    // pg's pool.end() resolves before its sockets finish closing; wait for the
+    // server to see them gone so the forced drop never kills a closing client.
+    for (let i = 0; i < 100; i++) {
+      const open = await admin.query("select count(*)::int as count from pg_stat_activity where datname = $1", [databaseName]);
+      if (open.rows[0].count === 0) break;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
     await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
     await admin.end();
   }

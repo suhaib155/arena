@@ -44,7 +44,9 @@ export type IdentityErrorCode =
   // Transient provider failure — 503, so clients know a retry is legitimate.
   | "provisioning_failed"
   // Terminal — 409, so clients know NOT to retry (recovery flow instead).
-  | "provisioning_not_retryable";
+  | "provisioning_not_retryable"
+  // Admission — 403: the registered-account cap is reached; existing players are unaffected.
+  | "registration_closed";
 
 /** HTTP status each code maps to. Kept here (not in the router) so the mapping
  *  is one source of truth and testable without spinning up Express. */
@@ -73,6 +75,7 @@ export const ERROR_HTTP_STATUS: Record<IdentityErrorCode, number> = {
   wallet_operation_locked: 409,
   provisioning_failed: 503,
   provisioning_not_retryable: 409,
+  registration_closed: 403,
 };
 
 export class IdentityError extends Error {

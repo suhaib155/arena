@@ -60,11 +60,9 @@ const identityEnvSchema = z.object({
   IDENTITY_GOOGLE_CLIENT_SECRET: z.string().optional(),
   IDENTITY_GOOGLE_REDIRECT_URIS: z.string().optional(), // comma-separated allowlist
 
-  // App-review sign-in. One designated email whose one-time code is a fixed
-  // server secret instead of an emailed code, so a store reviewer can sign in
-  // without access to that inbox. Both or neither; see reviewAccessFrom().
-  IDENTITY_REVIEW_EMAIL: z.string().optional(),
-  IDENTITY_REVIEW_CODE: z.string().optional(),
+  // Email delivery for one-time codes. Unset in Play v1 (sign-in is Google
+  // or wallet through Supabase); only its presence makes the OTP pepper required.
+  RESEND_API_KEY: z.string().optional(),
 });
 
 export interface ResolvedIdentityConfig {
@@ -88,51 +86,11 @@ export interface ResolvedIdentityConfig {
   googleStatus: ProviderStatus;
   google: { clientId: string; clientSecret: string; redirectUris: string[] } | null;
 
-  /** App-review sign-in; null unless fully and safely configured. */
-  reviewAccess: { email: string; code: string } | null;
 }
 
 export type IdentityConfigResult =
   | { ok: true; config: ResolvedIdentityConfig }
   | { ok: false; errors: string[] };
-
-/** Codes a person would guess first: one repeated digit or a straight run. */
-function isGuessableCode(code: string): boolean {
-  if (/^(\d)\1+$/.test(code)) return true;
-  const digits = [...code].map(Number);
-  const step = digits[1] - digits[0];
-  return (step === 1 || step === -1) && digits.every((d, i) => i === 0 || d - digits[i - 1] === step);
-}
-
-/**
- * Resolve the app-review sign-in. It is off unless BOTH the email and the code
- * are present and valid; a half or weak configuration is an error where
- * secrets are required and simply off elsewhere. Nothing about it is ever
- * logged or returned to a client.
- */
-function reviewAccessFrom(
-  rawEmail: string | undefined,
-  rawCode: string | undefined,
-  errors: string[] | null,
-): ResolvedIdentityConfig["reviewAccess"] {
-  const email = rawEmail?.trim().toLowerCase() ?? "";
-  const code = rawCode?.trim() ?? "";
-  if (!email && !code) return null;
-  const problem = !email || !code
-    ? "App-review sign-in needs both IDENTITY_REVIEW_EMAIL and IDENTITY_REVIEW_CODE"
-    : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254
-      ? "IDENTITY_REVIEW_EMAIL is not a valid email address"
-      : !/^\d{6}$/.test(code)
-        ? "IDENTITY_REVIEW_CODE must be exactly six digits"
-        : isGuessableCode(code)
-          ? "IDENTITY_REVIEW_CODE is too easy to guess"
-          : null;
-  if (problem) {
-    errors?.push(problem);
-    return null;
-  }
-  return { email, code };
-}
 
 function parseChainIds(raw: string | undefined): number[] {
   if (!raw) return [];
@@ -163,7 +121,7 @@ export function resolveIdentityConfig(
   const otpPepper = v.IDENTITY_OTP_PEPPER;
   if (opts.requireSecrets) {
     if (!sessionPepper) errors.push("IDENTITY_SESSION_PEPPER is required in production");
-    if (!otpPepper) errors.push("IDENTITY_OTP_PEPPER is required in production");
+    if (!otpPepper && v.RESEND_API_KEY) errors.push("IDENTITY_OTP_PEPPER is required in production when email codes are on");
   }
 
   // Google: all-or-nothing. Partial config is a misconfiguration.
@@ -186,12 +144,6 @@ export function resolveIdentityConfig(
     googleStatus = "enabled";
     google = { clientId: gId!, clientSecret: gSecret!, redirectUris: gRedirects };
   }
-
-  const reviewAccess = reviewAccessFrom(
-    v.IDENTITY_REVIEW_EMAIL,
-    v.IDENTITY_REVIEW_CODE,
-    opts.requireSecrets ? errors : null,
-  );
 
   if (errors.length) return { ok: false, errors };
 
@@ -216,7 +168,6 @@ export function resolveIdentityConfig(
       embeddedWalletEnabled: v.IDENTITY_EMBEDDED_WALLET_ENABLED,
       googleStatus,
       google,
-      reviewAccess,
     },
   };
 }

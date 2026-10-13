@@ -39,6 +39,18 @@ export const emailOtpCompleteSchema = z
  */
 export const PUBLIC_SESSION_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
+export const googleCompleteSchema = z
+  .object({ accessToken: z.string().min(20).max(8192), deviceLabel: z.string().max(200).optional() })
+  .strict();
+export const walletBeginSchema = z.object({ address: z.string().min(40).max(64) }).strict();
+export const walletCompleteSchema = z
+  .object({
+    message: z.string().min(50).max(2000),
+    signature: z.string().min(10).max(200),
+    deviceLabel: z.string().max(200).optional(),
+  })
+  .strict();
+
 export const refreshSchema = z.object({ refreshToken: z.string().min(10).max(4096) }).strict();
 
 export const linkBeginSchema = z

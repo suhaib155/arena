@@ -101,7 +101,6 @@ export function createIdentityServices(
       otpTtlSeconds: config.otpTtlSeconds,
       otpMaxAttempts: config.otpMaxAttempts,
       otpResendCooldownSeconds: config.otpResendCooldownSeconds,
-      reviewAccess: config.reviewAccess,
     },
     delivery: providers.emailDelivery ?? null,
   });

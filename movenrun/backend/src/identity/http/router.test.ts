@@ -34,7 +34,7 @@ const services = createIdentityServices(stores, config, { emailDelivery: deliver
 
 const app = express();
 app.use(express.json());
-app.use("/identity", createIdentityRouter(services));
+app.use("/identity", createIdentityRouter(services, { emailOtpEnabled: true }));
 app.use((_err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   res.status(500).json({ error: { code: "internal" } });
 });
@@ -116,10 +116,17 @@ test("a private-key-shaped value is rejected as prohibited secret input", async 
   assert.equal(res.json.error.code, "invalid_request");
 });
 
-test("google/base entry points fail closed (no provider wired)", async () => {
-  const g = await post("/identity/auth/google/begin", {});
-  assert.equal(g.status, 503);
-  assert.equal(g.json.error.code, "provider_not_configured");
+test("Google, wallet and Base entry points fail closed when no provider is wired", async () => {
+  for (const [path, body] of [
+    ["/identity/auth/google/complete", { accessToken: "x".repeat(40) }],
+    ["/identity/auth/wallet/begin", { address: "0x" + "1".repeat(40) }],
+    ["/identity/auth/wallet/complete", { message: "m".repeat(60), signature: "0x" + "a".repeat(130) }],
+    ["/identity/auth/base/begin", {}],
+  ] as const) {
+    const res = await post(path, body);
+    assert.equal(res.status, 503, path);
+    assert.equal(res.json.error.code, "provider_not_configured");
+  }
 });
 
 test("wallet export begins with step-up and exposes NO secret", async () => {
@@ -246,10 +253,11 @@ test("account deletion erases only the signed-in account, after the exact confir
   const deletionApp = express();
   deletionApp.use(express.json());
   deletionApp.use("/identity", createIdentityRouter(services, {
+    emailOtpEnabled: true,
     accountDeletion: {
       async erase(userId) {
         erased.push(userId);
-        return { users: 1, identities: 1, sessions: 1, otpChallenges: 0, wallets: 0, walletChallenges: 0, auditEvents: 2, movementSessions: 3 };
+        return { users: 1, identities: 1, sessions: 1, otpChallenges: 0, wallets: 0, walletChallenges: 0, auditEvents: 2, movementSessions: 3, providerSubjects: [] };
       },
     },
   }));

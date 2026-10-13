@@ -249,3 +249,40 @@ export const securityAuditEvents = pgTable(
     typeIdx: index("security_audit_events_type_idx").on(t.eventType),
   })
 );
+
+/** One row: how many registered player accounts may exist. Read by the API's
+ *  admission check and by the Supabase "before user created" hook, so the
+ *  cap has a single source. Changing it is an owner decision. */
+export const accountCapacity = pgTable("account_capacity", {
+  id: boolean("id").primaryKey().default(true),
+  maxAccounts: integer("max_accounts").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/** A wallet sign-in message the server issued. The exact message text is kept
+ *  so only that message, signed by that address, before it expires, and only
+ *  once, can complete a sign-in. */
+export const walletSignInChallenges = pgTable(
+  "wallet_sign_in_challenges",
+  {
+    nonce: text("nonce").primaryKey(),
+    address: text("address").notNull(),
+    message: text("message").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+  },
+  (t) => ({
+    expiresIdx: index("wallet_sign_in_challenges_expires_idx").on(t.expiresAt),
+  })
+);
+
+/** Supabase Auth users whose MovenRun account is gone but whose auth record
+ *  still has to be removed at the provider. Retried until the provider
+ *  confirms; holds only the provider's opaque user id. */
+export const pendingAuthUserDeletions = pgTable("pending_auth_user_deletions", {
+  subject: text("subject").primaryKey(),
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at"),
+});

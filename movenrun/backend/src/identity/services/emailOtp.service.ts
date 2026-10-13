@@ -31,13 +31,6 @@ export interface EmailOtpConfig {
   otpTtlSeconds: number;
   otpMaxAttempts: number;
   otpResendCooldownSeconds: number;
-  /**
-   * App-review sign-in: for this one email the code is this fixed server
-   * secret and nothing is emailed. Every other rule still applies — the
-   * challenge is created, hashed, expires, is single-use and attempt-capped,
-   * and begin() answers exactly as it does for anyone else.
-   */
-  reviewAccess?: { email: string; code: string } | null;
 }
 
 interface Deps {
@@ -98,9 +91,7 @@ export class EmailOtpService {
       }
     }
 
-    const review = this.config.reviewAccess;
-    const isReview = review != null && review.email === email;
-    const code = isReview ? review.code : this.otpGen();
+    const code = this.otpGen();
     const challenge = await this.otpChallenges.create({
       id: this.idGen(),
       normalizedEmail: email,
@@ -113,7 +104,7 @@ export class EmailOtpService {
 
     // Deliver out-of-band. The code lives only in this call frame and the
     // provider; it is never persisted, logged, or returned.
-    if (!isReview) await this.delivery.sendOtp({ email, code, ttlSeconds: this.config.otpTtlSeconds });
+    await this.delivery.sendOtp({ email, code, ttlSeconds: this.config.otpTtlSeconds });
     return { challengeId: challenge.id };
   }
 

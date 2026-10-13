@@ -16,6 +16,7 @@
 import { and, desc, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "../../../db/client.js";
 import {
+  accountCapacity,
   authIdentities,
   authSessions,
   emailOtpChallenges,
@@ -25,6 +26,7 @@ import {
   wallets,
 } from "../../../db/identity.schema.js";
 import {
+  RegistrationClosedError,
   UniqueConstraintError,
   type AuditEventRepository,
   type AuthIdentityRepository,
@@ -557,6 +559,15 @@ export function createDrizzleStores(db: Db): IdentityStores {
     },
     async createUserWithIdentity({ userId, identity }) {
       return db.transaction(async (tx) => {
+        // Admission. The transaction-scoped advisory lock serialises every
+        // account creation until commit, so the count below cannot be raced:
+        // two sign-ups at 999 accounts produce exactly one 1,000th account.
+        // A missing capacity row admits nobody (fail closed).
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext('movenrun_account_admission'))`);
+        const [capacity] = await tx.select({ maxAccounts: accountCapacity.maxAccounts }).from(accountCapacity).limit(1);
+        const maxAccounts = capacity?.maxAccounts ?? 0;
+        const [{ admitted }] = await tx.select({ admitted: sql<number>`count(*)::int` }).from(users);
+        if (admitted >= maxAccounts) throw new RegistrationClosedError();
         const [userRow] = await tx.insert(users).values({ id: userId, status: "active" }).returning();
         try {
           const [idRow] = await tx
@@ -571,7 +582,7 @@ export function createDrizzleStores(db: Db): IdentityStores {
               assuranceLevel: identity.assuranceLevel ?? "aal1",
             })
             .returning();
-          return { user: toUser(userRow), identity: toIdentity(idRow) };
+          return { user: toUser(userRow), identity: toIdentity(idRow), admittedCount: admitted + 1, maxAccounts };
         } catch (err) {
           rethrowUnique(err); // rolls back the whole transaction
         }

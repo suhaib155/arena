@@ -13,6 +13,7 @@
  * "atomic consume" / "set sole active" invariants require.
  */
 import {
+  RegistrationClosedError,
   UniqueConstraintError,
   type AuditEventRepository,
   type AuthIdentityRepository,
@@ -80,6 +81,10 @@ export class InMemoryUserRepository implements UserRepository {
     r.disabledAt = this.now();
     r.updatedAt = this.now();
     return clone(r);
+  }
+  /** Number of accounts, for the admission check. */
+  _count(): number {
+    return this.rows.size;
   }
   /** Rollback-only removal for the atomic createUserWithIdentity path. Users
    *  are never deleted through the public API — this undoes an uncommitted
@@ -516,7 +521,11 @@ export class InMemoryAuditEventRepository implements AuditEventRepository {
  *  optional clock keeps every persisted timestamp consistent with the caller's
  *  clock (production Postgres stamps DB-side, which is likewise consistent with
  *  the service clock). */
-export function createInMemoryStores(now: () => Date = () => new Date()): IdentityStores {
+export function createInMemoryStores(
+  now: () => Date = () => new Date(),
+  opts: { maxAccounts?: number } = {},
+): IdentityStores {
+  const maxAccounts = opts.maxAccounts ?? 1000;
   const users = new InMemoryUserRepository(now);
   const identities = new InMemoryAuthIdentityRepository(now);
   return {
@@ -537,10 +546,13 @@ export function createInMemoryStores(now: () => Date = () => new Date()): Identi
       // existing user. In single-threaded JS the identity uniqueness check and
       // insert inside identities.create() run without an interleaving await, so
       // two concurrent callers cannot both succeed.
+      // Admission: the count and the insert below run in one synchronous step
+      // (no await in between), so concurrent sign-ups cannot overshoot.
+      if (users._count() >= maxAccounts) throw new RegistrationClosedError();
       const user = await users.create({ id: userId });
       try {
         const created = await identities.create({ ...identity, userId });
-        return { user, identity: created };
+        return { user, identity: created, admittedCount: users._count(), maxAccounts };
       } catch (err) {
         if (err instanceof UniqueConstraintError) users._removeForRollback(userId);
         throw err;

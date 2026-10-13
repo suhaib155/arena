@@ -15,7 +15,11 @@
  *  - wallet rows and wallet-link challenges (none exist in Play v1, but any
  *    left by an earlier preview build go too);
  *  - the account's security audit history;
- *  - the user row itself.
+ *  - the user row itself;
+ *  - the Supabase Auth user behind "Continue with Google" / "Continue with
+ *    Wallet": queued in the same transaction and removed at the provider right
+ *    after commit, then retried until the provider confirms. The two systems
+ *    cannot share one transaction, so the queue is what makes this reliable.
  *
  * What is kept: one `account_deleted` audit event with no user id, no email
  * and no metadata, so operators can count deletions without being able to say
@@ -32,6 +36,7 @@ import {
   authIdentities,
   authSessions,
   emailOtpChallenges,
+  pendingAuthUserDeletions,
   securityAuditEvents,
   users,
   walletLinkChallenges,
@@ -51,13 +56,18 @@ export interface ErasureCounts {
   movementSessions: number;
 }
 
+export interface ErasureResult extends ErasureCounts {
+  /** Supabase user ids queued for removal at the provider. Never returned to clients. */
+  providerSubjects: string[];
+}
+
 export interface AccountDeletionStore {
   /**
    * Erase everything held for `userId`. Idempotent: erasing an account that is
    * already gone succeeds with zero counts, so a retried request after a lost
    * response never reports a failure the person cannot act on.
    */
-  erase(userId: string): Promise<ErasureCounts>;
+  erase(userId: string): Promise<ErasureResult>;
 }
 
 /** The exact confirmation the client must send; guards against a stray tap. */
@@ -84,6 +94,11 @@ export function createDrizzleAccountDeletionStore(db: Db): AccountDeletionStore 
               .filter((value): value is string => typeof value === "string" && value.length > 0),
           ),
         ];
+
+        const providerSubjects = [...new Set(emailRows.filter((row) => row.provider === "supabase").map((row) => row.subject))];
+        if (providerSubjects.length) {
+          await tx.insert(pendingAuthUserDeletions).values(providerSubjects.map((subject) => ({ subject }))).onConflictDoNothing();
+        }
 
         const movementSessions = await tx.delete(movementVerifications).where(eq(movementVerifications.userId, userId)).returning({ id: movementVerifications.id });
         const sessions = await tx.delete(authSessions).where(eq(authSessions.userId, userId)).returning({ id: authSessions.id });
@@ -117,6 +132,7 @@ export function createDrizzleAccountDeletionStore(db: Db): AccountDeletionStore 
           walletChallenges: walletChallenges.length,
           auditEvents: auditEvents.length,
           movementSessions: movementSessions.length,
+          providerSubjects,
         };
       });
     },

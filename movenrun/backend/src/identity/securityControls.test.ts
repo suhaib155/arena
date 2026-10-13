@@ -104,7 +104,8 @@ test("sensitive transitions write immutable audit events, with redacted metadata
   const types = events.map((e) => e.eventType);
   assert.ok(types.includes("signup"));
   assert.ok(types.includes("session_issued"));
-  assert.ok(types.includes("wallet_provisioning_requested"));
+  // Play v1 runs with embedded wallets off, so sign-up creates no wallet row.
+  assert.ok(!types.includes("wallet_provisioning_requested"));
   // Metadata never contains raw secrets even if a caller passed one.
   await h.audit.record("login", { userId: auth.user.id, metadata: { accessToken: "leak-me" } });
   const after = await h.audit.listByUser(auth.user.id);

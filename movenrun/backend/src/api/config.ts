@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { resolveIdentityConfig } from "../identity/config.js";
+import { supabaseAuthConfigFrom } from "../identity/providers/supabaseAuth.js";
 import { getAllowedOrigins } from "../middleware/security.js";
 
 const schema = z.object({
@@ -12,6 +13,9 @@ const schema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1000).default(300),
   RATE_LIMIT_WRITE_MAX: z.coerce.number().int().min(1).max(100).default(20),
+  // The bare domain written into wallet sign-in messages (e.g. movenrun.xyz).
+  // https://<domain>/sign-in/ must be on the Supabase redirect allow list.
+  IDENTITY_AUTH_DOMAIN: z.string().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/),
 });
 
 export function resolveApiConfig(env: NodeJS.ProcessEnv = process.env) {
@@ -23,10 +27,13 @@ export function resolveApiConfig(env: NodeJS.ProcessEnv = process.env) {
   const resolved = resolveIdentityConfig(env, { requireSecrets: true });
   if (!resolved.ok) throw new Error("Invalid identity environment");
   const identity = resolved.config;
-  if (identity.sessionPepper.length < 32 || identity.otpPepper.length < 32 ||
-      identity.sessionPepper === identity.otpPepper) {
+  if (identity.sessionPepper.length < 32 ||
+      (env.RESEND_API_KEY && (identity.otpPepper.length < 32 || identity.sessionPepper === identity.otpPepper))) {
     throw new Error("V3 API requires distinct identity peppers of at least 32 characters");
   }
+  // Sign-in is Supabase Auth (Google and wallet); the API does not start without it.
+  const supabase = supabaseAuthConfigFrom(env);
+  if (!supabase) throw new Error("V3 API requires SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY");
   for (const origin of getAllowedOrigins({ ...config, NODE_ENV: "production" })) {
     let url: URL;
     try { url = new URL(origin); } catch { throw new Error("Invalid CORS origin"); }
@@ -34,7 +41,7 @@ export function resolveApiConfig(env: NodeJS.ProcessEnv = process.env) {
       throw new Error("V3 API CORS origins must be explicit HTTPS origins");
     }
   }
-  return config;
+  return { ...config, supabase };
 }
 
 export type ApiConfig = ReturnType<typeof resolveApiConfig>;

@@ -18,11 +18,14 @@ export type UserStatus = "active" | "disabled";
 /** Authentication providers MovenRun understands. These identify a *login
  *  method*, never a separate MovenRun profile — the canonical identity is
  *  always `users.id`. */
-export type AuthProviderKind = "email_otp" | "google" | "base_account";
+export type AuthProviderKind = "email_otp" | "google" | "base_account" | "supabase";
 export const AUTH_PROVIDER_KINDS: readonly AuthProviderKind[] = [
   "email_otp",
   "google",
   "base_account",
+  // Supabase Auth user id: the principal behind "Continue with Google" and
+  // "Continue with Wallet" in Play v1.
+  "supabase",
 ] as const;
 
 /** Verification state of a linked auth identity. */
@@ -130,7 +133,8 @@ export type AuditEventType =
   | "config_invalid"
   | "key_rotation_activated"
   // Privacy lifecycle. Recorded without a user id (see accountDeletion.ts).
-  | "account_deleted";
+  | "account_deleted"
+  | "account_capacity_threshold";
 
 export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   "signup",
@@ -164,4 +168,5 @@ export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   "config_invalid",
   "key_rotation_activated",
   "account_deleted",
+  "account_capacity_threshold",
 ] as const;

@@ -39,6 +39,14 @@ export type UniqueConstraint =
   | "auth_sessions_refresh_hash_unique"
   | "wallet_link_challenges_nonce_unique";
 
+/** A new account was refused because the registered-account cap is reached. */
+export class RegistrationClosedError extends Error {
+  constructor() {
+    super("registration closed: account capacity reached");
+    this.name = "RegistrationClosedError";
+  }
+}
+
 export class UniqueConstraintError extends Error {
   readonly constraint: UniqueConstraint;
   constructor(constraint: UniqueConstraint) {
@@ -275,5 +283,5 @@ export interface IdentityStores {
     /** The identity's userId is `userId` above by definition, so it is omitted
      *  here rather than passed as a redundant (and ignorable) field. */
     identity: Omit<CreateAuthIdentityInput, "userId">;
-  }): Promise<{ user: UserRecord; identity: AuthIdentityRecord }>;
+  }): Promise<{ user: UserRecord; identity: AuthIdentityRecord; admittedCount: number; maxAccounts: number }>;
 }
