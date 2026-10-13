@@ -65,7 +65,7 @@ policy), so no provider was enabled and no live migration was applied.
 
 Fresh checkout of 991ac6a: every suite re-run and matches the ledger (E-26).
 Nobody had pushed to the release branch since. New work is on
-`claude/project-thread-lj1gny`, a descendant of the release branch, proposed
+a working branch (now `fix/play-auth-security-gate`), a descendant of the release branch, proposed
 to it as a draft pull request (no force-push, nothing merged):
 
 - The hosted API can no longer be switched into sending email codes by an
