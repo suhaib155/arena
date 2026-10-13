@@ -53,6 +53,9 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-29 | B | Backend after the security fixes: `yarn test` on PostgreSQL 16 (new: orphan sweep keeps recent/mapped/waiting users and pages; hourly quota over HTTP refuses the 3rd of 2, removes its provider user, lets existing players in, reopens after an hour; provider 403/429 mapping; non-Google OAuth refused). `yarn test:api`: migrations 0000–0009 on real PostgreSQL, RLS on every table including `auth_user_creations`, hook records one row per user and answers 429 at the quota, API answers 429 `registration_busy` and removes the provider user, existing player still 200 | **399/399**, API **10/10**, 0 skipped | 688d8b3 |
 | E-30 | M | App: `npx tsc --noEmit`, `yarn test`, `npx expo export -p android` (new: `registration_busy` copy; both sign-in methods on and the wallet switch wired into the button and the return route) | **910/910**, Hermes bundle 4.4 MB | 3737655 |
 | E-31 | P | Website in Chromium: `evidence/web-wallet-discovery-check.mjs` (EIP-6963 chooser, only the picked wallet asked, names rendered as text, Cancel asks nothing, `window.ethereum` only as fallback, API refusal shows its own message) **8/8**; `web-sign-in-deletion-e2e.mjs` re-run **23/23**; `web-cold-host-check.mjs` **3/3**; shared **156/156**; history-wide secret scan: no Supabase secret key, `service_role` token, private key or Resend key in any commit | Pass | e79a1e2 |
+| E-32 | B | Backend round 3 at 41b78a8: `yarn typecheck`, `yarn build`, `yarn test` on PostgreSQL 16 (new: `hookContract.test.ts` applies all 10 migrations to a scratch database with the Supabase roles and proves privileges, return shapes, 20-call concurrency against a quota of 5, cap, deletion, quota 0, fail-closed; `migrationChecksums.test.ts`; sweep re-read, 100-deletion cap and single run; `getUser`; `crit`/`nbf`/audience arrays; `no-store` on every identity response), `yarn test:api`. Also `drizzle-kit migrate` on a fresh database: the 10 hashes in `drizzle.__drizzle_migrations` equal `CHECKSUMS.sha256`, 19/19 tables with RLS | **406/406**, 0 skipped; API **10/10**; hashes identical | cae5f88, 41b78a8 |
+| E-33 | B/P | `node scripts/check-secrets.mjs` on tracked files, `--history` (every commit, all branches) and `website/`; then on a scratch folder with planted fakes (Supabase secret key, private key block, `service_role` JWT, Hardhat test key, `sb_secret_test`) | Clean on the repository, history and website; planted fakes: 3 caught, the two public test values ignored | cae5f88 |
+| E-34 | P | Website re-run against the round 3 API: `web-sign-in-deletion-e2e.mjs` (Chromium, built API, migrated PostgreSQL), `web-wallet-discovery-check.mjs`, `web-cold-host-check.mjs`; shared `yarn test` | **23/23**, **8/8**, **3/3**; shared **156/156** | 41b78a8 |
 
 ## Evidence level by capability
 
@@ -70,11 +73,11 @@ has been run for sign-in yet.
 | 1,000-account cap and hook | Locally tested (E-21) | X-06, X-07 |
 | Account deletion, both methods, provider user removal | Locally tested (E-21, E-24) | Hosted: X-06; handset: X-10 |
 | Sign-in when the free API is asleep (wake-up, 90 s limit, retry copy) | Locally tested (E-28) | Hosted: X-06; handset: X-10 step 15g |
-| Hourly new-account quota (hook and API) and orphan sweep | Locally tested (E-29) | Hosted: X-06, X-07 (Supabase must call the hook) |
+| Hourly new-account quota (hook and API) and orphan sweep | Locally tested (E-29, E-32: hook contract on PostgreSQL, sweep race closed) | Hosted: X-06, X-07, X-07b (Supabase must call the hook) |
 | Website wallet choice (EIP-6963) | Locally tested (E-31) | X-21, then a desktop browser with two wallet extensions |
 | Email codes unreachable on the hosted API | Locally tested (E-27) | Hosted: X-06 (check `/identity/auth/email/begin` answers 404) |
 | Verified movement | Locally tested (E-13, runtime test) | Hosted: X-06; handset: X-10 |
-| Play internal test install | Blocked | X-01, X-09, X-11, X-12, X-14 |
+| Play internal test install | Blocked | X-01 (account NOT CREATED), X-09, X-11, X-12, X-14 |
 
 ## Not yet run (blocked externally)
 

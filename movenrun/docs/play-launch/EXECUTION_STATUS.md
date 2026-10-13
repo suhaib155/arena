@@ -1,7 +1,18 @@
 # Execution status
 
-**Updated:** 2026-10-13 (security review) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `fix/play-auth-security-gate`, a descendant of it · **Target:** 2 Nov 2026
-**Security gate:** PASS — SECURITY REVIEWED, READY FOR LIVE AUTH DEVICE GATE (`AUTH_SECURITY_REVIEW.md`) · **Release gate:** STOP — AUTH/RELEASE BLOCKER (nothing hosted or on a phone yet)
+**Updated:** 2026-10-13 (round 3, post-security, frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` (descends from `fix/play-auth-security-gate`, nothing discarded) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
+**Security gate:** SECURITY REVIEWED LOCALLY (`AUTH_SECURITY_REVIEW.md`, rounds 1–3) · **Release gate:** STOP — live Supabase, Android sign-in and the Play account are all still pending
+**Frontend:** on owner hold (D-25). **Play developer account:** NOT CREATED (X-01). **Separate accounts:** accepted 2026-10-13 (X-20).
+
+## Owner dashboard
+
+| | Items |
+|---|---|
+| **DONE** | Google + wallet sign-in code, cap, quota, deletion, sweep (locally tested); security review rounds 1–3; hook contract on PostgreSQL; migration checksums; secret scan in CI; operator guide; Play registration checklist; device gate plan; X-20 accepted |
+| **BLOCKED — OWNER** | X-01a/b/c Play account (type, US$25, verification, closed test if Personal); X-06 → X-07 → X-05 → X-21 live setup; X-08, X-04 build; X-10 phone by 24 Oct; X-22 mailbox |
+| **BLOCKED — EXTERNAL** | Google's account verification and (Personal) production-access review; whether wallet browsers return to the app (phone only); 64-bit and 16 KB confirmation in the App bundle explorer |
+| **NEEDS APPROVAL** | Applying migrations (X-06), enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
+| **OPEN** | F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
 
 Start here when resuming. Then read `TASK_REGISTER.md` and `EXTERNAL_ACTIONS.md`.
 
@@ -24,20 +35,21 @@ wallet sign-in work against the hosted API with the real Supabase project.
 | B | Backend hosted | Runbook and `render.yaml` (Free) DONE. Provisioning BLOCKED_OWNER (X-06) |
 | P | Privacy policy and deletion | Pages DONE for Google and wallet; contact filled. Deployment at movenrun.xyz BLOCKED_OWNER (X-21) |
 | G | Store graphics and listing | DONE except screenshots (X-13) |
-| R | Signed AAB, Play internal test | Workflow DONE. BLOCKED_OWNER (X-01, X-09, X-11, X-12, X-14) |
+| R | Signed AAB, Play internal test | Workflow DONE. BLOCKED_OWNER (X-01 account NOT CREATED, X-09, X-11, X-12, X-14) |
 | L | Production and 48-hour monitoring | BLOCKED_OWNER (X-15, X-16, X-18); plan updated with capacity and sign-in checks |
 
 ## 20-day calendar
 
 | Days | Work | Status |
 |---|---|---|
-| 13–15 Oct | Decisions and data model | DONE |
-| 16–18 Oct | Providers, JWT, admission | Code DONE; provider setup BLOCKED_OWNER |
-| 19–21 Oct | Native flows and deletion | Code DONE; hosted run BLOCKED_OWNER |
-| 22–24 Oct | Device gate | BLOCKED_OWNER |
+| 13–15 Oct | Decisions, data model, security review | DONE |
+| 16–18 Oct | Live setup X-06 → X-07 → X-05 (with X-07b) → X-21 | Code and operator guide DONE; the live steps wait on owner approval |
+| 19–21 Oct | Hosted checks, X-08, X-04 APK | BLOCKED_OWNER |
+| 22–24 Oct | Device gate (`ANDROID_DEVICE_GATE_PLAN.md`) | BLOCKED_OWNER; wallet decision on 24 Oct (D-19) |
 | 25–27 Oct | Adversarial tests | Local set DONE; hosted repeat BLOCKED_OWNER |
-| 28–29 Oct | PR and AAB | PR text DONE; merge and AAB BLOCKED_OWNER |
-| 30 Oct–2 Nov | Play internal testing, GO/NO-GO | BLOCKED_OWNER |
+| 28–29 Oct | PR and production AAB | PR text DONE; merge and AAB BLOCKED_OWNER |
+| 30 Oct–2 Nov | Pre-listing complete | Declarations, listing, registration checklist DONE; Play Console waits on X-01b |
+| After 2 Nov | Play account, internal test, closed test if Personal (14 days), production access | Not scheduled; no date promised |
 
 ## Checkpoint 2026-10-13: auth change
 
@@ -81,11 +93,28 @@ Owner asked for a security-first pass. Done on the working branch:
 - Wallet sign-in can now be switched off in one place if it fails the phone
   gate; it stays on.
 
+## Checkpoint 2026-10-13 (round 3: post-security, frontend on hold)
+
+Owner facts recorded: no Play developer account yet (X-01 split into a–c,
+D-24), mobile frontend on hold (D-25), uniquely named reports (D-26), and
+separate Google and wallet accounts accepted (X-20). Done on
+`chore/post-security-launch-prep`, backend and docs only:
+- Orphan sweep re-reads each user before deleting, caps deletions and runs
+  once at a time (F-14); token check refuses `crit` and future `nbf` (F-13);
+  identity responses are `no-store` (F-15).
+- Hook contract proven on PostgreSQL with the Supabase roles; migrations
+  pinned by checksum (D-27); secret scan in backend CI.
+- `LIVE_SETUP_OPERATOR_GUIDE.md`, `PLAY_REGISTRATION_CHECKLIST.md`,
+  `ANDROID_DEVICE_GATE_PLAN.md`; F-06 App Link design for later (X-23).
+- Tests: backend 406/406, API 10/10, shared 156/156, mobile 910/910
+  (unchanged), web 23/23, 8/8, 3/3 (E-32–E-34).
+- Report: `reports/INDEX.md`.
+
 ## Open owner decisions
 
-- X-20: accept that Google and wallet create separate accounts in v1 (D-17).
-- X-01: Play account type and creation date (closed-test requirement may make
-  production by 2 Nov impossible regardless of engineering).
+- X-01a: Play account type, chosen truthfully (Personal unless MovenRun is a
+  registered entity with a D-U-N-S number).
+- Approvals for the live sequence X-06 → X-07 → X-05 → X-21.
 
 ## Safety record
 

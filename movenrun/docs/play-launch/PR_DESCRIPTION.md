@@ -38,17 +38,20 @@ behind `mobile/src/lib/releaseScope.ts`, not deleted.
   `POST /identity/account/delete`, `GET /movement/verifications`, row level
   security on every table, email codes never wired into the hosted API, reviewer
   code removed, an hourly new-account quota in the Supabase hook and the API
-  (migration 0009), and a sweep of unused sign-in users.
+  (migration 0009), and a sweep of unused sign-in users that re-reads each
+  user before deleting and caps each run. Identity responses are never cached;
+  token checks refuse critical headers and future `nbf`.
 - Website: privacy policy and support page for Google and wallet sign-in,
   account deletion with Google or wallet, the `/sign-in/` page for the app, and a
   check that fails while deployment values are missing; EIP-6963 wallet choice
   and anti-framing headers. Security review in `docs/play-launch/AUTH_SECURITY_REVIEW.md`.
 - Hosting: `render.yaml` for a Render Free service with the Supabase Free database.
 - CI: manual `EAS Production AAB` workflow behind the `play-release` environment;
-  Hermes export in mobile checks.
+  Hermes export in mobile checks; a secret scan and a migration checksum lock
+  in backend checks; the Supabase hook's contract tested on PostgreSQL.
 - Launch ledger in `movenrun/docs/play-launch/`.
 
-**Tests:** mobile 910/910, backend 399/399 on PostgreSQL 16 (0 skipped), backend
+**Tests:** mobile 910/910, backend 406/406 on PostgreSQL 16 (0 skipped), backend
 API 10/10, shared 156/156, website sign-in and deletion in Chromium 23/23;
 typechecks clean; Android Hermes bundle builds. Supabase Auth was replaced by a
 local stand-in in these tests. Hosted and phone testing have not been done yet
@@ -56,4 +59,5 @@ local stand-in in these tests. Hosted and phone testing have not been done yet
 
 **Not in this change:** Supabase provider settings, hosting, secrets, Play
 Console setup and phone tests; see `docs/play-launch/EXTERNAL_ACTIONS.md`.
-Google and wallet sign-ins are separate accounts in v1 (no linking).
+Google and wallet sign-ins are separate accounts in v1 (no linking), as
+accepted by the owner.

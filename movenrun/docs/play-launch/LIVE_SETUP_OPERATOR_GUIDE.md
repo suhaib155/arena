@@ -1,0 +1,229 @@
+# Live setup operator guide (X-06 → X-07 → X-05 → X-21 → X-08 / X-04)
+
+**For:** the owner, at the dashboards. **Nothing here has been run.** Each gate
+changes a live service and needs your explicit go. Do them in this order and
+stop at the first failed check. Step-by-step dashboard detail is in
+`HOSTING_SUPABASE_FREE.md`; this guide adds what to check before, the proof
+that each gate worked, and what to do if it did not.
+
+Rules for every gate:
+- Supabase project **`movenrun`, ref `tavxmwuwkeynbnzfwove`** only. Never the other project.
+- Free plans only. If a dashboard asks for a card or an upgrade, stop.
+- Secrets go into the dashboard field named, never into chat, a file or the repository.
+- Paste SQL into Supabase → SQL editor. Lines marked *read only* change nothing.
+
+## Migrations
+
+Applied by the API's start command at X-06 (`drizzle-kit migrate`). drizzle
+runs every pending migration inside **one transaction**: if any statement
+fails, none of them is applied. It records each file's SHA-256 in
+`drizzle.__drizzle_migrations`, the same value pinned in
+`backend/drizzle/CHECKSUMS.sha256` (checked locally: a fresh database's
+recorded hashes equal the pinned list, E-32).
+
+| File | SHA-256 (first 12) | What it does | Destructive? |
+|---|---|---|---|
+| 0000_loose_chat | `54edf115d912` | Legacy territory tables (`zones`, `routes`, `battles`, …), unused by v1 | No (create only) |
+| 0001_identity_wallet_foundation | `3a1460b114b6` | `users`, `auth_identities`, `auth_sessions`, audit events, legacy email/wallet-link tables | No |
+| 0002_provider_events | `e65dcb41259f` | `provider_events` | No |
+| 0003_movement_verifications | `94c77a330e25` | `movement_verifications` | No |
+| 0004_session_provenance | `f708e76e79fa` | Five nullable columns on `movement_verifications` | No |
+| 0005_seal_summary | `daaee047a3ac` | Three nullable columns on `movement_verifications` | No |
+| 0006_row_level_security | `d35e1a5c6441` | Row level security on every table, no policies | No |
+| 0007_supabase_auth_admission | `f2ff43315efb` | `account_capacity` (1,000), wallet challenges, pending deletions, the hook function, grant to `supabase_auth_admin` | No |
+| 0008_wallet_sign_in_handoff | `4df1233eb9fe` | `wallet_sign_in_handoffs` | No |
+| 0009_new_account_quota | `02c0b1648cab` | `max_new_per_hour` (50), `auth_user_creations`, index on `users.created_at`, the hook with the quota | No |
+
+None of them drops, deletes, truncates or touches the `auth` schema. Full
+hashes: `backend/drizzle/CHECKSUMS.sha256`.
+
+**Rollback and rescue.**
+- *The deploy fails while migrating:* the transaction rolls back and the API
+  does not start. Read the Render log, fix, redeploy. Nothing to undo.
+- *Before any player exists* (the state at X-06): to remove MovenRun from
+  the database entirely, run the drop script below. It is your decision,
+  never automatic, and it leaves Supabase Auth alone.
+- *After players exist:* never drop. Take an export first (next section),
+  then fix forward with a **new** migration. Editing a committed migration
+  is blocked by `migrationChecksums.test.ts` (D-27).
+
+Drop script, before players only (APPROVAL):
+
+```sql
+-- Detach the hook first: Authentication → Hooks → Before User Created → disable.
+begin;
+drop function if exists public.movenrun_before_user_created(jsonb);
+drop table if exists auth_user_creations, wallet_sign_in_handoffs, pending_auth_user_deletions,
+  wallet_sign_in_challenges, account_capacity, movement_verifications, provider_events,
+  security_audit_events, wallet_link_challenges, wallets, email_otp_challenges,
+  auth_sessions, auth_identities, users, zones, routes, battles, hex_activities,
+  user_route_hexes cascade;
+drop schema if exists drizzle cascade;
+commit;
+```
+
+## Backup and export (Free plan has no automatic backups)
+
+Run from your own computer with PostgreSQL 16 client tools, over the
+**session pooler** with verified TLS (`prod-ca-2021.crt` from §1). The
+password is typed at the prompt, never put in the command.
+
+```bash
+export PGSSLMODE=verify-full PGSSLROOTCERT=./prod-ca-2021.crt
+pg_dump "host=aws-0-us-east-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.tavxmwuwkeynbnzfwove" \
+  --schema=public --schema=drizzle --no-owner --no-privileges --format=custom \
+  --file="movenrun-$(date +%F).dump"
+pg_restore --list "movenrun-$(date +%F).dump" | head   # proves the file is readable
+```
+
+- Before any later destructive change, and weekly once players exist.
+- The file holds account ids, Google emails and wallet addresses: keep it on
+  an encrypted disk, never in the repository or a shared folder, and delete
+  old copies. An erased account stays erased: do not restore a dump over live
+  data without first removing rows for accounts deleted since the dump.
+- Restore (rescue only, APPROVAL): `pg_restore --clean --if-exists --no-owner -d "<same connection>" movenrun-YYYY-MM-DD.dump`.
+
+## Gate X-06: database and API (APPROVAL: applying migrations)
+
+**Before.** Read only:
+
+```sql
+select count(*) from pg_tables where schemaname = 'public';      -- expect 0 (no MovenRun tables yet)
+select to_regprocedure('public.movenrun_before_user_created(jsonb)');  -- expect null
+```
+
+If either is not empty, stop: someone has already used this project.
+
+**Do.** `HOSTING_SUPABASE_FREE.md` §1 (TLS, Data API off, session pooler,
+password) and §4 (Render Free from `render.yaml`, environment set in Render).
+
+**Proof.**
+
+```bash
+curl -s https://<service>.onrender.com/health   # {"status":"ok"}
+curl -s https://<service>.onrender.com/ready    # {"status":"ready","database":"ready","signIn":"supabase"}
+```
+
+```sql
+-- read only: every migration applied, with the pinned content
+select hash from drizzle.__drizzle_migrations order by created_at;
+-- compare with: cut -c1-64 backend/drizzle/CHECKSUMS.sha256  (10 lines, identical)
+
+-- read only: row level security on every MovenRun table
+select relname, relrowsecurity from pg_class
+ where relnamespace = 'public'::regnamespace and relkind = 'r' order by 1;  -- all true (19 tables)
+
+-- read only: no policy opens any table
+select count(*) from pg_policies where schemaname = 'public';               -- 0
+
+-- read only: the API's connection uses TLS
+select ssl, version from pg_stat_ssl where pid = pg_backend_pid();         -- t, TLSv1.3 (or 1.2)
+```
+
+**Data API off.** From any computer, with the publishable key:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  "https://tavxmwuwkeynbnzfwove.supabase.co/rest/v1/users?select=id" \
+  -H "apikey: <publishable key>"
+```
+
+Any answer except `200` is acceptable; `200` with rows is a stop (turn the
+Data API off in Project Settings → Data API). Even with it on, RLS with no
+policies returns no rows.
+
+**If it fails:** `/ready` 503 means the API cannot reach the database or a
+table is missing: read the Render log (it prints no secrets). Fix and redeploy;
+the migrations do not run twice.
+
+## Gate X-07: attach the hook
+
+**Before.** Read only:
+
+```sql
+select has_function_privilege('supabase_auth_admin', 'public.movenrun_before_user_created(jsonb)', 'execute'); -- t
+select has_function_privilege('anon', 'public.movenrun_before_user_created(jsonb)', 'execute');                -- f
+select has_function_privilege('authenticated', 'public.movenrun_before_user_created(jsonb)', 'execute');       -- f
+select has_schema_privilege('supabase_auth_admin', 'public', 'usage');                                          -- t
+select max_accounts, max_new_per_hour from account_capacity;                                                    -- 1000, 50
+begin; select public.movenrun_before_user_created('{}'::jsonb); rollback;                                       -- {}
+```
+
+If the schema check is `f` (F-16), run this one grant (APPROVAL; it is what
+Supabase's hook guide prescribes and gives no table access):
+`grant usage on schema public to supabase_auth_admin;`
+
+**Do.** Authentication → Hooks → **Before User Created** → Postgres →
+`public` → `movenrun_before_user_created` → enable.
+
+**Proof.** The hook page shows it enabled. The invocation proof needs a
+provider, so it is done at the end of X-05 (step X-07b).
+
+## Gate X-05: providers (APPROVAL: enabling providers)
+
+**Before.** X-06 and X-07 proofs passed. Not before.
+
+**Do.** `HOSTING_SUPABASE_FREE.md` §2: Google client, Google provider, Web3
+→ Ethereum, Redirect URLs exactly as listed, Email off, anonymous off,
+manual linking off, Web3 rate limit left at 30, CAPTCHA off.
+
+**Proof, read only in the dashboard:** Authentication → Sign In / Providers
+shows Google and Web3 on, Email and anonymous off; URL Configuration lists
+exactly the three redirect URLs.
+
+**X-07b: prove Supabase calls the hook.** About two minutes, right after
+enabling:
+
+1. SQL: `update account_capacity set max_new_per_hour = 0;`
+2. On the website or app, try **Continue with Google** with a Google account
+   that has never used MovenRun.
+3. Expect the sign-in to be refused (the exact wording depends on where
+   Supabase reports it), and Authentication → Users shows **no** new user.
+4. SQL: `update account_capacity set max_new_per_hour = 50;` and check
+   `select max_new_per_hour from account_capacity;` returns 50.
+5. Try again: the account is created. `select count(*) from auth_user_creations;` is 1 or more.
+
+If step 3 creates a user, the hook is not being called: disable both
+providers again and re-check X-07 before going on.
+
+**After an hour:** the API's sweep works against the real admin API when the
+Render log shows no "Unused sign-in records could not be swept" line. Nothing
+else is logged by design.
+
+## Gate X-21: website at movenrun.xyz (APPROVAL: DNS)
+
+**Do.** Vercel → project for `movenrun/website` → Domains → `movenrun.xyz`,
+then the DNS records Vercel shows. Replace `{{API_BASE_URL}}` and
+`{{SUPABASE_PUBLISHABLE_KEY}}`.
+
+**Proof.**
+
+```bash
+node scripts/check-launch-placeholders.mjs              # passes
+node scripts/check-secrets.mjs website                  # passes (no secret key on the site)
+curl -sI https://movenrun.xyz/sign-in/ | grep -iE "x-frame-options|content-security-policy|strict-transport|referrer-policy"
+for p in privacy support account-deletion sign-in; do curl -s -o /dev/null -w "$p %{http_code}\n" https://movenrun.xyz/$p/; done  # all 200
+```
+
+## Gates X-08 and X-04: build settings and the preview APK
+
+**X-08.** Expo → Environment variables (preview and production):
+`EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`,
+`EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (publishable only; the app refuses
+`sb_secret_`), `GOOGLE_MAPS_ANDROID_API_KEY`. Maps key restricted to Android,
+package `io.movenrun.app`, the EAS key's SHA-1.
+
+**X-04 (APPROVAL: uses the free EAS build quota).** GitHub → Actions →
+**EAS APK Build** on the reviewed branch.
+
+**Proof.** The workflow is green; the APK installs; then
+`ANDROID_DEVICE_GATE_PLAN.md`. Optionally unpack the APK's
+`assets/index.android.bundle` and run `node scripts/check-secrets.mjs <folder>`.
+
+## Free host: what not to add
+
+The Render Free API sleeps after 15 idle minutes. The app and website already
+wake it when sign-in is shown and wait up to 90 seconds before showing a
+plain retry message (E-28). **Do not add an uptime pinger,
+cron or keep-awake job**: it would hide the real behaviour and can breach
+the free plan's terms. An always-on instance is a paid plan and your decision.

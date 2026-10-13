@@ -123,6 +123,13 @@ begin; select public.movenrun_before_user_created('{}'::jsonb); rollback;  -- {}
 Then confirm in Authentication → Hooks that **Before User Created** shows the
 function as enabled. Only after that, enable the providers (§2).
 
+Before attaching, also check `select has_schema_privilege('supabase_auth_admin', 'public', 'usage');`
+returns true (F-16); if not, the one grant to run is in
+`LIVE_SETUP_OPERATOR_GUIDE.md` gate X-07. After the providers are on, prove
+Supabase really calls the hook with step X-07b there (quota 0 for one refused
+sign-in, then back to 50). Migration checksums, rollback and the backup
+procedure are in the same guide.
+
 The hook refuses a new sign-in user with 403 when the players reach the cap
 and with 429 when 50 were already created in the last hour, however the
 request reached Supabase. The API applies the same two checks to new players.

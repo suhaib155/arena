@@ -109,6 +109,96 @@ Attackers considered:
 | Account cap and hourly quota | PostgreSQL (hook function and admission transaction) |
 | Handoff code and PKCE binding | MovenRun API and PostgreSQL |
 
+## Round 3 (13 Oct 2026, post-security, frontend on hold)
+
+Backend-only pass over the token check, the hook, the sweep and the
+migrations. No app source changed (D-25).
+
+### New findings
+
+| ID | Severity | Finding | State | Evidence |
+|---|---|---|---|---|
+| F-13 | Low | **Token header and `nbf` not checked.** A Supabase token with a `crit` header, or a `nbf` (not before) in the future, was accepted. Supabase issues neither today, so there is no known exploit; it is defence in depth | **Fixed.** Any `crit` header is refused (RFC 7515 §4.1.11); a future or malformed `nbf` is refused as `not_yet_valid` | `supabaseAuth.test.ts` (crit, `alg: none`, ES384, HS256 without a secret, nbf, audience arrays) |
+| F-14 | Medium | **Orphan sweep race.** The sweep listed users, then deleted later from that list. A person who signed in between the two would lose their fresh sign-in user, and the app's hand-off to the API would then fail once. Two overlapping runs could also both list and delete | **Fixed (D-28).** Each candidate is read again at Supabase (`GET /admin/users/{id}`) just before deletion and kept if it is gone or signed in within the hour; a read error stops the run without deleting. At most 100 deletions per run; a run started while one is going joins it | `supabaseSignIn.service.test.ts` (sign-in after the listing kept; cap 3 of 5 then the rest; one listing for two callers; failed read keeps the user); `supabaseAuth.test.ts` (`getUser` reads id and two timestamps only; 404 is null) |
+| F-15 | Low | **Identity responses could be cached.** Responses carrying session tokens and one-time codes had no `Cache-Control` | **Fixed.** Every `/identity` response sends `Cache-Control: no-store` and `Pragma: no-cache` | The HTTP tests assert it on every identity call |
+| F-16 | Info | **Hosted hook may need schema access.** On plain PostgreSQL `supabase_auth_admin` can call the hook. Supabase's own hook guide also grants `usage on schema public` to that role; whether the hosted project already has it is unknown here | **Operator check.** Gate X-07 in `LIVE_SETUP_OPERATOR_GUIDE.md` checks it read-only and gives the one grant to run if missing (with approval) | `hookContract.test.ts` (role can call; cannot read tables directly) |
+
+### Hook contract (proven on PostgreSQL 16, `hookContract.test.ts`)
+
+Every committed migration is applied to a scratch database with the roles
+`anon`, `authenticated` and `supabase_auth_admin` created first, as on Supabase.
+
+| Contract | Result |
+|---|---|
+| Who may call | `supabase_auth_admin` only. PUBLIC, `anon` and `authenticated` get "permission denied". `SECURITY DEFINER` with `search_path = public, pg_temp` pinned. The auth role cannot read MovenRun tables directly |
+| Return shape | `{}` to admit; `{"error":{"message":…,"http_code":403}}` at the cap; `{"error":{"message":…,"http_code":429}}` over the hourly quota. Nothing else |
+| Concurrency | 20 simultaneous calls against a quota of 5 admit exactly 5 and record exactly 5 rows (advisory lock) |
+| 1,000 cap | At the cap every call answers 403 and records nothing, even with quota left |
+| 50/hour quota | Rows older than an hour stop counting; rows older than a day are pruned; quota 0 refuses everything (the X-07 invocation proof) |
+| Deletion frees capacity | Deleting a player's row lets the next call through |
+| Existing users when full | The hook runs only when Supabase creates a user; signing in again creates none. API side: existing players get 200 at the cap (`runtime.test.ts`, E-29) |
+| Fail closed | No capacity row → 403. The function erroring (a missing table) → an error, never `{}`, so Supabase refuses the sign-up |
+| Data recorded | `auth_user_creations` has two columns: a sequence number and a time. No identifier |
+
+### Migration inventory and checksums
+
+Migrations 0000–0009 are pinned in `backend/drizzle/CHECKSUMS.sha256` and the
+journal is checked against the files (`migrationChecksums.test.ts`, D-27).
+Inventory, scope and the rollback/rescue plan: `LIVE_SETUP_OPERATOR_GUIDE.md`
+§Migrations.
+
+### Token, session and code audit
+
+| Check | Finding | Where |
+|---|---|---|
+| JWKS rotation | Keys refreshed after 10 minutes or on an unknown `kid`, at most once a minute; a provider outage keeps known keys and refuses unknown ones; JWKs with private parts, wrong `use` or mismatched `alg` ignored | `supabaseAuth.ts` `keyFor`/`refresh`; tests |
+| Algorithm | ES256 or RS256 decided by the key, never by the header; HS256 only with a configured legacy secret (not set in the runbook); `none` and others refused | `supabaseAuth.ts` `verify` |
+| Claims | `iss` = project URL `/auth/v1`; `aud` (string or array) contains `authenticated`; `role` = `authenticated` (so `service_role` and `anon` keys are refused); `exp` required with 30 s margin; `iat` and `nbf` not in the future; `sub` a UUID; anonymous users refused | same |
+| Provider | Google route requires `google` in `app_metadata.providers` (F-09); wallet route requires MovenRun's own nonce first, so a token from any other path is never turned into a session (F-12) | `supabaseSignIn.service.ts` |
+| PKCE | Google: Supabase S256 PKCE, verifier never leaves the app or tab (`sessionStorage`, removed on return). Wallet hand-off: challenge must be 43 base64url characters; verifier 43–128 RFC 7636 characters; S256 recomputed server-side | `supabaseSignIn.service.ts` lines 44–49 |
+| Nonces and replay | 96-bit wallet nonce, single use by a conditional update, 5 minutes; exact message match; a replayed message or code fails | E-20, E-22 |
+| Code leakage | Only the code's SHA-256 is stored; the API logs no URLs, bodies, tokens or codes (only fixed messages and counts); `no-referrer` on the website; `no-store` on responses (F-15); a leaked code is useless without the phone's verifier | `grep console.` over `backend/src` |
+| Account switching | A sign-in started under one account cannot commit under another; the pending wallet sign-in and the movement queue are cleared on switch | E-23 |
+| Refresh rotation | Access 10 minutes; each refresh rotates; reuse of a rotated refresh token revokes the whole family | `session.service.ts` |
+
+### Secrets
+
+`scripts/check-secrets.mjs` scans tracked files (now a step in
+`backend-checks.yml`), the whole history (`--history`), or a built folder
+(for example the website or a Hermes export). Patterns: Supabase `sb_secret_`
+keys, `service_role` JWTs (payload decoded), private key blocks, Resend,
+GitHub, Google OAuth client secrets, AWS keys, hex private keys (Hardhat's
+public test keys excepted) and Expo tokens. It prints the kind and location,
+never the value. Result on this branch: tracked files, all history and
+`website/` clean (E-33).
+
+### F-06 safer callback: design for later approval (X-23), not shipped
+
+The residual stays open. What a verified Android App Link would and would not change:
+
+- **Would close:** another app on the phone receiving the automatic return.
+  With `android:autoVerify="true"` for `https://movenrun.xyz/auth/…` and
+  `https://movenrun.xyz/.well-known/assetlinks.json` naming `io.movenrun.app`
+  with the Play App Signing SHA-256 (and the EAS preview key for test builds),
+  Android 12+ opens that link only in MovenRun. Other apps cannot claim a
+  verified host, unlike `movenrun://`.
+- **Would not close:** someone who starts a sign-in themselves and talks the
+  person into reading out the code. That is handled only by the warning,
+  the "never share" copy, single use and the 5-minute expiry.
+- **Unknown:** whether MetaMask, Coinbase Wallet and Trust Wallet in-app
+  browsers hand an `https` navigation to the app at all. If they do not, the
+  page shows the code to type, as today.
+- **Changes it needs:** `app.json` intent filter and the return handler (app
+  source, so it waits for the frontend hold to lift), a landing page and
+  `assetlinks.json` on the website (X-21), the API's allowed return target,
+  Supabase's redirect list, and the signing certificate fingerprints (after
+  X-01b and the first upload).
+- **Phone test before deciding (QA-04):** on the preview APK, run handset step
+  15h; then, with a test build carrying the App Link, check
+  `adb shell pm get-app-links io.movenrun.app` shows `movenrun.xyz: verified`,
+  and that each wallet browser opens the app from the return link. Ship only
+  if all three wallets return or fall back to the typed code cleanly.
+
 ## Still to prove (not engineering-blocked)
 
 - **Hosted:** that Supabase calls the hook and honours its 403 and 429; that the Web3 grant enforces the redirect list; the orphan sweep against the real admin API (X-05–X-07).
