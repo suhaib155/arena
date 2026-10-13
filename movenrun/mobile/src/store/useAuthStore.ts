@@ -88,6 +88,13 @@ interface AuthState {
   /** Verify a one-time code. Resolves true only after the SERVER confirmed the
    *  sign-in — never optimistically. */
   completeEmailOtp: (email: string, code: string, deviceLabel?: string) => Promise<boolean>;
+  /**
+   * Google or wallet sign-in. `obtain` does the method-specific part (browser,
+   * wallet code) and resolves with the server's confirmed login, or null when
+   * the person backed out. Resolves true only after the server confirmed the
+   * sign-in and the session was stored.
+   */
+  signInWith: (obtain: (client: IdentityApiClient) => Promise<LoginResult | null>) => Promise<boolean>;
   refresh: () => Promise<void>;
   setActiveWallet: (walletId: string) => Promise<void>;
   revokeWallet: (walletId: string) => Promise<void>;
@@ -316,6 +323,40 @@ export function resetAuthBootstrapForTests(): void {
  * classified exactly like an unreachable backend — recoverable, credentials
  * untouched, Retry offered — and the exception text never reaches the UI.
  */
+/* ── AUTHENTICATION COMMIT POINT ────────────────────────────────────────
+   Shared by every sign-in method. The server confirmed the login and the
+   tokens are in the keystore. The device now holds a valid authenticated
+   session, so the UI must say so BEFORE any optional read. Waiting for
+   /identity/me and /identity/wallets first meant a transient read failure left
+   the app claiming sign-in had failed while valid credentials sat on the device
+   — and the one-time code was already spent, so the user could not even retry. */
+async function commitSignIn(
+  client: IdentityApiClient,
+  result: LoginResult,
+  set: (partial: Partial<AuthState>) => void,
+  get: () => AuthState,
+): Promise<void> {
+  const generation = beginSessionGeneration();
+  set({
+    status: "signedIn",
+    operation: "idle",
+    // `result.user` is the server's authoritative answer for who signed in.
+    user: result.user,
+    // Identities arrive with the sync below; the login response carries none.
+    identities: [],
+    // Seed from the login response so the wallet section is never empty-by-
+    // accident; the sync replaces it with the server's full list.
+    wallets: result.embeddedWallet ? [result.embeddedWallet] : [],
+    authErrorCode: null,
+    restoreErrorCode: null,
+    accountErrorCode: null,
+    lastRestore: "restored",
+  });
+  // Enrichment only — it can refine or (on an authoritative 401) close the
+  // session, but it can never turn this successful sign-in into a failure.
+  await syncAccountState(client, generation, set, get);
+}
+
 async function guardedRestore(
   client: IdentityApiClient,
   set: (partial: Partial<AuthState>) => void,
@@ -475,33 +516,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
 
-    /* ── AUTHENTICATION COMMIT POINT ──────────────────────────────────────
-       The server confirmed the login and the tokens are in the keystore. The
-       device now holds a valid authenticated session, so the UI must say so
-       BEFORE any optional read. Waiting for /identity/me and /identity/wallets
-       first meant a transient read failure left the app claiming sign-in had
-       failed while valid credentials sat on the device — and the one-time code
-       was already spent, so the user could not even retry. */
-    const generation = beginSessionGeneration();
-    set({
-      status: "signedIn",
-      operation: "idle",
-      // `result.user` is the server's authoritative answer for who signed in.
-      user: result.user,
-      // Identities arrive with the sync below; the login response carries none.
-      identities: [],
-      // Seed from the login response so the wallet section is never empty-by-
-      // accident; the sync replaces it with the server's full list.
-      wallets: result.embeddedWallet ? [result.embeddedWallet] : [],
-      authErrorCode: null,
-      restoreErrorCode: null,
-      accountErrorCode: null,
-      lastRestore: "restored",
-    });
+    await commitSignIn(client, result, set, get);
+    return true;
+  },
 
-    // Enrichment only — it can refine or (on an authoritative 401) close the
-    // session, but it can never turn this successful sign-in into a failure.
-    await syncAccountState(client, generation, set, get);
+  signInWith: async (obtain) => {
+    const client = get().client;
+    if (!client) {
+      set({ operation: "idle", authErrorCode: "client_unavailable" });
+      return false;
+    }
+    if (get().operation !== "idle" || get().status === "signedIn") return false;
+    set({ operation: "signingIn", authErrorCode: null });
+    let result: LoginResult | null;
+    try {
+      result = await obtain(client);
+    } catch (err) {
+      // Same rule as a wrong code: nothing was committed, so session truth is untouched.
+      set({ operation: "idle", authErrorCode: codeOf(err) });
+      return false;
+    }
+    if (!result) {
+      // Backed out of the browser or the wallet: not an error.
+      set({ operation: "idle" });
+      return false;
+    }
+    await commitSignIn(client, result, set, get);
     return true;
   },
 

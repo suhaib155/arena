@@ -26,6 +26,8 @@ const LAYOUT = join(APP, "_layout.tsx");
 const HOME = join(APP, "(tabs)", "index.tsx");
 const PROFILE = join(APP, "(tabs)", "profile.tsx");
 const EMAIL_FORM = join(COMPONENTS, "EmailOtpForm.tsx");
+const SIGN_IN = join(COMPONENTS, "SignInOptions.tsx");
+const SIGN_IN_PROVIDERS = join(SRC, "services", "signInProviders.ts");
 const GAME_STORE = join(SRC, "store", "useGameStore.ts");
 const AUTH_STORE = join(SRC, "store", "useAuthStore.ts");
 const IDENTITY_API = join(SRC, "services", "identityApi.ts");
@@ -35,7 +37,7 @@ const IDENTITY_API = join(SRC, "services", "identityApi.ts");
 const AUTHED_TRANSPORT = join(SRC, "services", "authedTransport.ts");
 
 /** Every screen a user can see before they reach the app. */
-const FIRST_RUN_FILES = [WELCOME, INTRO, LEGACY_INTRO, EMAIL_FORM];
+const FIRST_RUN_FILES = [WELCOME, INTRO, LEGACY_INTRO, EMAIL_FORM, SIGN_IN];
 
 function read(path: string): string {
   return readFileSync(path, "utf8");
@@ -229,7 +231,7 @@ test("the store maps restore outcomes through the pure classifier", () => {
 });
 
 test("no security-relevant path swallows an error silently or undocumented", () => {
-  for (const path of [AUTH_STORE, IDENTITY_API, WELCOME, ACCOUNT, EMAIL_FORM, LAYOUT]) {
+  for (const path of [AUTH_STORE, IDENTITY_API, WELCOME, ACCOUNT, EMAIL_FORM, SIGN_IN, SIGN_IN_PROVIDERS, LAYOUT]) {
     const raw = read(path);
     /* A catch block may be intentionally empty of *statements* — some cleanups
        genuinely have nothing more to do — but it must say why, in the block
@@ -332,13 +334,16 @@ test("a restore Retry is shown only for a restore error, never for a form error"
       !/status === "error"/.test(src),
       `${path}: no generic error status may decide which recovery is offered`,
     );
-    // The form receives the form-owned code and nothing else.
-    assert.match(src, /errorCode=\{authErrorCode\}/, `${path}: the form shows sign-in errors`);
+    // The sign-in block is the one shared component, and no restore error is handed to it.
+    assert.match(src, /<SignInOptions\b/, `${path}: the shared sign-in block`);
     assert.ok(!/errorCode=\{restoreErrorCode\}/.test(src), `${path}: no restore error inside the form`);
   }
-  // And the form itself offers no restore affordance at all.
-  const form = code(EMAIL_FORM);
-  assert.ok(!/retryRestore|restoreError/.test(form), "the form never invokes session restore");
+  // The sign-in block shows the sign-in error only, and offers no restore affordance at all.
+  const block = code(SIGN_IN);
+  assert.match(block, /s\.authErrorCode/, "the sign-in block shows sign-in errors");
+  for (const form of [code(EMAIL_FORM), block]) {
+    assert.ok(!/retryRestore|restoreError/.test(form), "the form never invokes session restore");
+  }
 });
 
 test("the shared form's busy state comes from the auth operation, not session status", () => {

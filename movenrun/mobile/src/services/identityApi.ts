@@ -30,7 +30,7 @@ export interface PublicUser {
 
 export interface PublicIdentity {
   id: string;
-  provider: "email_otp" | "google" | "base_account" | string;
+  provider: "supabase" | "email_otp" | "google" | "base_account" | string;
   verificationStatus: string;
   assuranceLevel: string;
   createdAt: string;
@@ -374,11 +374,27 @@ export class IdentityApiClient {
    * never claims a sign-in whose credentials were not stored.
    */
   async completeEmailOtp(email: string, code: string, deviceLabel?: string): Promise<LoginResult> {
+    return this.signIn("/identity/auth/email/complete", deviceLabel === undefined ? { email, code } : { email, code, deviceLabel });
+  }
+
+  /** "Continue with Google": hand the Supabase session from Google sign-in to MovenRun. */
+  async completeGoogleSignIn(supabaseAccessToken: string, deviceLabel?: string): Promise<LoginResult> {
+    return this.signIn("/identity/auth/google/complete", deviceLabel === undefined
+      ? { accessToken: supabaseAccessToken }
+      : { accessToken: supabaseAccessToken, deviceLabel });
+  }
+
+  /** "Continue with Wallet": spend the one-time code from the wallet sign-in page with this device's verifier. */
+  async exchangeWalletSignIn(code: string, codeVerifier: string, deviceLabel?: string): Promise<LoginResult> {
+    return this.signIn("/identity/auth/wallet/exchange", deviceLabel === undefined
+      ? { code, codeVerifier }
+      : { code, codeVerifier, deviceLabel });
+  }
+
+  /** Every sign-in method ends here: the server's answer is committed only once the session is stored. */
+  private async signIn(path: string, body: Record<string, string>): Promise<LoginResult> {
     const startedGeneration = verificationGeneration();
-    const result = await this.request<LoginResult>("/identity/auth/email/complete", {
-      method: "POST",
-      body: deviceLabel === undefined ? { email, code } : { email, code, deviceLabel },
-    });
+    const result = await this.request<LoginResult>(path, { method: "POST", body });
     try {
       if (startedGeneration !== verificationGeneration()) throw new IdentityApiError(0, "session_changed");
       const clearing = clearPendingQueue();

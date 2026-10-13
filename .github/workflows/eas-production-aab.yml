@@ -15,6 +15,10 @@ name: EAS Production AAB
 #     every production build waits for an explicit approval.
 #   - EAS "production" environment variables, set in the Expo dashboard:
 #       EXPO_PUBLIC_API_URL          (public HTTPS API base URL)
+#       EXPO_PUBLIC_SUPABASE_URL     (https://<project-ref>.supabase.co)
+#       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY  (the publishable key only,
+#                                     never the secret key)
+#       EXPO_PUBLIC_WEB_URL          (optional; defaults to https://movenrun.xyz)
 #       GOOGLE_MAPS_ANDROID_API_KEY  (restricted to io.movenrun.app + the
 #                                     Play App Signing and upload SHA-1s)
 on:

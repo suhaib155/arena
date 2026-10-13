@@ -58,6 +58,7 @@
     "src/lib/__tests__/sessionModel.test.ts",
     "src/lib/__tests__/sessionSubmission.test.ts",
     "src/lib/__tests__/sharedPresentationTruth.test.ts",
+    "src/lib/__tests__/signInMethods.test.ts",
     "src/lib/__tests__/signalQuality.test.ts",
     "src/lib/__tests__/startupDecision.test.ts",
     "src/lib/__tests__/taskPresentation.test.ts",
@@ -80,6 +81,7 @@
     "src/store/__tests__/bootstrapRecovery.test.ts",
     "src/store/__tests__/loginCommit.test.ts",
     "src/store/__tests__/questCompletion.test.ts",
-    "src/store/__tests__/sessionManagement.test.ts"
+    "src/store/__tests__/sessionManagement.test.ts",
+    "src/store/__tests__/signInMethods.test.ts"
   ]
 }

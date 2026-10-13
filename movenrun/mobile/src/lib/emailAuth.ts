@@ -63,13 +63,24 @@ export function authErrorMessage(code: string | null): string | null {
     case "invalid_email":
       return "That email address doesn't look right.";
     case "verification_failed":
-      return "That code didn't match. Check it and try again.";
+      return "That didn't match. Check the code and try again, or start the sign-in again.";
     case "code_expired":
       return "That code has expired. Send a new one.";
     case "too_many_attempts":
       return "Too many attempts. Please wait a moment and try again.";
     case "provider_not_configured":
       return "This sign-in method isn't available yet.";
+    case "sign_in_failed":
+      return "Sign-in didn't complete. Please try again.";
+    case "registration_closed":
+      return "MovenRun's first release is full, so new accounts can't be created right now. You can still play as a guest.";
+    case "wallet_sign_in_expired":
+      return "That wallet sign-in has expired. Choose your wallet again to start a new one.";
+    case "wallet_app_unavailable":
+      return "We couldn't open that wallet app. Check it's installed, or choose another.";
+    case "challenge_expired":
+    case "challenge_consumed":
+      return "That sign-in request was already used or has expired. Please start again.";
     case "session_invalid":
       return "Your session ended. Sign in again to continue.";
     default:

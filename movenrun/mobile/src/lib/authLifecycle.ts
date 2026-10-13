@@ -36,7 +36,7 @@ export type AuthStatus =
   | "signedIn";
 
 /** The single auth request that may be in flight. Only one at a time. */
-export type AuthOperation = "idle" | "sendingOtp" | "verifyingOtp";
+export type AuthOperation = "idle" | "sendingOtp" | "verifyingOtp" | "signingIn";
 
 /**
  * Why something could not be determined. Both are recoverable and neither is

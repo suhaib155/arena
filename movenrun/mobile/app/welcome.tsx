@@ -1,22 +1,22 @@
 /**
  * Account choice — the first thing a genuinely fresh user sees.
  *
- * Two honest paths and nothing else: continue with email (the server creates
- * or restores the account — the app never probes which), or explore the local
- * beta. Sign-in is never a hard blocker, because the product still works
+ * Two honest paths and nothing else: sign in with Google or a wallet (the
+ * server creates or restores the account — the app never probes which), or
+ * explore as a guest. Sign-in is never a hard blocker, because the product still works
  * locally and some builds ship with no account service at all.
  *
- * Deliberately absent: disabled Google/Base buttons (an unavailable provider
- * must not be advertised as a control), any wallet address, any user id, any
+ * Deliberately absent: a disabled Google button (an unavailable provider must
+ * not be advertised as a control), any wallet address, any user id, any
  * token, any backend host name, and any permission prompt.
  */
 import { useEffect, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { LegalAcceptance } from "@/components/LegalAcceptance";
-import { EmailOtpForm } from "@/components/EmailOtpForm";
+import { SignInOptions } from "@/components/SignInOptions";
 import { Hexagon } from "@/components/Hexagon";
 import { colors, palette, radius, shadows, spacing, tints, type } from "@/theme";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -24,7 +24,6 @@ import { useGameStore } from "@/store/useGameStore";
 import { isBackendConfigured } from "@/services/identityApi";
 import { authErrorMessage } from "@/lib/emailAuth";
 import { isAuthBusy } from "@/lib/authLifecycle";
-import { buildDeviceLabel } from "@/lib/deviceLabel";
 import { tapFeedback, successFeedback } from "@/lib/haptics";
 
 export default function WelcomeScreen() {
@@ -32,8 +31,6 @@ export default function WelcomeScreen() {
   const operation = useAuthStore((s) => s.operation);
   const authErrorCode = useAuthStore((s) => s.authErrorCode);
   const restoreErrorCode = useAuthStore((s) => s.restoreErrorCode);
-  const beginEmailOtp = useAuthStore((s) => s.beginEmailOtp);
-  const completeEmailOtp = useAuthStore((s) => s.completeEmailOtp);
   const retryRestore = useAuthStore((s) => s.retryRestore);
   const chooseLocalBeta = useGameStore((s) => s.chooseLocalBeta);
   const markSignedIn = useGameStore((s) => s.markSignedIn);
@@ -83,19 +80,9 @@ export default function WelcomeScreen() {
 
         {backendConfigured ? (
           <View style={styles.card}>
-            <EmailOtpForm
-              busy={busy || !accepted}
-              errorCode={authErrorCode}
-              helperText="New here? We create your account automatically. Returning? Use the same email."
-              onBusyChange={setFormBusy}
-              onSendCode={beginEmailOtp}
-              onVerifyCode={(email, code) =>
-                completeEmailOtp(email, code, buildDeviceLabel(Platform.OS))
-              }
-            />
+            <SignInOptions disabled={!accepted} onBusyChange={setFormBusy} />
             {/* A restore Retry belongs ONLY to a failed session restoration.
-                A wrong or expired code is a form error and is corrected inside
-                the form — offering "Retry" for it would run the wrong
+                A failed sign-in is shown inside the sign-in block — offering "Retry" for it would run the wrong
                 operation entirely. */}
             {restoreErrorCode ? (
               <View style={styles.restoreBox} accessibilityLiveRegion="polite">

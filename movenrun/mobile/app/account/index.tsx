@@ -1,7 +1,7 @@
 /**
  * Account hub — sign in, or see the state of an existing MovenRun account.
  *
- * The email/one-time-code form is the shared {@link EmailOtpForm}; this screen
+ * Sign-in is the shared {@link SignInOptions} (Google or wallet); this screen
  * never re-implements it and never builds its own API client (the app-level
  * bootstrap constructs the single client into the auth store). When no backend
  * is configured it says so plainly instead of faking a login.
@@ -12,13 +12,13 @@
  * screen, which the user opens deliberately.
  */
 import { useEffect, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { LegalLinks } from "@/components/LegalAcceptance";
-import { EmailOtpForm } from "@/components/EmailOtpForm";
+import { SignInOptions } from "@/components/SignInOptions";
 import { SectionHeader } from "@/components/SectionHeader";
 import { Badge } from "@/components/Badge";
 import { colors, radius, shadows, spacing, type } from "@/theme";
@@ -28,7 +28,6 @@ import { isBackendConfigured } from "@/services/identityApi";
 import { authErrorMessage } from "@/lib/emailAuth";
 import { isAuthBusy } from "@/lib/authLifecycle";
 import { walletTypeLabel } from "@/lib/walletPresentation";
-import { buildDeviceLabel } from "@/lib/deviceLabel";
 import { isFeatureInRelease } from "@/lib/releaseScope";
 import { MovementApiClient } from "@/services/movementApi";
 import { summarizeAccountHistory } from "@/lib/accountHistory";
@@ -41,8 +40,6 @@ export default function AccountScreen() {
   const wallets = useAuthStore((s) => s.wallets);
   const authErrorCode = useAuthStore((s) => s.authErrorCode);
   const restoreErrorCode = useAuthStore((s) => s.restoreErrorCode);
-  const beginEmailOtp = useAuthStore((s) => s.beginEmailOtp);
-  const completeEmailOtp = useAuthStore((s) => s.completeEmailOtp);
   const retryRestore = useAuthStore((s) => s.retryRestore);
   const markSignedIn = useGameStore((s) => s.markSignedIn);
   const client = useAuthStore((s) => s.client);
@@ -89,7 +86,7 @@ export default function AccountScreen() {
             <Text style={styles.body}>
               {walletsInRelease
                 ? "You\u2019re signed in. This is your permanent MovenRun identity \u2014 your wallets and sign-in methods link to it, so switching wallets never moves your progress."
-                : "You\u2019re signed in with your email. Your verified movement sessions are saved to this account."}
+                : "You\u2019re signed in. Your verified movement sessions are saved to this account."}
             </Text>
             {historyLabel ? <Text style={styles.caption}>{historyLabel}</Text> : null}
           </View>
@@ -131,21 +128,13 @@ export default function AccountScreen() {
           Sign in to MovenRun
         </Text>
         <Text style={styles.caption}>
-          {backendConfigured ? "Use your email to protect your progress." : "Progress sync is unavailable. Keep exploring."}
+          {backendConfigured ? "Sign in with Google or your wallet to keep your verified sessions. Or keep playing as a guest." : "Progress sync is unavailable. Keep exploring."}
         </Text>
 
         {backendConfigured ? (
           <View style={styles.card}>
-            <SectionHeader title="Continue with email" />
-            <EmailOtpForm
-              busy={busy}
-              errorCode={authErrorCode}
-              helperText="New here? We create your account automatically. Returning? Use the same email."
-              onSendCode={beginEmailOtp}
-              onVerifyCode={(email, code) =>
-                completeEmailOtp(email, code, buildDeviceLabel(Platform.OS))
-              }
-            />
+            <SectionHeader title="Sign in" />
+            <SignInOptions />
             {/* Restore Retry is scoped to a failed session RESTORE. Sign-in
                 errors stay in the form above, where the user can fix them. */}
             {restoreErrorCode ? (

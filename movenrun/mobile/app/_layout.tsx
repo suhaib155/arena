@@ -193,6 +193,8 @@ function RootNavigator() {
         <Stack.Screen name="district-mastery" />
         <Stack.Screen name="deed-showroom" />
         <Stack.Screen name="account/index" />
+        <Stack.Screen name="auth/callback" options={{ animation: "none" }} />
+        <Stack.Screen name="auth/wallet" options={{ animation: "fade", gestureEnabled: false }} />
         <Stack.Screen name="account/wallets" />
         <Stack.Screen name="account/security" />
         <Stack.Screen name="active" options={{ gestureEnabled: false }} />
