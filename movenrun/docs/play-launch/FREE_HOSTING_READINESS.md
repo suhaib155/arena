@@ -123,3 +123,21 @@ in Git, chat or a shared folder.
 
 Run the hosted rows only after X-06 → X-21 and with the owner's approval.
 Use test accounts, never real players.
+
+## Staging monitoring (from X-06 until the closed test ends)
+
+These are manual checks with no paid monitoring. Run them weekly, and after any incident.
+
+| Watch | Where | Act when |
+|---|---|---|
+| Cold starts | Render → Events / Logs (`V3 API listening` per wake) | Testers report sign-in retries often. The answer is a paid instance (owner decision), never a pinger |
+| Instance hours, bandwidth, build minutes | Render → Workspace → Usage | Over 70 % of a monthly allowance. Without a payment method the service stops at 100 % instead of billing |
+| Database size, egress, monthly users | Supabase → Usage | Over 70 % (500 MB, 5 GB, 50,000) |
+| Project paused | Supabase → project home | Paused after a quiet week: restore it in the dashboard; `/ready` shows 503 until then |
+| Accounts and quota | SQL editor: `select count(*) from users; select count(*) from auth_user_creations where created_at > now() - interval '1 hour';` | Above 800 accounts (80 % alert also logged as "Account capacity: …"). The quota is hit repeatedly by unknown traffic |
+| Sign-in refusals and clean-up | Render logs: "Maintenance: … failed", "Account capacity: …" | Any "failed" line that repeats across wakes |
+| Deletions still waiting at Supabase | `select count(*) from pending_auth_user_deletions;` | Not 0 after a day of normal traffic |
+| Suspicious sign-ups | Supabase → Authentication → Users sorted by created; `auth_user_creations` per hour | Bursts near 50/hour from no real testers: lower `max_new_per_hour` (one SQL update) and tell the owner |
+
+Logs never contain tokens, codes, emails, wallet addresses or routes, so
+screenshots of them can be shared for support.

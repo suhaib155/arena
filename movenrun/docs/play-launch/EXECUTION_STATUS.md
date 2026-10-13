@@ -1,6 +1,6 @@
 # Execution status
 
-**Updated:** 2026-10-13 (round 3, post-security, frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at dd8306588667342fab2db0ebd4d55632acadb57a (prepared, not deployed) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
+**Updated:** 2026-10-13 (round 3, post-security, frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at dd8306588667342fab2db0ebd4d55632acadb57a (X-06 approved; operator access required; not deployed) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
 **Security gate:** SECURITY REVIEWED LOCALLY (`AUTH_SECURITY_REVIEW.md`, rounds 1–3) · **Release gate:** STOP — LIVE AUTH AND ANDROID DEVICE GATES PENDING (Play account not created)
 **Frontend:** on owner hold (D-25). **Play developer account:** NOT CREATED (X-01). **Separate accounts:** accepted 2026-10-13 (X-20).
 
@@ -11,7 +11,7 @@
 | **DONE** | Google + wallet sign-in code, cap, quota, deletion, sweep (locally tested); security review rounds 1–3; hook contract on PostgreSQL; migration checksums; secret scan in CI; operator guide; Play registration checklist; device gate plan; X-20 accepted |
 | **BLOCKED — OWNER** | X-01a/b/c Play account (type, US$25, verification, closed test if Personal); X-06 → X-07 → X-05 → X-21 live setup; X-08, X-04 build; X-10 phone by 24 Oct; X-22 mailbox |
 | **BLOCKED — EXTERNAL** | Google's account verification and (Personal) production-access review; whether wallet browsers return to the app (phone only); 64-bit and 16 KB confirmation in the App bundle explorer |
-| **NEEDS APPROVAL** | Applying migrations (X-06), enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
+| **NEEDS APPROVAL** | X-06 is approved and waits on you at the dashboards; enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
 | **OPEN** | F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
 
 Start here when resuming. Then read `TASK_REGISTER.md` and `EXTERNAL_ACTIONS.md`.
@@ -123,6 +123,17 @@ reconfirmed separate accounts. Done, backend and infrastructure only:
 - `FREE_HOSTING_READINESS.md`: official limits, spend protection, backups,
   load-test plan. X-06 is click by click in the operator guide.
 - Nothing deployed.
+
+## Checkpoint 2026-10-13 (X-06 approved, operator access required)
+
+Owner approved X-06 for dd83065. This workspace cannot reach Render or
+Supabase (proxy) and holds no credentials, so nothing was deployed. The
+owner runs it from the click-by-click steps and brings back the listed
+proofs. Also done: the backup/restore drill, which found and fixed a
+privilege loss in the documented dump (D-33); previews of the four website
+pages (X-21 still held); and a staging monitoring runbook. Branches were
+reconciled: there are no other pushes, and only docs are ahead of the
+deploy branch.
 
 ## Open owner decisions
 

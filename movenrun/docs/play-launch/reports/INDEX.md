@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-10-13 | X-06 approved: operator handoff, website previews, backup drill | dd83065 | [MOVENRUN_2026-10-13_X06_OPERATOR_HANDOFF_FINAL_REPORT_dd83065.md](MOVENRUN_2026-10-13_X06_OPERATOR_HANDOFF_FINAL_REPORT_dd83065.md) |
 | 2026-10-13 | Free hosting readiness (Render Free + Supabase Free) | dd83065 | [MOVENRUN_2026-10-13_FREE_HOSTING_READINESS_FINAL_REPORT_dd83065.md](MOVENRUN_2026-10-13_FREE_HOSTING_READINESS_FINAL_REPORT_dd83065.md) |
 | 2026-10-13 | Post-security launch prep (frontend on hold) | 41b78a8 | [MOVENRUN_2026-10-13_POST_SECURITY_LAUNCH_PREP_FINAL_REPORT_41b78a8.md](MOVENRUN_2026-10-13_POST_SECURITY_LAUNCH_PREP_FINAL_REPORT_41b78a8.md) |
 
