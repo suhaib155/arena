@@ -3,7 +3,7 @@
 Only what was actually run is recorded as evidence. A gate with no evidence row
 is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 
-## Recorded (2026-10-12)
+## Recorded (2026-10-12 and 2026-10-13)
 
 | ID | Gate | What was run | Result | Commit |
 |---|---|---|---|---|
@@ -22,6 +22,8 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-13 | B | Verified-session history: `GET /movement/verifications` returns only the caller's rows, newest first, limit 1–100; mobile counts only `verified` results | Pass (backend router test, runtime test, `accountHistory.test.ts`) | 9ead53d, fa3b927 |
 | E-14 | G | `nativeAssets.test.ts`: app icon, adaptive foreground and monochrome 1024×1024, adaptive background Morning White, Play icon 512×512, feature graphic 1024×500 without alpha | Pass | bab3a1b |
 | E-16 | P | Expired sign-in challenges deleted a day after expiry on the next code request, for any email (`emailOtp.service.test.ts`, Postgres check in `runtime.test.ts`). Backend now **382/382**, API 9/9 | Pass | a55fd35 |
+| E-17 | B | Local PostgreSQL switched to TLS-only connections with a private CA (the same shape as Supabase). Backend suite, the `drizzle-kit migrate` deployment command and the built API run with `sslmode=verify-full&sslrootcert=<ca>`; without the CA the connection is refused (`unable to verify the first certificate`) | 382/382, API 9/9, 0 skipped | 0a48e0d |
+| E-18 | B | Migration `0006_row_level_security`: runtime test runs as a **non-superuser, no-bypass table owner** and the whole flow still works; it asserts every `public` table has RLS on. Probe: a separate role granted SELECT/INSERT on all tables reads 0 rows from `users` and its insert is refused | Pass | 0a48e0d |
 | E-15 | P | `scripts/check-launch-placeholders.mjs` | Fails as designed while 10 owner placeholders remain in the website pages (X-02, X-03) | 60f4ad1 |
 
 ## Not yet run (blocked externally)
@@ -29,7 +31,8 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | Gate | Needed evidence | Blocker |
 |---|---|---|
 | M | Preview APK on a physical phone, `HANDSET_TEST_SCRIPT.md` steps 1–14, 18–20 | X-04 (trigger build), X-10 (phone) |
-| B | Hosted API `/health` and `/ready`, real email code delivery, two-account check | X-03, X-05, X-06 |
+| B | Hosted API `/health` and `/ready`, real email code delivery, two-account check | X-03, X-05, X-06 (runbook: `HOSTING_SUPABASE_FREE.md`) |
 | R | Production AAB from the release commit, merged manifest of the AAB, 16 KB page size and 64-bit check (Play Console App bundle explorer) | X-08, X-09 |
 | R | Play internal test install, Google map tiles with the Play App Signing SHA-1, steps 15–17 | X-11, X-12 |
 | G | Phone screenshots from the Play-bound build | X-13 |
+| L | 48-hour monitoring record after a Play release | X-16, `POST_LAUNCH_MONITORING.md` |

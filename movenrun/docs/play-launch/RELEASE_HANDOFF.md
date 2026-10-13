@@ -4,7 +4,7 @@ The shortest path, in order. Each step names the item in `EXTERNAL_ACTIONS.md`.
 
 1. **Answer X-01, X-02, X-03.** Fill the website placeholders; run
    `node scripts/check-launch-placeholders.mjs` in `movenrun/` until it passes.
-2. **Provision the backend (X-05, X-06, X-07).** Run `yarn db:migrate`, open
+2. **Provision the backend (X-05, X-06, X-07)** with `HOSTING_SUPABASE_FREE.md`. Migrations run on start; open
    `/ready`, sign in with a real email and with the review account.
 3. **Deploy the website** (Vercel project for `movenrun/website`). Open
    `/privacy/`, `/account-deletion/` and `/support/` in a private window.
@@ -22,6 +22,7 @@ The shortest path, in order. Each step names the item in `EXTERNAL_ACTIONS.md`.
 9. **Screenshots (X-13).**
 10. **Closed test if required (X-15)**, then apply for production.
 11. **Production (X-16):** staged rollout, owner presses Publish.
+12. **First 48 hours (X-18):** `POST_LAUNCH_MONITORING.md`; record every check.
 
 ## How to resume engineering in a new session
 
@@ -29,6 +30,7 @@ The shortest path, in order. Each step names the item in `EXTERNAL_ACTIONS.md`.
   `TASK_REGISTER.md` (OPEN rows are unblocked engineering).
 - Yarn 4 through corepack. If repo.yarnpkg.com is blocked, set
   `COREPACK_NPM_REGISTRY=https://registry.npmjs.org`.
+- Local Postgres TLS check: see EVIDENCE E-17 for the URL shape.
 - Backend tests that need Postgres read `MOVENRUN_TEST_DATABASE_URL`; without
   it they skip, so record the skipped count with any result.
 - Regenerate `mobile/test-inventory.json` with `yarn test:inventory` after

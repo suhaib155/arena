@@ -37,7 +37,7 @@ handler and server never log request bodies (`backend/src/api/app.ts`), and
 |---|---|---|
 | Google Maps SDK for Android | Map viewport, device and network info | Map display (processor under Google terms) |
 | Email delivery (Resend) | Email address, code | Sends sign-in codes |
-| Hosting + PostgreSQL provider (to be chosen, see EXTERNAL_ACTIONS X-03) | All server data above | Processor |
+| Hosting + PostgreSQL provider (staging default: Render web service + Supabase PostgreSQL; production to be confirmed, X-03) | All server data above | Processor. Database reached only over verified TLS; RLS keeps the provider's REST API empty |
 | Google Play | Install, crash/ANR statistics (Android vitals) | Distribution |
 
 No ads, analytics, crash-reporting, attribution or social SDKs are in the app

@@ -31,7 +31,8 @@ deleted, so a later release can turn them back on.
 - Backend: `POST /identity/account/delete` erases every row of the account in one
   transaction; `GET /movement/verifications` lists the caller's own results;
   optional reviewer sign-in configured only through server secrets; expired
-  sign-in codes are deleted a day after expiry; unused SDK
+  sign-in codes are deleted a day after expiry; row level security on every
+  table so a managed database's REST API reaches nothing; unused SDK
   dependency removed.
 - Website: privacy policy, account deletion page with a working deletion flow,
   support page, plus a check that fails while owner placeholders remain.

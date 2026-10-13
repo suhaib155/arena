@@ -19,8 +19,11 @@ item from `EXTERNAL_ACTIONS.md`).
 | B-02 | Reviewer sign-in through server secrets | DONE | E-12 |
 | B-03 | `GET /movement/verifications` for the signed-in player | DONE | E-13 |
 | B-04 | Remove unused AI SDK dependency | DONE | 915727b |
-| B-05 | Choose and provision hosting, run migrations, set secrets | BLOCKED | X-03, X-05 |
+| B-05 | Provision hosting, run migrations, set secrets | BLOCKED | X-03, X-05 (owner dashboards; no host or Supabase access from this workspace) |
 | B-06 | Real email delivery | BLOCKED | X-06 |
+| B-08 | Row level security on every table (blocks a hosted database's automatic REST API) | DONE | E-18 |
+| B-09 | Prove verified TLS to a managed Postgres for the API and migrations | DONE | E-17 |
+| B-10 | No-cost staging runbook (Supabase + Render Free) | DONE | `HOSTING_SUPABASE_FREE.md` |
 | B-07 | Shared rate limiter across instances (current global and write limiter is in memory; OTP throttling is already in Postgres) | OPEN, needed only if more than one instance runs | |
 | P-01 | Data inventory | DONE | `DATA_INVENTORY.md` |
 | P-02 | Privacy policy page | DONE (placeholders) | `website/privacy/` |
@@ -44,3 +47,5 @@ item from `EXTERNAL_ACTIONS.md`).
 | O-01 | Play Console app, declarations, listing | BLOCKED | X-11 |
 | O-02 | Closed test (12 testers, 14 days) if the account requires it | BLOCKED | X-01, X-15 |
 | O-03 | Production release and rollout | BLOCKED | X-16 (owner only) |
+| O-04 | 48-hour post-release monitoring plan | DONE | `POST_LAUNCH_MONITORING.md` |
+| O-05 | Run and record the 48-hour monitoring | BLOCKED | X-18, after X-16 |

@@ -13,14 +13,14 @@ Status: **OPEN** unless marked otherwise.
 |---|---|---|
 | X-01 | Tell us the **Play developer account type** (personal or organisation) and the **date it was created**. Personal accounts created after 13 Nov 2023 must run a **closed test with at least 12 testers opted in for 14 continuous days** before production access can be requested | Launch plan (R gate timing) |
 | X-02 | Choose the **developer name** shown on Play and the **support email**. Then replace `{{DEVELOPER_NAME}}` and `{{SUPPORT_EMAIL}}` in `movenrun/website/privacy/`, `account-deletion/` and `support/` | Privacy policy, deletion page, store listing |
-| X-03 | Choose **hosting** for the API and PostgreSQL. Option A: approve the Render paid plans in `render.yaml` (web "starter" and Postgres "basic-256mb"). Option B (no spend): a free PostgreSQL (for example the existing Supabase project, used as plain Postgres through its connection string) plus a free or existing Node host. Then fill `{{HOSTING_PROVIDER}}`, `{{BACKUP_RETENTION_DAYS}}` and `{{API_BASE_URL}}` in the website | B gate, everything after it |
+| X-03 | Choose **hosting** for the API and PostgreSQL. Option A: approve the Render paid plans in `render.yaml` (web "starter" and Postgres "basic-256mb"). Option B (no spend): a free PostgreSQL (for example the existing Supabase project, used as plain Postgres through its connection string) plus a free or existing Node host. **Default while this is open:** Option B with Supabase + a Render *Free* web service, step by step in `HOSTING_SUPABASE_FREE.md` (fine for internal and closed testing; an always-on paid instance is recommended for production). Then fill `{{HOSTING_PROVIDER}}`, `{{BACKUP_RETENTION_DAYS}}` and `{{API_BASE_URL}}` in the website | B gate, everything after it |
 | X-04 | Approve triggering **EAS APK Build** (preview profile) on `release/android-v1-cxfdbd`. The workflow already exists on `main`, so it can run against this branch from the Actions tab: Run workflow → branch `release/android-v1-cxfdbd`. Uses the free EAS build quota | M gate on a phone |
 
 ## Server setup (after X-03)
 
 | ID | Action |
 |---|---|
-| X-05 | On the host, set: `DATABASE_URL` (Postgres connection string, TLS on), `IDENTITY_SESSION_PEPPER` and `IDENTITY_OTP_PEPPER` (two different random 32+ byte values), `RESEND_API_KEY`, `IDENTITY_EMAIL_FROM` (an address on a domain verified in Resend), `CORS_ORIGINS` (must include the website origin, for example `https://movenrun-website.vercel.app`), `TRUST_PROXY_HOPS=1`, `NODE_ENV=production`. Run the database migrations once (`yarn db:migrate` in `movenrun/backend`), then open `/health` and `/ready` |
+| X-05 | Follow `HOSTING_SUPABASE_FREE.md` (or the equivalent for the host chosen). On the host, set: `DATABASE_URL` (Postgres connection string with `sslmode=verify-full` and the provider CA via `sslrootcert`), `IDENTITY_SESSION_PEPPER` and `IDENTITY_OTP_PEPPER` (two different random 32+ byte values), `RESEND_API_KEY`, `IDENTITY_EMAIL_FROM` (an address on a domain verified in Resend), `CORS_ORIGINS` (must include the website origin, for example `https://movenrun-website.vercel.app`), `TRUST_PROXY_HOPS=1`, `NODE_ENV=production`. Run the database migrations once (`yarn db:migrate` in `movenrun/backend`), then open `/health` and `/ready` |
 | X-06 | Verify the sending domain in Resend (SPF and DKIM records at the DNS provider) and send yourself one sign-in code |
 | X-07 | Set `IDENTITY_REVIEW_EMAIL` (an address you control, not a real player) and `IDENTITY_REVIEW_CODE` (six digits, not a run like 123456 or a repeat like 111111) on the host. Put the same two values only into Play Console → App content → App access |
 
@@ -42,6 +42,7 @@ Status: **OPEN** unless marked otherwise.
 | X-13 | Capture 2–8 phone screenshots from the Play-installed build per `STORE_LISTING.md` and add them to the listing |
 | X-15 | If X-01 requires it: run the **closed test** with at least 12 testers for 14 days, then apply for production access. Answer Google's questionnaire from what the testers actually did |
 | X-16 | Production: create the release, pick a staged rollout percentage, and press **Publish** yourself |
+| X-18 | For 48 hours after the release, run the checks in `POST_LAUNCH_MONITORING.md` and fill in its record table (Play Console and host dashboards need your sign-in) |
 
 ## Workspace (optional)
 
