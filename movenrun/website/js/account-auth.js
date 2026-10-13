@@ -33,17 +33,31 @@
   var apiReady = okOrigin(config.api);
   var googleReady = apiReady && okOrigin(config.supabaseUrl) && config.supabaseKey !== "" && !/^sb_secret_/.test(config.supabaseKey);
 
-  function apiPost(path, body, token) {
-    var headers = { "content-type": "application/json" };
-    if (token) headers.authorization = "Bearer " + token;
-    return fetch(config.api + path, { method: "POST", headers: headers, body: JSON.stringify(body) });
-  }
-
   function failure(code) {
     var err = new Error(code);
     err.code = code;
     return err;
   }
+
+  // The API runs on a free host that sleeps when idle and takes up to about a
+  // minute to start. Calls wait that long, then end in a retry message.
+  var API_TIMEOUT_MS = 90000;
+
+  function apiPost(path, body, token) {
+    var headers = { "content-type": "application/json" };
+    if (token) headers.authorization = "Bearer " + token;
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, API_TIMEOUT_MS);
+    return fetch(config.api + path, { method: "POST", headers: headers, body: JSON.stringify(body), signal: controller.signal })
+      .then(function (r) { clearTimeout(timer); return r; }, function () {
+        clearTimeout(timer);
+        throw failure(controller.signal.aborted ? "timeout" : "network");
+      });
+  }
+
+  // Start waking the API as soon as a sign-in page opens, so it is ready by
+  // the time Google or the wallet hands back. The answer is not needed.
+  if (apiReady) fetch(config.api + "/health").catch(function () { /* the sign-in call reports problems */ });
 
   function b64url(bytes) {
     var s = "";
@@ -156,6 +170,8 @@
     too_many_attempts: "Too many attempts. Please wait a moment and try again.",
     challenge_expired: "That sign-in request expired. Please start again.",
     challenge_consumed: "That sign-in request was already used. Please start again.",
+    timeout: "MovenRun took too long to answer. It may have been starting up; please try again in a moment.",
+    network: "We couldn't reach MovenRun. Check your connection and try again.",
   };
 
   function message(err) {

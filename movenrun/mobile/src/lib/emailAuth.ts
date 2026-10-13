@@ -56,6 +56,8 @@ export function authErrorMessage(code: string | null): string | null {
       return "This build has no MovenRun account service configured. You can still explore the local beta.";
     case "service_unavailable":
       return "We couldn't reach MovenRun. Check your connection and try again.";
+    case "request_timeout":
+      return "MovenRun took too long to answer. It may have been starting up; please try again in a moment.";
     case "secure_storage_unavailable":
       return "This device's secure storage is unavailable right now. Your account is untouched — please try again.";
     case "account_sync_unavailable":

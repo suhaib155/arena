@@ -40,6 +40,7 @@ export function SignInOptions({ disabled = false, onBusyChange }: SignInOptionsP
   const operation = useAuthStore((s) => s.operation);
   const authErrorCode = useAuthStore((s) => s.authErrorCode);
   const signInWith = useAuthStore((s) => s.signInWith);
+  const client = useAuthStore((s) => s.client);
   const [choosingWallet, setChoosingWallet] = useState(false);
   const [awaitingCode, setAwaitingCode] = useState(false);
   const [code, setCode] = useState("");
@@ -56,6 +57,12 @@ export function SignInOptions({ disabled = false, onBusyChange }: SignInOptionsP
   const checkPending = useCallback(() => {
     void hasPendingWalletSignIn().then(setAwaitingCode);
   }, []);
+  /* The free host sleeps when idle: start waking it as soon as sign-in is on
+     screen, so it is ready by the time Google or the wallet hands back. */
+  useEffect(() => {
+    void client?.wakeServer();
+  }, [client]);
+
   useEffect(() => {
     checkPending();
     const sub = AppState.addEventListener("change", (state) => { if (state === "active") checkPending(); });
