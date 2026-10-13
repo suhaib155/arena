@@ -28,6 +28,8 @@ import { useGameStore } from "@/store/useGameStore";
 
 function providerLabel(provider: string): string {
   switch (provider) {
+    case "supabase":
+      return "Google or wallet";
     case "email_otp":
       return "Email";
     case "google":
@@ -193,7 +195,7 @@ export default function SecurityScreen() {
   const confirmDeleteAccount = () => {
     Alert.alert(
       "Delete your account?",
-      "This permanently deletes your MovenRun account, your email sign-in, and every verified session saved to it, and signs out all devices. Progress on this device is cleared too. This cannot be undone.",
+      "This permanently deletes your MovenRun account, its Google or wallet sign-in record, and every verified session saved to it, and signs out all devices. Progress on this device is cleared too. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Delete account", style: "destructive", onPress: () => void doDeleteAccount() },
@@ -319,7 +321,7 @@ export default function SecurityScreen() {
         <SectionHeader title="Delete account" />
         <View style={styles.card}>
           <Text style={styles.caption}>
-            Deleting your account removes your email sign-in and every verified session saved to it from
+            Deleting your account removes your Google or wallet sign-in record and every verified session saved to it from
             MovenRun. It cannot be undone.
           </Text>
           {accountErrorCode && pendingSessionAction === null ? (

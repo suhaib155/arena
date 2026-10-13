@@ -6,7 +6,7 @@
 <title>Privacy policy · MovenRun</title>
 <meta name="description" content="How the MovenRun app uses location, what account data is stored, who processes it, how long it is kept and how to delete it." />
 <meta name="theme-color" content="#F8FAF7" />
-<link rel="canonical" href="https://movenrun-website.vercel.app/privacy/" />
+<link rel="canonical" href="https://movenrun.xyz/privacy/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -21,17 +21,17 @@
 </header>
 <main id="main">
 <h1>Privacy policy</h1>
-<p class="meta">Effective 12 October 2026 · Applies to the MovenRun Android app (package io.movenrun.app) version 1.0 and the MovenRun account service.</p>
+<p class="meta">Effective 2 November 2026 · Applies to the MovenRun Android app (package io.movenrun.app) version 1.0 and the MovenRun account service.</p>
 <p class="lede">MovenRun is a walking and running game. It uses your location while you play to draw your route and measure your progress. This policy explains exactly what we collect, why, who processes it, how long we keep it, and how to delete it.</p>
 
 <h2 id="who">Who we are</h2>
-<p>MovenRun is developed and operated by {{DEVELOPER_NAME}} ("we", "us"). For any privacy question or request, email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+<p>MovenRun is developed and operated by Team MovenRun ("we", "us"). For any privacy question or request, email <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>.</p>
 
 <h2 id="summary">Summary</h2>
 <ul>
   <li>Location is used <strong>only while the app is open</strong> and you are in a movement session, or when you tap Locate me on a map. MovenRun never tracks you in the background.</li>
   <li>You can play without an account. Your progress then stays on your phone.</li>
-  <li>If you sign in, we store your email address and a summary of each session you save. We do <strong>not</strong> store your raw GPS route on our servers.</li>
+  <li>You can sign in with Google or with a crypto wallet. With Google we receive your email address and basic profile; with a wallet we receive only your public wallet address. We also store a summary of each session you save. We do <strong>not</strong> store your raw GPS route on our servers.</li>
   <li>We do not sell your data, show ads, or use advertising or analytics trackers.</li>
   <li>You can delete your account and its data in the app or on our <a href="/account-deletion/">account deletion page</a>.</li>
 </ul>
@@ -42,9 +42,10 @@
   <tbody>
     <tr><td>Precise location (GPS points: latitude, longitude, accuracy, time)</td><td>While a movement session is running in the foreground, or a single fix when you tap Locate me</td><td>To draw your route, measure distance and time, and decide whether a mission was completed</td><td>Kept on your phone. If you are signed in and save a session, the points are sent once over HTTPS to our server to verify it (see below)</td></tr>
     <tr><td>Session summary: distance, duration, pause time, movement mode, start and end time, the coarse map cells your route passed through (about 0.7 km² each), and the verification result</td><td>When a signed-in player saves a session</td><td>To keep your verified progress in your account and prevent the same session counting twice</td><td>Stored on our server with your account</td></tr>
-    <tr><td>Email address</td><td>When you sign in</td><td>To create your account and send one-time sign-in codes</td><td>Stored on our server; sent to our email delivery provider to deliver codes</td></tr>
+    <tr><td>Google sign-in: your Google account's email address, name and profile picture, and a Google account identifier</td><td>When you choose Continue with Google</td><td>To create your account and recognise you when you sign in again. We do not use your name or picture in the app</td><td>Held by our sign-in provider (Supabase Auth); our server keeps your email address and the sign-in provider's user id</td></tr>
+    <tr><td>Wallet sign-in: your public wallet address and the signed sign-in message</td><td>When you choose Continue with Wallet</td><td>To prove you control the address and recognise you when you sign in again. We never receive your private key or recovery phrase, never read your balance and never request a transaction</td><td>Held by our sign-in provider (Supabase Auth); our server keeps the sign-in provider's user id, and the signed message for up to a day</td></tr>
     <tr><td>Sign-in sessions: a device label such as "Android device", a one-way hash of the app's user agent, sign-in times</td><td>When you sign in or refresh your session</td><td>To keep you signed in and let you see and sign out your devices</td><td>Stored on our server</td></tr>
-    <tr><td>A one-way hash of your network address</td><td>When you request a sign-in code</td><td>To limit repeated code requests and protect accounts from abuse</td><td>Stored with the code request; the address itself is not stored</td></tr>
+    <tr><td>Your network address</td><td>When you sign in</td><td>To limit repeated sign-in attempts and protect accounts from abuse</td><td>Used in memory by our server and seen by our sign-in provider; not stored in our database</td></tr>
     <tr><td>Game progress: XP, level, streak, quests, badges, saved route reviews (without coordinates)</td><td>As you play</td><td>To run the game</td><td>Stored on your phone only</td></tr>
   </tbody>
 </table></div>
@@ -55,45 +56,47 @@
 <p>We use these providers to run MovenRun. Each processes data only to provide its service to us.</p>
 <ul>
   <li><strong>Google Maps SDK for Android</strong> (Google LLC) displays the map. When a map is on screen, Google receives the map area being shown and standard device and network information. See the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.</li>
-  <li><strong>Email delivery</strong> (Resend) sends one-time sign-in codes to your email address.</li>
-  <li><strong>Hosting and database</strong> ({{HOSTING_PROVIDER}}) runs the MovenRun account service and stores the account data described above.</li>
+  <li><strong>Google Sign-In</strong> (Google LLC) authenticates you when you choose Continue with Google, and shares your email address and basic profile with our sign-in provider.</li>
+  <li><strong>Supabase</strong> (Supabase, Inc.) provides sign-in (Supabase Auth) and hosts the database that stores the account data described above, in the United States (us-east-1).</li>
+  <li><strong>Render</strong> (Render Services, Inc.) runs the MovenRun account service, in the United States.</li>
+  <li><strong>Your wallet app</strong> (for example MetaMask, Coinbase Wallet or Trust Wallet) shows you the sign-in message and signs it. It is your app, run under its own terms; MovenRun sends it nothing but the message.</li>
   <li><strong>Google Play</strong> distributes the app and may provide us with aggregated crash and performance statistics under Google's terms.</li>
 </ul>
 <p>The app contains no advertising SDKs and no third-party analytics or crash-reporting SDKs.</p>
 
 <h2 id="retention">How long we keep data</h2>
 <ul>
-  <li><strong>Account data</strong> (email, sign-in sessions, verified session summaries) is kept until you delete your account.</li>
-  <li><strong>Sign-in codes</strong> are stored only as a one-way hash, expire after 5 minutes and are deleted within a day of expiring.</li>
+  <li><strong>Account data</strong> (your Google email address or wallet sign-in, sign-in sessions, verified session summaries) is kept until you delete your account.</li>
+  <li><strong>Wallet sign-in messages</strong> expire after 5 minutes and are deleted within a day. One-time codes that carry a wallet sign-in back to the app are stored only as a one-way hash, expire after 5 minutes and are deleted within a day.</li>
   <li><strong>Unsent sessions</strong> waiting for a connection are kept on your phone for up to 7 days, and are deleted when they are sent, expire, are discarded, or you sign out.</li>
   <li><strong>On your phone</strong>, game progress stays until you reset progress, delete your account in the app, or uninstall the app.</li>
-  <li><strong>Backups</strong> of the database are kept by our hosting provider for up to {{BACKUP_RETENTION_DAYS}} days, after which deleted data no longer exists in any backup.</li>
+  <li><strong>Backups</strong>: our database plan keeps no provider backups, so data you delete does not live on in a backup.</li>
 </ul>
 
 <h2 id="delete">Deleting your account</h2>
-<p>In the app: <strong>Profile → Account → Account security → Delete account</strong>. Or use the <a href="/account-deletion/">account deletion page</a>, which works without the app. Deletion permanently removes your account, email address, sign-in sessions and every verified session summary. We keep only an anonymous count that a deletion happened, with nothing that identifies you.</p>
+<p>In the app: <strong>Profile → Account → Account security → Delete account</strong>. Or use the <a href="/account-deletion/">account deletion page</a>, which works without the app, with Google or with your wallet. Deletion permanently removes your account, your sign-in record at our sign-in provider (email address or wallet address), sign-in sessions and every verified session summary. We keep only an anonymous count that a deletion happened, with nothing that identifies you.</p>
 
 <h2 id="choices">Your choices and rights</h2>
 <ul>
   <li>Location permission is controlled in your phone's settings. You can deny it; the app then explains that a movement session needs location and you can still browse the rest of the app.</li>
   <li>You can play without an account, sign out at any time, and sign out all devices from Account security.</li>
-  <li>You can ask us for a copy of your account data, or to correct or delete it, by emailing <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>. Depending on where you live, you may have further rights under local law, including the right to complain to your data protection authority.</li>
+  <li>You can ask us for a copy of your account data, or to correct or delete it, by emailing <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>. Depending on where you live, you may have further rights under local law, including the right to complain to your data protection authority.</li>
 </ul>
 
 <h2 id="security">Security</h2>
-<p>All traffic between the app and our server uses HTTPS. Sign-in tokens are stored in Android's secure keystore. Sign-in codes and session tokens are stored on the server only as keyed hashes. No security measure is perfect; if we learn of a breach affecting your data, we will notify you as the law requires.</p>
+<p>All traffic between the app and our server uses HTTPS. Sign-in tokens are stored in Android's secure keystore. Session tokens and one-time codes are stored on the server only as hashes. Google sign-in uses PKCE, and wallet sign-in uses single-use messages that expire after 5 minutes. No security measure is perfect; if we learn of a breach affecting your data, we will notify you as the law requires.</p>
 
 <h2 id="children">Children</h2>
 <p>MovenRun is not directed at children under 13, and we do not knowingly collect their data. If you believe a child has created an account, contact us and we will delete it.</p>
 
-<h2 id="no-money">No payments, tokens or wallets</h2>
-<p>This version of MovenRun has no purchases, no payouts, no cryptocurrency, no wallets and no digital ownership. XP, levels and badges are in-app progress with no cash value.</p>
+<h2 id="no-money">No payments or tokens; wallets for sign-in only</h2>
+<p>This version of MovenRun has no purchases, no payouts, no tokens and no digital ownership. A crypto wallet can be used to sign in, and for nothing else: MovenRun does not hold, create or manage wallets, does not read balances, and never asks for a transaction or payment. XP, levels and badges are in-app progress with no cash value.</p>
 
 <h2 id="changes">Changes to this policy</h2>
 <p>If we change how MovenRun handles your data, we will update this page and its effective date, and tell you in the app before the change applies to data already collected.</p>
 </main>
 <footer>
-  <p>MovenRun is provided by {{DEVELOPER_NAME}}. Contact: <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+  <p>MovenRun is provided by Team MovenRun. Contact: <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>.</p>
   <p><a href="/privacy/">Privacy policy</a> · <a href="/account-deletion/">Delete your account</a> · <a href="/support/">Support</a> · <a href="/">MovenRun website</a></p>
 </footer>
 </body>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Sign in with your wallet · MovenRun</title>
+<meta name="description" content="Sign in to the MovenRun app with your wallet. One signed message, no transaction, no fee." />
+<meta name="robots" content="noindex" />
+<meta name="theme-color" content="#F8FAF7" />
+<meta name="referrer" content="no-referrer" />
+<meta name="movenrun-api" content="{{API_BASE_URL}}" />
+<link rel="canonical" href="https://movenrun.xyz/sign-in/" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/legal/legal.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header>
+  <a class="brand" href="/"><svg viewBox="0 0 40 44" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg>MovenRun</a>
+  <nav class="links" aria-label="Help and policies"><a href="/privacy/">Privacy</a><a href="/account-deletion/">Delete account</a><a href="/support/">Support</a></nav>
+</header>
+<main id="main">
+<h1>Sign in to MovenRun with your wallet</h1>
+<p class="lede">Your wallet signs one message that proves you control your address. It is not a transaction, costs nothing and moves nothing. MovenRun never asks for your recovery phrase or private key.</p>
+
+<div class="card" id="from-app" hidden>
+  <div id="step-sign">
+    <button type="button" id="sign">Sign in with this wallet</button>
+  </div>
+  <div id="step-done" hidden>
+    <p>Signed in. Return to the MovenRun app to finish.</p>
+    <a class="button" id="return" href="movenrun://auth/wallet">Return to MovenRun</a>
+    <p>If the app doesn't open, enter this code in the app. It works once, only on the phone that started this sign-in, and expires in 5 minutes.</p>
+    <p class="code" id="code" aria-label="Sign-in code"></p>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+</div>
+
+<div class="card" id="not-from-app" hidden>
+  <p>This page finishes a wallet sign-in started in the MovenRun app. Open MovenRun on your phone, choose <strong>Continue with Wallet</strong> and pick your wallet app.</p>
+  <p>Looking to delete your account? Use the <a href="/account-deletion/">account deletion page</a>.</p>
+</div>
+</main>
+<footer>
+  <p>MovenRun is provided by Team MovenRun. Contact: <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>.</p>
+  <p><a href="/privacy/">Privacy policy</a> · <a href="/account-deletion/">Delete your account</a> · <a href="/support/">Support</a> · <a href="/">MovenRun website</a></p>
+</footer>
+<script src="/js/account-auth.js"></script>
+<script>
+(function () {
+  var auth = window.MovenRunAuth;
+  var params = new URLSearchParams(location.search);
+  var challenge = params.get("challenge") || "";
+  var status = document.getElementById("status");
+  function say(text, kind) { status.textContent = text; status.className = "status" + (kind ? " " + kind : ""); }
+  // Only a challenge from the app is accepted, and the code only ever goes back to the app's own link.
+  if (!/^[A-Za-z0-9_-]{43}$/.test(challenge)) {
+    document.getElementById("not-from-app").hidden = false;
+    return;
+  }
+  document.getElementById("from-app").hidden = false;
+  var sign = document.getElementById("sign");
+  if (!auth.apiReady) { sign.hidden = true; say(auth.message({ code: "unavailable" }), "error"); return; }
+  if (!auth.hasWallet()) say(auth.message({ code: "no_wallet" }));
+  sign.addEventListener("click", function () {
+    sign.disabled = true; say("Check your wallet: sign the MovenRun message to continue.");
+    auth.signInWithWallet({ handoffChallenge: challenge }).then(function (handoff) {
+      var code = String(handoff.code);
+      var link = "movenrun://auth/wallet?code=" + encodeURIComponent(code);
+      document.getElementById("step-sign").hidden = true;
+      document.getElementById("step-done").hidden = false;
+      document.getElementById("code").textContent = code.replace(/(....)(?=.)/g, "$1 ");
+      document.getElementById("return").setAttribute("href", link);
+      say("");
+      location.href = link;
+    }, function (err) { sign.disabled = false; say(auth.message(err), "error"); });
+  });
+})();
+</script>
+</body>
+</html>

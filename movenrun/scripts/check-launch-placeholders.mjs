@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const site = join(dirname(fileURLToPath(import.meta.url)), "..", "website");
 let missing = 0;
-for (const page of ["privacy", "account-deletion", "support"]) {
+for (const page of ["privacy", "account-deletion", "support", "sign-in"]) {
   const html = readFileSync(join(site, page, "index.html"), "utf8");
   const found = [...new Set(html.match(/\{\{[A-Z_]+\}\}/g) ?? [])];
   for (const token of found) console.error(`${page}: ${token} is not filled in`);

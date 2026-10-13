@@ -4,9 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Delete your account · MovenRun</title>
-<meta name="description" content="How to permanently delete your MovenRun account and its data, in the app, on the web or by email." />
+<meta name="description" content="How to permanently delete your MovenRun account and its data, in the app, on the web or by email. Works for Google and wallet accounts." />
 <meta name="theme-color" content="#F8FAF7" />
-<link rel="canonical" href="https://movenrun-website.vercel.app/account-deletion/" />
+<meta name="movenrun-api" content="{{API_BASE_URL}}" />
+<meta name="movenrun-supabase-url" content="https://tavxmwuwkeynbnzfwove.supabase.co" />
+<meta name="movenrun-supabase-publishable-key" content="{{SUPABASE_PUBLISHABLE_KEY}}" />
+<link rel="canonical" href="https://movenrun.xyz/account-deletion/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -25,12 +28,12 @@
 
 <h2 id="what">What is deleted</h2>
 <ul>
-  <li>Your account and the email address you sign in with</li>
+  <li>Your account, and its Google sign-in (your email address) or wallet sign-in (your public wallet address) at our sign-in provider</li>
   <li>All sign-in sessions on every device (they are signed out immediately)</li>
   <li>Every verified session summary saved to your account (distance, time, map cells crossed)</li>
   <li>Your account's security history</li>
 </ul>
-<p>Deletion happens immediately and cannot be undone. We keep only an anonymous record that an account was deleted, with no email, account id or other detail that could identify you. Database backups containing your data expire within {{BACKUP_RETENTION_DAYS}} days.</p>
+<p>Deletion happens immediately and cannot be undone. Your Google account and your wallet themselves are not affected: we only remove MovenRun's record of them. We keep only an anonymous record that an account was deleted, with no email, account id or other detail that could identify you. Our database plan keeps no provider backups, so deleted data does not live on in a backup.</p>
 <p>Progress stored only on your phone (XP, streak, badges) is not on our servers. Deleting your account in the app also clears it from that phone; otherwise, uninstalling the app removes it.</p>
 
 <h2 id="in-app">Option 1: in the app</h2>
@@ -41,18 +44,12 @@
 </ol>
 
 <h2 id="web">Option 2: on this page</h2>
-<div class="card" id="web-delete" data-api="{{API_BASE_URL}}">
-  <p>Sign in with the email address of your MovenRun account. We will email you a six-digit code.</p>
-  <form id="step-email" novalidate>
-    <label for="email">Account email</label>
-    <input id="email" type="email" autocomplete="email" required />
-    <button type="submit">Send code</button>
-  </form>
-  <form id="step-code" hidden novalidate>
-    <label for="code">Six-digit code</label>
-    <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required />
-    <button type="submit">Verify code</button>
-  </form>
+<div class="card" id="web-delete">
+  <p>Sign in the same way you sign in to the app. A wallet signature here is not a transaction and costs nothing.</p>
+  <div id="step-sign-in">
+    <button type="button" id="google">Continue with Google</button>
+    <button type="button" id="wallet">Continue with Wallet</button>
+  </div>
   <form id="step-confirm" hidden novalidate>
     <p><strong>This permanently deletes your account and every session saved to it.</strong></p>
     <button type="submit" class="danger">Delete my account</button>
@@ -61,65 +58,53 @@
 </div>
 
 <h2 id="email">Option 3: by email</h2>
-<p>If you can no longer receive email at your account address, write to <a href="mailto:{{SUPPORT_EMAIL}}?subject=Delete%20my%20MovenRun%20account">{{SUPPORT_EMAIL}}</a> with the subject "Delete my MovenRun account" from any address, telling us the account email. We will confirm the request and complete the deletion within 30 days, and reply when it is done.</p>
+<p>If you can no longer sign in, write to <a href="mailto:info@movenrun.xyz?subject=Delete%20my%20MovenRun%20account">info@movenrun.xyz</a> with the subject "Delete my MovenRun account". Tell us how you signed in: the Google email address, or the public wallet address (never send a recovery phrase or private key; we will never ask for one). We may ask you to confirm you control that address before deleting. We complete the deletion within 30 days and reply when it is done.</p>
 </main>
 <footer>
-  <p>MovenRun is provided by {{DEVELOPER_NAME}}. Contact: <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+  <p>MovenRun is provided by Team MovenRun. Contact: <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>.</p>
   <p><a href="/privacy/">Privacy policy</a> · <a href="/account-deletion/">Delete your account</a> · <a href="/support/">Support</a> · <a href="/">MovenRun website</a></p>
 </footer>
+<script src="/js/account-auth.js"></script>
 <script>
 (function () {
-  var box = document.getElementById("web-delete");
-  var api = (box.getAttribute("data-api") || "").replace(/\/+$/, "");
+  var auth = window.MovenRunAuth;
   var status = document.getElementById("status");
-  var steps = { email: document.getElementById("step-email"), code: document.getElementById("step-code"), confirm: document.getElementById("step-confirm") };
-  var email = "", token = "";
+  var signIn = document.getElementById("step-sign-in");
+  var confirmForm = document.getElementById("step-confirm");
+  var google = document.getElementById("google");
+  var token = "";
+  var LABEL = "Web deletion request";
   function say(text, kind) { status.textContent = text; status.className = "status" + (kind ? " " + kind : ""); }
-  function show(name) { Object.keys(steps).forEach(function (k) { steps[k].hidden = k !== name; }); }
-  // HTTPS only; plain HTTP is accepted for a loopback test server alone.
-  if (!/^https:\/\//.test(api) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(api)) {
-    show("none");
+  function lock(on) { google.disabled = on; document.getElementById("wallet").disabled = on; }
+  function signedIn(t) { token = t; signIn.hidden = true; confirmForm.hidden = false; say(""); }
+  if (!auth.apiReady) {
+    signIn.hidden = true;
     say("Online deletion is not available right now. Use the app or email us; both work.");
     return;
   }
-  function post(path, body, auth) {
-    var headers = { "content-type": "application/json" };
-    if (auth) headers.authorization = "Bearer " + auth;
-    return fetch(api + path, { method: "POST", headers: headers, body: JSON.stringify(body) });
-  }
-  function busy(form, on) { Array.prototype.forEach.call(form.querySelectorAll("button"), function (b) { b.disabled = on; }); }
-  steps.email.addEventListener("submit", function (e) {
-    e.preventDefault();
-    email = document.getElementById("email").value.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return say("Enter the email address you use for MovenRun.", "error");
-    busy(steps.email, true); say("Sending code…");
-    post("/identity/auth/email/begin", { email: email }).then(function (r) {
-      busy(steps.email, false);
-      if (r.status === 202 || r.ok) { show("code"); say("If that email has a MovenRun account, a code is on its way. It expires in 5 minutes."); }
-      else if (r.status === 429) say("Please wait a moment before asking for another code.", "error");
-      else say("We could not send a code right now. Please try again or email us.", "error");
-    }, function () { busy(steps.email, false); say("We could not reach MovenRun. Check your connection and try again.", "error"); });
+  google.hidden = !auth.googleReady;
+  // Back from Google? Finish signing in.
+  lock(true);
+  auth.finishGoogle(LABEL).then(function (t) { lock(false); if (t) signedIn(t); },
+    function (err) { lock(false); say(auth.message(err), "error"); });
+  google.addEventListener("click", function () {
+    lock(true); say("Opening Google…");
+    auth.startGoogle().catch(function (err) { lock(false); say(auth.message(err), "error"); });
   });
-  steps.code.addEventListener("submit", function (e) {
-    e.preventDefault();
-    var code = document.getElementById("code").value.trim();
-    if (!/^\d{6}$/.test(code)) return say("Enter the six-digit code from the email.", "error");
-    busy(steps.code, true); say("Checking code…");
-    post("/identity/auth/email/complete", { email: email, code: code, deviceLabel: "Web deletion request" }).then(function (r) {
-      busy(steps.code, false);
-      if (!r.ok) return say("That code did not work. Check it, or go back and request a new one.", "error");
-      return r.json().then(function (body) { token = body && body.session && body.session.accessToken; show("confirm"); say(""); });
-    }, function () { busy(steps.code, false); say("We could not reach MovenRun. Please try again.", "error"); });
+  document.getElementById("wallet").addEventListener("click", function () {
+    lock(true); say("Check your wallet: sign the MovenRun message to continue.");
+    auth.signInWithWallet({ deviceLabel: LABEL }).then(function (t) { lock(false); signedIn(t); },
+      function (err) { lock(false); say(auth.message(err), "error"); });
   });
-  steps.confirm.addEventListener("submit", function (e) {
+  confirmForm.addEventListener("submit", function (e) {
     e.preventDefault();
     if (!token) return;
-    busy(steps.confirm, true); say("Deleting your account…");
-    post("/identity/account/delete", { confirm: "DELETE" }, token).then(function (r) {
-      busy(steps.confirm, false);
-      if (r.ok) { token = ""; show("none"); say("Your MovenRun account and its data have been deleted.", "ok"); }
+    confirmForm.querySelector("button").disabled = true; say("Deleting your account…");
+    auth.apiPost("/identity/account/delete", { confirm: "DELETE" }, token).then(function (r) {
+      confirmForm.querySelector("button").disabled = false;
+      if (r.ok) { token = ""; confirmForm.hidden = true; say("Your MovenRun account and its data have been deleted.", "ok"); }
       else say("Your account could not be deleted right now. Please try again or email us.", "error");
-    }, function () { busy(steps.confirm, false); say("We could not reach MovenRun. Please try again.", "error"); });
+    }, function () { confirmForm.querySelector("button").disabled = false; say("We could not reach MovenRun. Please try again.", "error"); });
   });
 })();
 </script>

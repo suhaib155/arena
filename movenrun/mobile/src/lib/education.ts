@@ -1,6 +1,6 @@
 export const EDUCATION_TOPICS = ["territory", "deeds", "clubs"] as const;
 export type EducationTopic = typeof EDUCATION_TOPICS[number];
-export const LEGAL_VERSION = "demo-2026-09-07";
+export const LEGAL_VERSION = "v1-2026-11-02";
 export const EDUCATION_STORAGE_KEY = "movenrun-education-v1";
 
 export interface EducationState {
