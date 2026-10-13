@@ -63,6 +63,7 @@ uninterrupted public service:
 | 1,000 cap and 50/hour quota | PostgreSQL (hook and admission transaction) | Unchanged | Not a timer. Enforced on every new user, awake or asleep |
 | Code and nonce expiry | Checked when used | Unchanged | Not a timer |
 | Session revocation | Checked in the database on every request | Unchanged | Not a timer |
+| Deleting sessions a week past refresh expiry (F-18) | None: kept until account deletion | Hourly when due, as above; at most 10,000 rows a run | Yes. The table only grows until the next wake |
 | Hook's `auth_user_creations` pruning | Inside the hook | Unchanged | Not a timer |
 | Rate limits | In process memory | Unchanged; reset on restart or wake | Partly. A restart forgets counts. The database quota and Supabase's own per-IP limits still apply |
 
@@ -107,6 +108,40 @@ The Free plan keeps none. Use the owner-run, encrypted `pg_dump` in
 Dumps contain account ids, Google emails and wallet addresses. Never put them
 in Git, chat or a shared folder.
 
+## Measured database size (local, PostgreSQL 16, 13 Oct 2026, E-39)
+
+`evidence/capacity-db-size.mjs` applies migrations 0000–0009 to a throwaway
+local database, adds 1,000 synthetic players and measures it. It refuses any
+non-local database.
+
+| Scenario per player | Player data | Whole database |
+|---|---|---|
+| Typical: 30 sessions, 40 walks of 12 map cells, 40 log rows, half with a wallet | 47 MB | 55 MB |
+| Heavy: 200 sessions, 100 walks of 60 cells, 300 log rows, all with a wallet | 315 MB | 323 MB |
+
+**Per row:**
+- a session is about 0.47 KB;
+- a security log row is about 0.19 KB;
+- a walk is about 0.66 KB with 12 cells and 1.7 KB with 60.
+
+**What fills the database is refreshes, not players.** An access token
+lasts 10 minutes, so each 10 minutes of play adds one session row and one
+log row (about 0.67 KB together).
+
+For 1,000 players who each play an hour a day:
+- **Session rows:** about 2.8 MB a day. Before F-18 nothing deleted them. Now
+  sessions are deleted a week after their refresh expiry, which caps them at
+  about 37 days' worth: roughly 100 MB.
+- **Security log rows:** about 1.2 MB a day. These are still kept until the
+  account is deleted, about 430 MB a year, so they decide the long-run size
+  (X-25).
+
+**Not measured here:**
+- the space Supabase's own `auth` schema uses for 1,000 sign-in users;
+- its system overhead.
+
+Check both on the Usage page after X-06.
+
 ## Load-test plan (not run against any live provider without approval)
 
 **Goal:** confirm the pilot fits the free plans, not prove production scale.
@@ -117,7 +152,7 @@ in Git, chat or a shared folder.
 | Pilot traffic | `autocannon` (or `k6`) from one laptop: 5 virtual users, 2 min, mix of `/health`, `/identity/me`, `POST /movement/verify` with a test account | p95 under 1 s once warm; no 5xx; global limit (300/min/IP) not hit by one user's normal use |
 | Sign-up bursts | Already proven locally: 50/hour quota, 20 concurrent hook calls, cap race. Hosted: X-07b (quota 0, one refused sign-up) only | Refusals are 403/429, never a created account |
 | Rate limit | 25 rapid `POST /identity/auth/...` from one IP | 429 after 20 per minute |
-| Database size | After the closed test: `select pg_size_pretty(pg_database_size('postgres'));` and the largest tables | Well under 500 MB (estimate: 1,000 accounts × 100 sessions × ~2 KB ≈ 200 MB worst case, inferred, not measured) |
+| Database size | After the closed test: `select pg_size_pretty(pg_database_size('postgres'));` and the largest tables | Under 250 MB (50 % of the limit). Local measurement above |
 | Egress and bandwidth | Supabase Usage and Render Metrics after a week | Under 50 % of the monthly allowance |
 | Fail closed | During a test, set `max_accounts` to the current count and try a new sign-up | Refused; existing players still sign in |
 

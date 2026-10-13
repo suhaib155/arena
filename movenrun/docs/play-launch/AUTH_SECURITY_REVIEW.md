@@ -123,6 +123,13 @@ migrations. No app source changed (D-25).
 | F-15 | Low | **Identity responses could be cached.** Responses carrying session tokens and one-time codes had no `Cache-Control` | **Fixed.** Every `/identity` response sends `Cache-Control: no-store` and `Pragma: no-cache` | The HTTP tests assert it on every identity call |
 | F-16 | Info | **Hosted hook may need schema access.** On plain PostgreSQL `supabase_auth_admin` can call the hook. Supabase's own hook guide also grants `usage on schema public` to that role; whether the hosted project already has it is unknown here | **Operator check.** Gate X-07 in `LIVE_SETUP_OPERATOR_GUIDE.md` checks it read-only and gives the one grant to run if missing (with approval) | `hookContract.test.ts` (role can call; cannot read tables directly) |
 
+### Round 4 (13 Oct 2026, f6ce3c5)
+
+| ID | Severity | Finding | State | Evidence |
+|---|---|---|---|---|
+| F-17 | Medium | **Device list lost other devices.** Each refresh (every 10 minutes of use) rotates the session into a new row, and the device list read only the newest 100 rows of any kind. After about 17 hours of use on one phone, every other device dropped out of the list, so a player could no longer see a lost or stolen phone or end its session on its own ("sign out everywhere" still worked) | **Fixed.** The list query leaves out rotated refresh links, which the list never showed anyway | `sessionManagement.test.ts`: 150 refreshes on one phone, the tablet signed in earlier is still listed as active (failed before the fix) |
+| F-18 | Low | **Sign-in sessions never deleted.** Every refresh adds a session row and a security log row, kept until the account is deleted. Measured at about 0.67 KB per refresh, an hour of daily play by 1,000 players adds about 4 MB a day, so the 500 MB Supabase Free database would fill within months | **Fixed for sessions.** Sessions a week past their refresh expiry are deleted by the background clean-up (hourly when due, at most 10,000 rows a run). A token that old is refused before and after deletion; the only loss is that replaying a token stolen over 37 days earlier no longer also ends its family. **Security log retention is an owner decision (X-25)** | `sessionManagement.test.ts` (window boundary, live sessions untouched, idempotent); `runtime.test.ts` (real SQL on PostgreSQL 16 deletes only the expired row); E-39 |
+
 ### Hook contract (proven on PostgreSQL 16, `hookContract.test.ts`)
 
 Every committed migration is applied to a scratch database with the roles

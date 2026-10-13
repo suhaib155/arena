@@ -86,6 +86,9 @@ that are DONE stay as they are; no new M-task is started.
 | B-39 | Backup and restore drill on throwaway databases; procedure fixed so a restore cannot widen the hook's privileges | DONE | E-37, D-33 |
 | B-40 | Staging monitoring runbook (cold starts, quotas, refusals, pending deletions, sign-up bursts) | DONE | `FREE_HOSTING_READINESS.md` |
 | B-41 | X-06 live deployment | BLOCKED_OWNER (approved; operator access required) | D-32, `LIVE_SETUP_OPERATOR_GUIDE.md` X-06 |
+| B-42 | Device list keeps other devices after long use (F-17) | DONE | f6ce3c5, E-40 |
+| B-43 | Delete sessions a week past refresh expiry; measure database size for 1,000 accounts (F-18) | DONE | f6ce3c5, E-39, E-40 |
+| B-44 | Move `deploy/render-free-staging` to f6ce3c5 so the hosted API carries B-42 and B-43 | BLOCKED_OWNER | X-24 |
 | P-13 | Desktop and mobile previews of the four website pages, content matrix, homepage claims flagged | DONE | E-38, `WEBSITE_REVIEW_PREVIEW.md` |
 | B-19 | Email codes cannot be switched on in the hosted API by an environment variable; `RESEND_API_KEY` and `IDENTITY_OTP_PEPPER` play no part in config | DONE | E-27 |
 | P-01 | Data inventory | DONE | `DATA_INVENTORY.md` (Google, wallet, Supabase) |

@@ -23,7 +23,7 @@ table changes.
 |---|---|---|---|
 | `users` | Opaque id, status, timestamps | Account | Until deletion |
 | `auth_identities` | Provider `supabase` + Supabase user id; Google email (null for wallet accounts) | Sign-in | Until deletion |
-| `auth_sessions` | Device label ("Android device"), hashed user agent, keyed hash of refresh token, times | Sessions and device list | Until deletion (revoked rows kept until deletion) |
+| `auth_sessions` | Device label ("Android device"), hashed user agent, keyed hash of refresh token, times | Sessions and device list | Until 7 days after the refresh token expires (30 days after issue), or account deletion if sooner; deleted by the API's background clean-up (F-18) |
 | `email_otp_challenges` | None in v1 (email codes off, D-16) | — | Table kept; purged as before if ever enabled |
 | `wallet_sign_in_challenges` | Public wallet address, the sign-in message, times | Single-use wallet sign-in | Expire in 5 min; deleted a day after expiry |
 | `wallet_sign_in_handoffs` | SHA-256 of the one-time code, PKCE challenge, Supabase user id | Carry a wallet sign-in to the app | Expire in 5 min; uncollected ones release their provider user; spent ones deleted after a day |

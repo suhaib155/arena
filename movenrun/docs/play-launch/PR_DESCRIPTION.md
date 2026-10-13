@@ -40,7 +40,9 @@ behind `mobile/src/lib/releaseScope.ts`, not deleted.
   code removed, an hourly new-account quota in the Supabase hook and the API
   (migration 0009), and a sweep of unused sign-in users that re-reads each
   user before deleting and caps each run. Identity responses are never cached;
-  token checks refuse critical headers and future `nbf`.
+  token checks refuse critical headers and future `nbf`. The device list ignores
+  rotated refresh links, and sessions a week past refresh expiry are deleted
+  by the background clean-up.
 - Website: privacy policy and support page for Google and wallet sign-in,
   account deletion with Google or wallet, the `/sign-in/` page for the app, and a
   check that fails while deployment values are missing; EIP-6963 wallet choice
