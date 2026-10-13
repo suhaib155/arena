@@ -9,6 +9,11 @@
  * Wallet sign-in asks the wallet for its address and one personal_sign of a
  * plain-text message the API wrote. It never requests a transaction, a chain
  * switch, a token approval or a recovery phrase.
+ *
+ * Wallets are found by EIP-6963: each installed wallet announces itself, and
+ * when there is more than one the person picks. The page never silently takes
+ * whichever extension wrote window.ethereum last; that global is used only
+ * when no wallet announces itself (wallet in-app browsers that predate 6963).
  */
 (function () {
   "use strict";
@@ -32,6 +37,12 @@
 
   var apiReady = okOrigin(config.api);
   var googleReady = apiReady && okOrigin(config.supabaseUrl) && config.supabaseKey !== "" && !/^sb_secret_/.test(config.supabaseKey);
+
+  // The API answers errors as { error: { code } }; only a plain code string is used.
+  function errorCode(body) {
+    var code = body && body.error && body.error.code;
+    return typeof code === "string" && /^[a-z_]{1,40}$/.test(code) ? code : "sign_in_failed";
+  }
 
   function failure(code) {
     var err = new Error(code);
@@ -115,7 +126,7 @@
           method: "POST", headers: { apikey: config.supabaseKey, authorization: "Bearer " + supabaseToken },
         }).catch(function () { /* It expires on its own; nothing here keeps it. */ });
         return r.json().catch(function () { return null; }).then(function (body) {
-          if (!r.ok) throw failure((body && body.error) || "sign_in_failed");
+          if (!r.ok) throw failure(errorCode(body));
           return body.session.accessToken;
         });
       });
@@ -128,8 +139,60 @@
     return hex;
   }
 
+  function isProvider(p) {
+    return typeof p === "object" && p !== null && typeof p.request === "function";
+  }
+
+  // EIP-6963 discovery: wallets answer the request event with their details.
+  var announced = [];
+  window.addEventListener("eip6963:announceProvider", function (event) {
+    var d = event && event.detail;
+    if (!d || !d.info || typeof d.info.uuid !== "string" || !isProvider(d.provider)) return;
+    for (var i = 0; i < announced.length; i++) if (announced[i].info.uuid === d.info.uuid) return;
+    announced.push({
+      info: { uuid: d.info.uuid, name: String(d.info.name || "Wallet").slice(0, 60), rdns: String(d.info.rdns || "").slice(0, 100) },
+      provider: d.provider,
+    });
+  });
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+
   function hasWallet() {
-    return typeof window.ethereum === "object" && window.ethereum !== null && typeof window.ethereum.request === "function";
+    return announced.length > 0 || isProvider(window.ethereum);
+  }
+
+  /* The wallet to use: the only one announced, the one the person picks in
+     `chooser` when several are, or the legacy global when none announce. */
+  function pickWallet(chooser) {
+    return new Promise(function (resolve) { setTimeout(resolve, 150); }).then(function () {
+      if (announced.length === 1) return announced[0].provider;
+      if (announced.length === 0) {
+        if (isProvider(window.ethereum)) return window.ethereum;
+        throw failure("no_wallet");
+      }
+      if (!chooser) throw failure("choose_wallet");
+      return new Promise(function (resolve, reject) {
+        chooser.textContent = "";
+        var label = document.createElement("p");
+        label.textContent = "More than one wallet is installed. Choose the one to sign in with:";
+        chooser.appendChild(label);
+        announced.forEach(function (w) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "wallet-option";
+          // Names are shown as text only; nothing a wallet announces is rendered as markup.
+          b.textContent = w.info.name + (w.info.rdns ? " (" + w.info.rdns + ")" : "");
+          b.addEventListener("click", function () { chooser.hidden = true; chooser.textContent = ""; resolve(w.provider); });
+          chooser.appendChild(b);
+        });
+        var cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "wallet-option secondary";
+        cancel.textContent = "Cancel";
+        cancel.addEventListener("click", function () { chooser.hidden = true; chooser.textContent = ""; reject(failure("signature_declined")); });
+        chooser.appendChild(cancel);
+        chooser.hidden = false;
+      });
+    });
   }
 
   /* Wallet: address, the API's message, one signature, then the API checks it.
@@ -137,9 +200,11 @@
      code for the app instead of a session for this page. */
   function signInWithWallet(options) {
     if (!apiReady) return Promise.reject(failure("unavailable"));
-    if (!hasWallet()) return Promise.reject(failure("no_wallet"));
-    var address;
-    return window.ethereum.request({ method: "eth_requestAccounts" }).then(function (accounts) {
+    var address, wallet;
+    return pickWallet(options.chooser).then(function (picked) {
+      wallet = picked;
+      return wallet.request({ method: "eth_requestAccounts" });
+    }).then(function (accounts) {
       address = accounts && accounts[0];
       if (typeof address !== "string") throw failure("no_account");
       return apiPost("/identity/auth/wallet/begin", { address: address });
@@ -147,7 +212,7 @@
       if (!r.ok) throw failure(r.status === 429 ? "too_many_attempts" : "sign_in_failed");
       return r.json();
     }).then(function (begin) {
-      return window.ethereum.request({ method: "personal_sign", params: [hexUtf8(begin.message), address] }).then(function (signature) {
+      return wallet.request({ method: "personal_sign", params: [hexUtf8(begin.message), address] }).then(function (signature) {
         var body = { message: begin.message, signature: signature };
         if (options.handoffChallenge) body.handoffChallenge = options.handoffChallenge;
         else body.deviceLabel = options.deviceLabel;
@@ -155,7 +220,7 @@
       }, function () { throw failure("signature_declined"); });
     }).then(function (r) {
       return r.json().catch(function () { return null; }).then(function (body) {
-        if (!r.ok) throw failure((body && body.error) || "sign_in_failed");
+        if (!r.ok) throw failure(errorCode(body));
         return options.handoffChallenge ? body.handoff : body.session.accessToken;
       });
     });
@@ -170,6 +235,8 @@
     too_many_attempts: "Too many attempts. Please wait a moment and try again.",
     challenge_expired: "That sign-in request expired. Please start again.",
     challenge_consumed: "That sign-in request was already used. Please start again.",
+    choose_wallet: "More than one wallet is installed. Choose one to continue.",
+    registration_busy: "Lots of new players are joining right now. Please try again in a little while.",
     timeout: "MovenRun took too long to answer. It may have been starting up; please try again in a moment.",
     network: "We couldn't reach MovenRun. Check your connection and try again.",
   };
@@ -187,5 +254,6 @@
     finishGoogle: finishGoogle,
     signInWithWallet: signInWithWallet,
     message: message,
+    errorCode: errorCode,
   };
 })();
