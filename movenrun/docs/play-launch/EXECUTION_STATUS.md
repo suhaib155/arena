@@ -14,7 +14,7 @@
 | **NEEDS APPROVAL** | X-06 is approved and waits on you at the dashboards; deploy commit f6ce3c5 (X-24); security log retention (X-25); enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
 | **OPEN** | F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
 
-Start here when resuming. Then read `TASK_REGISTER.md` and `EXTERNAL_ACTIONS.md`.
+Start here when resuming. Then read `TASK_REGISTER.md` and `EXTERNAL_ACTIONS.md`. The whole-product board (L0–L3, W1, G0–G7, UX0, QA0) is `../product-roadmap/PR_QUEUE.md`; the owner's design rules are `../product-roadmap/DESIGN_CONSTRAINTS.md`.
 
 ## Why the gate is STOP
 
@@ -146,6 +146,20 @@ use on one phone hid every other device (F-17). Both are fixed in f6ce3c5
 with tests (E-40). No migration was added. The deploy branch was not moved
 (X-24). Only owner and vendor actions remain; the prioritised checklist is in
 the round 4 report.
+
+## Checkpoint 2026-10-13 (owner product-roadmap override)
+
+The owner restored the full product roadmap: clubs, districts, sealing,
+territory and Deeds are core, the map shows geographic areas and never
+hexagons, and the website loses dates, response promises, network labels and
+app CTAs (D-35). Done:
+- **L0:** 42 open PRs classified (31 included in the release tree).
+- **Board:** the durable board `product-roadmap/PR_QUEUE.md`.
+- **G1:** map regions plus `GET /movement/coverage` on
+  `feat/g1-territory-geometry` (24ab525, tested locally).
+- **W1:** the website review version on `web/w1-review-preview`.
+- **Render:** connected through Composio. The workspace is empty, so the
+  first service still has to be created in the dashboard (X-06).
 
 ## Open owner decisions
 
