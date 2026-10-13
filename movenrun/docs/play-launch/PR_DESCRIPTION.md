@@ -45,14 +45,14 @@ behind `mobile/src/lib/releaseScope.ts`, not deleted.
   account deletion with Google or wallet, the `/sign-in/` page for the app, and a
   check that fails while deployment values are missing; EIP-6963 wallet choice
   and anti-framing headers. Security review in `docs/play-launch/AUTH_SECURITY_REVIEW.md`.
-- Hosting: `render.yaml` for a Render Free service with the Supabase Free database.
+- Hosting: `render.yaml` for a Render Free service with the Supabase Free database, deploying the reviewed branch `deploy/render-free-staging`; background clean-up catches up on each wake instead of relying on an always-on timer.
 - CI: manual `EAS Production AAB` workflow behind the `play-release` environment;
   Hermes export in mobile checks; a secret scan and a migration checksum lock
   in backend checks; the Supabase hook's contract tested on PostgreSQL.
 - Launch ledger in `movenrun/docs/play-launch/`.
 
 **Tests:** mobile 910/910, backend 406/406 on PostgreSQL 16 (0 skipped), backend
-API 10/10, shared 156/156, website sign-in and deletion in Chromium 23/23;
+API 17/17, shared 156/156, website sign-in and deletion in Chromium 23/23;
 typechecks clean; Android Hermes bundle builds. Supabase Auth was replaced by a
 local stand-in in these tests. Hosted and phone testing have not been done yet
 (`docs/play-launch/HANDSET_TEST_SCRIPT.md`).

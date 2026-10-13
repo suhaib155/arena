@@ -76,6 +76,13 @@ that are DONE stay as they are; no new M-task is started.
 | B-29 | `Cache-Control: no-store` on every identity response (F-15) | DONE | E-32 |
 | B-30 | Operator guide with proof commands per gate (X-06 → X-07 → X-05 → X-21 → X-08/X-04), backup/export, RLS, TLS and Data API proofs | DONE | `LIVE_SETUP_OPERATOR_GUIDE.md` |
 | B-31 | Verified App Link return (F-06 safer callback) | BLOCKED_OWNER | Design only; needs app change (D-25), X-21, signing certificate, X-23 |
+| B-32 | Reconcile the security branches into one deployable head and record its full SHA | DONE | `FREE_HOSTING_READINESS.md`, D-30 |
+| B-33 | Render Blueprint names the reviewed deploy branch, not the pre-security release branch; guard test | DONE | E-35 |
+| B-34 | Background clean-up that works on a sleeping free host (on wake, after requests, while awake) | DONE (locally tested) | E-35 |
+| B-35 | Request header/body time bounds; readiness probes the quota table | DONE | E-35 |
+| B-36 | Rehearse the Blueprint start command with verified TLS; immutable install | DONE (local) | E-36 |
+| B-37 | Free-tier limits, spend protection, backups and a load-test plan | DONE | `FREE_HOSTING_READINESS.md` |
+| B-38 | Hosted load test (pilot traffic, cold start, rate limit) | BLOCKED_OWNER | After X-06 → X-21 and approval |
 | B-19 | Email codes cannot be switched on in the hosted API by an environment variable; `RESEND_API_KEY` and `IDENTITY_OTP_PEPPER` play no part in config | DONE | E-27 |
 | P-01 | Data inventory | DONE | `DATA_INVENTORY.md` (Google, wallet, Supabase) |
 | P-02 | Privacy policy page | DONE | `website/privacy/` |

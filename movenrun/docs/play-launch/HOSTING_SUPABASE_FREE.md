@@ -146,7 +146,7 @@ To change the cap or the quota later (owner decision, D-20):
 | Setting | Value |
 |---|---|
 | Name | `movenrun-staging-api` |
-| Branch | `release/android-v1-cxfdbd` (switch to `main` after merge) |
+| Branch | `deploy/render-free-staging` (the reviewed deploy branch; commit recorded in `LIVE_SETUP_OPERATOR_GUIDE.md` X-06). Never `release/android-v1-cxfdbd`: it predates the security fixes |
 | Root directory | `movenrun` |
 | Instance type | **Free** |
 | Region | Virginia (next to us-east-1) |
@@ -194,7 +194,7 @@ Check: `https://<service>.onrender.com/health` → `{"status":"ok"}`;
 ## Limits of the free path
 
 A free Render instance sleeps after 15 idle minutes and takes up to about a
-minute to wake; the first sign-in after a quiet period is slow, and a session
+minute to wake (clean-up jobs catch up on each wake; `FREE_HOSTING_READINESS.md`); the first sign-in after a quiet period is slow, and a session
 save can time out once (the app keeps it pending and retries). The app and the
 website send a wake-up request as soon as sign-in is shown and wait up to 90
 seconds for a sign-in answer before showing a retry message (E-28). Acceptable for

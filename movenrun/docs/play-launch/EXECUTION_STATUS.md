@@ -1,7 +1,7 @@
 # Execution status
 
-**Updated:** 2026-10-13 (round 3, post-security, frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` (descends from `fix/play-auth-security-gate`, nothing discarded) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
-**Security gate:** SECURITY REVIEWED LOCALLY (`AUTH_SECURITY_REVIEW.md`, rounds 1–3) · **Release gate:** STOP — live Supabase, Android sign-in and the Play account are all still pending
+**Updated:** 2026-10-13 (round 3, post-security, frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at dd8306588667342fab2db0ebd4d55632acadb57a (prepared, not deployed) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
+**Security gate:** SECURITY REVIEWED LOCALLY (`AUTH_SECURITY_REVIEW.md`, rounds 1–3) · **Release gate:** STOP — LIVE AUTH AND ANDROID DEVICE GATES PENDING (Play account not created)
 **Frontend:** on owner hold (D-25). **Play developer account:** NOT CREATED (X-01). **Separate accounts:** accepted 2026-10-13 (X-20).
 
 ## Owner dashboard
@@ -109,6 +109,20 @@ separate Google and wallet accounts accepted (X-20). Done on
 - Tests: backend 406/406, API 10/10, shared 156/156, mobile 910/910
   (unchanged), web 23/23, 8/8, 3/3 (E-32–E-34).
 - Report: `reports/INDEX.md`.
+
+## Checkpoint 2026-10-13 (free hosting readiness)
+
+Owner chose Render Free + the existing Supabase Free project (D-29) and
+reconfirmed separate accounts. Done, backend and infrastructure only:
+- One deployable head that holds every security and cold-start commit,
+  pushed as `deploy/render-free-staging` at dd83065 (D-30). `render.yaml`
+  no longer names the pre-security release branch, and a test guards it.
+- Clean-up no longer assumes an always-on process (D-31). Request time is
+  bounded, and readiness covers migration 0009.
+- The Blueprint start command was rehearsed with verified TLS (E-36).
+- `FREE_HOSTING_READINESS.md`: official limits, spend protection, backups,
+  load-test plan. X-06 is click by click in the operator guide.
+- Nothing deployed.
 
 ## Open owner decisions
 
