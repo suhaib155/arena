@@ -58,3 +58,16 @@ and the app does not call it, because the mobile frontend is on hold.
 - Areas that cross the antimeridian are not handled specially.
 - Smoothing works in degrees. That is fine at city scale, but it is not a
   geodesic operation.
+
+## Cells between samples (`@movenrun/shared/route-cells`)
+
+`cellsAlongRoute(points)` returns the cells a route crossed, including cells
+between two samples that contain no sample themselves. Sealing and solid
+capture (G2) need this; the stored `traversedHexIds` and the coverage endpoint
+do not use it yet, so nothing already verified changes.
+
+- Two consecutive samples are joined by a straight segment, tested every 50 m.
+- Gaps longer than 2 km are not joined. They are counted as `unbridgedGaps`.
+- The result also counts `interpolatedCells` and `bridgedGaps`, so a caller
+  can audit how much of the ground was inferred rather than observed.
+- It decides nothing about validity. Verification runs first.
