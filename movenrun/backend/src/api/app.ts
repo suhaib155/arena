@@ -9,7 +9,6 @@ import { getIdentityConfig } from "../identity/config.js";
 import { createDrizzleStores } from "../identity/repositories/drizzle/stores.js";
 import { createIdentityServices } from "../identity/http/wiring.js";
 import { createIdentityRouter } from "../identity/http/router.js";
-import { createResendEmailDelivery, EmailOtpDeliveryError } from "../identity/providers/resendEmail.js";
 import { createProductionMovementRouter } from "../movement/http/productionRouter.js";
 import { createDrizzleAccountDeletionStore } from "../identity/accountDeletion.js";
 import { SupabaseAuthClient, SupabaseTokenVerifier } from "../identity/providers/supabaseAuth.js";
@@ -21,12 +20,13 @@ import { createGlobalRateLimiter, createWriteRateLimiter } from "../middleware/r
 import type { ApiConfig } from "./config.js";
 
 export function createApiApp(config: ApiConfig) {
-  // Email codes stay off unless a delivery provider is configured (not in Play v1).
-  const emailDelivery = createResendEmailDelivery();
+  // Sign-in is Google or wallet through Supabase Auth only. The email-code
+  // service is never wired here, whatever the environment holds, so no
+  // deployment of this API can send a code or accept one.
   const db = getDb();
   const identityConfig = getIdentityConfig();
   const stores = createDrizzleStores(db);
-  const identity = createIdentityServices(stores, identityConfig, { emailDelivery });
+  const identity = createIdentityServices(stores, identityConfig, { emailDelivery: null });
   const supabaseSignIn = new SupabaseSignInService({
     tokens: new SupabaseTokenVerifier(config.supabase),
     auth: new SupabaseAuthClient(config.supabase),
@@ -71,19 +71,15 @@ export function createApiApp(config: ApiConfig) {
   app.use("/identity", createIdentityRouter(identity, {
     accountDeletion: createDrizzleAccountDeletionStore(db),
     supabaseSignIn,
-    emailOtpEnabled: Boolean(emailDelivery),
+    emailOtpEnabled: false,
   }));
   app.use("/movement", createProductionMovementRouter(config));
   app.use((_req, res) => { res.status(404).json({ error: "not_found" }); });
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
-    if (error instanceof EmailOtpDeliveryError) {
-      res.status(503).json({ error: "email_delivery_unavailable" });
-      return;
-    }
     const status = error?.type === "entity.too.large" ? 413 : error?.type === "entity.parse.failed" ? 400 : 500;
     res.status(status).json({ error: status === 413 ? "payload_too_large" : status === 400 ? "invalid_request" : "internal_error" });
   };
-  // Never log request bodies, tokens, OTPs, provider responses or raw GPS.
+  // Never log request bodies, tokens, provider responses or raw GPS.
   app.use(errors);
   return app;
 }

@@ -7,16 +7,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolveIdentityConfig } from "./config.js";
 
-test("production requires the session pepper, and the OTP pepper only when email codes are on", () => {
+test("production requires the session pepper and never an email-code setting", () => {
   const r = resolveIdentityConfig({ NODE_ENV: "production" }, { requireSecrets: true });
   assert.equal(r.ok, false);
   if (!r.ok) {
     assert.ok(r.errors.some((e) => e.includes("IDENTITY_SESSION_PEPPER")));
     assert.ok(!r.errors.some((e) => e.includes("IDENTITY_OTP_PEPPER")));
   }
+  // Email codes are not wired into any entry point, so a leftover key changes nothing.
   const withEmail = resolveIdentityConfig({ NODE_ENV: "production", IDENTITY_SESSION_PEPPER: "x".repeat(24), RESEND_API_KEY: "re_x" }, { requireSecrets: true });
-  assert.equal(withEmail.ok, false);
-  if (!withEmail.ok) assert.ok(withEmail.errors.some((e) => e.includes("IDENTITY_OTP_PEPPER")));
+  assert.equal(withEmail.ok, true);
 });
 
 test("a fully-provided production config resolves", () => {

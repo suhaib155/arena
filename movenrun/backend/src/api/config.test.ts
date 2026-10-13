@@ -17,20 +17,17 @@ test("V3 boot configuration needs no worker, Redis, oracle or contract variables
   assert.equal(resolveApiConfig(env()).PORT, 3000);
 });
 
-test("V3 refuses missing, short or reused peppers in every environment", () => {
+test("V3 refuses a missing or short session pepper in every environment", () => {
   for (const NODE_ENV of ["production", "development", "test"]) {
     const valid = { ...env(), NODE_ENV };
     assert.throws(() => resolveApiConfig({ ...valid, IDENTITY_SESSION_PEPPER: undefined }));
     assert.throws(() => resolveApiConfig({ ...valid, IDENTITY_SESSION_PEPPER: "short".repeat(4) }));
-    // The email-code pepper only matters when email codes are switched on.
-    const withEmail = { ...valid, RESEND_API_KEY: "re_test" };
-    assert.throws(() => resolveApiConfig({ ...withEmail, IDENTITY_OTP_PEPPER: undefined }));
-    assert.throws(() => resolveApiConfig({ ...withEmail, IDENTITY_OTP_PEPPER: "short" }));
-    assert.throws(() => resolveApiConfig({ ...withEmail, IDENTITY_OTP_PEPPER: valid.IDENTITY_SESSION_PEPPER }));
+    // Email codes are not part of the API, so their settings change nothing.
+    assert.doesNotThrow(() => resolveApiConfig({ ...valid, RESEND_API_KEY: "re_test", IDENTITY_OTP_PEPPER: undefined }));
   }
 });
 
-test("V3 needs Supabase Auth and a wallet sign-in domain, and email delivery is optional", () => {
+test("V3 needs Supabase Auth and a wallet sign-in domain, and no email delivery", () => {
   assert.equal(resolveApiConfig(env()).supabase.url, "https://movenrun-test.supabase.co");
   for (const key of ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY", "IDENTITY_AUTH_DOMAIN"]) {
     assert.throws(() => resolveApiConfig({ ...env(), [key]: undefined }), key);

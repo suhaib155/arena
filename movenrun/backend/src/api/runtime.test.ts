@@ -13,7 +13,7 @@ import { resolveApiConfig } from "./config.js";
 const databaseUrl = process.env.MOVENRUN_TEST_DATABASE_URL;
 const SUPABASE_URL = "https://movenrun-test.supabase.co";
 
-test("built API, migrations and real session/PostgreSQL flow (delivery transport mocked only)", { skip: !databaseUrl }, async () => {
+test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stand-in only)", { skip: !databaseUrl }, async () => {
   const databaseName = `preview_test_${randomUUID().replaceAll("-", "")}`;
   const admin = new Pool({ connectionString: databaseUrl });
   await admin.query(`CREATE DATABASE "${databaseName}"`);
@@ -29,7 +29,8 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     Object.assign(process.env, {
       NODE_ENV: "production", DATABASE_URL: url.toString(),
       IDENTITY_SESSION_PEPPER: randomBytes(32).toString("hex"),
-      IDENTITY_OTP_PEPPER: randomBytes(32).toString("hex"),
+      // Left over from the email-code design: the API must ignore them.
+      RESEND_API_KEY: "re_test_not_used", IDENTITY_EMAIL_FROM: "MovenRun <info@movenrun.xyz>",
       CORS_ORIGINS: "https://preview.example.com",
       SUPABASE_URL: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test", SUPABASE_SECRET_KEY: "sb_secret_test",
       IDENTITY_AUTH_DOMAIN: "movenrun.xyz",
@@ -136,6 +137,7 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     assert.equal((await request("/identity/me")).status, 401);
     // Email codes are not part of this deployment.
     assert.equal((await request("/identity/auth/email/begin", { email: "runner@example.com" })).status, 404);
+    assert.equal((await request("/identity/auth/email/complete", { email: "runner@example.com", code: "123456" })).status, 404);
     const email = "runner@example.com";
     const subject = randomUUID();
     const token = await signIn(subject, email);

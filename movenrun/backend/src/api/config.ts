@@ -27,9 +27,8 @@ export function resolveApiConfig(env: NodeJS.ProcessEnv = process.env) {
   const resolved = resolveIdentityConfig(env, { requireSecrets: true });
   if (!resolved.ok) throw new Error("Invalid identity environment");
   const identity = resolved.config;
-  if (identity.sessionPepper.length < 32 ||
-      (env.RESEND_API_KEY && (identity.otpPepper.length < 32 || identity.sessionPepper === identity.otpPepper))) {
-    throw new Error("V3 API requires distinct identity peppers of at least 32 characters");
+  if (identity.sessionPepper.length < 32) {
+    throw new Error("V3 API requires an identity session pepper of at least 32 characters");
   }
   // Sign-in is Supabase Auth (Google and wallet); the API does not start without it.
   const supabase = supabaseAuthConfigFrom(env);
