@@ -87,6 +87,13 @@ function signInResponse(result: SignupOrLoginResult) {
 
 export function createIdentityRouter(services: IdentityServices, options: IdentityRouterOptions = {}): Router {
   const router = Router();
+  // Responses here carry session tokens and one-time codes: never stored by a
+  // browser or an intermediary cache (RFC 6749 §5.1).
+  router.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+    next();
+  });
 
   // Bearer-auth guard. Reads `Authorization: Bearer <accessToken>` and returns
   // the verified session. Deny-by-default: any failure is a 401 IdentityError.

@@ -228,6 +228,8 @@ async function withApp(maxAccounts: number, fn: (h: ReturnType<typeof setup> & {
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const post = async (path: string, body: unknown, token?: string) => {
     const res = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+    // Every identity response carries tokens or codes and must never be cached.
+    assert.equal(res.headers.get("cache-control"), "no-store");
     return { status: res.status, json: (await res.json().catch(() => null)) as any };
   };
   try {
