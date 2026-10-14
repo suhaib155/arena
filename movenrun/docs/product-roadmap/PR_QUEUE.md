@@ -26,7 +26,7 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 - No mobile frontend PR while the frontend hold stands. See
   [DESIGN_CONSTRAINTS.md](DESIGN_CONSTRAINTS.md).
 
-**Updated:** 13 Oct 2026, from live GitHub refs.
+**Updated:** 14 Oct 2026, from live GitHub refs (`git ls-remote`, 14 Oct).
 
 ## Branches (live)
 
@@ -37,6 +37,7 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | `fix/play-auth-security-gate` | b4612bb | Security review rounds 1–2 (ancestor of everything below) |
 | `deploy/render-free-staging` | dd83065 | The commit X-06 approved. Moves only with owner approval (X-24) |
 | `chore/post-security-launch-prep` | this board | Security round 3–4, session fixes (f6ce3c5), launch ledgers |
+| `feat/g0-economy-v3` | 98c2862 | G0: V3 spec proposal + tested day-settlement reference model (on top of the chore branch) |
 | `feat/g1-territory-geometry` | 6257d9a | G1: map regions + covered-ground endpoint (on top of the chore branch) |
 | `web/w1-review-preview` | 8c4d55b | W1: website review version (on top of the chore branch) |
 | `feat/v3-onchain-core` | c8262ec | Separate prototype contracts branch. Not part of Play v1 |
@@ -46,13 +47,13 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | Packet | Scope | Branch / PR | State | Proof | Next action |
 |---|---|---|---|---|---|
 | **L0** | Launch integration and old-PR reconciliation | `release/android-v1-cxfdbd`; PR list below | DONE (classification) | 31 of 42 open PRs are ancestors of the release tree (`git merge-base --is-ancestor`, 13 Oct) | Owner decides whether to close the included PRs (see below) |
-| **L1** | X-06 live backend and free-host reliability | `deploy/render-free-staging` dd83065 | BLOCKED_OWNER | Render connected through Composio on 13 Oct. Its workspace has no services or Blueprints yet, and the connector cannot create one | Owner creates the Blueprint service in the Render dashboard (`LIVE_SETUP_OPERATOR_GUIDE.md` X-06); then I verify the service, deploy, logs, `/health`, `/ready` and migration hashes through the connector |
+| **L1** | X-06 live backend and free-host reliability | `deploy/render-free-staging` dd83065 | DONE | LIVE VERIFIED 14 Oct (E-41): service `movenrun-staging-api` (srv-db7a49dg1s2s739nleog, Free, auto-deploy off), live deploy dep-db7a7o2vcj2c73crsemg at dd8306588667342fab2db0ebd4d55632acadb57a; `/health` and `/ready` 200; 10 migration hashes match 0000–0009; RLS on all 19 tables; Data API exposes no schema | X-07 approval next. The free instance sleeps; no keep-awake pings |
 | **L2** | Supabase hook, providers, live Google + wallet + deletion + cap | — | BLOCKED_OWNER | Code tested locally (E-19–E-28, hook contract on PostgreSQL) | X-07, then X-05, each with its own approval, after L1 |
 | **L3** | Session retention and storage capacity | `chore/post-security-launch-prep` (f6ce3c5), draft #106 | IN_REVIEW | CODE TESTED LOCALLY: backend 409/409, API 17/17, DB size measured (E-39, E-40) | X-24 approval after L1; X-25 decision (proposal below) |
-| **W1** | Responsive website review version | `web/w1-review-preview`, draft #108 | IN_REVIEW | CODE TESTED LOCALLY: 8 pages × 6 widths + 200% text/zoom clean; sign-in/deletion e2e 23/23; packet `docs/play-launch/WEBSITE_W1_REVIEW_PACKET.md` | Owner reviews; X-21 NOT approved; 30-day line waits on `ACCOUNT_DELETION_OPERATIONS.md` proof |
-| **G0** | Canonical product spec (V3 economy, settlement invariants, threat model) | — | NOT_STARTED | PR #88 holds an older V3 roadmap; it is stale on deployment facts | Reconcile #88 into `docs/GAME_ECONOMY_V3.md` once the owner shares the V3 source document again (it is not in the repository) |
-| **G1** | Server-authoritative spatial pipeline and map geometry contract | `feat/g1-territory-geometry`, draft #107 | IN_REVIEW | CODE TESTED LOCALLY: shared 170/170 (14 new), backend 411/411 (2 new), API 17/17, build; CI green | Review. Route cells between samples done (`route-cells`, unwired); next is wiring them into G2 |
-| **G2** | Sealing claims, solid/shade, one holder per unit | — | NOT_STARTED | Sealing engine exists (`shared/src/domain/sealing.ts`, #93, included) | Needs G0's solid/shade rule text; then enclosed-area computation and the territory ledger |
+| **W1** | Responsive website review version | `web/w1-review-preview`, draft #108 | IN_REVIEW | CODE TESTED LOCALLY: 8 pages × 6 widths + 200% text/zoom clean; sign-in/deletion e2e 23/23 rerun on 8c4d55b (website from the W1 tree, backend from the chore tree, local PostgreSQL 16, Supabase and wallet stubbed); packet `docs/play-launch/WEBSITE_W1_REVIEW_PACKET.md` | Owner reviews; X-21 NOT approved. Truthfulness blockers in §W1 blockers below. Rerun the e2e on the exact W1 head before any publish |
+| **G0** | Canonical product spec (V3 economy, settlement invariants, threat model) | `feat/g0-economy-v3`, draft #109 | IN_REVIEW | `docs/GAME_ECONOMY_V3.md` from the owner's V3 PDF (rev 2, 31 Aug 2026), every rule tagged SOURCE / ASSUMPTION / DECISION NEEDED. Reference model `@movenrun/shared/economy-v3`: CODE TESTED LOCALLY, 23 tests reproduce the source's worked numbers; shared 179/179 | Owner answers D1–D13 (D5 cell vs zone and D2 shade shape gate G2). #88 was not used as input and can be closed once #109 is accepted |
+| **G1** | Server-authoritative spatial pipeline and map geometry contract | `feat/g1-territory-geometry`, draft #107 | IN_REVIEW | CODE TESTED LOCALLY: shared 170/170 (14 new), backend 411/411 (2 new), API 17/17, build; CI green | Review. Route cells between samples done (`route-cells`, unwired). Inferred cells are analytic only: they never award, claim, defend, erode, validate or count for tolls or deed traffic; `covered` stays distinct from `held` |
+| **G2** | Sealing claims, solid/shade, one holder per unit | — | NOT_STARTED | Sealing engine exists (`shared/src/domain/sealing.ts`, #93, included) | G0 rule text now in #109. Needs D2 (shade shape and sprawl) and D5 (zone and cell size); then enclosed-area computation and the territory ledger |
 | **G3** | Strength, erosion, defence, credits settlement | — | NOT_STARTED | — | After G2 |
 | **G4** | Clubs, contributions, districts, seasons | — | NOT_STARTED | Website and app show clubs as preview/mockup only | After G2; no seeded-as-live leaderboards |
 | **G5** | Deed lifecycle and eligibility (pre-financial) | Old chain #80–#87 | DEFERRED | Contracts prototype on a separate branch; not audited | After a safe pilot; reuse #80/#81 only after review against V3 |
@@ -68,27 +69,31 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 - UX0 starts only on the owner's go.
 - L1 → L2 → W1 publication (X-21).
 
-## X-25 proposal: security log retention (decision only; nothing deleted)
+## X-25: security log retention (UNDECIDED; nothing deleted)
+
+**State: UNDECIDED.** Earlier records said both "30 days for all audit rows"
+(84fa0cf) and "30 days routine, 180 days security" (13 Oct report). Neither
+is a decision. Nothing is deleted and no clean-up job exists until the owner
+chooses.
 
 **Today:** `security_audit_events` keeps every row until the account is
-deleted. Each 10-minute token refresh writes one row, about 0.19 KB (E-39):
-roughly 1.2 MB a day at 1,000 hourly players.
+deleted. One row is about 0.19 KB (E-39); at 1,000 hourly players that is
+about 1.2 MB a day, almost all of it `session_refreshed`.
 
-**Proposal for the owner (per the roadmap's "30 days if supportable"):**
-- Keep audit rows for **30 days**. At the measured rate that is about 36 MB,
-  well inside the 500 MB free database, so 30 days is supportable.
-- Keep the anonymous `account_deleted` row as now (deletion evidence).
-- Alternative if you want a longer incident trail: keep security-relevant
-  rows (replay detection, revocations, sign-in and wallet events) for longer
-  and only routine `session_refreshed` rows for 30 days.
+**Proposed retention matrix (for the owner to accept, change or reject):**
 
-**Why 30 days is enough:** refresh rows are the bulk and carry no incident
-signal, and Supabase Free keeps its own auth logs for only about a day, so
-these rows are the investigation trail for the first month.
+| Row kind | Proposed | Why | Size at 1,000 hourly players |
+|---|---|---|---|
+| `session_refreshed` (routine) | 30 days | Bulk of rows; no incident signal after a month | about 36 MB |
+| Replay detection, revocation, sign-in, wallet link, quota refusal | 180 days | The incident trail; rare rows | under 1 MB |
+| `account_deleted` (anonymous) | Kept | Deletion evidence; holds no identity | negligible |
+| Raw GPS (V3 §27 target 24–72 h) | Not decided here | Separate decision with the location-data design | — |
 
-**No automatic erasure until you decide.** The clean-up task (like the
-session clean-up) is not built and nothing is deleted. It is built only
-after your decision, with tests.
+Total stays well inside the 500 MB Supabase Free database. Measurement after
+X-05 (real row rates) should confirm the sizes before any job is built.
+
+**What is not promised:** no public retention period is stated anywhere until
+this is decided and the deletion job is built and tested.
 
 ## Existing open PRs (live on 13 Oct 2026)
 
@@ -124,6 +129,7 @@ I have not closed or merged any PR. Closing is the owner's call.
 | #106 (draft) | L1/L3 launch hardening | `release/android-v1-cxfdbd` ← `chore/post-security-launch-prep` |
 | #107 (draft) | G1 map regions and coverage | `chore/post-security-launch-prep` ← `feat/g1-territory-geometry` |
 | #108 (draft) | W1 website review version | `chore/post-security-launch-prep` ← `web/w1-review-preview` |
+| #109 (draft) | G0 V3 spec and day-settlement model | `chore/post-security-launch-prep` ← `feat/g0-economy-v3` |
 
 **Vercel note.** The repository's Vercel Git integration builds a *preview*
 deployment for every pushed branch and PR. These include the
@@ -133,3 +139,24 @@ internet. Whether they need a Vercel login depends on the project's
 Deployment Protection setting, which this workspace cannot see. On #106 and #107
 three other Vercel projects (`arena`, `arena-pchb`, `arena-qg9n`) report
 build errors; they predate this work (the same three fail on #105, 9 Sep).
+
+## W1 blockers (source lines on `web/w1-review-preview` at 8c4d55b)
+
+The website describes today's **local-preview** app rules as working game
+rules. In the app, capture, holding and districts run on the device only; no
+server agrees to them yet, and V3 says nothing is claimed until a route seals.
+The vision (clubs, districts, sealing, deeds, the planned network objective)
+stays; the wording must say what is preview.
+
+| # | File:line | Text | Problem | Proposed fix |
+|---|---|---|---|---|
+| 1 | `website/index.html:7`, `:11`, `:111` | "Each session claims a new cell" | Metadata and hero state a claim rule that is local preview and differs from V3 sealing | "Each session maps the ground you cover. Seal a loop to claim it (in development)" or similar |
+| 2 | `website/docs/index.html:59` | "capture, holding and decay, districts and mastery … all work" | True only on the device; not multiplayer, not server-held | Say they work as an on-device preview |
+| 3 | `website/index.html:305`, `:640` | Eight districts and mastery presented as current | Local preview | Label as preview |
+| 4 | `website/docs/capture/index.html:55`, `:59–60`; `docs/faq/index.html:55`; `docs/how-it-works/index.html:66` | "claims the first cell … one claim a day" | Preview rule; V3 replaces it with sealing, solid and shade | Mark as the current preview rule and link the V3 direction |
+| 5 | `website/account-deletion/index.html:64` | "within 30 days" | BLOCKED_OWNER_PROOF: no tested staff deletion procedure; email From/Reply-To is not strong identity proof, and wallet-only accounts cannot be confirmed by email | Remove from proposed production copy until proven; keep in-app deletion as the primary path |
+| 6 | `website/docs/*/index.html` footers (for example `docs/capture/index.html:83`) | "© 2026 MovenRun" | Owner concern about dates | Year-free option: "© MovenRun. All rights reserved." |
+
+Before any publish (X-21): rerun `web-sign-in-deletion-e2e.mjs` on the exact
+W1 head and record the SHA and environment.
+
