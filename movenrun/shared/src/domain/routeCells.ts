@@ -3,9 +3,10 @@
  * between two samples.
  *
  * `cellsForObservations` (in `h3.ts`) is containment of observed points and
- * deliberately does not interpolate. Sealing and solid capture need the cells
- * the path itself crossed, so this module derives them on purpose, with the
- * assumption stated and bounded:
+ * deliberately does not interpolate. This module derives the cells the path
+ * itself probably crossed, with the assumption stated and bounded. Cells it
+ * adds between samples are analytic only: by themselves they never award,
+ * claim, defend or validate ground (`docs/TERRITORY_GEOMETRY.md`).
  *
  *  - **Straight between samples.** Two consecutive samples are joined by a
  *    straight segment, and the cells along it are found by stepping along that

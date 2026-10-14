@@ -62,12 +62,34 @@ and the app does not call it, because the mobile frontend is on hold.
 ## Cells between samples (`@movenrun/shared/route-cells`)
 
 `cellsAlongRoute(points)` returns the cells a route crossed, including cells
-between two samples that contain no sample themselves. Sealing and solid
-capture (G2) need this; the stored `traversedHexIds` and the coverage endpoint
-do not use it yet, so nothing already verified changes.
+between two samples that contain no sample themselves. The stored
+`traversedHexIds` and the coverage endpoint do not use it, so nothing already
+verified changes.
+
+**Inferred cells are analytic only.** A cell in `interpolatedCells` contains
+no verified fix. It may be drawn or counted for analysis, but by itself it
+never awards, claims, defends, erodes or validates ground, never makes ground
+solid, and never counts for a toll or for deed traffic
+(`GAME_ECONOMY_V3.md` assumption A1). Only G2 rules can widen that, and they
+must first settle the open checks below. `covered` (ground a player's
+verified sessions touched) stays distinct from `held` (ground the territory
+ledger assigns to one holder); this module produces neither.
 
 - Two consecutive samples are joined by a straight segment, tested every 50 m.
 - Gaps longer than 2 km are not joined. They are counted as `unbridgedGaps`.
 - The result also counts `interpolatedCells` and `bridgedGaps`, so a caller
   can audit how much of the ground was inferred rather than observed.
 - It decides nothing about validity. Verification runs first.
+
+Open checks before G2 may use inferred cells for anything:
+- **Gap length versus time.** A 2 km bridge is only plausible if the two
+  samples' timestamps allow it on foot; the bridge today looks at distance
+  only.
+- **Speed and teleporting.** A bridge must never join samples that
+  verification would reject as a jump; it must take the verifier's verdict,
+  not repeat it.
+- **Timestamps.** Out-of-order or duplicated timestamps must break the
+  route, not be bridged.
+- **Private exposure.** A straight line through a masked or private area is
+  an inference about where someone was. Inferred cells stay owner-only like
+  coverage, and are never published, shared or stored as a trail.
