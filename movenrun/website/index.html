@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/style.css" />
 <link rel="stylesheet" href="css/polish.css" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill-rule='evenodd' d='M16 30.5C16 30.5 5 20.4 5 12.6A11 11 0 0 1 27 12.6C27 20.4 16 30.5 16 30.5ZM16 8.2A4.4 4.4 0 1 0 16 17A4.4 4.4 0 1 0 16 8.2Z' fill='%2318C987'/%3E%3C/svg%3E" />
 </head>
 <body>
 
@@ -23,7 +23,7 @@
 <!-- ───────────────────────── White splash ───────────────────────── -->
 <div class="splash" id="splash" aria-hidden="true">
   <div class="splash-mark">
-    <svg viewBox="0 0 40 44" class="splash-hex"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12" /></svg>
+    <svg viewBox="0 0 40 44" class="splash-pin"><path fill-rule="evenodd" d="M20 42C20 42 5 28.2 5 17.2A15 15 0 0 1 35 17.2C35 28.2 20 42 20 42ZM20 11.2A6 6 0 1 0 20 23.2A6 6 0 1 0 20 11.2Z"/></svg>
     <span>MovenRun</span>
   </div>
 </div>
@@ -49,7 +49,7 @@
 <!-- ───────────────────────── Navigation ───────────────────────── -->
 <header class="nav" id="nav">
   <a class="nav-brand" href="#hero">
-    <svg viewBox="0 0 40 44" class="brand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12" /></svg>
+    <svg viewBox="0 0 40 44" class="brand-mark" aria-hidden="true"><path fill-rule="evenodd" d="M20 42C20 42 5 28.2 5 17.2A15 15 0 0 1 35 17.2C35 28.2 20 42 20 42ZM20 11.2A6 6 0 1 0 20 23.2A6 6 0 1 0 20 11.2Z"/></svg>
     <span class="brand-word">MovenRun</span>
   </a>
   <nav class="nav-pill" aria-label="Primary">
@@ -62,7 +62,7 @@
     <a href="/docs/">Docs</a>
   </nav>
   <div class="nav-actions">
-    <a class="btn btn-primary btn-nav" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X <span class="btn-arrow">→</span></a>
+    <a class="btn btn-primary btn-nav" href="/docs/">Read the whitepaper <span class="btn-arrow">→</span></a>
     <details class="nav-mobile" id="navMobile">
       <summary aria-label="Open navigation menu">
         <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -76,7 +76,7 @@
         <a href="#base">Onchain</a>
         <a href="#roadmap">Roadmap</a>
         <a href="/docs/">Docs</a>
-        <a class="btn btn-primary nav-mobile-cta" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X <span class="btn-arrow">→</span></a>
+        <a class="btn btn-primary nav-mobile-cta" href="/docs/">Read the whitepaper <span class="btn-arrow">→</span></a>
       </nav>
     </details>
   </div>
@@ -124,7 +124,7 @@
       <div class="globe-mist"></div>
       <canvas id="heroGlobe" class="hero-globe"></canvas>
       <div class="globe-card globe-card-zone glass float-a">
-        <span class="hexicon hexicon-green"></span>
+        <span class="areaicon areaicon-green"></span>
         <div><strong>New area explored</strong><span>Riverside morning route</span></div>
       </div>
       <div class="globe-card globe-card-xp glass float-b">
@@ -176,7 +176,7 @@
             <rect x="380" y="590" width="54" height="54" rx="8"/><rect x="540" y="160" width="48" height="60" rx="8"/>
           </g>
         </svg>
-        <svg class="city-hexes" id="cityHexes" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice"></svg>
+        <svg class="city-areas" id="cityAreas" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice"></svg>
         <div class="user-marker" id="cityMarker"><span class="marker-pulse"></span><span class="marker-core"></span></div>
       </div>
     </div>
@@ -219,12 +219,12 @@
     <article class="loop-card glass reveal tilt" data-loop="move">
       <div class="loop-scene scene-move" aria-hidden="true">
         <svg viewBox="0 0 300 190">
-          <g class="mini-hexes" stroke="#E3E8EF" fill="none" stroke-width="1.4">
-            <polygon points="60,40 80,28 100,40 100,64 80,76 60,64"/>
-            <polygon points="100,64 120,52 140,64 140,88 120,100 100,88"/>
-            <polygon points="140,88 160,76 180,88 180,112 160,124 140,112"/>
-            <polygon points="180,40 200,28 220,40 220,64 200,76 180,64"/>
-            <polygon points="200,112 220,100 240,112 240,136 220,148 200,136"/>
+          <g class="mini-parcels" stroke="#E3E8EF" fill="none" stroke-width="1.4">
+            <path d="M67 33.4 L94.4 31.6 Q101.1 31.1 101.1 37.8 L101 65.9 Q101 72.6 94.3 71.7 L66.4 68.2 Q59.8 67.3 59.9 60.6 L60.2 40.5 Q60.3 33.8 67 33.4Z"/>
+            <path d="M106.7 59.3 L136.6 56.3 Q143.3 55.6 142.9 62.3 L141.2 89.2 Q140.7 95.9 134.1 95.1 L106.5 91.8 Q99.8 91 99.8 84.3 L99.9 66.7 Q100 60 106.7 59.3Z"/>
+            <path d="M147.8 84.1 L172.1 83.8 Q178.8 83.7 178.6 90.4 L177.7 113 Q177.4 119.7 170.7 119.5 L143.2 118.9 Q136.5 118.8 137.4 112.1 L140.2 90.9 Q141.1 84.2 147.8 84.1Z"/>
+            <path d="M183.7 32.3 L213.3 33.6 Q220 33.9 219.5 40.6 L217.7 61.8 Q217.1 68.5 210.4 68.9 L184 70.4 Q177.3 70.8 177.3 64 L177.1 38.7 Q177 32 183.7 32.3Z"/>
+            <path d="M207.3 105.3 L235.2 102.9 Q241.9 102.3 241.7 109 L240.6 135.3 Q240.3 142 233.6 141.6 L206.2 139.8 Q199.5 139.4 199.7 132.7 L200.4 112.5 Q200.6 105.8 207.3 105.3Z"/>
           </g>
           <path class="move-route" d="M 30 160 C 80 150 90 110 140 104 S 220 70 270 40" fill="none"/>
           <circle class="move-marker" r="7"/>
@@ -243,12 +243,12 @@
     <article class="loop-card glass reveal tilt" data-loop="capture">
       <div class="loop-scene scene-capture" aria-hidden="true">
         <svg viewBox="0 0 300 190">
-          <g class="cap-hexes">
-            <polygon class="cap-hex h1" points="110,55 132,42 154,55 154,81 132,94 110,81"/>
-            <polygon class="cap-hex h2" points="154,81 176,68 198,81 198,107 176,120 154,107"/>
-            <polygon class="cap-hex h3" points="66,81 88,68 110,81 110,107 88,120 66,107"/>
-            <polygon class="cap-hex h4" points="110,107 132,94 154,107 154,133 132,146 110,133"/>
-            <polygon class="cap-hex h5" points="154,29 176,16 198,29 198,55 176,68 154,55"/>
+          <g class="cap-parcels">
+            <path class="cap-parcel h1" d="M116 48.3 L144.5 46.6 Q151.8 46.2 151.4 53.5 L150.4 78 Q150.1 85.2 142.9 85.1 L115 84.5 Q107.8 84.3 108 77.1 L108.5 56 Q108.7 48.7 116 48.3Z"/>
+            <path class="cap-parcel h2" d="M164.4 72.2 L192.5 72.9 Q199.8 73.1 199.7 80.4 L199.6 106.4 Q199.6 113.7 192.3 113.2 L163 111.1 Q155.7 110.6 156 103.3 L156.9 79.3 Q157.1 72 164.4 72.2Z"/>
+            <path class="cap-parcel h3" d="M71.6 76.4 L105.9 71.3 Q113.1 70.2 112.8 77.5 L111.3 108.3 Q111 115.6 103.7 114.7 L73.5 110.6 Q66.2 109.7 65.8 102.4 L64.8 84.7 Q64.4 77.5 71.6 76.4Z"/>
+            <path class="cap-parcel h4" d="M114.8 100.1 L145.5 99.1 Q152.8 98.9 152.5 106.1 L151.5 135.3 Q151.3 142.5 144 142.1 L116.8 140.6 Q109.5 140.2 109.1 133 L107.8 107.6 Q107.5 100.4 114.8 100.1Z"/>
+            <path class="cap-parcel h5" d="M160.1 22.5 L191.5 21.2 Q198.8 21 198.5 28.2 L197.6 54.9 Q197.3 62.2 190.1 61.7 L160.5 59.4 Q153.2 58.9 153.1 51.6 L152.9 30.1 Q152.8 22.8 160.1 22.5Z"/>
           </g>
           <g class="cap-particles">
             <circle r="2.5" class="p p1"/><circle r="2" class="p p2"/><circle r="2.5" class="p p3"/>
@@ -271,8 +271,8 @@
         <svg viewBox="0 0 300 190">
           <circle class="def-wave" cx="150" cy="92" r="20"/>
           <circle class="def-wave w2" cx="150" cy="92" r="20"/>
-          <polygon class="def-hex" points="150,52 184,72 184,112 150,132 116,112 116,72"/>
-          <polygon class="def-shield" points="150,44 191,68 191,116 150,140 109,116 109,68"/>
+          <path class="def-parcel" d="M125.4 63.1 L175.2 64.2 Q186.4 64.4 185.3 75.6 L181.8 112.4 Q180.7 123.5 169.5 123.1 L124.8 121.7 Q113.6 121.3 113.7 110.1 L114.1 74 Q114.2 62.8 125.4 63.1Z"/>
+          <circle class="def-shield" cx="150" cy="92" r="50"/>
         </svg>
         <div class="scene-chip glass-soft def-meter-chip"><span>Streak</span><span class="meter-track"><i class="def-meter"></i></span></div>
       </div>
@@ -288,10 +288,10 @@
     <article class="loop-card glass reveal tilt" data-loop="own">
       <div class="loop-scene scene-own" aria-hidden="true">
         <svg viewBox="0 0 300 190">
-          <polygon class="own-hex" points="150,96 184,116 184,156 150,176 116,156 116,116"/>
+          <path class="own-parcel" d="M124.2 103.6 L176.5 104.2 Q187.7 104.4 186.2 115.5 L181.3 154.5 Q179.9 165.6 168.7 165.2 L126.4 163.6 Q115.2 163.1 114.8 152 L113.4 114.6 Q113 103.4 124.2 103.6Z"/>
           <g class="own-deed">
             <rect x="105" y="28" width="90" height="112" rx="12"/>
-            <polygon points="150,52 166,61 166,79 150,88 134,79 134,61" class="own-deed-hex"/>
+            <path d="M139.9 54.8 L159.7 55 Q164.8 55 164.4 60.1 L163 79.2 Q162.6 84.3 157.4 84 L141 83.2 Q135.8 82.9 135.6 77.8 L135 59.9 Q134.8 54.8 139.9 54.8Z" class="own-deed-parcel"/>
             <rect x="120" y="100" width="60" height="6" rx="3" class="own-line"/>
             <rect x="128" y="114" width="44" height="5" rx="2.5" class="own-line dim"/>
           </g>
@@ -379,7 +379,7 @@
 
             <div class="pscreen ps-reward">
               <div class="ps-burst"><span></span><span></span><span></span><span></span><span></span><span></span></div>
-              <div class="ps-rewardhexwrap"><svg viewBox="0 0 80 90"><polygon points="40,5 75,25 75,65 40,85 5,65 5,25"/></svg></div>
+              <div class="ps-rewardareawrap"><svg viewBox="0 0 80 90"><path d="M18.2 12.9 L67.9 16.1 Q79.2 16.9 77.8 28.1 L73.3 66.8 Q71.9 78 60.7 77 L13 72.4 Q1.8 71.3 2.7 60.1 L5.9 23.5 Q6.9 12.2 18.2 12.9Z"/></svg></div>
               <p class="ps-rewardtitle">New zone explored!</p>
               <div class="ps-rewardnums"><span class="xp">+420 XP</span><span class="mv">Daily goal ✓</span></div>
             </div>
@@ -431,7 +431,7 @@
         <g stroke="#E6EBF0" stroke-width="10" stroke-linecap="round">
           <path d="M 0 250 H 960 M 0 90 H 960 M 0 360 H 960"/><path d="M 140 0 V 520 M 400 0 V 520 M 620 0 V 520 M 840 0 V 520"/>
         </g>
-        <g class="session-hexlayer" id="sessionHexes"></g>
+        <g class="session-arealayer" id="sessionAreas"></g>
         <path id="sessionTrail" class="session-trail" d="M 70 430 C 170 400 200 330 300 320 S 460 360 540 290 S 680 180 790 200 S 900 150 930 110" fill="none"/>
         <path id="sessionRoute" class="session-route" d="M 70 430 C 170 400 200 330 300 320 S 460 360 540 290 S 680 180 790 200 S 900 150 930 110" fill="none"/>
         <g id="sessionMarker" class="session-marker">
@@ -446,7 +446,7 @@
         <span>Capture</span>
         <span class="ring-mini big"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15"/><circle class="ring-val" id="ssRing" cx="18" cy="18" r="15"/></svg></span>
       </div>
-      <div class="zone-toast glass" id="zoneToast"><span class="hexicon hexicon-green small"></span>Entering new zone</div>
+      <div class="zone-toast glass" id="zoneToast"><span class="areaicon areaicon-green small"></span>Entering new zone</div>
     </div>
   </div>
 </section>
@@ -467,12 +467,12 @@
         <svg viewBox="0 0 300 220">
           <rect width="300" height="220" rx="20" fill="#EFF5F0"/>
           <g stroke="#E2E8EE" stroke-width="5" stroke-linecap="round"><path d="M 0 70 H 300 M 0 150 H 300 M 90 0 V 220 M 210 0 V 220"/></g>
-          <g class="reward-hexcluster" id="rewardHexCluster"></g>
+          <g class="reward-areacluster" id="rewardAreaCluster"></g>
           <path id="rewardReplay" class="reward-replay" d="M 30 190 C 90 170 90 120 150 110 S 240 70 275 35" fill="none"/>
         </svg>
         <div class="stamp stamp-badge" id="rewardStamp">New zone</div>
       </div>
-      <p class="reward-caption font-mono">Tue 06:42 · Riverside morning route</p>
+      <p class="reward-caption font-mono">Sample · Riverside morning route</p>
     </div>
     <div class="reward-right">
       <div class="reward-stats">
@@ -482,8 +482,8 @@
       </div>
       <div class="reward-rows">
         <div class="rrow xp"><span class="rrow-ic">✦</span><span>Goal progress</span><strong class="num font-mono" data-count="84" data-suffix="%">0%</strong></div>
-        <div class="rrow mv"><span class="rrow-ic">⬡</span><span>Movement points</span><strong class="num font-mono" data-count="35" data-prefix="+">+0</strong></div>
-        <div class="rrow zn"><span class="rrow-ic">⬢</span><span>New zone</span><strong class="font-mono">1</strong></div>
+        <div class="rrow mv"><span class="rrow-ic">◆</span><span>Movement points</span><strong class="num font-mono" data-count="35" data-prefix="+">+0</strong></div>
+        <div class="rrow zn"><span class="rrow-ic">●</span><span>New zone</span><strong class="font-mono">1</strong></div>
       </div>
       <p class="reward-note">Movement points are an in-app measure of activity. MovenRun does not promise financial returns.</p>
     </div>
@@ -505,9 +505,9 @@
         <span class="eco-tag">No wallet needed</span>
       </header>
       <div class="eco-scene" aria-hidden="true">
-        <svg viewBox="0 0 320 180" id="ecoFreeHexes"></svg>
+        <svg viewBox="0 0 320 180" id="ecoFreeAreas"></svg>
         <div class="eco-float glass-soft"><span class="ring-mini"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15"/><circle class="ring-val" cx="18" cy="18" r="15"/></svg></span><div><strong>XP ring</strong><span>level 12</span></div></div>
-        <div class="eco-float two glass-soft"><span class="badge-lock">⬡</span><div><strong>Streak</strong><span>9 days strong</span></div></div>
+        <div class="eco-float two glass-soft"><span class="badge-lock">↻</span><div><strong>Streak</strong><span>9 days strong</span></div></div>
       </div>
       <ul class="eco-list">
         <li>Walk, run or cycle, and claim a cell each session</li>
@@ -527,9 +527,9 @@
         <span class="eco-tag base-tag"><svg viewBox="0 0 16 16" class="base-dot"><circle cx="8" cy="8" r="7"/></svg>Points and deeds</span>
       </header>
       <div class="eco-scene" aria-hidden="true">
-        <svg viewBox="0 0 320 180" id="ecoDeedHexes"></svg>
+        <svg viewBox="0 0 320 180" id="ecoDeedAreas"></svg>
         <div class="eco-deedcard glass-soft">
-          <svg viewBox="0 0 52 56" class="deed-mini"><polygon points="26,4 48,16 48,40 26,52 4,40 4,16"/></svg>
+          <svg viewBox="0 0 52 56" class="deed-mini"><path d="M9.7 10.7 L42.8 7.9 Q49.8 7.3 48.9 14.2 L45.6 38.8 Q44.7 45.7 37.7 45.5 L8.4 44.6 Q1.4 44.3 1.7 37.3 L2.5 18.4 Q2.7 11.4 9.7 10.7Z"/></svg>
           <div><strong>Zone Deed</strong><span>A record of the cell you hold</span></div>
         </div>
         <div class="eco-float two glass-soft"><span>Territory</span><span class="meter-track wide"><i class="eco-def-meter"></i></span></div>
@@ -557,16 +557,15 @@
     <div class="clubs-map glass reveal" aria-hidden="true">
       <svg viewBox="0 0 460 340" id="warMap"></svg>
       <div class="war-chip glass-soft" id="warChip">City districts · Mockup</div>
-      <div class="war-timer glass-soft font-mono" id="warTimer">23:59:42</div>
-    </div>
+          </div>
 
     <div class="clubs-board glass reveal">
       <header class="board-head"><span>Riverside movement clubs</span><span class="chip chip-sky">Interface mockup</span></header>
       <div class="board-rows" id="boardRows">
-        <div class="board-row" data-club="0"><span class="club-color c-blue"></span><div class="club-info"><strong>Towpath Runners</strong><span class="font-mono">218 hexes</span></div><span class="club-trend up">▲</span></div>
-        <div class="board-row" data-club="1"><span class="club-color c-green"></span><div class="club-info"><strong>Riverside Runners</strong><span class="font-mono">204 hexes</span></div><span class="club-trend up">▲</span></div>
-        <div class="board-row" data-club="2"><span class="club-color c-gold"></span><div class="club-info"><strong>Campus Crew</strong><span class="font-mono">187 hexes</span></div><span class="club-trend down">▼</span></div>
-        <div class="board-row" data-club="3"><span class="club-color c-coral"></span><div class="club-info"><strong>Morning Miles</strong><span class="font-mono">142 hexes</span></div><span class="club-trend up">▲</span></div>
+        <div class="board-row" data-club="0"><span class="club-color c-blue"></span><div class="club-info"><strong>Towpath Runners</strong><span class="font-mono">218 areas</span></div><span class="club-trend up">▲</span></div>
+        <div class="board-row" data-club="1"><span class="club-color c-green"></span><div class="club-info"><strong>Riverside Runners</strong><span class="font-mono">204 areas</span></div><span class="club-trend up">▲</span></div>
+        <div class="board-row" data-club="2"><span class="club-color c-gold"></span><div class="club-info"><strong>Campus Crew</strong><span class="font-mono">187 areas</span></div><span class="club-trend down">▼</span></div>
+        <div class="board-row" data-club="3"><span class="club-color c-coral"></span><div class="club-info"><strong>Morning Miles</strong><span class="font-mono">142 areas</span></div><span class="club-trend up">▲</span></div>
       </div>
       <footer class="board-foot"><span>Sample clubs and numbers</span><span>Not live data</span></footer>
     </div>
@@ -580,7 +579,7 @@
   <div class="section-head reveal">
     <p class="kicker">Onchain</p>
     <h2 class="h2">Ground you keep,<br/>in a wallet you control.</h2>
-    <p class="lede">MovenRun’s contracts run on Base Sepolia while the economy is tested. Mainnet at launch.</p>
+    <p class="lede">Deeds are planned as records you hold in your own wallet. They are not live yet.</p>
   </div>
 
   <div class="base-grid">
@@ -588,7 +587,7 @@
       <div class="orbit"><span class="orbit-dot"></span><span class="orbit-dot d2"></span></div>
       <div class="deed-card" id="deedCard">
         <div class="deed-glow"></div>
-        <svg viewBox="0 0 80 90" class="deed-hex-big"><polygon points="40,5 75,25 75,65 40,85 5,65 5,25"/></svg>
+        <svg viewBox="0 0 80 90" class="deed-area-big"><path d="M21.2 11.6 L59.7 9.6 Q70.9 9 71.5 20.3 L74.1 68.6 Q74.7 79.9 63.4 79.2 L20.5 76.5 Q9.3 75.8 9.4 64.5 L9.8 23.5 Q10 12.2 21.2 11.6Z"/></svg>
         <strong>Zone Deed</strong>
         <span class="deed-sub">A record of standing</span>
         <div class="deed-foot"><svg viewBox="0 0 16 16" class="base-dot"><circle cx="8" cy="8" r="7"/></svg><span>Deed registry</span></div>
@@ -636,31 +635,31 @@
     <div class="road-orb" id="roadOrb"><span></span></div>
 
     <article class="phase glass" data-phase="0">
-      <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
+      <span class="phase-mark"><svg viewBox="0 0 40 44"><path d="M8.5 7.3 L31 7.6 Q36.7 7.7 36.9 13.4 L37.4 33.6 Q37.6 39.4 31.8 39.2 L7.4 38.6 Q1.7 38.5 1.9 32.7 L2.6 13 Q2.8 7.2 8.5 7.3Z"/></svg></span>
       <span class="phase-tag font-mono">Phase 1</span>
       <h3>The movement game</h3>
       <p>Sessions, claiming, the hold and decay model, districts and mastery, and the route checks behind all of it.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass right" data-phase="1">
-      <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
+      <span class="phase-mark"><svg viewBox="0 0 40 44"><path d="M8.9 8 L30.8 7.6 Q36.6 7.4 36.9 13.2 L38.1 34.6 Q38.4 40.3 32.7 39.6 L8.3 36.7 Q2.5 36 2.7 30.2 L3 13.9 Q3.1 8.2 8.9 8Z"/></svg></span>
       <span class="phase-tag font-mono">Phase 2</span>
       <h3>Clubs and city play</h3>
       <p>Clubs sync between players, so the districts you hold count toward a shared total instead of a local preview.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass" data-phase="2">
-      <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
+      <span class="phase-mark"><svg viewBox="0 0 40 44"><path d="M8.8 6.9 L31.6 6.8 Q37.4 6.8 37.1 12.6 L36.3 30.5 Q36.1 36.3 30.3 36 L8.3 34.9 Q2.6 34.6 2.7 28.8 L3 12.7 Q3.1 6.9 8.8 6.9Z"/></svg></span>
       <span class="phase-tag font-mono">Phase 3</span>
       <h3>Points</h3>
       <p>Points arrive as the in-game currency, earned by moving and spent on strengthening the ground you hold.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
     <article class="phase glass right" data-phase="3">
-      <span class="phase-hex"><svg viewBox="0 0 40 44"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg></span>
+      <span class="phase-mark"><svg viewBox="0 0 40 44"><path d="M10.4 7.7 L29.8 5 Q35.5 4.2 35.4 9.9 L35.3 33.4 Q35.2 39.2 29.5 38.9 L7.6 37.5 Q1.9 37.2 2.4 31.4 L4.1 14.2 Q4.7 8.5 10.4 7.7Z"/></svg></span>
       <span class="phase-tag font-mono">Phase 4</span>
-      <h3>Deeds on Base</h3>
-      <p>The deed registry moves to Base mainnet, and held ground starts becoming deeds recorded under your own keys.</p>
+      <h3>Deeds</h3>
+      <p>Held ground can become deeds recorded under your own keys.</p>
       <div class="phase-burst" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </article>
   </div>
@@ -681,7 +680,7 @@
       <ellipse cx="300" cy="200" rx="190" ry="120" fill="#DFF3E4"/>
       <ellipse cx="1080" cy="170" rx="150" ry="100" fill="#E2F4E6"/>
       <g stroke="#E6EBF0" stroke-width="10" stroke-linecap="round"><path d="M 0 340 H 1400 M 0 120 H 1400 M 0 480 H 1400"/><path d="M 220 0 V 760 M 560 0 V 760 M 880 0 V 760 M 1180 0 V 760"/></g>
-      <g id="finalHexes"></g>
+      <g id="finalAreas"></g>
       <path id="finalRoute" class="final-route" d="M 100 620 C 280 560 320 440 520 430 S 800 500 950 380 S 1180 220 1330 250" fill="none"/>
       <g id="finalMarker" class="session-marker"><circle r="18" class="sm-halo"/><circle r="8" class="sm-core"/></g>
     </svg>
@@ -690,14 +689,14 @@
 
   <div class="final-card glass stacked reveal">
     <div class="final-brand">
-      <svg viewBox="0 0 40 44" class="brand-hex big" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg>
+      <svg viewBox="0 0 40 44" class="brand-mark big" aria-hidden="true"><path fill-rule="evenodd" d="M20 42C20 42 5 28.2 5 17.2A15 15 0 0 1 35 17.2C35 28.2 20 42 20 42ZM20 11.2A6 6 0 1 0 20 23.2A6 6 0 1 0 20 11.2Z"/></svg>
       <span>MovenRun</span>
     </div>
     <h2 class="final-h2">The map starts<br/>at your front door.</h2>
-    <p class="lede">MovenRun is in development and not open yet. Follow the build and be among the first on the map when it is.</p>
+    <p class="lede">MovenRun is in development and not open yet. The whitepaper explains how the game works and what is built so far.</p>
     <div class="final-ctas">
-      <a class="btn btn-primary btn-lg" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X <span class="btn-arrow">→</span></a>
-      <a class="btn btn-ghost btn-lg" href="/docs/">Read the docs</a>
+      <a class="btn btn-primary btn-lg" href="/docs/">Read the whitepaper <span class="btn-arrow">→</span></a>
+      <a class="btn btn-ghost btn-lg" href="/docs/how-it-works/">How it works</a>
     </div>
     <p class="final-fine font-mono">Free to play · No wallet needed · No coordinates stored</p>
     <p class="final-top"><a href="#hero">Back to the top ↑</a></p>
@@ -710,7 +709,7 @@
   <div class="footer-grid">
     <div class="foot-col foot-brand-col">
       <div class="footer-brand">
-        <svg viewBox="0 0 40 44" class="brand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg>
+        <svg viewBox="0 0 40 44" class="brand-mark" aria-hidden="true"><path fill-rule="evenodd" d="M20 42C20 42 5 28.2 5 17.2A15 15 0 0 1 35 17.2C35 28.2 20 42 20 42ZM20 11.2A6 6 0 1 0 20 23.2A6 6 0 1 0 20 11.2Z"/></svg>
         <span>MovenRun</span>
       </div>
       <p class="foot-desc">A movement game where the ground you cover becomes territory you hold.</p>
@@ -734,7 +733,6 @@
     </nav>
     <nav class="foot-col" aria-label="Community">
       <p class="foot-title">Community</p>
-      <a href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
       <a href="https://github.com/suhaib155/arena" target="_blank" rel="noopener noreferrer">GitHub</a>
       <a href="#clubs">City districts</a>
       <a href="/docs/roadmap/">Roadmap</a>
@@ -748,7 +746,7 @@
 
 <!-- Mobile sticky CTA -->
 <div class="mobile-cta" id="mobileCta">
-  <a class="btn btn-primary" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X <span class="btn-arrow">→</span></a>
+  <a class="btn btn-primary" href="/docs/">Read the whitepaper <span class="btn-arrow">→</span></a>
 </div>
 
 <script src="js/globe.js"></script>

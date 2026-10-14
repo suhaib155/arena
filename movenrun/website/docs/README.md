@@ -45,14 +45,16 @@ docs toolchain, so the shell stays identical across every page. When editing:
   trackers, PRs, or external documentation; no "references" section. The docs
   themselves are the reference.
 - **Say which things exist.** The onchain layer is a design, not a
-  description. Eight contracts are deployed to Base Sepolia (chain 84532,
-  27 May 2026); nothing is on Base mainnet; no Zone Deed or $MOVE has been
+  description. Contracts exist only in a test deployment; nothing is on
+  mainnet; no Zone Deed or $MOVE has been
   minted; one account holds `DEFAULT_ADMIN_ROLE` on all eight and is also the
   oracle operator, keeper and treasury; no timelock is deployed; no embedded
   wallet provider has been chosen and there is no gas sponsorship. Zones,
   battles and balances live in Postgres. Clubs are a local preview that does
-  not sync. Write "Base Sepolia" wherever the testnet is meant, and never in a
-  footnote.
+  not sync. Public pages do not name chain environments (no test network or
+  mainnet labels) and show no contract addresses. The roadmap page carries
+  the single technical statement: mainnet deployment is an objective for the
+  official launch and has not happened. No publication or effective dates.
 - **Design tense for designs.** Describe the protocol, token, and governance
   as the network's design, in future or conditional tense, so a reader who
   opens the code finds nothing on the page that contradicts it. Where
@@ -63,7 +65,7 @@ docs toolchain, so the shell stays identical across every page. When editing:
   one-liners; no reflexive lists of three. Avoid seamlessly, effortlessly,
   powerful, robust, cutting-edge, revolutionise, unlock, empower, elevate,
   redefine, at its core, imagine a world, the future of. Vary sentence
-  length, and prefer the concrete: "you claim the hexes inside your loop"
+  length, and prefer the concrete: "you claim the areas inside your loop"
   over "a novel territorial capture mechanic". No hedge on every sentence
   either; a page drowning in caveats reads as badly as one that overclaims.
 

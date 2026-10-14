@@ -4,12 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Deeds and onchain · MovenRun Docs</title>
-<meta name="description" content="Zone Deeds are the planned onchain record of which cells a player holds. What a deed would record, and where the contracts run today." />
+<meta name="description" content="Zone Deeds are the planned onchain record of which cells a player holds. What a deed would record, and where the design stands today." />
 <meta name="theme-color" content="#F8FAF7" />
 <link rel="canonical" href="https://movenrun-website.vercel.app/docs/onchain/" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Deeds and onchain · MovenRun Docs" />
-<meta property="og:description" content="Zone Deeds are the planned onchain record of which cells a player holds. What a deed would record, and where the contracts run today." />
+<meta property="og:description" content="Zone Deeds are the planned onchain record of which cells a player holds. What a deed would record, and where the design stands today." />
 <meta property="og:url" content="https://movenrun-website.vercel.app/docs/onchain/" />
 
 
@@ -17,17 +17,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/docs/assets/docs.css" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5' fill='%2318C987'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill-rule='evenodd' d='M16 30.5C16 30.5 5 20.4 5 12.6A11 11 0 0 1 27 12.6C27 20.4 16 30.5 16 30.5ZM16 8.2A4.4 4.4 0 1 0 16 17A4.4 4.4 0 1 0 16 8.2Z' fill='%2318C987'/%3E%3C/svg%3E" />
 </head>
 <body>
 <a class="skip-link" href="#doc-main">Skip to content</a>
 <header class="dhead">
   <button class="dnav-toggle" type="button" aria-expanded="false" aria-controls="dsidebar" aria-label="Open documentation navigation"><span class="dburger" aria-hidden="true"><i></i><i></i><i></i></span><span class="dnav-word">Menu</span></button>
-  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-hex" aria-hidden="true"><polygon points="20,2 38,12 38,32 20,42 2,32 2,12"/></svg><span>MovenRun</span><em>Docs</em></a>
+  <a class="dbrand" href="/docs/"><svg viewBox="0 0 40 44" class="dbrand-mark" aria-hidden="true"><path fill-rule="evenodd" d="M20 42C20 42 5 28.2 5 17.2A15 15 0 0 1 35 17.2C35 28.2 20 42 20 42ZM20 11.2A6 6 0 1 0 20 23.2A6 6 0 1 0 20 11.2Z"/></svg><span>MovenRun</span><em>Docs</em></a>
   <div class="dhead-actions">
     <button class="dsearch-btn" type="button" aria-label="Search documentation"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14 L18 18"/></svg><span>Search</span><kbd>/</kbd></button>
     <a class="dhead-link" href="/">Website</a>
-    <a class="dhead-link dhead-x" href="https://x.com/" target="_blank" rel="noopener noreferrer">Follow on X</a>
   </div>
 </header>
 <div class="dscrim" hidden></div>
@@ -43,7 +42,7 @@
 
     <article class="darticle">
 <h1>Deeds and onchain</h1>
-<p class="lead">MovenRun's contracts run on Base Sepolia while the design is tested. Mainnet at launch.</p>
+<p class="lead">Deeds are planned as records you hold in your own wallet. They are not live yet.</p>
 
 <h2 id="deeds">What a deed is</h2>
 <figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/zone-deed.svg" alt="A cell you hold maps to one Zone Deed. The deed records which cell it is, who holds it, and how long it has been held, kept under the holder's own keys." width="360" height="268" /><figcaption>One deed per cell. A record of standing, nothing more.</figcaption></figure>
@@ -54,8 +53,8 @@
 <p>A deed is a record of standing in a game. It is not property, it is not an investment, and it is not designed to carry value. Holding one says you have held that cell, and nothing else.</p>
 <p>Length of holding is the thing a deed is designed to make legible. Ground held for a year reads differently from ground claimed last week, and that difference is the only ranking a deed expresses.</p>
 
-<h2 id="where">Where the contracts are</h2>
-<p>The contracts are deployed to Base Sepolia, which is a test network, while the design is worked through. Nothing has been issued on them. Addresses go up at mainnet launch, alongside the deed registry itself.</p>
+<h2 id="where">Where the design stands</h2>
+<p>The deed registry is still a design being worked through. No deed has been issued and there is nothing to connect to. The <a href="/docs/roadmap/">roadmap</a> shows where deeds sit in the order of work.</p>
 
 <h2 id="wallet">Wallets</h2>
 <p>Holding a deed needs somewhere to keep it. The intent is that this is arranged for you and stays out of the way, so that the game does not begin with a setup task. That work has not started and no provider has been chosen.</p>

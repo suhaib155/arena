@@ -21,9 +21,9 @@
 <rect x="186" y="306" width="150" height="50" rx="12" fill="#FDECEC" stroke="#FF6B4A" stroke-width="2"/>
 <text x="261.0" y="329.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="13.5" font-weight="700" fill="#111827">Rejected</text>
 <text x="261.0" y="347.0" text-anchor="middle" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" fill="#667085">nothing banked</text>
-<polygon points="34,375 40.06,378.5 40.06,385.5 34,389 27.94,385.5 27.94,378.5" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
+<path d="M30.3 376.9 L37.3 376.8 Q39.3 376.7 39.3 378.7 L39.3 385.2 Q39.3 387.1 37.3 387 L29.4 386.6 Q27.5 386.5 27.6 384.5 L28.2 378.9 Q28.3 377 30.3 376.9Z" fill="#E2F8EF" stroke="#18C987" stroke-width="1.8"/>
 <text x="50" y="386" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Passes every check</text>
-<polygon points="202,375 208.06,378.5 208.06,385.5 202,389 195.94,385.5 195.94,378.5" fill="#FDECEC" stroke="#FF6B4A" stroke-width="1.8"/>
+<path d="M197.3 376.6 L206.5 377.1 Q208.4 377.2 208.3 379.1 L207.7 386 Q207.5 387.9 205.6 387.8 L197.9 387.6 Q195.9 387.5 195.8 385.6 L195.4 378.4 Q195.3 376.5 197.3 376.6Z" fill="#FDECEC" stroke="#FF6B4A" stroke-width="1.8"/>
 <text x="218" y="386" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Fails one or more</text>
 <text x="24" y="418" font-family="Sora, 'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" fill="#667085">Every route runs all four checks.</text>
 </svg>

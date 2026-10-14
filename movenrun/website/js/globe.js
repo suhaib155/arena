@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════
    MovenRun · Daylight globe renderer
    A procedural canvas-2D Earth: pale blue oceans, soft green land,
-   drifting clouds, a faint H3-style hex wrap, atmosphere rim, and a
+   drifting clouds, a faint latitude/longitude graticule, atmosphere rim, and a
    blinking GPS dot. No textures, no WebGL — runs anywhere at 60fps.
    ════════════════════════════════════════════════════════════════ */
 
@@ -83,8 +83,8 @@
       cx, cy     — globe center in CSS px
       radius     — globe radius in CSS px
       cloudDrift — extra cloud rotation in degrees
-      hexAlpha   — 0..1 strength of the hex wrap
-      detail     — 0..1 fades hexes/clouds out during descent
+      gridAlpha  — 0..1 strength of the graticule
+      detail     — 0..1 fades the graticule/clouds out during descent
       gpsPulse   — 0..1 phase of the GPS blink
       arcs       — whether to draw the route arc
   */
@@ -97,7 +97,7 @@
     var R = opts.radius || Math.min(w, h) * 0.36;
     var rot = opts.rotation || 0;
     var detail = opts.detail != null ? opts.detail : 1;
-    var hexAlpha = (opts.hexAlpha != null ? opts.hexAlpha : 0.5) * detail;
+    var gridAlpha = (opts.gridAlpha != null ? opts.gridAlpha : 0.5) * detail;
 
     ctx.clearRect(0, 0, w, h);
 
@@ -139,8 +139,8 @@
       this.drawRing(ctx, LAND[i], rot, cx, cy, R, true);
     }
 
-    /* Hex wrap — faint H3-style grid */
-    if (hexAlpha > 0.01) this.drawHexWrap(ctx, rot, cx, cy, R, hexAlpha);
+    /* Graticule: faint latitude and longitude lines */
+    if (gridAlpha > 0.01) this.drawGraticule(ctx, rot, cx, cy, R, gridAlpha);
 
     /* Route arc between two cities */
     if (opts.arcs !== false && detail > 0.05) {
@@ -232,29 +232,30 @@
     ctx.stroke();
   };
 
-  Globe.prototype.drawHexWrap = function (ctx, rot, cx, cy, R, alpha) {
-    var size = 7.5; /* degrees */
+  /* Faint latitude/longitude graticule, segment by segment so the far side
+     of the sphere stays hidden and the lines fade toward the limb. */
+  Globe.prototype.drawGraticule = function (ctx, rot, cx, cy, R, alpha) {
+    var self = this;
     ctx.lineWidth = 1;
-    for (var lat = -52.5; lat <= 60; lat += size * 1.5) {
-      var stretch = 1 / Math.max(0.35, Math.cos(lat * D2R));
-      var stepLon = size * 1.74 * stretch;
-      var row = Math.round(lat / (size * 1.5));
-      var offset = (row % 2) * stepLon * 0.5;
-      for (var lon = -180 + offset; lon < 180; lon += stepLon) {
-        var center = this.project(lon, lat, rot);
-        if (center.z < 0.18) continue;
-        ctx.strokeStyle = "rgba(36, 107, 254," + (alpha * 0.32 * center.z) + ")";
-        ctx.beginPath();
-        for (var k = 0; k <= 6; k++) {
-          var a = (Math.PI / 180) * (60 * k + 30);
-          var hlon = lon + (size * stretch) * Math.cos(a);
-          var hlat = lat + size * Math.sin(a);
-          var hp = this.project(hlon, hlat, rot);
-          var x = cx + hp.x * R, y = cy + hp.y * R;
-          if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    function line(pointAt, from, to, step) {
+      var prev = null;
+      for (var v = from; v <= to + 0.001; v += step) {
+        var p = pointAt(v);
+        if (prev && p.z > 0.05 && prev.z > 0.05) {
+          ctx.strokeStyle = "rgba(36, 107, 254," + (alpha * 0.3 * Math.min(p.z, prev.z)) + ")";
+          ctx.beginPath();
+          ctx.moveTo(cx + prev.x * R, cy + prev.y * R);
+          ctx.lineTo(cx + p.x * R, cy + p.y * R);
+          ctx.stroke();
         }
-        ctx.stroke();
+        prev = p;
       }
+    }
+    for (var lat = -60; lat <= 60; lat += 20) {
+      line(function (lon) { return self.project(lon, lat, rot); }, -180, 180, 6);
+    }
+    for (var lon = -180; lon < 180; lon += 20) {
+      line(function (la) { return self.project(lon, la, rot); }, -80, 80, 6);
     }
   };
 
