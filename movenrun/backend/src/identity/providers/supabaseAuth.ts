@@ -31,9 +31,9 @@ export class SupabaseAuthError extends Error {
 export interface SupabaseAuthConfig {
   /** Project URL, e.g. https://<ref>.supabase.co (no trailing slash). */
   url: string;
-  /** Publishable (or legacy anon) key: sent as `apikey` on public auth calls. */
+  /** Publishable key (`sb_publishable_…`): sent as `apikey` on public auth calls. */
   publishableKey: string;
-  /** Secret (or legacy service role) key: admin calls only. Never leaves the server. */
+  /** Secret key (`sb_secret_…`): admin calls only. Never leaves the server. */
   secretKey: string;
   /** Legacy HS256 JWT secret. Only for projects that have not moved to signing keys. */
   legacyJwtSecret?: string | null;
@@ -296,6 +296,14 @@ export class SupabaseAuthClient {
 }
 
 /**
+ * Which keys this API trusts for Supabase access tokens, for the startup log.
+ * Says only whether a legacy secret is configured, never anything about it.
+ */
+export function tokenTrustSummary(config: Pick<SupabaseAuthConfig, "legacyJwtSecret">): string {
+  return config.legacyJwtSecret ? "signing keys and legacy secret" : "signing keys only";
+}
+
+/**
  * Read Supabase settings from the environment. Nothing set → null (sign-in
  * fails closed). Partly set or malformed → startup error, never a silent fallback.
  */
@@ -309,6 +317,11 @@ export function supabaseAuthConfigFrom(env: Record<string, string | undefined>):
     throw new Error("Invalid Supabase configuration: SUPABASE_URL (https), SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY are required together");
   }
   if (publishableKey === secretKey) throw new Error("Invalid Supabase configuration: the secret key must differ from the publishable key");
+  // The legacy anon and service_role keys are JWTs signed with the legacy
+  // shared secret, so they stop working once that secret is revoked. Only the
+  // new keys are accepted, which keeps revoking it safe for this service.
+  if (!publishableKey.startsWith("sb_publishable_")) throw new Error("Invalid Supabase configuration: SUPABASE_PUBLISHABLE_KEY must be an sb_publishable_ key");
+  if (!secretKey.startsWith("sb_secret_")) throw new Error("Invalid Supabase configuration: SUPABASE_SECRET_KEY must be an sb_secret_ key");
   if (legacyJwtSecret !== null && legacyJwtSecret.length < 32) throw new Error("Invalid Supabase configuration: SUPABASE_LEGACY_JWT_SECRET is too short");
   return { url: url.replace(/\/$/, ""), publishableKey, secretKey, legacyJwtSecret };
 }
