@@ -36,10 +36,10 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | `release/android-v1-cxfdbd` | 991ac6a | Play v1 integration branch, unmerged |
 | `fix/play-auth-security-gate` | b4612bb | Security review rounds 1–2 (ancestor of everything below) |
 | `deploy/render-free-staging` | dd83065 | The commit X-06 approved. Moves only with owner approval (X-24) |
-| `chore/post-security-launch-prep` | this board | Security round 3–4, session fixes (f6ce3c5), launch ledgers |
-| `feat/g0-economy-v3` | 98c2862 | G0: V3 spec proposal + tested day-settlement reference model (on top of the chore branch) |
-| `feat/g1-territory-geometry` | 6257d9a | G1: map regions + covered-ground endpoint (on top of the chore branch) |
-| `web/w1-review-preview` | 8c4d55b | W1: website review version (on top of the chore branch) |
+| `chore/post-security-launch-prep` | this board (61c9386 + report) | Security round 3–4, session fixes (f6ce3c5), launch ledgers |
+| `feat/g0-economy-v3` | e2ae062 | G0: V3 spec proposal + tested day-settlement reference model (on top of the chore branch) |
+| `feat/g1-territory-geometry` | 635ad7f | G1: map regions + covered-ground endpoint (on top of the chore branch) |
+| `web/w1-review-preview` | bd7fff2 | W1: website review version (on top of the chore branch) |
 | `feat/v3-onchain-core` | c8262ec | Separate prototype contracts branch. Not part of Play v1 |
 
 ## Work packets
