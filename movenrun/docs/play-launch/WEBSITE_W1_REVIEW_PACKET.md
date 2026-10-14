@@ -78,7 +78,8 @@ screenshots. `vercel.json` (security headers) is unchanged.
    "war timer" countdown (`23:59:42`, ticking every second) and its script.
    The sample reward caption "Tue 06:42" became "Sample". No replacement date
    was invented. The "© 2026" copyright line in footers was kept (a copyright
-   notice, not a publication or launch date; owner may remove).
+   notice, not a publication or launch date). Year-free option if the owner
+   prefers: "© MovenRun. All rights reserved."
 2. **No fixed support promise.** `/support/` now says "Help is available by
    email from Team MovenRun." Contact stays `info@movenrun.xyz`.
 3. **30-day deletion line.** Kept in `/account-deletion/` option 3, preceded
@@ -201,6 +202,22 @@ correctly fails until X-21 fills them.
 - `scripts/check-secrets.mjs`: pass.
 - `scripts/check-launch-placeholders.mjs`: fails as expected (placeholders
   awaiting X-06/X-05/X-21).
-- `evidence/web-sign-in-deletion-e2e.mjs`: not run in this session (no
-  credentials for the local PostgreSQL). It asserts no wording changed here;
-  its 320 px fit check is covered by the matrix above.
+- `evidence/web-sign-in-deletion-e2e.mjs`: **23/23 pass**, run twice:
+  on 8c4d55b (13 Oct) and on the merge head 27b1e91 (14 Oct). Environment:
+  website from this branch's tree, backend from `chore/post-security-launch-prep`
+  (61c9386), local PostgreSQL 16 (`movenrun_test`), Chromium via Playwright,
+  Supabase Auth and the wallet stubbed locally. Not a hosted run. Before any
+  publish (X-21), rerun it on the exact head being published and record that
+  SHA here.
+
+## Truthfulness review (14 Oct)
+
+Several pages describe today's on-device preview rules (one new cell per
+saved session, one claim a day, districts and mastery) as working game rules.
+In the app they run locally only and are not multiplayer, and the V3 design
+replaces them with sealing, solid and shade. The exact lines and proposed
+wording are in `../product-roadmap/PR_QUEUE.md` § W1 blockers. The vision
+(clubs, districts, sealing, Deeds, the planned network objective) stays; only
+the present-tense claims change. None of these edits is made yet: they wait
+for the owner's review of this packet.
+
