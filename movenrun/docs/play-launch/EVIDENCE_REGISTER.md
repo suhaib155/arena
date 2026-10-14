@@ -62,6 +62,8 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-38 | P | `evidence/website-preview-shots.mjs`: four pages from `website/` at dd83065 in Chromium, 1440 × 900 and 390 × 844, only localhost and Google Fonts allowed | 8 screenshots; no sideways scroll, no script errors, no blocked request; placeholder controls show "not available right now" | dd83065 |
 | E-39 | B | `evidence/capacity-db-size.mjs` on local PostgreSQL 16.15: migrations 0000–0009, 1,000 synthetic players, `vacuum analyze`, `pg_database_size`; throwaway databases dropped | Empty 8.3 MB. Typical 55.4 MB (walks 25.3, sessions 13.4, log 7.4). Heavy 323.4 MB (walks 168.3, sessions 89.3, log 56.3). Per row: session 0.47 KB, log 0.19 KB, walk 0.66 KB (12 cells) / 1.7 KB (60 cells) |
 | E-40 | B | f6ce3c5: `yarn build`, `yarn test` with `MOVENRUN_TEST_DATABASE_URL` (PostgreSQL 16), `yarn test:api`, secret scan | Backend 409/409, 0 skipped (3 new: device list after 150 refreshes failed before the fix; prune window; live sessions untouched). API 17/17 (runtime test: the start-up clean-up deletes the expired row only). Secret scan clean |
+| E-41 | B | X-06 live check, 14 Oct 2026 ~05:25 UTC, read-only: Render API through the connector (service, deploys, logs), public URL fetched from an outside shell, Supabase read-only SQL and PostgREST config | Service `movenrun-staging-api` srv-db7a49dg1s2s739nleog: Free plan, Virginia, branch `deploy/render-free-staging`, root `movenrun`, health check `/ready`, auto-deploy off. Deploy dep-db7a7o2vcj2c73crsemg **live** at dd8306588667342fab2db0ebd4d55632acadb57a (the first Blueprint deploy dep-db7a49tg1s2s739nlga0 failed: drizzle-kit ENOENT opening a file named in the database settings, cause inferred not confirmed). Log: migrations applied, API listening. `/health` 200 `{"status":"ok"}` (cold start ~52 s); `/ready` 200 database ready, sign-in supabase. HSTS, CSP, nosniff, X-Frame-Options over TLS. `drizzle.__drizzle_migrations`: 10 rows, hashes equal sha256 of 0000–0009 at dd83065. 19 public tables, RLS on all, 0 policies. `auth.users` 0. PostgREST exposed schemas: none (Data API serves no tables). Hook (X-07) and providers (X-05) not attached. No secret recorded |
+| E-42 | G | `feat/g0-economy-v3` 98c2862: shared `yarn test`, `tsc`, secret scan | Shared 179/179 (23 new in `economyV3.test.ts`: Meera's day among 40,000 players, Dan's day, toll and upkeep tables, season schedule, 300 seeded random days with books closing exactly). Typecheck and secret scan clean. Reference model only; mints nothing |
 
 ## Evidence level by capability
 
@@ -81,7 +83,7 @@ has been run for sign-in yet.
 | Sign-in when the free API is asleep (wake-up, 90 s limit, retry copy) | Locally tested (E-28) | Hosted: X-06; handset: X-10 step 15g |
 | Hourly new-account quota (hook and API) and orphan sweep | Locally tested (E-29, E-32: hook contract on PostgreSQL, sweep race closed) | Hosted: X-06, X-07, X-07b (Supabase must call the hook) |
 | Website wallet choice (EIP-6963) | Locally tested (E-31) | X-21, then a desktop browser with two wallet extensions |
-| Email codes unreachable on the hosted API | Locally tested (E-27) | Hosted: X-06 (check `/identity/auth/email/begin` answers 404) |
+| Email codes unreachable on the hosted API | Locally tested (E-27) | Hosted API live (E-41); the 404 check runs with X-05 |
 | Verified movement | Locally tested (E-13, runtime test) | Hosted: X-06; handset: X-10 |
 | Play internal test install | Blocked | X-01 (account NOT CREATED), X-09, X-11, X-12, X-14 |
 
