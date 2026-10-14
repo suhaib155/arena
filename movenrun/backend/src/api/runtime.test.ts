@@ -13,7 +13,7 @@ import { resolveApiConfig } from "./config.js";
 const databaseUrl = process.env.MOVENRUN_TEST_DATABASE_URL;
 const SUPABASE_URL = "https://movenrun-test.supabase.co";
 
-test("built API, migrations and real session/PostgreSQL flow (delivery transport mocked only)", { skip: !databaseUrl }, async () => {
+test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stand-in only)", { skip: !databaseUrl }, async () => {
   const databaseName = `preview_test_${randomUUID().replaceAll("-", "")}`;
   const admin = new Pool({ connectionString: databaseUrl });
   await admin.query(`CREATE DATABASE "${databaseName}"`);
@@ -29,7 +29,8 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     Object.assign(process.env, {
       NODE_ENV: "production", DATABASE_URL: url.toString(),
       IDENTITY_SESSION_PEPPER: randomBytes(32).toString("hex"),
-      IDENTITY_OTP_PEPPER: randomBytes(32).toString("hex"),
+      // Left over from the email-code design: the API must ignore them.
+      RESEND_API_KEY: "re_test_not_used", IDENTITY_EMAIL_FROM: "MovenRun <info@movenrun.xyz>",
       CORS_ORIGINS: "https://preview.example.com",
       SUPABASE_URL: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test", SUPABASE_SECRET_KEY: "sb_secret_test",
       IDENTITY_AUTH_DOMAIN: "movenrun.xyz",
@@ -44,7 +45,7 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
         }));
     }
     const migrationRows = await pool.query("select count(*)::int as count from drizzle.__drizzle_migrations");
-    assert.equal(migrationRows.rows[0].count, 9);
+    assert.equal(migrationRows.rows[0].count, 10);
     // A hosted database's automatic REST API must not reach any table: every
     // table has row level security on (and no policies).
     const openTables = await pool.query(
@@ -80,17 +81,25 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     const graph = JSON.parse(await readFile("dist/api-inputs.json", "utf8")) as string[];
     assert.ok(!graph.some(path => /src\/(workers|routes|blockchain)\//.test(path)));
 
+    // A session a week past its refresh expiry, and a live one: the clean-up
+    // run at start deletes only the first (the batch delete is real SQL).
+    await pool.query("insert into users (id) values ('prune-check')");
+    await pool.query(`insert into auth_sessions (id, user_id, family_id, refresh_token_hash, expires_at)
+      values ('prune-old', 'prune-check', 'f1', 'h-old', now() - interval '8 days'),
+             ('prune-live', 'prune-check', 'f2', 'h-live', now() + interval '1 day')`);
+
     // Supabase Auth is the only thing replaced: a stand-in that publishes a
     // signing key, issues Web3 sessions and accepts admin deletions. Tokens are
     // real ES256 JWTs that the API verifies exactly as it would Supabase's.
     const keys = generateKeyPairSync("ec", { namedCurve: "P-256" });
     const deletedProviderUsers: string[] = [];
+    let adminListings = 0;
     const walletUsers = new Map<string, string>();
     const mint = (sub: string, method: string, email: string | null) => {
       const now = Math.floor(Date.now() / 1000);
       const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
       const head = enc({ alg: "ES256", kid: "k1", typ: "JWT" });
-      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], is_anonymous: false });
+      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], app_metadata: { provider: method === "oauth" ? "google" : "web3", providers: [method === "oauth" ? "google" : "web3"] }, is_anonymous: false });
       return `${head}.${body}.${sign("sha256", Buffer.from(`${head}.${body}`), { key: keys.privateKey, dsaEncoding: "ieee-p1363" }).toString("base64url")}`;
     };
     globalThis.fetch = async (input, init) => {
@@ -109,6 +118,11 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
         assert.equal((init.headers as Record<string, string>).apikey, "sb_secret_test");
         deletedProviderUsers.push(admin[1]);
         return new Response("{}", { status: 200 });
+      }
+      if (url.startsWith(`${SUPABASE_URL}/auth/v1/admin/users?`) && (init?.method ?? "GET") === "GET") {
+        assert.equal((init?.headers as Record<string, string>).apikey, "sb_secret_test");
+        adminListings += 1;
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
       throw new Error(`unexpected outbound request: ${url}`);
     };
@@ -136,6 +150,7 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     assert.equal((await request("/identity/me")).status, 401);
     // Email codes are not part of this deployment.
     assert.equal((await request("/identity/auth/email/begin", { email: "runner@example.com" })).status, 404);
+    assert.equal((await request("/identity/auth/email/complete", { email: "runner@example.com", code: "123456" })).status, 404);
     const email = "runner@example.com";
     const subject = randomUUID();
     const token = await signIn(subject, email);
@@ -261,7 +276,29 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     await pool.query("update account_capacity set max_accounts = 1000");
     const hookOpen = await pool.query("select public.movenrun_before_user_created('{}'::jsonb) as r");
     assert.deepEqual(hookOpen.rows[0].r, {});
+    // The hook's hourly quota (0009): it records each user it lets through and
+    // refuses with 429 once the hour's quota is used, whoever called the provider.
+    assert.equal((await pool.query("select count(*)::int as count from auth_user_creations")).rows[0].count, 1);
+    await pool.query("update account_capacity set max_new_per_hour = 1");
+    const hookBusy = await pool.query("select public.movenrun_before_user_created('{}'::jsonb) as r");
+    assert.equal(hookBusy.rows[0].r.error.http_code, 429);
+    // The API applies the same hourly quota to new players, on real Postgres.
+    const recentPlayers = (await pool.query("select count(*)::int as count from users where created_at > now() - interval '1 hour'")).rows[0].count as number;
+    await pool.query("update account_capacity set max_new_per_hour = $1", [recentPlayers]);
+    const busyUser = randomUUID();
+    const busy = await request("/identity/auth/google/complete", { accessToken: mint(busyUser, "oauth", null) });
+    assert.equal(busy.status, 429);
+    assert.equal((await busy.json()).error.code, "registration_busy");
+    assert.ok(deletedProviderUsers.includes(busyUser));
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email) })).status, 200);
+    await pool.query("update account_capacity set max_new_per_hour = 50");
 
+    // Clean-up does not wait for a timer: the first requests after start
+    // (a wake from sleep on the free host) already ran the orphan sweep,
+    // which listed provider users once and only once while it was due.
+    assert.equal(adminListings, 1);
+    const pruneLeft = await pool.query("select id from auth_sessions where user_id = 'prune-check' order by id");
+    assert.deepEqual(pruneLeft.rows.map(r => r.id), ["prune-live"]);
     await pool.query("alter table auth_identities rename column provider_subject to unavailable_provider_subject");
     assert.equal((await request("/ready")).status, 503);
   } finally {

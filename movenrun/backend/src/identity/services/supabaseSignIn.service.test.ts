@@ -19,21 +19,28 @@ const T0 = new Date("2026-10-13T12:00:00Z");
 const GOOGLE_SUB = "11111111-1111-4111-8111-111111111111";
 
 /** Fake Supabase: wallet grants map an address to a stable user id; tokens are opaque strings. */
-function fakeSupabase(opts: { refuseWeb3?: boolean; failDelete?: boolean } = {}) {
+function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failDelete?: boolean } = {}) {
   const usersByAddress = new Map<string, string>();
+  /** Every auth user the fake knows, for the admin listing. */
+  const listed: Array<{ id: string; createdAt: Date; lastSignInAt: Date | null }> = [];
   const tokens = new Map<string, VerifiedSupabaseUser>();
   const deleted: string[] = [];
   const grants: string[] = [];
+  const listCalls = { n: 0 };
+  const listGate: { wait: Promise<void> | null } = { wait: null };
   let n = 0;
-  const mint = (subject: string, methods: string[], email: string | null) => {
+  const mint = (subject: string, methods: string[], email: string | null, providers: string[] = []) => {
     const t = `token-${n++}-${"x".repeat(30)}`;
-    tokens.set(t, { subject, methods, email, providers: [], expiresAt: new Date(T0.getTime() + 3600_000) });
+    tokens.set(t, { subject, methods, email, providers, expiresAt: new Date(T0.getTime() + 3600_000) });
     return t;
   };
   return {
     deleted,
     grants,
-    googleToken: (subject = GOOGLE_SUB, email: string | null = "runner@example.com") => mint(subject, ["oauth"], email),
+    listed,
+    listCalls,
+    listGate,
+    googleToken: (subject = GOOGLE_SUB, email: string | null = "runner@example.com", providers = ["google"]) => mint(subject, ["oauth"], email, providers),
     web3Token: (subject: string) => mint(subject, ["web3"], null),
     tokens: {
       async verify(token: string) {
@@ -45,7 +52,7 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; failDelete?: boolean } = {})
     auth: {
       async signInWithEthereum(message: string, _signature: string) {
         grants.push(message);
-        if (opts.refuseWeb3) throw new SupabaseAuthError("rejected");
+        if (opts.refuseWeb3) throw new SupabaseAuthError("rejected", opts.refuseStatus ?? 400);
         const address = message.split("\n")[1].toLowerCase();
         if (!usersByAddress.has(address)) {
           const hex = (usersByAddress.size + 2).toString(16).padStart(12, "0");
@@ -56,15 +63,25 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; failDelete?: boolean } = {})
       async deleteUser(subject: string) {
         if (opts.failDelete) throw new SupabaseAuthError("unavailable");
         deleted.push(subject);
+        const at = listed.findIndex((u) => u.id === subject);
+        if (at >= 0) listed.splice(at, 1);
+      },
+      async listUsers(page: number, perPage: number) {
+        listCalls.n += 1;
+        await listGate.wait;
+        return listed.slice((page - 1) * perPage, page * perPage);
+      },
+      async getUser(subject: string) {
+        return listed.find((u) => u.id === subject) ?? null;
       },
     },
   };
 }
 
-function setup(opts: { maxAccounts?: number; refuseWeb3?: boolean; failDelete?: boolean } = {}) {
+function setup(opts: { maxAccounts?: number; maxNewPerHour?: number; refuseWeb3?: boolean; refuseStatus?: number; failDelete?: boolean } = {}) {
   let clock = T0;
   const now = () => clock;
-  const stores = createInMemoryStores(now, { maxAccounts: opts.maxAccounts });
+  const stores = createInMemoryStores(now, { maxAccounts: opts.maxAccounts, maxNewPerHour: opts.maxNewPerHour });
   const signIn = createInMemorySignInStores();
   const supabase = fakeSupabase(opts);
   const service = new SupabaseSignInService({
@@ -147,6 +164,14 @@ test("the same wallet always reaches the same Supabase user; a refused grant is 
   const refused = setup({ refuseWeb3: true });
   const { message } = await refused.service.beginWallet(wallet.address);
   assert.equal(await code(refused.service.completeWallet(message, await wallet.signMessage(message))), "verification_failed");
+
+  // The provider's hook refusals keep their meaning: 403 is the account cap,
+  // 429 the hourly new-account quota or the provider's own rate limit.
+  for (const [refuseStatus, expected] of [[403, "registration_closed"], [429, "too_many_attempts"]] as const) {
+    const h = setup({ refuseWeb3: true, refuseStatus });
+    const m = (await h.service.beginWallet(wallet.address)).message;
+    assert.equal(await code(h.service.completeWallet(m, await wallet.signMessage(m))), expected);
+  }
 });
 
 test("Google sign-in accepts only a verified OAuth session", async () => {
@@ -154,6 +179,8 @@ test("Google sign-in accepts only a verified OAuth session", async () => {
   const ok = await service.verifyGoogle(supabase.googleToken());
   assert.deepEqual(ok, { subject: GOOGLE_SUB, email: "runner@example.com", method: "google" });
   assert.equal(await code(service.verifyGoogle("forged")), "verification_failed");
+  // An OAuth session from any provider other than Google is refused.
+  assert.equal(await code(service.verifyGoogle(supabase.googleToken(GOOGLE_SUB, null, ["github"]))), "verification_failed");
   // A wallet session must come through the wallet routes, where the nonce is checked.
   assert.equal(await code(service.verifyGoogle(supabase.web3Token("33333333-3333-4333-8333-333333333333"))), "verification_failed");
 });
@@ -178,8 +205,8 @@ test("provider users are removed only when no MovenRun account uses them, and fa
 
 // ---- HTTP: one account per Supabase user, the account cap, deletion --------
 
-async function withApp(maxAccounts: number, fn: (h: ReturnType<typeof setup> & { post: (path: string, body: unknown, token?: string) => Promise<{ status: number; json: any }> }) => Promise<void>) {
-  const h = setup({ maxAccounts });
+async function withApp(maxAccounts: number, fn: (h: ReturnType<typeof setup> & { post: (path: string, body: unknown, token?: string) => Promise<{ status: number; json: any }> }) => Promise<void>, opts: { maxNewPerHour?: number } = {}) {
+  const h = setup({ maxAccounts, maxNewPerHour: opts.maxNewPerHour });
   const cfg = resolveIdentityConfig({ NODE_ENV: "test", IDENTITY_SESSION_PEPPER: "x".repeat(32) }, { requireSecrets: false });
   assert.ok(cfg.ok);
   const services = createIdentityServices(h.stores, cfg.config);
@@ -201,6 +228,8 @@ async function withApp(maxAccounts: number, fn: (h: ReturnType<typeof setup> & {
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const post = async (path: string, body: unknown, token?: string) => {
     const res = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+    // Every identity response carries tokens or codes and must never be cached.
+    assert.equal(res.headers.get("cache-control"), "no-store");
     return { status: res.status, json: (await res.json().catch(() => null)) as any };
   };
   try {
@@ -339,4 +368,98 @@ test("concurrent first sign-ins at the last free place admit exactly one player"
     assert.equal(results.filter((r) => r.status === 200).length, 1);
     assert.equal(results.filter((r) => r.status === 403).length, 7);
   });
+});
+
+test("the orphan sweep removes only old provider users with no account, no recent sign-in and no waiting code", async () => {
+  const { service, stores, signIn, supabase, advance } = setup();
+  const id = (n: number) => `55555555-5555-4555-8555-${n.toString(16).padStart(12, "0")}`;
+  const old = new Date(T0.getTime() - 2 * 3600_000);
+  supabase.listed.push(
+    { id: id(1), createdAt: old, lastSignInAt: old },                                  // abandoned: removed
+    { id: id(2), createdAt: old, lastSignInAt: null },                                 // never signed in: removed
+    { id: id(3), createdAt: old, lastSignInAt: new Date(T0.getTime() - 10 * 60_000) }, // signed in recently: kept
+    { id: id(4), createdAt: new Date(T0.getTime() - 5 * 60_000), lastSignInAt: null }, // new: kept
+    { id: id(5), createdAt: old, lastSignInAt: old },                                  // a MovenRun player: kept
+    { id: id(6), createdAt: old, lastSignInAt: old },                                  // wallet code waiting: kept
+  );
+  await stores.createUserWithIdentity({
+    userId: "u5", identity: { id: "i5", provider: "supabase", providerSubject: id(5), assuranceLevel: "aal2" },
+  });
+  await signIn.walletHandoffs.create({ codeHash: "h6", codeChallenge: "c".repeat(43), subject: id(6), expiresAt: new Date(T0.getTime() + 60_000) });
+  // Small pages, to cover paging.
+  assert.equal(await service.sweepOrphanProviderUsers({ perPage: 2 }), 2);
+  assert.deepEqual(supabase.deleted.sort(), [id(1), id(2)]);
+  // Later, once the recent ones age past the grace period, they go too; the player never does.
+  advance(3 * 3600_000);
+  await service.sweepOrphanProviderUsers({ perPage: 2 });
+  assert.deepEqual(supabase.deleted.sort(), [id(1), id(2), id(3), id(4), id(6)]);
+});
+
+test("the orphan sweep re-reads each user before deleting: one who signed in since the listing is kept", async () => {
+  const { service, supabase } = setup();
+  const id = (n: number) => `55555555-5555-4555-8555-${n.toString(16).padStart(12, "0")}`;
+  const old = new Date(T0.getTime() - 2 * 3600_000);
+  supabase.listed.push({ id: id(1), createdAt: old, lastSignInAt: old }, { id: id(2), createdAt: old, lastSignInAt: old });
+  // The listing is taken while both look abandoned...
+  let release!: () => void;
+  supabase.listGate.wait = new Promise<void>((r) => { release = r; });
+  const run = service.sweepOrphanProviderUsers();
+  await new Promise((r) => setImmediate(r));
+  // ...then user 1 signs in before the delete; user 2 is deleted by someone else.
+  supabase.listed[0] = { id: id(1), createdAt: old, lastSignInAt: T0 };
+  supabase.listed.splice(1, 1);
+  supabase.listGate.wait = null;
+  release();
+  assert.equal(await run, 0);
+  assert.deepEqual(supabase.deleted, []);
+});
+
+test("one sweep deletes at most its cap, and a sweep started during another joins it", async () => {
+  const { service, supabase } = setup();
+  const id = (n: number) => `55555555-5555-4555-8555-${n.toString(16).padStart(12, "0")}`;
+  const old = new Date(T0.getTime() - 2 * 3600_000);
+  for (let i = 1; i <= 5; i++) supabase.listed.push({ id: id(i), createdAt: old, lastSignInAt: null });
+  let release!: () => void;
+  supabase.listGate.wait = new Promise<void>((r) => { release = r; });
+  const first = service.sweepOrphanProviderUsers({ maxDeletes: 3 });
+  const second = service.sweepOrphanProviderUsers({ maxDeletes: 3 });
+  assert.equal(first, second);
+  supabase.listGate.wait = null;
+  release();
+  assert.equal(await first, 3);
+  assert.equal(supabase.listCalls.n, 1);
+  assert.equal(supabase.deleted.length, 3);
+  // The next run picks up the rest.
+  assert.equal(await service.sweepOrphanProviderUsers({ maxDeletes: 3 }), 2);
+  assert.equal(supabase.listed.length, 0);
+});
+
+test("a sweep that fails part-way lets the next one start, and a failed read keeps the user", async () => {
+  const { service, supabase } = setup();
+  const id = (n: number) => `55555555-5555-4555-8555-${n.toString(16).padStart(12, "0")}`;
+  const old = new Date(T0.getTime() - 2 * 3600_000);
+  supabase.listed.push({ id: id(1), createdAt: old, lastSignInAt: null });
+  const getUser = supabase.auth.getUser;
+  supabase.auth.getUser = async () => { throw new SupabaseAuthError("unavailable"); };
+  await assert.rejects(service.sweepOrphanProviderUsers());
+  assert.deepEqual(supabase.deleted, []);
+  supabase.auth.getUser = getUser;
+  assert.equal(await service.sweepOrphanProviderUsers(), 1);
+});
+
+test("the hourly new-account quota refuses a burst over HTTP, removes the refused provider user, and reopens an hour later", async () => {
+  await withApp(1000, async ({ post, supabase, advance }) => {
+    const sub = (n: number) => `66666666-6666-4666-8666-${n.toString(16).padStart(12, "0")}`;
+    const google = (n: number) => post("/identity/auth/google/complete", { accessToken: supabase.googleToken(sub(n), null) });
+    assert.equal((await google(1)).status, 200);
+    assert.equal((await google(2)).status, 200);
+    const busy = await google(3);
+    assert.equal(busy.status, 429);
+    assert.equal(busy.json.error.code, "registration_busy");
+    assert.deepEqual(supabase.deleted, [sub(3)]);
+    // Existing players are unaffected by the quota.
+    assert.equal((await google(1)).status, 200);
+    advance(61 * 60_000);
+    assert.equal((await google(3)).status, 200);
+  }, { maxNewPerHour: 2 });
 });

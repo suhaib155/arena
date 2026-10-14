@@ -16,6 +16,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { normalizeHandoffCode } from "@/lib/signInMethods";
 import { buildDeviceLabel } from "@/lib/deviceLabel";
 import { finishWalletSignIn } from "@/services/signInProviders";
+import { isSignInMethodEnabled } from "@/lib/releaseScope";
 
 export default function WalletReturnScreen() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function WalletReturnScreen() {
     started.current = true;
     const code = normalizeHandoffCode(typeof params.code === "string" ? params.code : "");
     const leave = () => { if (router.canGoBack()) router.back(); else router.replace("/account"); };
-    if (!code || useAuthStore.getState().status === "signedIn") {
+    if (!isSignInMethodEnabled("wallet") || !code || useAuthStore.getState().status === "signedIn") {
       leave();
       return;
     }

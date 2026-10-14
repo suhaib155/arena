@@ -18,4 +18,12 @@ Persistent record of the Google Play v1 launch for MovenRun.
 | `PR_DESCRIPTION.md` | Pull request text for the release branch |
 | `HOSTING_SUPABASE_FREE.md` | No-cost setup: Supabase Free (Google and wallet sign-in, PostgreSQL) + Render Free |
 | `POST_LAUNCH_MONITORING.md` | First 48 hours after a release |
+| `AUTH_SECURITY_REVIEW.md` | Sign-in threat model, findings and the round 3 audit |
+| `WALLET_AUTH_PROVIDER_DECISION.md` | Why Supabase Web3, not Reown or Privy |
+| `FREE_HOSTING_READINESS.md` | Deploy branch and SHA, free-plan limits, background jobs, spend protection, load-test plan |
+| `WEBSITE_REVIEW_PREVIEW.md` | Four website pages previewed for review before X-21 |
+| `LIVE_SETUP_OPERATOR_GUIDE.md` | Owner's gate-by-gate live setup with proof commands, migrations, backup |
+| `PLAY_REGISTRATION_CHECKLIST.md` | Play developer registration, testing tracks, pre-listing review |
+| `ANDROID_DEVICE_GATE_PLAN.md` | Phone gate by 24 Oct: preconditions, schedule, pass rules |
+| `reports/` | Milestone reports, uniquely named (`reports/INDEX.md`, D-26) |
 | `evidence/` | Scripts and screenshots behind evidence rows |

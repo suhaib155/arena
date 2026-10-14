@@ -22,6 +22,7 @@ import {
   pgTable,
   text,
   integer,
+  bigserial,
   boolean,
   timestamp,
   jsonb,
@@ -256,7 +257,15 @@ export const securityAuditEvents = pgTable(
 export const accountCapacity = pgTable("account_capacity", {
   id: boolean("id").primaryKey().default(true),
   maxAccounts: integer("max_accounts").notNull(),
+  /** New accounts allowed per rolling hour, at the Supabase hook and in the API (0009). */
+  maxNewPerHour: integer("max_new_per_hour").notNull().default(50),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/** One row per auth user the Supabase hook let through: the time only, for the hourly quota. */
+export const authUserCreations = pgTable("auth_user_creations", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 /** A wallet sign-in message the server issued. The exact message text is kept

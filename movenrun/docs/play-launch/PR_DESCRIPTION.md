@@ -36,22 +36,30 @@ behind `mobile/src/lib/releaseScope.ts`, not deleted.
   exchange, a 1,000-account cap enforced under a database lock and by a Supabase
   before-user-created hook, provider users removed on deletion or refusal,
   `POST /identity/account/delete`, `GET /movement/verifications`, row level
-  security on every table, email codes off unless a delivery key is set, reviewer
-  code removed.
+  security on every table, email codes never wired into the hosted API, reviewer
+  code removed, an hourly new-account quota in the Supabase hook and the API
+  (migration 0009), and a sweep of unused sign-in users that re-reads each
+  user before deleting and caps each run. Identity responses are never cached;
+  token checks refuse critical headers and future `nbf`. The device list ignores
+  rotated refresh links, and sessions a week past refresh expiry are deleted
+  by the background clean-up.
 - Website: privacy policy and support page for Google and wallet sign-in,
   account deletion with Google or wallet, the `/sign-in/` page for the app, and a
-  check that fails while deployment values are missing.
-- Hosting: `render.yaml` for a Render Free service with the Supabase Free database.
+  check that fails while deployment values are missing; EIP-6963 wallet choice
+  and anti-framing headers. Security review in `docs/play-launch/AUTH_SECURITY_REVIEW.md`.
+- Hosting: `render.yaml` for a Render Free service with the Supabase Free database, deploying the reviewed branch `deploy/render-free-staging`; background clean-up catches up on each wake instead of relying on an always-on timer.
 - CI: manual `EAS Production AAB` workflow behind the `play-release` environment;
-  Hermes export in mobile checks.
+  Hermes export in mobile checks; a secret scan and a migration checksum lock
+  in backend checks; the Supabase hook's contract tested on PostgreSQL.
 - Launch ledger in `movenrun/docs/play-launch/`.
 
-**Tests:** mobile 904/904, backend 397/397 on PostgreSQL 16 (0 skipped), backend
-API 10/10, shared 156/156, website sign-in and deletion in Chromium 23/23;
+**Tests:** mobile 910/910, backend 406/406 on PostgreSQL 16 (0 skipped), backend
+API 17/17, shared 156/156, website sign-in and deletion in Chromium 23/23;
 typechecks clean; Android Hermes bundle builds. Supabase Auth was replaced by a
 local stand-in in these tests. Hosted and phone testing have not been done yet
 (`docs/play-launch/HANDSET_TEST_SCRIPT.md`).
 
 **Not in this change:** Supabase provider settings, hosting, secrets, Play
 Console setup and phone tests; see `docs/play-launch/EXTERNAL_ACTIONS.md`.
-Google and wallet sign-ins are separate accounts in v1 (no linking).
+Google and wallet sign-ins are separate accounts in v1 (no linking), as
+accepted by the owner.

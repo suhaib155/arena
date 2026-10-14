@@ -56,6 +56,8 @@ export function authErrorMessage(code: string | null): string | null {
       return "This build has no MovenRun account service configured. You can still explore the local beta.";
     case "service_unavailable":
       return "We couldn't reach MovenRun. Check your connection and try again.";
+    case "request_timeout":
+      return "MovenRun took too long to answer. It may have been starting up; please try again in a moment.";
     case "secure_storage_unavailable":
       return "This device's secure storage is unavailable right now. Your account is untouched — please try again.";
     case "account_sync_unavailable":
@@ -74,6 +76,8 @@ export function authErrorMessage(code: string | null): string | null {
       return "Sign-in didn't complete. Please try again.";
     case "registration_closed":
       return "MovenRun's first release is full, so new accounts can't be created right now. You can still play as a guest.";
+    case "registration_busy":
+      return "Lots of new players are joining right now, so new accounts are paused for a little while. Please try again later. You can still play as a guest.";
     case "wallet_sign_in_expired":
       return "That wallet sign-in has expired. Choose your wallet again to start a new one.";
     case "wallet_app_unavailable":

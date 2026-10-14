@@ -49,6 +49,7 @@
   <div id="step-sign-in">
     <button type="button" id="google">Continue with Google</button>
     <button type="button" id="wallet">Continue with Wallet</button>
+    <div class="wallet-choice" id="wallet-choice" hidden></div>
   </div>
   <form id="step-confirm" hidden novalidate>
     <p><strong>This permanently deletes your account and every session saved to it.</strong></p>
@@ -93,7 +94,7 @@
   });
   document.getElementById("wallet").addEventListener("click", function () {
     lock(true); say("Check your wallet: sign the MovenRun message to continue.");
-    auth.signInWithWallet({ deviceLabel: LABEL }).then(function (t) { lock(false); signedIn(t); },
+    auth.signInWithWallet({ deviceLabel: LABEL, chooser: document.getElementById("wallet-choice") }).then(function (t) { lock(false); signedIn(t); },
       function (err) { lock(false); say(auth.message(err), "error"); });
   });
   confirmForm.addEventListener("submit", function (e) {

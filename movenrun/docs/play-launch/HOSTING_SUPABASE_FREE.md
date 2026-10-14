@@ -11,6 +11,13 @@ client secret or secret key into chat or the repository. Steps marked
 **APPROVAL** change a live service; they are listed so the owner can approve
 and run them.
 
+**Order matters.** Do §1, then §4 (the API's first start applies the
+migrations), then attach the hook in §3, and only then enable the providers
+in §2. A provider switched on before the hook is attached can create sign-in
+users that neither the account cap nor the hourly quota has checked. The
+Google OAuth client (§2a steps 1–2) can be prepared at any time; only the
+"enable" switches wait.
+
 Proven locally (EVIDENCE E-17, E-18, E-20–E-24): the API, migrations and tests
 over verified TLS as a non-superuser owner with row level security on every
 table; Google and wallet sign-in, the cap, the hook SQL and deletion against a
@@ -67,31 +74,70 @@ list or Supabase refuses wallet sign-in.
 
 - Authentication → Sign In / Providers → **Email: disable** (no email sign-up,
   no magic links). **Anonymous sign-ins: off.** **Manual linking: off** (D-17).
-- Authentication → Rate Limits → **Web3 sign-ins**: raise from 30 to about 300
-  per 5 minutes. Every wallet sign-in reaches Supabase from the API's single
-  address, so the per-IP limit is shared by all players.
+- Authentication → Rate Limits → **Web3 sign-ins**: **leave at the default
+  (30 per 5 minutes per IP) for internal and closed testing.** Every wallet
+  sign-in the API makes reaches Supabase from the API's address, so this limit
+  is shared by all players: about 6 wallet sign-ins a minute in total, which
+  is plenty for testing. The same limit also slows anyone calling Supabase
+  directly with the public key. Raise it only after measuring real traffic on
+  the hosted API, and only as far as needed (60 doubles it). When it is hit,
+  players see "Too many attempts. Please wait a moment and try again."
+  (AUTH_SECURITY_REVIEW.md, F-05)
+- **CAPTCHA: off.** Supabase's hCaptcha/Turnstile option would need a widget in
+  the wallet's browser and in the app's sign-in; it is not wired, so turning it
+  on would break sign-in. The hourly new-account quota (§3) is the abuse
+  control instead.
 
 ## 3. Database changes (APPROVAL: applying migrations to the live database)
 
-Migrations `0000`–`0008` are applied by the API's start command
+Migrations `0000`–`0009` are applied by the API's start command
 (`drizzle-kit migrate`, idempotent). They create the game tables,
-`account_capacity` (max 1,000), the wallet sign-in tables and the function
+`account_capacity` (max 1,000 accounts, at most 50 new ones per rolling
+hour), the wallet sign-in tables, `auth_user_creations` (one timestamp per new
+sign-in user, nothing else) and the function
 `public.movenrun_before_user_created`. Nothing runs until the owner deploys.
+
+What the migrations touch: only tables in `public` that MovenRun creates, one
+function, and grants on that function to `supabase_auth_admin`. They do not
+read or change anything in the `auth` schema. The project is empty of
+MovenRun tables today, so there is nothing to back up first; the rollback
+before any player exists is to drop the MovenRun tables and the function
+(owner decision, never automatic). Once players exist, the Free plan keeps
+no backups, so a later destructive change needs a manual export first.
 
 After the first deploy, Authentication → **Hooks → Before User Created**:
 choose *Postgres function* → schema `public` → `movenrun_before_user_created`.
 The migration already grants it to `supabase_auth_admin` only.
 
-Check in the SQL editor (read only):
+Check in the SQL editor. The first three are read only; the last calls the
+hook inside a transaction that is rolled back, so it records nothing:
 
 ```sql
-select max_accounts from account_capacity;                    -- 1000
-select count(*) from users;                                    -- admitted players
-select public.movenrun_before_user_created('{}'::jsonb);      -- {} while open
+select max_accounts, max_new_per_hour from account_capacity;   -- 1000, 50
+select count(*) from users;                                     -- admitted players
+select count(*) from auth_user_creations
+  where created_at > now() - interval '1 hour';                 -- new sign-in users this hour
+begin; select public.movenrun_before_user_created('{}'::jsonb); rollback;  -- {} while open
 ```
 
-To change the cap later: `update account_capacity set max_accounts = <n>;`
-(owner decision, D-20).
+Then confirm in Authentication → Hooks that **Before User Created** shows the
+function as enabled. Only after that, enable the providers (§2).
+
+Before attaching, also check `select has_schema_privilege('supabase_auth_admin', 'public', 'usage');`
+returns true (F-16); if not, the one grant to run is in
+`LIVE_SETUP_OPERATOR_GUIDE.md` gate X-07. After the providers are on, prove
+Supabase really calls the hook with step X-07b there (quota 0 for one refused
+sign-in, then back to 50). Migration checksums, rollback and the backup
+procedure are in the same guide.
+
+The hook refuses a new sign-in user with 403 when the players reach the cap
+and with 429 when 50 were already created in the last hour, however the
+request reached Supabase. The API applies the same two checks to new players.
+Unused sign-in users (abandoned Google sign-ins, wallet grants made directly
+against Supabase) are removed by the API after an hour (F-03).
+
+To change the cap or the quota later (owner decision, D-20):
+`update account_capacity set max_accounts = <n>, max_new_per_hour = <m>;`
 
 ## 4. API (Render → New → Blueprint, or Web Service)
 
@@ -100,7 +146,7 @@ To change the cap later: `update account_capacity set max_accounts = <n>;`
 | Setting | Value |
 |---|---|
 | Name | `movenrun-staging-api` |
-| Branch | `release/android-v1-cxfdbd` (switch to `main` after merge) |
+| Branch | `deploy/render-free-staging` (the reviewed deploy branch; commit recorded in `LIVE_SETUP_OPERATOR_GUIDE.md` X-06). Never `release/android-v1-cxfdbd`: it predates the security fixes |
 | Root directory | `movenrun` |
 | Instance type | **Free** |
 | Region | Virginia (next to us-east-1) |
@@ -148,7 +194,9 @@ Check: `https://<service>.onrender.com/health` → `{"status":"ok"}`;
 ## Limits of the free path
 
 A free Render instance sleeps after 15 idle minutes and takes up to about a
-minute to wake; the first sign-in after a quiet period is slow, and a session
-save can time out once (the app keeps it pending and retries). Acceptable for
+minute to wake (clean-up jobs catch up on each wake; `FREE_HOSTING_READINESS.md`); the first sign-in after a quiet period is slow, and a session
+save can time out once (the app keeps it pending and retries). The app and the
+website send a wake-up request as soon as sign-in is shown and wait up to 90
+seconds for a sign-in answer before showing a retry message (E-28). Acceptable for
 internal and closed testing. An always-on instance is a paid plan and needs
 owner approval.
