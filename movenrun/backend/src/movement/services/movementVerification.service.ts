@@ -9,6 +9,13 @@
 import { verifyMovement, type VerifyMovementDeps } from "../domain/verification.js";
 import { toSealSummary, type MovementObservation, type MovementVerificationResult } from "../domain/types.js";
 import { sameSessionMetadata, type SessionMetadata } from "@movenrun/shared/session";
+import { isGameplayCell, type H3Cell } from "@movenrun/shared/h3";
+import {
+  MAX_REGION_CELLS,
+  regionsForCells,
+  type RegionOutline,
+  type TerritoryFeatureCollection,
+} from "@movenrun/shared/territory-geometry";
 
 import {
   MovementSessionConflictError,
@@ -112,6 +119,46 @@ export class MovementVerificationService {
    *  show what the account already holds. */
   async list(userId: string, limit: number): Promise<MovementVerificationRecord[]> {
     return this.deps.repository.listByUser(userId, limit);
+  }
+
+  /** How many of the newest sessions coverage reads. */
+  static readonly COVERAGE_SESSION_LIMIT = 500;
+
+  /**
+   * The ground the user's own verified sessions passed through, as map
+   * regions in the `covered` state. Rejected sessions count for nothing.
+   *
+   * Newest sessions first: if the cells would exceed MAX_REGION_CELLS, the
+   * oldest ground is what is left out, and `truncated` says so. A stored cell
+   * id that is not a valid gameplay cell is skipped and counted, never drawn.
+   * This is coverage, not ownership: nobody holds anything because of it.
+   */
+  async coverage(userId: string, outline: RegionOutline): Promise<{
+    regions: TerritoryFeatureCollection;
+    sessionsUsed: number;
+    truncated: boolean;
+    skippedCells: number;
+  }> {
+    const records = await this.deps.repository.listByUser(userId, MovementVerificationService.COVERAGE_SESSION_LIMIT);
+    const cells = new Set<H3Cell>();
+    let sessionsUsed = 0;
+    let skippedCells = 0;
+    let truncated = records.length === MovementVerificationService.COVERAGE_SESSION_LIMIT;
+    for (const record of records) {
+      if (record.status !== "verified") continue;
+      const fresh = (record.traversedHexIds ?? []).filter((cell) => {
+        if (isGameplayCell(cell)) return !cells.has(cell);
+        skippedCells++;
+        return false;
+      });
+      if (cells.size + new Set(fresh).size > MAX_REGION_CELLS) {
+        truncated = true;
+        break;
+      }
+      for (const cell of fresh) cells.add(cell as H3Cell);
+      sessionsUsed++;
+    }
+    return { regions: regionsForCells([...cells], "covered", { outline }), sessionsUsed, truncated, skippedCells };
   }
 }
 

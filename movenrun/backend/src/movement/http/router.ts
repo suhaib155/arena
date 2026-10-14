@@ -166,5 +166,28 @@ export function createMovementRouter(deps: MovementRouterDeps): Router {
     })
   );
 
+  /**
+   * GET /movement/coverage?outline=exact|smoothed — the caller's OWN covered
+   * ground as GeoJSON map regions (see shared territoryGeometry). Regions, not
+   * cells and not routes: no cell id, coordinate sample or session id is in
+   * the body. Owner-scoped like every read here. Rate limited like a write,
+   * because merging thousands of cells is real work a caller could repeat.
+   */
+  router.get(
+    "/coverage",
+    limit,
+    authed(async (req, res, user) => {
+      const raw = req.query.outline;
+      const outline = raw === undefined ? "exact" : raw;
+      if (outline !== "exact" && outline !== "smoothed") throw new IdentityError("invalid_request");
+      const result = await deps.service.coverage(user.userId, outline);
+      res.set("Cache-Control", "no-store");
+      res.json({
+        ...result.regions,
+        basis: { sessionsUsed: result.sessionsUsed, truncated: result.truncated, skippedCells: result.skippedCells },
+      });
+    })
+  );
+
   return router;
 }
