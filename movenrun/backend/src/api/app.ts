@@ -75,9 +75,15 @@ export function createApiApp(config: ApiConfig) {
       res.status(503).json({ status: "unavailable" });
     }
   });
-  app.use(express.json({ limit: "2mb" }));
-  // Authentication entry is public, but still subject to the write limit.
+  // Authentication entry is public, but still subject to the write limit,
+  // checked before any body is read.
   app.use("/identity/auth", createWriteRateLimiter(config));
+  // Identity bodies are a token, a signed message or a code: a few kilobytes
+  // at most. Only a movement session (up to 10,000 points) needs more, so the
+  // larger limit applies there alone and nobody can make the public sign-in
+  // routes parse megabytes.
+  app.use("/identity", express.json({ limit: "32kb" }));
+  app.use("/movement", express.json({ limit: "2mb" }));
   app.use("/identity", createIdentityRouter(identity, {
     accountDeletion: createDrizzleAccountDeletionStore(db),
     supabaseSignIn,

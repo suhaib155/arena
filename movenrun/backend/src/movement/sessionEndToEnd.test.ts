@@ -248,6 +248,14 @@ test("a retry of the same session replays to one row, not two", { skip }, async 
   assert.equal(rows[0].rulesVersion, SESSION_RULES_VERSION);
 });
 
+test("the daily allowance counts only this user's rows from the last day, in PostgreSQL", { skip }, async () => {
+  const repository = new DrizzleMovementVerificationRepository(db!);
+  const before = await repository.countCreatedSince(USER, new Date(Date.now() - 24 * 60 * 60 * 1000));
+  assert.ok(before >= 1, "the stored session counts toward its owner's day");
+  assert.equal(await repository.countCreatedSince(USER, new Date(Date.now() + 60_000)), 0);
+  assert.equal(await repository.countCreatedSince("usr_nobody_daily", new Date(0)), 0);
+});
+
 test("concurrent submissions of one session converge on one row", { skip }, async () => {
   const service = buildService(db!);
   const parsed = parseBody(submitMovementSchema, { ...requestBody(), sessionId: "mv-race-abcdef12" });

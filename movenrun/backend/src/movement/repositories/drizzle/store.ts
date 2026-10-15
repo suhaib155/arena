@@ -12,7 +12,7 @@
  * than in a process-local cache, so the guarantee survives a restart and holds
  * across replicas.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { isSealMethod, type SealMethod } from "@movenrun/shared/sealing";
 import type { Db } from "../../../db/client.js";
 import { movementVerifications } from "../../../db/movement.schema.js";
@@ -97,6 +97,14 @@ export class DrizzleMovementVerificationRepository
       .orderBy(desc(movementVerifications.endTime), desc(movementVerifications.createdAt))
       .limit(limit);
     return rows.map(toRecord);
+  }
+
+  async countCreatedSince(userId: string, since: Date): Promise<number> {
+    const [row] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(movementVerifications)
+      .where(and(eq(movementVerifications.userId, userId), gte(movementVerifications.createdAt, since)));
+    return row?.n ?? 0;
   }
 
   async findByUserSession(

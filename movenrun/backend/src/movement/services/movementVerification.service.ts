@@ -11,11 +11,21 @@ import { toSealSummary, type MovementObservation, type MovementVerificationResul
 import { sameSessionMetadata, type SessionMetadata } from "@movenrun/shared/session";
 
 import {
+  MovementDailyLimitError,
   MovementSessionConflictError,
   MovementSessionMetadataConflictError,
   type MovementVerificationRecord,
   type MovementVerificationRepository,
 } from "../repositories/interfaces.js";
+
+/**
+ * New verifications one user may store in any 24 hours. Every row keeps its
+ * traversed cells for as long as the account exists, so without a bound a
+ * single scripted account could fill the free database in hours. Far above
+ * what a person records in a day; retries of stored sessions do not count.
+ */
+export const MAX_NEW_VERIFICATIONS_PER_DAY = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface SubmitMovementInput {
   /** From the verified session. NOT from the body. */
@@ -64,6 +74,9 @@ export class MovementVerificationService {
       assertMetadataMatches(existing, input.observation.session);
       return { record: existing, created: false };
     }
+
+    const recent = await this.deps.repository.countCreatedSince(input.userId, new Date(this.deps.now() - DAY_MS));
+    if (recent >= MAX_NEW_VERIFICATIONS_PER_DAY) throw new MovementDailyLimitError();
 
     const result = verifyMovement(input.observation, this.deps);
 

@@ -79,6 +79,17 @@ export class MovementSessionMetadataConflictError extends Error {
   }
 }
 
+/**
+ * The user has already stored the daily allowance of new verifications. A
+ * retry of a session already stored is never refused by this.
+ */
+export class MovementDailyLimitError extends Error {
+  constructor() {
+    super("daily movement verification limit reached");
+    this.name = "MovementDailyLimitError";
+  }
+}
+
 export type CreateMovementVerificationInput = Omit<MovementVerificationRecord, "createdAt">;
 
 /** Thrown when (userId, clientSessionId) already exists. */
@@ -101,6 +112,8 @@ export interface MovementVerificationRepository {
   /** The user's own verifications, newest first, at most `limit`. Scoped by
    *  userId exactly like the lookup above. */
   listByUser(userId: string, limit: number): Promise<MovementVerificationRecord[]>;
+  /** How many verifications this user has stored since `since`. */
+  countCreatedSince(userId: string, since: Date): Promise<number>;
 }
 
 /** In-memory implementation for tests. Mirrors the DB's uniqueness exactly. */
@@ -133,6 +146,14 @@ export class InMemoryMovementVerificationRepository
       .filter((record) => record.userId === userId)
       .sort((a, b) => b.endTime - a.endTime)
       .slice(0, limit);
+  }
+
+  async countCreatedSince(userId: string, since: Date): Promise<number> {
+    let n = 0;
+    for (const record of this.byKey.values()) {
+      if (record.userId === userId && record.createdAt.getTime() >= since.getTime()) n += 1;
+    }
+    return n;
   }
 
   async findByUserSession(
