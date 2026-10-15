@@ -20,5 +20,10 @@
     "esbuild": {
       "built": true
     }
+  },
+  "resolutions": {
+    "qs": "6.16.0",
+    "proxy-addr": "2.0.8",
+    "ip-address": "10.7.2"
   }
 }
