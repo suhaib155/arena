@@ -150,7 +150,7 @@ To change the cap or the quota later (owner decision, D-20):
 | Root directory | `movenrun` |
 | Instance type | **Free** |
 | Region | Virginia (next to us-east-1) |
-| Build | `corepack enable && yarn install --immutable && yarn workspace @movenrun/backend build` |
+| Build | `corepack enable && yarn workspaces focus @movenrun/backend && yarn workspace @movenrun/backend build` (API dependencies only; install scripts off, see `.yarnrc.yml`) |
 | Start | `yarn workspace @movenrun/backend db:migrate && yarn workspace @movenrun/backend start` |
 | Health check | `/ready` |
 | Auto-deploy | Off |

@@ -31,9 +31,9 @@ test("deploys the reviewed deploy branch by hand only, never the pre-security re
   assert.equal(field("autoDeployTrigger"), "off");
 });
 
-test("installs immutably, builds the API, migrates before start, and checks readiness", () => {
+test("installs only the API's dependencies from the lockfile, builds it, migrates before start, and checks readiness", () => {
   assert.equal(field("rootDir"), "movenrun");
-  assert.match(field("buildCommand"), /yarn install --immutable && yarn workspace @movenrun\/backend build$/);
+  assert.match(field("buildCommand"), /yarn workspaces focus @movenrun\/backend && yarn workspace @movenrun\/backend build$/);
   assert.equal(field("startCommand"), "yarn workspace @movenrun/backend db:migrate && yarn workspace @movenrun/backend start");
   assert.equal(field("healthCheckPath"), "/ready");
 });

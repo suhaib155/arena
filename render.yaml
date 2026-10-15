@@ -18,7 +18,10 @@ services:
     rootDir: movenrun
     autoDeployTrigger: off
     numInstances: 1
-    buildCommand: corepack enable && yarn install --immutable && yarn workspace @movenrun/backend build
+    # Installs only the API's own dependencies (about 150 packages, not the
+    # whole monorepo's 1,300+ with the app and contracts toolchains): a faster
+    # free-tier build, and far less third-party code next to the secrets.
+    buildCommand: corepack enable && yarn workspaces focus @movenrun/backend && yarn workspace @movenrun/backend build
     startCommand: yarn workspace @movenrun/backend db:migrate && yarn workspace @movenrun/backend start
     healthCheckPath: /ready
     envVars:
