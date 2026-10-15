@@ -8,8 +8,12 @@ const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_URL: z.string().url().regex(/^postgres(?:ql)?:\/\//),
   CORS_ORIGINS: z.string().min(1),
-  // Configure only for a deployment whose proxy path has been verified.
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(1).default(0),
+  // How many proxies in front of the API append to X-Forwarded-For. Set it to
+  // the measured count for the host (scripts/check-client-ip.mjs): too few and
+  // every visitor behind one proxy node shares a rate-limit bucket, too many
+  // and a client can choose its own address. Render plus its CDN is more
+  // than one hop.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1000).default(300),
   RATE_LIMIT_WRITE_MAX: z.coerce.number().int().min(1).max(100).default(20),
