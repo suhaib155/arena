@@ -10290,6 +10290,9 @@ __metadata:
 "movenrun@workspace:.":
   version: 0.0.0-use.local
   resolution: "movenrun@workspace:."
+  dependenciesMeta:
+    esbuild:
+      built: true
   languageName: unknown
   linkType: soft
 

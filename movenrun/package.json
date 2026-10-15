@@ -15,5 +15,10 @@
     "verify:contracts": "yarn workspace @movenrun/contracts compile && yarn workspace @movenrun/contracts test",
     "eas-build-pre-install": "corepack enable"
   },
-  "packageManager": "yarn@4.9.1"
+  "packageManager": "yarn@4.9.1",
+  "dependenciesMeta": {
+    "esbuild": {
+      "built": true
+    }
+  }
 }
