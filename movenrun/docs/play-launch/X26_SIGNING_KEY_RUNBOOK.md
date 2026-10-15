@@ -25,7 +25,7 @@ Supabase project `movenrun`, ref `tavxmwuwkeynbnzfwove` only. Never the other pr
 | What was exposed | The project's legacy HS256 JWT secret, in a connector response (so it may sit in that provider's logs) |
 | Where it is not | Not in the repository, reports, commits, PRs or CI (secret scan passes) |
 | Users affected | None: 0 rows in `auth.users`, sign-in providers not enabled |
-| Impact if abused | Anyone holding it can mint tokens the project accepts while it is trusted: `service_role` tokens bypass RLS through the Data API, and `authenticated` tokens for any user id |
+| Impact if abused | Anyone holding it can mint tokens the project accepts while it is trusted: `service_role` tokens bypass RLS through the Data API **and are accepted by the Auth admin API** (list, create and delete sign-in users, read their emails), Storage and Realtime; and `authenticated` tokens for any user id. The empty Data API does not cover the Auth admin API, so **revoke before X-05 turns sign-in on** |
 | Mitigation in place | Data API exposes no schema (`db_schema` empty), RLS on all 19 public tables, no public policies; the MovenRun API ignores HS256 unless `SUPABASE_LEGACY_JWT_SECRET` is set |
 | Fix | Move to asymmetric signing keys, disable legacy API keys, **revoke** the legacy secret |
 
