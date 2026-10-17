@@ -50,8 +50,9 @@ test("someone else's push erodes by the push less resistance, and flips at 0 wit
   const strong = held({ level: 3, strength: 100 });
   const once = applyPush({ state: strong, walkerId: "ben", push: SOLID, day: 0, rules });
   assert.deepEqual([once.outcome, once.state.holderId, once.state.strength, once.removed], ["eroded", "ana", 12, 88]);
-  const twice = applyPush({ state: once.state, walkerId: "ben", push: SOLID, day: 0, rules });
-  assert.deepEqual([twice.outcome, twice.state.holderId, twice.state.strength, twice.state.level], ["flipped", "ben", 76, 1]);
+  // Next day: 12 less a day's decay (4 × 0.84 → 3) is 9; 88 taken flips it with 79.
+  const twice = applyPush({ state: once.state, walkerId: "ben", push: SOLID, day: 1, rules });
+  assert.deepEqual([twice.outcome, twice.state.holderId, twice.state.strength, twice.state.level], ["flipped", "ben", 79, 1]);
   // Shade from someone else's loop erodes too, by at most 25.
   const nibbled = applyPush({ state: held(), walkerId: "ben", push: shade(25), day: 0, rules });
   assert.deepEqual([nibbled.outcome, nibbled.state.strength], ["eroded", 75]);
@@ -61,6 +62,35 @@ test("the source's numbers flip undefended fresh ground in one visit (A9 keeps t
   const r = applyPush({ state: held(), walkerId: "ben", push: SOLID, day: 0, rules });
   assert.deepEqual([r.outcome, r.state.holderId, r.state.strength], ["flipped", "ben", 1]);
   assert.deepEqual(unitProblems(r.state), []);
+});
+
+test("each walker pushes someone else's unit once a day (owner decision 17 Oct)", () => {
+  const strong = held({ level: 3 });
+  const once = applyPush({ state: strong, walkerId: "ben", push: SOLID, day: 0, rules });
+  const again = applyPush({ state: once.state, walkerId: "ben", push: SOLID, day: 0, rules });
+  assert.deepEqual([again.outcome, again.removed, again.state.holderId, again.state.strength], ["refused_daily_limit", 0, "ana", 12]);
+  // A shade push the same day counts against the same limit.
+  assert.equal(applyPush({ state: once.state, walkerId: "ben", push: shade(25), day: 0, rules }).outcome, "refused_daily_limit");
+  // A different walker can still push today.
+  const cy = applyPush({ state: once.state, walkerId: "cy", push: SOLID, day: 0, rules });
+  assert.deepEqual([cy.outcome, cy.state.holderId, cy.state.pushedBy?.walkerIds], ["flipped", "cy", ["ben", "cy"]]);
+  // The flip does not reset the day: ben still cannot push it back today.
+  assert.equal(applyPush({ state: cy.state, walkerId: "ben", push: SOLID, day: 0, rules }).outcome, "refused_daily_limit");
+  // The holder's own visits are never limited.
+  const r1 = applyPush({ state: once.state, walkerId: "ana", push: SOLID, day: 0, rules });
+  const r2 = applyPush({ state: r1.state, walkerId: "ana", push: SOLID, day: 0, rules });
+  assert.deepEqual([r1.outcome, r2.outcome, r2.state.strength], ["reinforced", "reinforced", 100]);
+  assert.deepEqual(unitProblems(cy.state), []);
+});
+
+test("fortified ground needs two days from one walker; undefended fresh ground still falls in one", () => {
+  const fort = held({ fortified: true });
+  const day0 = applyPush({ state: fort, walkerId: "ben", push: SOLID, day: 0, rules });
+  assert.deepEqual([day0.outcome, day0.state.strength], ["eroded", 30]);
+  assert.equal(applyPush({ state: day0.state, walkerId: "ben", push: SOLID, day: 0, rules }).outcome, "refused_daily_limit");
+  const day1 = applyPush({ state: day0.state, walkerId: "ben", push: SOLID, day: 1, rules });
+  assert.deepEqual([day1.outcome, day1.state.holderId], ["flipped", "ben"]);
+  assert.equal(applyPush({ state: held(), walkerId: "ben", push: SOLID, day: 0, rules }).outcome, "flipped");
 });
 
 test("shade is taken whole by anyone who steps on it", () => {
@@ -112,6 +142,7 @@ test("random days never break a unit: one holder, strength 0–100, deeds and ma
       if (state.deeded) assert.equal(r.state.holderId, state.holderId);
       if (state.masked) assert.equal(r.state.holderId, null);
       assert.ok(r.removed >= 0 && r.removed <= 100);
+      if (r.outcome === "refused_daily_limit") assert.equal(r.state.holderId, state.holderId);
       assert.ok(r.state.asOfDay === day && before.asOfDay <= day);
       state = r.state;
     }

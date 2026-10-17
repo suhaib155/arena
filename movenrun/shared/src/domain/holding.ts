@@ -77,6 +77,12 @@ export interface UnitState {
   fortified: boolean;
   /** Day index of the last visit or change; decay counts from here. */
   asOfDay: number;
+  /**
+   * Walkers who pushed this unit while someone else held it, on `day`. Owner
+   * decision 17 Oct (G2 pace): one such push per walker per unit per day.
+   * Absent, or from an earlier day, means nobody has pushed it today.
+   */
+  pushedBy?: { day: number; walkerIds: string[] };
 }
 
 export type Push =
@@ -91,7 +97,8 @@ export type PushOutcome =
   | "eroded"       // another holder keeps it, weaker
   | "flipped"      // it changed hands, carrying the overflow
   | "refused_deeded"
-  | "refused_masked";
+  | "refused_masked"
+  | "refused_daily_limit"; // the walker already pushed this unit today
 
 export interface PushResult {
   state: UnitState;
@@ -158,6 +165,9 @@ export function stageOf(state: UnitState, rules: HoldingRules): Stage {
  *   off. At 0 or below it flips to the walker with the overflow as strength.
  *   Shade is taken by anyone who walks it, at full strength (section 4).
  * - Deeded and masked ground refuse every push.
+ * - Owner decision 17 Oct: each walker pushes someone else's unit at most once
+ *   a day, so ground with any resistance takes two or more days to take.
+ *   Claiming and reinforcing are not limited.
  */
 export function applyPush(input: { state: UnitState; walkerId: string; push: Push; day: number; rules: HoldingRules }): PushResult {
   const { walkerId, push, day, rules } = input;
@@ -178,10 +188,14 @@ export function applyPush(input: { state: UnitState; walkerId: string; push: Pus
     return { state: { ...next, asOfDay: day }, outcome: "reinforced", removed: 0 };
   }
 
+  const today = state.pushedBy?.day === day ? state.pushedBy.walkerIds : [];
+  if (today.includes(walkerId)) return { state, outcome: "refused_daily_limit", removed: 0 };
+  const pushedBy = { day, walkerIds: [...today, walkerId] };
+
   // Shade falls to anyone who steps on it, whole.
   if (state.ground === "shade" && push.kind === "solid") {
     return {
-      state: { ...state, holderId: walkerId, strength: MAX_STRENGTH, ground: "solid", level: 1, fortified: false, asOfDay: day },
+      state: { ...state, holderId: walkerId, strength: MAX_STRENGTH, ground: "solid", level: 1, fortified: false, asOfDay: day, pushedBy },
       outcome: "flipped",
       removed: state.strength,
     };
@@ -190,15 +204,16 @@ export function applyPush(input: { state: UnitState; walkerId: string; push: Pus
   // Floor the push: a fractional point of erosion is not taken.
   const effective = Math.floor(raw * (1 - erosionResist(state.level, state.fortified)));
   if (effective < state.strength) {
-    return { state: { ...state, strength: state.strength - effective, asOfDay: day }, outcome: "eroded", removed: effective };
+    return { state: { ...state, strength: state.strength - effective, asOfDay: day, pushedBy }, outcome: "eroded", removed: effective };
   }
   // ASSUMPTION A9: the walker holds at the overflow, but at least 1, so a flip
   // never leaves held ground at 0 (the source does not say what an exact 0
   // leaves). With the source's numbers, one visit flips undefended fresh
-  // ground: 100 push against 100 strength. Simulation (build step 0) checks it.
+  // ground: 100 push against 100 strength. Any resistance at all makes it
+  // erode instead, and the daily limit then holds the rest to the next day.
   const overflow = Math.max(1, clampStrength(effective - state.strength));
   return {
-    state: { ...state, holderId: walkerId, strength: overflow, ground: push.kind, level: 1, fortified: false, asOfDay: day },
+    state: { ...state, holderId: walkerId, strength: overflow, ground: push.kind, level: 1, fortified: false, asOfDay: day, pushedBy },
     outcome: "flipped",
     removed: state.strength,
   };
@@ -221,5 +236,7 @@ export function unitProblems(state: UnitState): string[] {
   if (state.deeded && state.ground !== "solid") problems.push("deeded ground is not solid");
   if (state.deeded && state.holderId === null) problems.push("deeded ground has no holder");
   if (state.ground === "shade" && state.strength > MAX_SHADE_STRENGTH && state.holderId !== null) problems.push("shade above 25");
+  if (state.pushedBy && state.pushedBy.day > state.asOfDay) problems.push("push record is from a later day");
+  if (state.pushedBy && new Set(state.pushedBy.walkerIds).size !== state.pushedBy.walkerIds.length) problems.push("walker pushed twice in one day");
   return problems;
 }
