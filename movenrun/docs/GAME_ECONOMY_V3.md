@@ -357,7 +357,8 @@ When the system is unsure (§28): *pending* keeps tokens and tolls reversible un
 | Cells between samples | IN REVIEW, unwired, analytic only | G1 `route-cells` |
 | Day reward, toll, day-close charges, books check | REFERENCE MODEL, tested, not wired, mints nothing | `shared/src/domain/economyV3.ts` (`@movenrun/shared/economy-v3`) |
 | Holding arithmetic: claim, reinforce, erode, flip, decay, stages, deed and mask refusals, one push per walker per unit per day | REFERENCE MODEL, tested, not wired, stores nothing; D4 numbers are parameters, shade strength (D2) is an input, a unit is whatever D5 decides | `shared/src/domain/holding.ts` (`@movenrun/shared/holding`) |
-| Enclosed-area (shade) geometry, territory ledger | NOT BUILT | G2, after D2 and D5 |
+| Holding ledger: a batch of a session's pushes applied to many units, sorted by day then event id, each event id applied once (a retried upload is skipped), stale-day and unknown-unit events rejected one by one, an append-only entry per applied push with previous and new holder and the rules version | REFERENCE MODEL, tested, not wired, stores nothing; same open parameters as the holding arithmetic | `shared/src/domain/holdingLedger.ts` (`@movenrun/shared/holdingLedger`) |
+| Enclosed-area (shade) geometry, stored territory ledger | NOT BUILT | G2, after D2 and D5 |
 | Deeds, contests, escrow | NOT BUILT | Later |
 | Clubs, districts, seasons | NOT BUILT (preview only in the app) | G4 |
 | Daily settlement, trust weight service | NOT BUILT | G3 |
