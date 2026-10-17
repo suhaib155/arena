@@ -35,14 +35,14 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | `main` | d344c3b | Untouched. Merging is the owner's (X-14) |
 | `release/android-v1-cxfdbd` | 991ac6a | Play v1 integration branch, unmerged |
 | `fix/play-auth-security-gate` | b4612bb | Security review rounds 1–2 (ancestor of everything below) |
-| `deploy/render-free-staging` | dd83065 | The commit X-06 approved. Moves only with owner approval (X-24) |
+| `deploy/render-free-staging` | 7f4c0d4 | X-24 (17 Oct, owner grant), LIVE VERIFIED (E-55). Moves only with a new owner approval |
 | `chore/post-security-launch-prep` | this board (61c9386 + report) | Security round 3–4, session fixes (f6ce3c5), launch ledgers |
 | `feat/g0-economy-v3` | e2ae062 | G0: V3 spec proposal + tested day-settlement reference model (on top of the chore branch) |
 | `feat/g1-territory-geometry` | 635ad7f | G1: map regions + covered-ground endpoint (on top of the chore branch) |
 | `web/w1-review-preview` | bd7fff2 | W1: website review version (on top of the chore branch) |
 | `security/x26-signing-keys` | 77a06b3 | #110: legacy key refusal, X-26 closure records (16 Oct) |
-| `security/deep-audit-hardening` | 7f4c0d4 (code 5b4170c), held | #111 on #110: audit fixes, admission race, client address. **The X-24 candidate** |
-| `security/a10-single-use-google-exchange` | 7e3a9c9, then the 17 Oct docs commit | #112 on #111 (contains its head): single-use Google exchange, migration 0010 |
+| `security/deep-audit-hardening` | 7f4c0d4 (code 5b4170c) | #111 on #110: audit fixes, admission race, client address. **Live as X-24** (not merged to main) |
+| `security/a10-single-use-google-exchange` | 2192de6, then the 17 Oct board commit | #112 on #111 (contains its head): single-use Google exchange, migration 0010 |
 | `web/a09-strict-csp` | b20f5ed | #113 on W1: strict website CSP |
 | `feat/g2-holding-model` | e6fd943 | #114 on G0: holding arithmetic reference model |
 | `feat/v3-onchain-core` | c8262ec | Separate prototype contracts branch. Not part of Play v1 |
@@ -54,7 +54,7 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | **L0** | Launch integration and old-PR reconciliation | `release/android-v1-cxfdbd`; PR list below | DONE (classification) | 31 of 42 open PRs are ancestors of the release tree (`git merge-base --is-ancestor`, 13 Oct) | Owner decides whether to close the included PRs (see below) |
 | **L1** | X-06 live backend and free-host reliability | `deploy/render-free-staging` dd83065 | DONE | LIVE VERIFIED 14 Oct (E-41): service `movenrun-staging-api` (srv-db7a49dg1s2s739nleog, Free, auto-deploy off), live deploy dep-db7a7o2vcj2c73crsemg at dd8306588667342fab2db0ebd4d55632acadb57a; `/health` and `/ready` 200; 10 migration hashes match 0000–0009; RLS on all 19 tables; Data API exposes no schema | X-07 approval next. The free instance sleeps; no keep-awake pings |
 | **L2** | Supabase hook, providers, live Google + wallet + deletion + cap | — | BLOCKED_OWNER | Code tested locally (E-19–E-28, hook contract on PostgreSQL) | X-07, then X-05, each with its own approval, after L1 |
-| **L3** | Session retention and storage capacity | `chore/post-security-launch-prep` (f6ce3c5), draft #106 | IN_REVIEW | CODE TESTED LOCALLY: backend 409/409, API 17/17, DB size measured (E-39, E-40) | X-24 approval after L1; X-25 decision (proposal below) |
+| **L3** | Session retention and storage capacity | `chore/post-security-launch-prep` (f6ce3c5), draft #106 | IN_REVIEW | CODE TESTED LOCALLY: backend 409/409, API 17/17, DB size measured (E-39, E-40); its code (f6ce3c5) is live inside X-24 since 17 Oct (E-55) | X-25 decision (proposal below) |
 | **W1** | Responsive website review version | `web/w1-review-preview`, draft #108 | IN_REVIEW | CODE TESTED LOCALLY: 8 pages × 6 widths + 200% text/zoom clean; sign-in/deletion e2e 23/23 rerun on 8c4d55b (website from the W1 tree, backend from the chore tree, local PostgreSQL 16, Supabase and wallet stubbed); packet `docs/play-launch/WEBSITE_W1_REVIEW_PACKET.md` | Owner reviews; X-21 NOT approved. Truthfulness blockers in §W1 blockers below. Rerun the e2e on the exact W1 head before any publish |
 | **G0** | Canonical product spec (V3 economy, settlement invariants, threat model) | `feat/g0-economy-v3`, draft #109 | IN_REVIEW | `docs/GAME_ECONOMY_V3.md` from the owner's V3 PDF (rev 2, 31 Aug 2026), every rule tagged SOURCE / ASSUMPTION / DECISION NEEDED. Reference model `@movenrun/shared/economy-v3`: CODE TESTED LOCALLY, 23 tests reproduce the source's worked numbers; shared 179/179 | Owner answers D1–D13 (D5 cell vs zone and D2 shade shape gate G2). #88 was not used as input and can be closed once #109 is accepted |
 | **G1** | Server-authoritative spatial pipeline and map geometry contract | `feat/g1-territory-geometry`, draft #107 | IN_REVIEW | CODE TESTED LOCALLY: shared 170/170 (14 new), backend 411/411 (2 new), API 17/17, build; CI green | Review. Route cells between samples done (`route-cells`, unwired). Inferred cells are analytic only: they never award, claim, defend, erode, validate or count for tolls or deed traffic; `covered` stays distinct from `held` |
@@ -65,8 +65,8 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | **G6** | Economy simulation and limited-token research | — | DEFERRED | — | Separate from Play v1 |
 | **G7** | Production economy, wallets, audited mainnet readiness | — | DEFERRED | — | Security, legal and audit gates |
 | **UX0** | Real geographic territory map and full game UX in the app | — | BLOCKED_OWNER | Contract ready: `docs/TERRITORY_GEOMETRY.md` | Waits for the owner's mobile design instruction |
-| **S1** | Security audit fixes and X-24 candidate | `security/deep-audit-hardening`, draft #111 (on #110) | IN_REVIEW | CODE TESTED LOCALLY: backend and API on PostgreSQL 16, mobile 910/910 (E-46–E-48); live client-address check FAILS on dd83065 as expected (E-47) | X-24 approval (`docs/play-launch/X24_DEPLOY_CANDIDATE.md`) |
-| **S2** | Single-use Google exchange (A-10) | `security/a10-single-use-google-exchange`, draft #112 | IN_REVIEW | CODE TESTED LOCALLY: 424/424, API 21/21 after the owner's review (E-53) | ON HOLD: owner approves `A10_GOOGLE_EXCHANGE_PLAN.md` and migration 0010, after X-24 and before X-05 |
+| **S1** | Security audit fixes (X-24) | `security/deep-audit-hardening`, draft #111 (on #110) | DONE (deployed; PR stays a draft, not merged) | LIVE VERIFIED 17 Oct at 7f4c0d4 (E-55); CODE TESTED LOCALLY (E-46–E-48) | Client-address check from two independent client networks (owner or a phone) |
+| **S2** | Single-use Google exchange (A-10) | `security/a10-single-use-google-exchange`, draft #112 | IN_REVIEW | CODE TESTED LOCALLY: 427/427, API 21/21 at 2192de6 with the B1 sign-in time fix (E-56) | BLOCKED_OWNER: approve #112 at 2192de6 and migration 0010 (`A10_GOOGLE_EXCHANGE_PLAN.md`) before X-05 |
 | **W1a** | Strict website CSP (A-09) | `web/a09-strict-csp`, draft #113 (on W1) | IN_REVIEW | e2e 24/24 under the policy (E-50) | Ships with W1 at X-21 |
 | **QA0** | Release build, phone, Play prerequisites | — | BLOCKED_OWNER | Plans: `ANDROID_DEVICE_GATE_PLAN.md`, `PLAY_REGISTRATION_CHECKLIST.md` | X-08, X-04, X-10; Play account X-01 |
 
