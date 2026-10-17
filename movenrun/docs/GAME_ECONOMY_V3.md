@@ -326,6 +326,7 @@ When the system is unsure (§28): *pending* keeps tokens and tolls reversible un
 | A6 | Trust weight applied after the pool split; withheld weight returns to the pool |
 | A7 | Day ceiling trims both sessions in proportion |
 | A8 | Toll on the post-ceiling session reward; recharge on the pre-toll day reward |
+| A9 | A flip leaves the walker holding at the overflow, at least 1. With the source's numbers (push 100, strength 100) one stepped-on visit flips undefended fresh ground; level and fortify resistance (at most 40%) is the only defence. Simulation must check that this is intended |
 
 ### Decisions needed from the owner
 
@@ -355,7 +356,8 @@ When the system is unsure (§28): *pending* keeps tokens and tolls reversible un
 | Map regions and owner coverage endpoint | IN REVIEW (draft #107) | G1 |
 | Cells between samples | IN REVIEW, unwired, analytic only | G1 `route-cells` |
 | Day reward, toll, day-close charges, books check | REFERENCE MODEL, tested, not wired, mints nothing | `shared/src/domain/economyV3.ts` (`@movenrun/shared/economy-v3`) |
-| Solid/shade, holding, decay, erosion | NOT BUILT | G2, G3 |
+| Holding arithmetic: claim, reinforce, erode, flip, decay, stages, deed and mask refusals | REFERENCE MODEL, tested, not wired, stores nothing; D4 numbers are parameters, shade strength (D2) is an input, a unit is whatever D5 decides | `shared/src/domain/holding.ts` (`@movenrun/shared/holding`) |
+| Enclosed-area (shade) geometry, territory ledger | NOT BUILT | G2, after D2 and D5 |
 | Deeds, contests, escrow | NOT BUILT | Later |
 | Clubs, districts, seasons | NOT BUILT (preview only in the app) | G4 |
 | Daily settlement, trust weight service | NOT BUILT | G3 |
