@@ -63,12 +63,12 @@
 
 <h2 id="privacy">Your coordinates are not stored</h2>
 <p>This is the part worth being exact about.</p>
-<p>While a session runs, your positions live in memory on your device. They are used for two things: working out whether the movement was plausible, and working out which cells you crossed. When you leave the summary they are gone.</p>
+<p>While a session runs, your positions live in memory on your device. They are used for two things: working out whether the movement was plausible, and working out which cells you crossed. When you leave the summary they are gone from your phone. If you are signed in, the finished route is sent once to the MovenRun server to be checked there, and the server reads it in memory and discards it in the same way.</p>
 <p>What is kept afterwards is the distance, the duration, which cells you touched, the signal score and its reasons. No latitude or longitude is written down at any point, so there is no history of where you went for anyone to read, lose or hand over. The fingerprint used to catch repeats is derived from the route and cannot be turned back into one.</p>
 <p>The same rule holds everywhere else in the app. Cell names are invented rather than looked up, districts are assigned by identifier rather than by location, and the weekly recap is built from counts. Nothing in MovenRun resolves your position to a real address, neighbourhood or landmark.</p>
 
 <h2 id="server">Where the checking runs</h2>
-<p>Today the checks run on your device, which is also why everything above stays there. A server-side version of the same pipeline is built and is planned to run alongside it, so that what counts toward a shared map is verified somewhere a device cannot influence. It is not connected to the app yet.</p>
+<p>The checks run on your device during the session. A server-side version of the same pipeline is built, and the app is built to send a signed-in session to it, so that what counts toward a shared map is verified somewhere a device cannot influence. That server is not live yet.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/progress/"><span>Previous</span><strong>Tasks, streaks, levels</strong></a><a class="pn next" href="/docs/points/"><span>Next</span><strong>Points</strong></a></nav>

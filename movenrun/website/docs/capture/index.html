@@ -44,11 +44,12 @@
     <article class="darticle">
 <h1>Capture and the map</h1>
 <p class="lead">Finishing a session turns part of your route into ground you hold. One cell per session, and the map keeps the record.</p>
+<div class="callout note"><p><strong>In the app today this is an on-device preview.</strong> Your phone works out what you claim and keeps the record for your own map. A territory record held on the server and shared by every player is planned.</p></div>
 
 <h2 id="cells">Areas on the map</h2>
 <p>You play on the real map of your streets, parks and paths. It is divided into small areas, and every point on it falls inside exactly one of them. An area, which the app calls a cell, is the smallest piece of ground you can hold.</p>
 <p>Behind the scenes, territory is computed on an internal grid so that every area has a fixed boundary. You never need to think about that grid. What the map shows is the ground you have covered, drawn over the places you actually walked, ran or rode.</p>
-<p>Cells in the current build are roughly 300 metres across. The grid is generated on your device, so the same street always resolves to the same cell for you. Moving to a shared global grid, where the same corner is the same cell for every player, is planned and is what districts and clubs are waiting on.</p>
+<p>Each cell covers about 0.7 square kilometres. The app and the server use the same grid, so the same corner resolves to the same cell for every player. What is still to come is the shared record of who holds each cell, which is what districts and clubs are waiting on.</p>
 
 <h2 id="claiming">What one session claims</h2>
 <figure class="dfig dfig-narrow"><img src="/docs/assets/diagrams/capture.svg" alt="A route crosses three areas on the map, two of which are already held. Saving the session claims the one touched cell that was not already held, and refreshes the hold on the two that were." width="360" height="378" /><figcaption>A session claims the first cell on your route that you did not already hold.</figcaption></figure>
