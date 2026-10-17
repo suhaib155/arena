@@ -45,6 +45,13 @@ test("a visit to your own ground restores 100 free, and stepping on your shade m
   assert.equal(applyPush({ state: held({ strength: 90 }), walkerId: "ana", push: shade(20), day: 0, rules }).state.strength, 90);
 });
 
+test("a shade value under 1 cannot hold unheld ground at 0", () => {
+  const r = applyPush({ state: newUnit("u1", 0), walkerId: "ana", push: shade(0.6), day: 0, rules });
+  assert.deepEqual([r.state.holderId, r.state.strength, stageOf(r.state, rules)], ["ana", 0, "unheld"]);
+  assert.deepEqual(unitProblems(r.state), ["held ground has no strength"]);
+  assert.deepEqual(unitProblems(applyPush({ state: newUnit("u2", 0), walkerId: "ana", push: shade(1), day: 0, rules }).state), []);
+});
+
 test("someone else's push erodes by the push less resistance, and flips at 0 with the overflow", () => {
   // Level 3 resists 12%: 100 push → 88 taken.
   const strong = held({ level: 3, strength: 100 });
@@ -138,6 +145,11 @@ test("random days never break a unit: one holder, strength 0–100, deeds and ma
       if (state.holderId && !state.deeded && next() < 0.02) state = { ...state, deeded: true, ground: "solid" };
       state = { ...state, fortified: next() < 0.2 };
       const r = applyPush({ state, walkerId: walkers[Math.floor(next() * walkers.length)], push, day, rules });
+      if (r.outcome === "claimed" && push.kind === "shade" && Math.floor(push.strength) === 0) {
+        // Held at 0 is refused; a store keeps the previous state.
+        assert.deepEqual(unitProblems(r.state), ["held ground has no strength"], `run ${run} step ${step}`);
+        continue;
+      }
       assert.deepEqual(unitProblems(r.state), [], `run ${run} step ${step}`);
       if (state.deeded) assert.equal(r.state.holderId, state.holderId);
       if (state.masked) assert.equal(r.state.holderId, null);
