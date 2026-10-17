@@ -64,12 +64,18 @@ test("a valid ES256 token yields the subject, verified email and sign-in method"
   const { session_id: _omit, ...withoutSession } = good;
   assert.equal((await verifier().verify(token(withoutSession))).sessionId, null);
   assert.equal((await verifier().verify(token({ ...good, session_id: "not-a-uuid" }))).sessionId, null);
-  // The sign-in time is the latest amr timestamp; a refreshed token keeps it.
-  assert.equal(user.signedInAt?.getTime(), (nowS - 10) * 1000);
-  const linked = await verifier().verify(token({ ...good, amr: [{ method: "oauth", timestamp: nowS - 900 }, { method: "otp", timestamp: nowS - 60 }] }));
-  assert.equal(linked.signedInAt?.getTime(), (nowS - 60) * 1000);
-  assert.equal((await verifier().verify(token({ ...good, amr: [{ method: "oauth" }] }))).signedInAt, null);
-  assert.equal((await verifier().verify(token({ ...good, amr: [{ method: "oauth", timestamp: "soon" }] }))).signedInAt, null);
+  // The Google sign-in time is the oauth entry's timestamp only; a newer
+  // token_refresh (or any other method) entry never replaces it.
+  assert.equal(user.oauthSignedInAt?.getTime(), (nowS - 10) * 1000);
+  const refreshed = await verifier().verify(token({ ...good, iat: nowS, amr: [{ method: "oauth", timestamp: nowS - 900 }, { method: "token_refresh", timestamp: nowS - 5 }] }));
+  assert.equal(refreshed.oauthSignedInAt?.getTime(), (nowS - 900) * 1000);
+  const reordered = await verifier().verify(token({ ...good, amr: [{ method: "token_refresh", timestamp: nowS - 5 }, { method: "otp", timestamp: nowS - 1 }, { method: "oauth", timestamp: nowS - 900 }] }));
+  assert.equal(reordered.oauthSignedInAt?.getTime(), (nowS - 900) * 1000);
+  // No oauth entry, two of them, or no usable timestamp: no sign-in time.
+  for (const amr of [undefined, [], [{ method: "token_refresh", timestamp: nowS - 5 }], [{ method: "oauth" }], [{ method: "oauth", timestamp: "soon" }], [{ method: "oauth", timestamp: nowS - 900 }, { method: "oauth", timestamp: nowS - 5 }], ["oauth"]]) {
+    const { amr: _drop, ...rest } = good;
+    assert.equal((await verifier().verify(token(amr === undefined ? rest : { ...rest, amr }))).oauthSignedInAt, null, JSON.stringify(amr));
+  }
 });
 
 test("RS256 keys from the JWKS are accepted", async () => {

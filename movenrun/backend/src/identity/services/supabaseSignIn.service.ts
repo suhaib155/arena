@@ -74,6 +74,13 @@ export interface SupabaseAuthCalls {
 export const GOOGLE_EXCHANGE_WINDOW_MS = 10 * 60 * 1000;
 /** Clock difference tolerated between Supabase and this server. */
 export const GOOGLE_EXCHANGE_SKEW_MS = 60 * 1000;
+/**
+ * How long a spent session's record is kept: far longer than the window, so
+ * the record still refuses the session if its sign-in time were ever
+ * misreported. Rows are a session id and a time; at the 1,000-account cap a
+ * month of daily sign-ins is about 30,000 rows (a few MB).
+ */
+export const GOOGLE_EXCHANGE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /** Most spent records one exchange removes; the rest go on later exchanges. */
 export const GOOGLE_EXCHANGE_PURGE_BATCH = 500;
 
@@ -123,15 +130,21 @@ export class SupabaseSignInService {
   /**
    * Verify a Supabase session from Google sign-in.
    *
-   * One MovenRun session per Supabase session, ever. A refreshed Supabase
-   * token keeps its session id and its sign-in time, so the rule is enforced
-   * by both: a session may be exchanged only within
-   * GOOGLE_EXCHANGE_WINDOW_MS of its sign-in, and its record is kept until
-   * that window has closed. A copy of the token, or a later refresh of it,
-   * cannot mint a second session. The app and website exchange right after
-   * the Google redirect and never retry with the same token, so this refuses
-   * only a replay. A token without a session id or a sign-in time is refused
-   * rather than let in unrecorded.
+   * One MovenRun session per Supabase session. Two independent guards:
+   *
+   * - Time: a session may be exchanged only within GOOGLE_EXCHANGE_WINDOW_MS
+   *   of its Google sign-in, read from the token's `oauth` amr entry alone.
+   *   A refresh gives a new token for the same session; any newer
+   *   `token_refresh` (or other) entry it carries is ignored, so a refresh
+   *   cannot restart the window.
+   * - Record: the first exchange records the session id and keeps it for
+   *   GOOGLE_EXCHANGE_RETENTION_MS, far past the window, so a copy of the
+   *   token or a refresh of it is refused even if the first guard were wrong.
+   *
+   * The app and website exchange right after the Google redirect and never
+   * retry with the same token, so this refuses only a replay. A token without
+   * a session id or a single oauth sign-in time is refused rather than let in
+   * unrecorded.
    *
    * Nothing is spent here: the record is written by `claimGoogleExchange`
    * after the account is admitted and just before the MovenRun session is
@@ -148,9 +161,9 @@ export class SupabaseSignInService {
     // Only an OAuth login may come in this way. A Web3 session must go through
     // the wallet routes, where the nonce and message are checked.
     if (!user.methods.includes("oauth") || !user.providers.includes("google")) throw new IdentityError("verification_failed");
-    if (!user.sessionId || !user.signedInAt) throw new IdentityError("verification_failed");
+    if (!user.sessionId || !user.oauthSignedInAt) throw new IdentityError("verification_failed");
     const now = this.now().getTime();
-    const signedInAt = user.signedInAt.getTime();
+    const signedInAt = user.oauthSignedInAt.getTime();
     if (signedInAt > now + GOOGLE_EXCHANGE_SKEW_MS || now - signedInAt > GOOGLE_EXCHANGE_WINDOW_MS) throw new IdentityError("verification_failed");
     // A cheap read refuses a plain replay before any account work.
     if (await this.deps.signIn.googleExchanges.exchanged(user.sessionId)) throw new IdentityError("verification_failed");
@@ -158,7 +171,7 @@ export class SupabaseSignInService {
       subject: user.subject,
       email: user.email,
       method: "google",
-      googleSession: { id: user.sessionId, keepUntil: new Date(signedInAt + GOOGLE_EXCHANGE_WINDOW_MS + GOOGLE_EXCHANGE_SKEW_MS) },
+      googleSession: { id: user.sessionId, keepUntil: new Date(now + GOOGLE_EXCHANGE_RETENTION_MS) },
     };
   }
 

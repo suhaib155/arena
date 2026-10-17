@@ -9,7 +9,7 @@ import { createInMemorySignInStores } from "../repositories/signInStores.js";
 import { EoaSignatureVerifier } from "../providers/eoaVerifier.js";
 import { SupabaseAuthError, type VerifiedSupabaseUser } from "../providers/supabaseAuth.js";
 import { createHash, randomBytes } from "node:crypto";
-import { GOOGLE_EXCHANGE_PURGE_BATCH, GOOGLE_EXCHANGE_SKEW_MS, GOOGLE_EXCHANGE_WINDOW_MS, SupabaseSignInService, WALLET_HANDOFF_TTL_MS, WALLET_MESSAGE_TTL_MS } from "./supabaseSignIn.service.js";
+import { GOOGLE_EXCHANGE_PURGE_BATCH, GOOGLE_EXCHANGE_RETENTION_MS, GOOGLE_EXCHANGE_SKEW_MS, GOOGLE_EXCHANGE_WINDOW_MS, SupabaseSignInService, WALLET_HANDOFF_TTL_MS, WALLET_MESSAGE_TTL_MS } from "./supabaseSignIn.service.js";
 import { resolveIdentityConfig } from "../config.js";
 import { createIdentityServices } from "../http/wiring.js";
 import { createIdentityRouter } from "../http/router.js";
@@ -31,7 +31,7 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failD
   let n = 0;
   const mint = (subject: string, methods: string[], email: string | null, providers: string[] = []) => {
     const t = `token-${n++}-${"x".repeat(30)}`;
-    tokens.set(t, { subject, methods, email, providers, sessionId: `33333333-3333-4333-8333-${String(n).padStart(12, "0")}`, signedInAt: now(), expiresAt: new Date(now().getTime() + 3600_000) });
+    tokens.set(t, { subject, methods, email, providers, sessionId: `33333333-3333-4333-8333-${String(n).padStart(12, "0")}`, oauthSignedInAt: now(), expiresAt: new Date(now().getTime() + 3600_000) });
     return t;
   };
   /** A new access token for the same Supabase session, as a refresh gives: same session id and sign-in time. */
@@ -215,36 +215,79 @@ test("a Google token is exchanged once; a replay or a token without a Supabase s
   (await supabase.tokens.verify(unrecorded)).sessionId = null;
   assert.equal(await code(service.verifyGoogle(unrecorded)), "verification_failed");
   const untimed = supabase.googleToken();
-  (await supabase.tokens.verify(untimed)).signedInAt = null;
+  (await supabase.tokens.verify(untimed)).oauthSignedInAt = null;
   assert.equal(await code(service.verifyGoogle(untimed)), "verification_failed");
 });
 
-test("the rule is once per Supabase session: refreshed tokens are refused, and so is any token after the window", async () => {
+test("once per Supabase session: replays and refreshes at 10, 11, 30 and 65 minutes are refused, and the record outlives any eligible time", async () => {
   const { service, supabase, signIn, advance } = setup();
   const first = supabase.googleToken();
+  const sessionId = (await supabase.tokens.verify(first)).sessionId!;
   await exchange(service, first);
-  // A refresh keeps the session id: refused while the record is kept.
-  advance(5 * 60_000);
-  assert.equal(await code(service.verifyGoogle(supabase.refresh(first))), "verification_failed");
-  // After the window the record may go, and every token of that session,
-  // refreshed or not, is refused by its sign-in time instead.
-  advance(GOOGLE_EXCHANGE_WINDOW_MS + GOOGLE_EXCHANGE_SKEW_MS);
-  assert.equal(await signIn.googleExchanges.purgeExpired(new Date(T0.getTime() + 60 * 60_000), 500), 1);
-  assert.equal(await signIn.googleExchanges.exchanged((await supabase.tokens.verify(first)).sessionId!), false);
-  assert.equal(await code(service.verifyGoogle(supabase.refresh(first))), "verification_failed");
-  // A session never exchanged is refused once its sign-in is too old as well.
-  const late = supabase.googleToken();
-  advance(GOOGLE_EXCHANGE_WINDOW_MS + 1);
-  assert.equal(await code(service.verifyGoogle(late)), "verification_failed");
-  // A sign-in time from the future (beyond clock skew) is refused.
-  const ahead = supabase.googleToken();
-  (await supabase.tokens.verify(ahead)).signedInAt = new Date(Date.parse("2100-01-01T00:00:00Z"));
-  assert.equal(await code(service.verifyGoogle(ahead)), "verification_failed");
-  // The record outlives the window: a token that still passes the time check
-  // always finds its record.
-  const edge = supabase.googleToken();
-  const v = await service.verifyGoogle(edge);
-  assert.ok(v.googleSession!.keepUntil.getTime() > (await supabase.tokens.verify(edge)).signedInAt!.getTime() + GOOGLE_EXCHANGE_WINDOW_MS);
+  const keepUntil = (await service.verifyGoogle(supabase.googleToken())).googleSession!.keepUntil;
+  assert.equal(keepUntil.getTime(), T0.getTime() + GOOGLE_EXCHANGE_RETENTION_MS);
+  // Several refreshes in a row, each replayed at a later time: all refused.
+  let latest = first;
+  for (const minutes of [10, 1, 19, 35]) { // reaches 10, 11, 30 and 65 minutes
+    advance(minutes * 60_000);
+    latest = supabase.refresh(latest);
+    assert.equal(await code(service.verifyGoogle(latest)), "verification_failed");
+    assert.equal(await code(service.verifyGoogle(first)), "verification_failed");
+  }
+  // Purging at 65 minutes keeps the record: it lives for the retention period.
+  assert.equal(await signIn.googleExchanges.purgeExpired(new Date(T0.getTime() + 65 * 60_000), 500), 0);
+  assert.equal(await signIn.googleExchanges.exchanged(sessionId), true);
+  // Even with the record gone, the session's Google sign-in time stays old,
+  // so a refreshed token is still refused by time.
+  advance(GOOGLE_EXCHANGE_RETENTION_MS);
+  assert.ok((await signIn.googleExchanges.purgeExpired(new Date(T0.getTime() + GOOGLE_EXCHANGE_RETENTION_MS + 66 * 60_000), 500)) >= 1);
+  assert.equal(await signIn.googleExchanges.exchanged(sessionId), false);
+  assert.equal(await code(service.verifyGoogle(supabase.refresh(latest))), "verification_failed");
+});
+
+test("the window: exactly 10 minutes after the Google sign-in passes, a millisecond later fails; clock skew up to a minute is tolerated", async () => {
+  const { service, supabase } = setup();
+  const at = (offsetMs: number) => {
+    const t = supabase.googleToken();
+    return { t, set: async () => { (await supabase.tokens.verify(t)).oauthSignedInAt = new Date(T0.getTime() + offsetMs); } };
+  };
+  for (const [offset, expected] of [
+    [-GOOGLE_EXCHANGE_WINDOW_MS, "ok"],
+    [-GOOGLE_EXCHANGE_WINDOW_MS - 1, "verification_failed"],
+    [GOOGLE_EXCHANGE_SKEW_MS, "ok"],
+    [GOOGLE_EXCHANGE_SKEW_MS + 1, "verification_failed"],
+    [-30 * 60_000, "verification_failed"],
+  ] as const) {
+    const { t, set } = at(offset);
+    await set();
+    assert.equal(await code(service.verifyGoogle(t)), expected, `offset ${offset}`);
+  }
+});
+
+test("a user who cancels never sends a token; a verified but unspent token stays usable; Google re-authentication inside the same session is refused", async () => {
+  const { service, supabase, advance } = setup();
+  // Verified (for example, the account work then failed) but not spent: still usable.
+  const pending = supabase.googleToken();
+  await service.verifyGoogle(pending);
+  await service.verifyGoogle(pending);
+  assert.equal(await code(exchange(service, pending)), "ok");
+  // Re-authenticating with Google inside the same Supabase session gives a new
+  // oauth time, but the session's record refuses it: one session, one exchange.
+  advance(3 * 60_000);
+  const reauth = supabase.refresh(pending);
+  (await supabase.tokens.verify(reauth)).oauthSignedInAt = new Date(T0.getTime() + 3 * 60_000);
+  assert.equal(await code(service.verifyGoogle(reauth)), "verification_failed");
+  // A new Google sign-in (new Supabase session) for the same person works.
+  assert.equal(await code(exchange(service, supabase.googleToken())), "ok");
+});
+
+test("concurrent refreshes of one session racing to be spent: exactly one wins", async () => {
+  const { service, supabase } = setup();
+  const first = supabase.googleToken();
+  const copies = [first, ...Array.from({ length: 24 }, () => supabase.refresh(first))];
+  const verified = await Promise.all(copies.map((t) => service.verifyGoogle(t)));
+  const results = await Promise.all(verified.map((v) => code(service.claimGoogleExchange(v))));
+  assert.equal(results.filter((r) => r === "ok").length, 1);
 });
 
 test("clean-up of spent records is bounded per exchange and never removes a live one", async () => {
