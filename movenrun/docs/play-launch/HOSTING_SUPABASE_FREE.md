@@ -171,7 +171,8 @@ To change the cap or the quota later (owner decision, D-20):
 | `SUPABASE_SECRET_KEY` | Project Settings → API Keys → a secret key (`sb_secret_…`). Server only; used only to delete auth users (account deletion and the cap) |
 | `IDENTITY_AUTH_DOMAIN` | `movenrun.xyz` |
 | `CORS_ORIGINS` | `https://movenrun.xyz` |
-| `TRUST_PROXY_HOPS` | `1` |
+| `TRUST_PROXY_HOPS` | `1` (ignored while `TRUST_PROXY` is set; kept for rollback) |
+| `TRUST_PROXY` | `render-cloudflare` (rate limits key on the visitor, not a proxy; check with `scripts/check-client-ip.mjs`) |
 
 Not needed any more: `IDENTITY_OTP_PEPPER`, `RESEND_API_KEY`,
 `IDENTITY_EMAIL_FROM`, `IDENTITY_REVIEW_EMAIL`, `IDENTITY_REVIEW_CODE`.

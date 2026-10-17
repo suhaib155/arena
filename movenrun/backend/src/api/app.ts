@@ -19,6 +19,7 @@ import { createCorsMiddleware, createSecurityHeadersMiddleware } from "../middle
 import { createGlobalRateLimiter, createWriteRateLimiter } from "../middleware/rateLimit.js";
 import type { ApiConfig } from "./config.js";
 import { createMaintenance } from "./maintenance.js";
+import { trustProxySetting } from "./trustedProxies.js";
 
 export function createApiApp(config: ApiConfig) {
   // Sign-in is Google or wallet through Supabase Auth only. The email-code
@@ -57,7 +58,7 @@ export function createApiApp(config: ApiConfig) {
   maintenance.start();
   const app = express();
   app.disable("x-powered-by");
-  app.set("trust proxy", config.TRUST_PROXY_HOPS);
+  app.set("trust proxy", trustProxySetting(config.TRUST_PROXY, config.TRUST_PROXY_HOPS));
   app.use(maintenance.afterResponse);
   app.use(createSecurityHeadersMiddleware(), createCorsMiddleware(config));
   app.use(createGlobalRateLimiter(config));

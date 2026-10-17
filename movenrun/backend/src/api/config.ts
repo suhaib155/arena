@@ -14,6 +14,10 @@ const schema = z.object({
   // and a client can choose its own address. Render plus its CDN is more
   // than one hop.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
+  // "render-cloudflare" trusts the proxies by network instead of by count and
+  // then ignores TRUST_PROXY_HOPS (see trustedProxies.ts). The default keeps
+  // the hop count so an environment that does not set it behaves as before.
+  TRUST_PROXY: z.enum(["hops", "render-cloudflare"]).default("hops"),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1000).default(300),
   RATE_LIMIT_WRITE_MAX: z.coerce.number().int().min(1).max(100).default(20),
