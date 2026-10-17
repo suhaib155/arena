@@ -1,6 +1,6 @@
 # X-26: legacy JWT secret exposure — rotation, revocation and verification
 
-Status: **OPEN incident, prepared, waiting on the owner's go for the live steps.**
+Status: **CLOSED 2026-10-16.** Owner approved X-26 on 2026-10-14; the legacy secret is revoked and V1–V6 passed (§6). V7 and V8 are recorded when their windows happen.
 It stays open until the legacy secret is **revoked** and every check in §5 passes.
 Supabase project `movenrun`, ref `tavxmwuwkeynbnzfwove` only. Never the other project.
 
@@ -112,3 +112,35 @@ rejects forged tokens, not that the legacy secret is revoked (only V1 proves tha
 
 Close the incident when V1–V6 pass. V7 and V8 are recorded when their windows
 happen and do not keep the incident open.
+
+## 6. Result (2026-10-16)
+
+| Step | Done by | Result |
+|---|---|---|
+| Render name check | Owner, dashboard | `SUPABASE_LEGACY_JWT_SECRET` removed (it was present) |
+| ECC (P-256) key made Current | Owner, dashboard | Done |
+| Legacy `anon` / `service_role` keys disabled | Claude, Management API (legacy API keys toggle, response `enabled: false`) | Done |
+| Legacy secret revoked | Owner, dashboard | Revoked; "Previously used" list empty |
+
+| Check | Result |
+|---|---|
+| V1 | Owner: Current = ECC (P-256), legacy secret revoked |
+| V2 | Legacy API keys disabled (`enabled: false`) |
+| V3 | Public JWKS: 1 key, EC ES256; no symmetric key |
+| V4 | `/ready` 200 at `dd83065` |
+| V5 | Forged HS256, unknown-kid ES256 and `alg: none`: 401 `verification_failed` each; missing token 400 |
+| Extra | Forged HS256 `service_role` token on Supabase `/auth/v1/admin/users`: 401 |
+| V6 | Owner: Render variable removed |
+
+No secret value was read, printed or stored during the fix. The settings
+read that disclosed the secret was not called again. Note: the Render
+variable existed although the operator guide never set it; that is why the
+revoke, not the Render check alone, closes the risk.
+
+X-07 followed: the owner attached the Before User Created hook in the
+dashboard (2026-10-16). Read-only re-check: `supabase_auth_admin` EXECUTE
+yes, `anon` / `authenticated` no, schema usage yes, capacity 1,000 / 50 per
+hour, 0 users, 10 migrations, 0 public tables without RLS. The hook target
+(`public.movenrun_before_user_created`) is confirmed on the owner's hook
+page; it is not read through the connector because that settings read can
+return secret fields. The invocation proof (X-07b) runs in the X-05 window.

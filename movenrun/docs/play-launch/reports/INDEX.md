@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-10-16 | X-26 incident closed (secret revoked, verified), X-07 hook attached | 82c729e | [MOVENRUN_2026-10-16_X26_CLOSED_X07_ATTACHED_FINAL_REPORT_82c729e.md](MOVENRUN_2026-10-16_X26_CLOSED_X07_ATTACHED_FINAL_REPORT_82c729e.md) |
 | 2026-10-15 | Deep security, privacy and performance audit: 19 findings, 9 fixed on a branch, owner actions listed | 4d10dc3 | [MOVENRUN_2026-10-15_DEEP_SECURITY_PRIVACY_PERFORMANCE_AUDIT_FINAL_REPORT_4d10dc3.md](MOVENRUN_2026-10-15_DEEP_SECURITY_PRIVACY_PERFORMANCE_AUDIT_FINAL_REPORT_4d10dc3.md) |
 | 2026-10-14 | X-26 security response prepared (incident open), X-07 preflight passed | 82c729e | [MOVENRUN_2026-10-14_X26_SECURITY_RESPONSE_X07_PREFLIGHT_FINAL_REPORT_82c729e.md](MOVENRUN_2026-10-14_X26_SECURITY_RESPONSE_X07_PREFLIGHT_FINAL_REPORT_82c729e.md) |
 | 2026-10-14 | X-06 live verified, G0 V3 spec and day-settlement model, records reconciled | 98c2862 (G0) | [MOVENRUN_2026-10-14_X06_LIVE_G0_RECONCILIATION_FINAL_REPORT_98c2862.md](MOVENRUN_2026-10-14_X06_LIVE_G0_RECONCILIATION_FINAL_REPORT_98c2862.md) |
