@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-10-17 | G3 credits settlement and G4 clubs, districts and leaderboards reference models | d7a58b2 | [MOVENRUN_2026-10-17_G3_G4_GAMEPLAY_MODELS_FINAL_REPORT_d7a58b2.md](MOVENRUN_2026-10-17_G3_G4_GAMEPLAY_MODELS_FINAL_REPORT_d7a58b2.md) |
 | 2026-10-17 | X-27 live reconciled; website apex check, X-05 preflight, G2 holding ledger | 9f1f45a | [MOVENRUN_2026-10-17_X05_PREFLIGHT_G2_LEDGER_FINAL_REPORT_9f1f45a.md](MOVENRUN_2026-10-17_X05_PREFLIGHT_G2_LEDGER_FINAL_REPORT_9f1f45a.md) |
 | 2026-10-17 | X-27: #112 single-use Google exchange and migration 0010 live on Render staging, verified | 2192de6 | [MOVENRUN_2026-10-17_X27_GOOGLE_EXCHANGE_STAGING_LIVE_FINAL_REPORT_2192de6.md](MOVENRUN_2026-10-17_X27_GOOGLE_EXCHANGE_STAGING_LIVE_FINAL_REPORT_2192de6.md) |
 | 2026-10-17 | X-24 live reconciled; #112 sign-in time taken only from the `oauth` entry, records kept 30 days | 2192de6 | [MOVENRUN_2026-10-17_X24_LIVE_RECONCILED_AMR_FIX_FINAL_REPORT_2192de6.md](MOVENRUN_2026-10-17_X24_LIVE_RECONCILED_AMR_FIX_FINAL_REPORT_2192de6.md) |

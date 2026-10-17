@@ -237,6 +237,8 @@ app CTAs (D-35). Done:
   first, or an app build), and the owner's two-network check.
 - G2 event ledger, draft #117 at 9a272f7 (E-65).
 - G3 settlement, draft #118 at 493b3fa (E-67); new decisions D14–D17.
+- G4 clubs, districts and leaderboards, draft #119 at d7a58b2 (E-68); new
+  decisions D18–D23.
 - Vercel free plan hit its 100 deployments per day limit at 12:43 UTC, so
   preview builds fail for about 24 hours. GitHub checks are unaffected.
 
