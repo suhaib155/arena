@@ -38,6 +38,8 @@ export interface SignupOrLoginInput {
   providerIdentity: ProviderIdentityInput;
   deviceLabel?: string | null;
   userAgentHash?: string | null;
+  /** Runs once the account is admitted, immediately before the session is issued; a throw issues nothing. */
+  beforeSession?: () => Promise<void>;
 }
 
 export interface SignupOrLoginResult {
@@ -53,6 +55,7 @@ export class AuthOrchestrator {
 
   async signupOrLogin(input: SignupOrLoginInput): Promise<SignupOrLoginResult> {
     const { user, identity, created } = await this.deps.identity.authenticate(input.providerIdentity);
+    await input.beforeSession?.();
 
     const session = await this.deps.sessions.issue({
       userId: user.id,

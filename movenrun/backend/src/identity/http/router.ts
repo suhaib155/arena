@@ -147,11 +147,18 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
         },
         deviceLabel: sanitizeDeviceLabel(rawDeviceLabel),
         userAgentHash: undefined,
+        // A Google sign-in is spent only here, after the account is admitted, so
+        // a refusal or an outage before this point can be retried with the same token.
+        beforeSession: verified.googleSession ? () => options.supabaseSignIn!.claimGoogleExchange(verified) : undefined,
       });
     } catch (err) {
       // Refused at the account cap or the hourly quota: the provider user it just created must not
       // linger, so it is removed (or queued for removal) before answering.
       if (isIdentityError(err) && (err.code === "registration_closed" || err.code === "registration_busy")) {
+        // The refusal is final for this provider user, so its Google sign-in is
+        // spent too: a retry with the same token must not bind an account to a
+        // provider user that is being removed. A new sign-in starts afresh.
+        if (verified.googleSession) await options.supabaseSignIn?.claimGoogleExchange(verified).catch(() => undefined);
         await options.supabaseSignIn?.removeProviderUsers([verified.subject]);
       }
       throw err;

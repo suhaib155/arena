@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler } from "express";
 import {
   users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations,
+  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, googleSignInExchanges,
 } from "../db/identity.schema.js";
 import { movementVerifications } from "../db/movement.schema.js";
 import { getDb } from "../db/client.js";
@@ -68,7 +68,7 @@ export function createApiApp(config: ApiConfig) {
       // Probe migrated columns, not just database connectivity. No rows or
       // coordinates are selected and no connection errors reach the logs.
       for (const table of [users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, movementVerifications]) {
+        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, googleSignInExchanges, movementVerifications]) {
         await db.select().from(table).limit(0);
       }
       res.json({ status: "ready", database: "ready", signIn: "supabase" });
