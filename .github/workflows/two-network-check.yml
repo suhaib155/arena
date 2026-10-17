@@ -1,0 +1,62 @@
+name: two-network-check
+on:
+  push:
+    branches: [ops/two-network-check]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Two-network rate-limit probe
+        env:
+          API_BASE: https://movenrun-staging-api.onrender.com
+          SALT: e4270b3255745b1f5186429485cefc4d
+          START_EPOCH: '1792243826'
+          SIDE_LABEL: github-runner
+        run: |
+          cat > probe.mjs <<'EOF'
+          import crypto from 'node:crypto';
+          const base=(process.env.API_BASE||'').replace(/\/+$/,'');
+          const salt=process.env.SALT||'';
+          const start=Number(process.env.START_EPOCH||0);
+          const label=process.env.SIDE_LABEL||'side';
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          async function hashIp(){
+            const r=await fetch('https://api.ipify.org',{signal:AbortSignal.timeout(20000)});
+            const ip=(await r.text()).trim();
+            return crypto.createHash('sha256').update(salt+ip).digest('hex').slice(0,12);
+          }
+          async function hit(path,method,forged){
+            const h=forged?{'x-forwarded-for':forged,forwarded:`for=${forged}`}:{};
+            if(method==='POST')h['content-type']='application/json';
+            const res=await fetch(base+path,{method,headers:h,body:method==='POST'?'{}':undefined,signal:AbortSignal.timeout(90000)});
+            await res.body?.cancel();
+            return {rem:Number(res.headers.get('ratelimit-remaining')),reset:Number(res.headers.get('ratelimit-reset'))};
+          }
+          const origin=await hashIp();
+          console.log(`origin=${origin}`);
+          let w=start*1000-Date.now(); if(w>0) await sleep(w);
+          const prime=await hit('/health','GET',null);
+          if(Number.isFinite(prime.reset)&&prime.reset>0&&prime.reset<40){ await sleep((prime.reset+1)*1000); }
+          const g=[],gf=[]; const t0=Math.floor(Date.now()/1000);
+          for(let i=0;i<18;i++){
+            const forged=i%2?`203.0.113.${i}`:null;
+            const {rem}=await hit('/health','GET',forged);
+            g.push(rem); gf.push(i%2?'F':'.');
+            if(i<17) await sleep(2000);
+          }
+          const t1=Math.floor(Date.now()/1000);
+          const gs=g.slice(1).map((v,i)=>g[i]-v);
+          const gok=gs.every(d=>d===1);
+          console.log(`${label} global_window ${t0}..${t1}`);
+          console.log(`${label} global_forgedmask ${gf.join('')}`);
+          console.log(`${label} global_remaining ${g.join(' ')}`);
+          console.log(`${label} global_steps ${gs.join(' ')} -> ${gok?'PASS':'FAIL'}`);
+          process.exitCode=gok?0:1;
+          EOF
+          node probe.mjs
+          echo "--- existing script --write ---"
+          node movenrun/scripts/check-client-ip.mjs "$API_BASE" 4 --write
