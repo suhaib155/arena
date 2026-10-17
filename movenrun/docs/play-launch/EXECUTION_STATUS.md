@@ -12,7 +12,7 @@
 | **BLOCKED — OWNER** | X-01a/b/c Play account (type, US$25, verification, closed test if Personal); X-05 (then X-07b) → X-21 live setup; X-08, X-04 build; X-10 phone by 24 Oct; X-22 mailbox |
 | **BLOCKED — EXTERNAL** | Google's account verification and (Personal) production-access review; whether wallet browsers return to the app (phone only); 64-bit and 16 KB confirmation in the App bundle explorer |
 | **NEEDS APPROVAL** | repository visibility (`OWNER_DECISIONS_PRIVACY_REPO_DOMAIN.md`); security log retention (X-25, undecided); enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
-| **OPEN** | owner SQL check after X-27 (11 migrations, every table with RLS) and the two-network client-address check, both before X-05; F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
+| **OPEN** | the two-network client-address check before X-05 (X-27 SQL check done, E-63); F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
 
 Start here when resuming. Then read `TASK_REGISTER.md` and `EXTERNAL_ACTIONS.md`. The whole-product board (L0–L3, W1, G0–G7, UX0, QA0) is `../product-roadmap/PR_QUEUE.md`; the owner's design rules are `../product-roadmap/DESIGN_CONSTRAINTS.md`.
 
@@ -217,6 +217,15 @@ app CTAs (D-35). Done:
   owner. Report: `reports/MOVENRUN_2026-10-17_X27_GOOGLE_EXCHANGE_STAGING_LIVE_FINAL_REPORT_2192de6.md`.
 - Correction: statements above that say #112 or migration 0010 wait on the
   owner were true when written and are superseded here.
+
+## Checkpoint 2026-10-17 (X-27 closed out, Pages off, apex primary)
+
+- X-27 SQL close-out (E-63): 11 migrations, no table without RLS, caps
+  1,000 and 50 per hour, hook privileges as designed, no errors since deploy.
+- A3 done: GitHub Pages returns 404 (E-64).
+- X-21a done: apex serves the site and `www` redirects to it with 308
+  (E-64). No DNS change was made from here. The reviewed site is still not
+  published (X-21).
 
 ## Open owner decisions
 
