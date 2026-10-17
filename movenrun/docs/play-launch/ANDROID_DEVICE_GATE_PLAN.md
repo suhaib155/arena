@@ -41,6 +41,7 @@ stand-in.
 | F-06 check (15h) | The warning shows on a sign-in the app did not start | STOP until the copy is visible |
 | QA-04 (record only) | Per wallet: did the browser hand `movenrun://` back to the app? | Input to the X-23 App Link decision |
 | Capacity (QA-02) | Two accounts each see only their own sessions; deleting one leaves the other intact | STOP |
+| Backup and transfer (A2) | The installed APK's merged manifest has `allowBackup="false"` and `dataExtractionRules`; `adb shell bmgr backupnow io.movenrun.app` backs nothing up; after a phone-to-phone transfer (Android 12+) the app opens signed out with no unsent session | STOP: privacy blocker |
 
 A step not run is not a pass. Any crash is a fail.
 

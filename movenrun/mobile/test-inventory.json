@@ -3,6 +3,7 @@
   "files": [
     "src/lib/__tests__/accessibilityLabels.test.ts",
     "src/lib/__tests__/accountHistory.test.ts",
+    "src/lib/__tests__/androidBackupPolicy.test.ts",
     "src/lib/__tests__/androidRuntimePolicy.test.ts",
     "src/lib/__tests__/androidTargetSdk.test.ts",
     "src/lib/__tests__/clubsView.test.ts",
