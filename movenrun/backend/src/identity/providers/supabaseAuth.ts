@@ -49,6 +49,8 @@ export interface VerifiedSupabaseUser {
   methods: string[];
   /** Providers linked to the auth user (`app_metadata.providers`). */
   providers: string[];
+  /** The Supabase session this token belongs to (`session_id`), or null if absent. */
+  sessionId: string | null;
   expiresAt: Date;
 }
 
@@ -132,7 +134,9 @@ export class SupabaseTokenVerifier {
     const providers = Array.isArray(appMetadata.providers) ? appMetadata.providers.filter((p): p is string => typeof p === "string") : [];
     const email = typeof claims.email === "string" && claims.email.includes("@") ? claims.email.trim().toLowerCase() : null;
 
-    return { subject: claims.sub.toLowerCase(), email, methods, providers, expiresAt: new Date(claims.exp * 1000) };
+    const sessionId = typeof claims.session_id === "string" && UUID.test(claims.session_id) ? claims.session_id.toLowerCase() : null;
+
+    return { subject: claims.sub.toLowerCase(), email, methods, providers, sessionId, expiresAt: new Date(claims.exp * 1000) };
   }
 
   private async keyFor(kid: string) {

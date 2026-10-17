@@ -5,7 +5,7 @@
  */
 import { and, asc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { pendingAuthUserDeletions, walletSignInChallenges, walletSignInHandoffs } from "../../db/identity.schema.js";
+import { googleSignInExchanges, pendingAuthUserDeletions, walletSignInChallenges, walletSignInHandoffs } from "../../db/identity.schema.js";
 
 export interface WalletSignInChallenge {
   nonce: string;
@@ -43,7 +43,15 @@ export interface WalletSignInHandoffStore {
   inUse(subject: string, now: Date): Promise<boolean>;
 }
 
+export interface GoogleExchangeStore {
+  /** Records the Supabase session as exchanged. Returns false if it already was. */
+  claim(sessionId: string, expiresAt: Date): Promise<boolean>;
+  /** Removes records whose token expired before `before`. */
+  purgeExpired(before: Date): Promise<number>;
+}
+
 export interface SignInStores {
+  googleExchanges: GoogleExchangeStore;
   walletChallenges: WalletSignInChallengeStore;
   pendingAuthDeletions: PendingAuthDeletionStore;
   walletHandoffs: WalletSignInHandoffStore;
@@ -53,8 +61,21 @@ export function createInMemorySignInStores(): SignInStores {
   const challenges = new Map<string, WalletSignInChallenge>();
   const pending = new Map<string, { requestedAt: number; lastAttemptAt: number | null }>();
   const handoffs = new Map<string, { codeChallenge: string; subject: string; expiresAt: Date; consumedAt: Date | null }>();
+  const exchanged = new Map<string, Date>();
   let seq = 0;
   return {
+    googleExchanges: {
+      async claim(sessionId, expiresAt) {
+        if (exchanged.has(sessionId)) return false;
+        exchanged.set(sessionId, expiresAt);
+        return true;
+      },
+      async purgeExpired(before) {
+        let n = 0;
+        for (const [k, at] of exchanged) if (at.getTime() < before.getTime()) { exchanged.delete(k); n += 1; }
+        return n;
+      },
+    },
     walletChallenges: {
       async create(input) {
         if (challenges.has(input.nonce)) throw new Error("duplicate nonce");
@@ -131,6 +152,19 @@ export function createInMemorySignInStores(): SignInStores {
 
 export function createDrizzleSignInStores(db: Db): SignInStores {
   return {
+    googleExchanges: {
+      async claim(sessionId, expiresAt) {
+        // The primary key decides: of two concurrent exchanges, one inserts.
+        const rows = await db.insert(googleSignInExchanges).values({ sessionId, expiresAt })
+          .onConflictDoNothing().returning({ sessionId: googleSignInExchanges.sessionId });
+        return rows.length === 1;
+      },
+      async purgeExpired(before) {
+        const rows = await db.delete(googleSignInExchanges).where(lt(googleSignInExchanges.expiresAt, before))
+          .returning({ sessionId: googleSignInExchanges.sessionId });
+        return rows.length;
+      },
+    },
     walletChallenges: {
       async create(input) {
         await db.insert(walletSignInChallenges).values(input);

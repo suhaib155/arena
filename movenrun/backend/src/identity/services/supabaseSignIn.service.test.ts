@@ -31,7 +31,7 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failD
   let n = 0;
   const mint = (subject: string, methods: string[], email: string | null, providers: string[] = []) => {
     const t = `token-${n++}-${"x".repeat(30)}`;
-    tokens.set(t, { subject, methods, email, providers, expiresAt: new Date(T0.getTime() + 3600_000) });
+    tokens.set(t, { subject, methods, email, providers, sessionId: `33333333-3333-4333-8333-${String(n).padStart(12, "0")}`, expiresAt: new Date(T0.getTime() + 3600_000) });
     return t;
   };
   return {
@@ -183,6 +183,25 @@ test("Google sign-in accepts only a verified OAuth session", async () => {
   assert.equal(await code(service.verifyGoogle(supabase.googleToken(GOOGLE_SUB, null, ["github"]))), "verification_failed");
   // A wallet session must come through the wallet routes, where the nonce is checked.
   assert.equal(await code(service.verifyGoogle(supabase.web3Token("33333333-3333-4333-8333-333333333333"))), "verification_failed");
+});
+
+test("a Google token is exchanged once; a replay or a token without a Supabase session is refused", async () => {
+  const { service, supabase, signIn, advance } = setup();
+  const token = supabase.googleToken();
+  assert.equal((await service.verifyGoogle(token)).subject, GOOGLE_SUB);
+  assert.equal(await code(service.verifyGoogle(token)), "verification_failed");
+  // A fresh Google sign-in (a new Supabase session) works as before.
+  assert.equal((await service.verifyGoogle(supabase.googleToken())).subject, GOOGLE_SUB);
+  // Concurrent replays of one token: exactly one gets through.
+  const raced = supabase.googleToken();
+  const results = await Promise.all(Array.from({ length: 5 }, () => code(service.verifyGoogle(raced))));
+  assert.deepEqual(results.sort(), ["ok", "verification_failed", "verification_failed", "verification_failed", "verification_failed"]);
+  const unrecorded = supabase.googleToken();
+  (await supabase.tokens.verify(unrecorded)).sessionId = null;
+  assert.equal(await code(service.verifyGoogle(unrecorded)), "verification_failed");
+  // Records go once their token has expired.
+  advance(2 * 3600_000);
+  assert.equal(await signIn.googleExchanges.purgeExpired(new Date(T0.getTime() + 2 * 3600_000)), 3);
 });
 
 test("provider users are removed only when no MovenRun account uses them, and failures are retried", async () => {

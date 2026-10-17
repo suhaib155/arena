@@ -122,6 +122,15 @@ export class SupabaseSignInService {
     // Only an OAuth login may come in this way. A Web3 session must go through
     // the wallet routes, where the nonce and message are checked.
     if (!user.methods.includes("oauth") || !user.providers.includes("google")) throw new IdentityError("verification_failed");
+    // One MovenRun session per Supabase session. The token outlives the app's
+    // Supabase sign-out by up to an hour, so a copy of it must not mint more
+    // sessions. The app and website exchange each token once and never retry
+    // with the same one, so this refuses only a replay. Every Supabase user
+    // token carries session_id; one without it is refused rather than let in
+    // unrecorded.
+    if (!user.sessionId) throw new IdentityError("verification_failed");
+    await this.deps.signIn.googleExchanges.purgeExpired(this.now());
+    if (!(await this.deps.signIn.googleExchanges.claim(user.sessionId, user.expiresAt))) throw new IdentityError("verification_failed");
     return { subject: user.subject, email: user.email, method: "google" };
   }
 

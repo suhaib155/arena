@@ -45,7 +45,7 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
         }));
     }
     const migrationRows = await pool.query("select count(*)::int as count from drizzle.__drizzle_migrations");
-    assert.equal(migrationRows.rows[0].count, 10);
+    assert.equal(migrationRows.rows[0].count, 11);
     // A hosted database's automatic REST API must not reach any table: every
     // table has row level security on (and no policies).
     const openTables = await pool.query(
@@ -107,7 +107,7 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
       const now = Math.floor(Date.now() / 1000);
       const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
       const head = enc({ alg: "ES256", kid: "k1", typ: "JWT" });
-      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], app_metadata: { provider: method === "oauth" ? "google" : "web3", providers: [method === "oauth" ? "google" : "web3"] }, is_anonymous: false });
+      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], app_metadata: { provider: method === "oauth" ? "google" : "web3", providers: [method === "oauth" ? "google" : "web3"] }, is_anonymous: false, session_id: randomUUID() });
       return `${head}.${body}.${sign("sha256", Buffer.from(`${head}.${body}`), { key: keys.privateKey, dsaEncoding: "ieee-p1363" }).toString("base64url")}`;
     };
     globalThis.fetch = async (input, init) => {
@@ -166,6 +166,12 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     // A token not signed by the project's key gets nothing.
     const forged = mint(subject, "oauth", email).replace(/\.[^.]+$/, ".AAAA");
     assert.equal((await request("/identity/auth/google/complete", { accessToken: forged })).status, 401);
+    // A Google token is exchanged once. Replaying it, even several at once,
+    // gets nothing, so a copied token cannot mint more sessions.
+    const copied = mint(subject, "oauth", email);
+    const replays = await Promise.all(Array.from({ length: 4 }, () => request("/identity/auth/google/complete", { accessToken: copied })));
+    assert.deepEqual(replays.map(r => r.status).sort(), [200, 401, 401, 401]);
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: copied })).status, 401);
     // The same Google user is the same player.
     const again = await (await request("/identity/me", undefined, await signIn(subject, email))).json();
     assert.equal(again.user.id, (await (await request("/identity/me", undefined, token)).json()).user.id);

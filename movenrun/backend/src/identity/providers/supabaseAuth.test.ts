@@ -36,6 +36,7 @@ const good = {
   amr: [{ method: "oauth", timestamp: nowS - 10 }],
   app_metadata: { provider: "google", providers: ["google"] },
   is_anonymous: false,
+  session_id: "4F1C2B3A-1D2E-4F50-8A6B-7C8D9E0F1A2B",
 };
 
 function jwksFetch(keys: unknown[], counter = { n: 0 }): typeof fetch {
@@ -59,6 +60,10 @@ test("a valid ES256 token yields the subject, verified email and sign-in method"
   assert.equal(user.email, "player@example.com");
   assert.deepEqual(user.methods, ["oauth"]);
   assert.deepEqual(user.providers, ["google"]);
+  assert.equal(user.sessionId, "4f1c2b3a-1d2e-4f50-8a6b-7c8d9e0f1a2b");
+  const { session_id: _omit, ...withoutSession } = good;
+  assert.equal((await verifier().verify(token(withoutSession))).sessionId, null);
+  assert.equal((await verifier().verify(token({ ...good, session_id: "not-a-uuid" }))).sessionId, null);
 });
 
 test("RS256 keys from the JWKS are accepted", async () => {
