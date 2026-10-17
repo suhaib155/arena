@@ -1,6 +1,6 @@
 # Execution status
 
-**Updated:** 2026-10-17 (X-24 LIVE VERIFIED at 7f4c0d4, E-55; X-26 closed 16 Oct; X-07 attached, X-07b waits on X-05; #112 fixed for the sign-in time finding at 2192de6, waits on the owner with migration 0010; frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at 7f4c0d428c24763f9cacca616d7233cf3dba9ff4 (X-24, fast-forwarded from dd83065 on 17 Oct with the owner's grant; LIVE VERIFIED, E-55. X-06 LIVE VERIFIED 14 Oct, E-41) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
+**Updated:** 2026-10-17 (X-27: #112 and migration 0010 LIVE VERIFIED on staging at 2192de6, E-62; X-24 LIVE VERIFIED at 7f4c0d4, E-55; X-26 closed 16 Oct; X-07 attached, X-07b waits on X-05; #112 fixed for the sign-in time finding at 2192de6, waits on the owner with migration 0010; frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at 2192de6930be18d7e4bc07a94b93828d46b0a7d5 (X-27, fast-forwarded from 7f4c0d4 on 17 Oct with the owner's grant; LIVE VERIFIED, E-62. Before that 7f4c0d4, X-24, fast-forwarded from dd83065 on 17 Oct with the owner's grant; LIVE VERIFIED, E-55. X-06 LIVE VERIFIED 14 Oct, E-41) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
 **Security gate:** SECURITY REVIEWED LOCALLY (`AUTH_SECURITY_REVIEW.md`, rounds 1–3) · **Release gate:** STOP — LIVE AUTH AND ANDROID DEVICE GATES PENDING (Play account not created)
 **Frontend:** on owner hold (D-25). **Play developer account:** NOT CREATED (X-01). **Separate accounts:** accepted 2026-10-13 (X-20).
 
@@ -8,11 +8,11 @@
 
 | | Items |
 |---|---|
-| **DONE** | Google + wallet sign-in code, cap, quota, deletion, sweep (locally tested); security review rounds 1–3; hook contract on PostgreSQL; migration checksums; secret scan in CI; operator guide; Play registration checklist; device gate plan; X-20 accepted; device list fix F-17; session clean-up F-18; database size measured for 1,000 accounts (E-39); X-26 closed and X-07 attached 16 Oct (E-45); 15 Oct audit fixes and the 17 Oct admission-race and client-address fixes on #111 (E-46–E-48); **X-24 deployed and LIVE VERIFIED 17 Oct (E-55)** |
+| **DONE** | Google + wallet sign-in code, cap, quota, deletion, sweep (locally tested); security review rounds 1–3; hook contract on PostgreSQL; migration checksums; secret scan in CI; operator guide; Play registration checklist; device gate plan; X-20 accepted; device list fix F-17; session clean-up F-18; database size measured for 1,000 accounts (E-39); X-26 closed and X-07 attached 16 Oct (E-45); 15 Oct audit fixes and the 17 Oct admission-race and client-address fixes on #111 (E-46–E-48); **X-24 deployed and LIVE VERIFIED 17 Oct (E-55)**; **X-27 #112 with migration 0010 deployed and LIVE VERIFIED 17 Oct (E-62)** |
 | **BLOCKED — OWNER** | X-01a/b/c Play account (type, US$25, verification, closed test if Personal); X-05 (then X-07b) → X-21 live setup; X-08, X-04 build; X-10 phone by 24 Oct; X-22 mailbox |
 | **BLOCKED — EXTERNAL** | Google's account verification and (Personal) production-access review; whether wallet browsers return to the app (phone only); 64-bit and 16 KB confirmation in the App bundle explorer |
-| **NEEDS APPROVAL** | single-use Google exchange #112 at 2192de6 with migration 0010 (sign-in time finding fixed, E-56: `A10_GOOGLE_EXCHANGE_PLAN.md`); repository visibility (`OWNER_DECISIONS_PRIVACY_REPO_DOMAIN.md`); security log retention (X-25, undecided); enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
-| **OPEN** | F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
+| **NEEDS APPROVAL** | repository visibility (`OWNER_DECISIONS_PRIVACY_REPO_DOMAIN.md`); security log retention (X-25, undecided); enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
+| **OPEN** | owner SQL check after X-27 (11 migrations, every table with RLS) and the two-network client-address check, both before X-05; F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
 
 Start here when resuming. Then read `TASK_REGISTER.md` and `EXTERNAL_ACTIONS.md`. The whole-product board (L0–L3, W1, G0–G7, UX0, QA0) is `../product-roadmap/PR_QUEUE.md`; the owner's design rules are `../product-roadmap/DESIGN_CONSTRAINTS.md`.
 
@@ -206,6 +206,17 @@ app CTAs (D-35). Done:
 - **A4** apex domain: live apex redirects to `www` (E-59). The Vercel steps,
   checks and rollback are in `X21A_APEX_DOMAIN_PREP.md`; nothing changed.
 - **A5** website copy repairs: draft #116 at bca2692 (E-60). Not published.
+
+## Checkpoint 2026-10-17 (X-27: #112 live on staging)
+
+- **X-27 LIVE VERIFIED** (E-62). Owner approved one staging deploy of #112
+  at 2192de6 with migration 0010. Preflight passed; the deploy branch was
+  fast-forwarded 7f4c0d4 → 2192de6 and deployed once (Render
+  `dep-db9m51qjnfac73cqh6eg`). Health, ready, boot log, token rejection,
+  CORS and rate limits checked. The SQL count and RLS check is left to the
+  owner. Report: `reports/MOVENRUN_2026-10-17_X27_GOOGLE_EXCHANGE_STAGING_LIVE_FINAL_REPORT_2192de6.md`.
+- Correction: statements above that say #112 or migration 0010 wait on the
+  owner were true when written and are superseded here.
 
 ## Open owner decisions
 
