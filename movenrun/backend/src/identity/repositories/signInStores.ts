@@ -3,7 +3,7 @@
  * users still to be removed at the provider. In-memory for tests, Drizzle in
  * production; both give the same single-use guarantee.
  */
-import { and, asc, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { googleSignInExchanges, pendingAuthUserDeletions, walletSignInChallenges, walletSignInHandoffs } from "../../db/identity.schema.js";
 
@@ -44,10 +44,12 @@ export interface WalletSignInHandoffStore {
 }
 
 export interface GoogleExchangeStore {
-  /** Records the Supabase session as exchanged. Returns false if it already was. */
-  claim(sessionId: string, expiresAt: Date): Promise<boolean>;
-  /** Removes records whose token expired before `before`. */
-  purgeExpired(before: Date): Promise<number>;
+  /** Whether the Supabase session was already exchanged. */
+  exchanged(sessionId: string): Promise<boolean>;
+  /** Records the Supabase session as exchanged, kept until `keepUntil`. Returns false if it already was. */
+  claim(sessionId: string, keepUntil: Date): Promise<boolean>;
+  /** Removes at most `limit` records kept until before `before`. */
+  purgeExpired(before: Date, limit: number): Promise<number>;
 }
 
 export interface SignInStores {
@@ -65,14 +67,20 @@ export function createInMemorySignInStores(): SignInStores {
   let seq = 0;
   return {
     googleExchanges: {
-      async claim(sessionId, expiresAt) {
+      async exchanged(sessionId) {
+        return exchanged.has(sessionId);
+      },
+      async claim(sessionId, keepUntil) {
         if (exchanged.has(sessionId)) return false;
-        exchanged.set(sessionId, expiresAt);
+        exchanged.set(sessionId, keepUntil);
         return true;
       },
-      async purgeExpired(before) {
+      async purgeExpired(before, limit) {
         let n = 0;
-        for (const [k, at] of exchanged) if (at.getTime() < before.getTime()) { exchanged.delete(k); n += 1; }
+        for (const [k, at] of exchanged) {
+          if (n >= limit) break;
+          if (at.getTime() < before.getTime()) { exchanged.delete(k); n += 1; }
+        }
         return n;
       },
     },
@@ -153,14 +161,22 @@ export function createInMemorySignInStores(): SignInStores {
 export function createDrizzleSignInStores(db: Db): SignInStores {
   return {
     googleExchanges: {
-      async claim(sessionId, expiresAt) {
+      async exchanged(sessionId) {
+        const [row] = await db.select({ sessionId: googleSignInExchanges.sessionId }).from(googleSignInExchanges)
+          .where(eq(googleSignInExchanges.sessionId, sessionId)).limit(1);
+        return row !== undefined;
+      },
+      async claim(sessionId, keepUntil) {
         // The primary key decides: of two concurrent exchanges, one inserts.
-        const rows = await db.insert(googleSignInExchanges).values({ sessionId, expiresAt })
+        const rows = await db.insert(googleSignInExchanges).values({ sessionId, expiresAt: keepUntil })
           .onConflictDoNothing().returning({ sessionId: googleSignInExchanges.sessionId });
         return rows.length === 1;
       },
-      async purgeExpired(before) {
-        const rows = await db.delete(googleSignInExchanges).where(lt(googleSignInExchanges.expiresAt, before))
+      async purgeExpired(before, limit) {
+        // Bounded, so a wake after a long sleep never turns one sign-in into a long delete.
+        const due = db.select({ sessionId: googleSignInExchanges.sessionId }).from(googleSignInExchanges)
+          .where(lt(googleSignInExchanges.expiresAt, before)).limit(limit);
+        const rows = await db.delete(googleSignInExchanges).where(inArray(googleSignInExchanges.sessionId, due))
           .returning({ sessionId: googleSignInExchanges.sessionId });
         return rows.length;
       },

@@ -269,8 +269,8 @@ export const authUserCreations = pgTable("auth_user_creations", {
 });
 
 /** Supabase sessions from Google sign-in that have already been exchanged for
- *  a MovenRun session. Only the session id and when the token expires are
- *  kept, and the row is removed soon after. */
+ *  a MovenRun session. Only the session id and when the row may go (once the
+ *  session's exchange window has closed) are kept. */
 export const googleSignInExchanges = pgTable(
   "google_sign_in_exchanges",
   {

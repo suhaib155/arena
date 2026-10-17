@@ -64,6 +64,12 @@ test("a valid ES256 token yields the subject, verified email and sign-in method"
   const { session_id: _omit, ...withoutSession } = good;
   assert.equal((await verifier().verify(token(withoutSession))).sessionId, null);
   assert.equal((await verifier().verify(token({ ...good, session_id: "not-a-uuid" }))).sessionId, null);
+  // The sign-in time is the latest amr timestamp; a refreshed token keeps it.
+  assert.equal(user.signedInAt?.getTime(), (nowS - 10) * 1000);
+  const linked = await verifier().verify(token({ ...good, amr: [{ method: "oauth", timestamp: nowS - 900 }, { method: "otp", timestamp: nowS - 60 }] }));
+  assert.equal(linked.signedInAt?.getTime(), (nowS - 60) * 1000);
+  assert.equal((await verifier().verify(token({ ...good, amr: [{ method: "oauth" }] }))).signedInAt, null);
+  assert.equal((await verifier().verify(token({ ...good, amr: [{ method: "oauth", timestamp: "soon" }] }))).signedInAt, null);
 });
 
 test("RS256 keys from the JWKS are accepted", async () => {

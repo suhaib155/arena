@@ -51,6 +51,8 @@ export interface VerifiedSupabaseUser {
   providers: string[];
   /** The Supabase session this token belongs to (`session_id`), or null if absent. */
   sessionId: string | null;
+  /** When the user last signed in to this session (latest `amr` timestamp); refreshes keep it. Null if absent. */
+  signedInAt: Date | null;
   expiresAt: Date;
 }
 
@@ -135,8 +137,15 @@ export class SupabaseTokenVerifier {
     const email = typeof claims.email === "string" && claims.email.includes("@") ? claims.email.trim().toLowerCase() : null;
 
     const sessionId = typeof claims.session_id === "string" && UUID.test(claims.session_id) ? claims.session_id.toLowerCase() : null;
+    const stamps = Array.isArray(claims.amr)
+      ? claims.amr.flatMap((m) => {
+        const t = m && typeof m === "object" ? (m as { timestamp?: unknown }).timestamp : undefined;
+        return typeof t === "number" && Number.isFinite(t) && t > 0 ? [t] : [];
+      })
+      : [];
+    const signedInAt = stamps.length > 0 ? new Date(Math.max(...stamps) * 1000) : null;
 
-    return { subject: claims.sub.toLowerCase(), email, methods, providers, sessionId, expiresAt: new Date(claims.exp * 1000) };
+    return { subject: claims.sub.toLowerCase(), email, methods, providers, sessionId, signedInAt, expiresAt: new Date(claims.exp * 1000) };
   }
 
   private async keyFor(kid: string) {
