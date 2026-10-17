@@ -93,6 +93,15 @@ for (let i = 0; i < 100; i++) {
   await new Promise((r) => setTimeout(r, 100));
 }
 const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript" };
+// Pages are served with the Content-Security-Policy from vercel.json, with the
+// hosted API and Supabase origins swapped for the local stand-ins, so any
+// script, style or connection the policy would block fails this run.
+const vercel = JSON.parse(await readFile(join(site, "vercel.json"), "utf8"));
+const csp = vercel.headers.flatMap((h) => h.headers).find((h) => h.key === "Content-Security-Policy").value
+  .replace("https://movenrun-staging-api.onrender.com", "")
+  .replace("https://tavxmwuwkeynbnzfwove.supabase.co", SB)
+  .replace(/; upgrade-insecure-requests/, "");
+const cspViolations = [];
 // Same-origin proxy for /identity, standing in for the hosted API's CORS.
 const web = http.createServer(async (req, res) => {
   if (req.url.startsWith("/identity/")) {
@@ -109,12 +118,17 @@ const web = http.createServer(async (req, res) => {
         .replace("https://tavxmwuwkeynbnzfwove.supabase.co", SB)
         .replace("{{SUPABASE_PUBLISHABLE_KEY}}", "sb_publishable_e2e");
     }
-    res.writeHead(200, { "content-type": types[extname(path)] ?? "application/octet-stream" }); res.end(text);
+    res.writeHead(200, { "content-type": types[extname(path)] ?? "application/octet-stream", ...(path.endsWith(".html") ? { "content-security-policy": csp } : {}) }); res.end(text);
   } catch { res.writeHead(404); res.end(); }
 }).listen(webPort, "127.0.0.1");
 
 const db = new pg.Pool({ connectionString: dbUrl });
 const browser = await chromium.launch();
+const watchCsp = (page) => page.on("console", (m) => { if (/Content Security Policy/i.test(m.text())) cspViolations.push(m.text()); });
+const newContext = browser.newContext.bind(browser);
+browser.newContext = async (...a) => { const c = await newContext(...a); c.on("page", watchCsp); return c; };
+const newPage = browser.newPage.bind(browser);
+browser.newPage = async (...a) => { const p = await newPage(...a); watchCsp(p); return p; };
 const count = async (sql, args = []) => (await db.query(sql, args)).rows[0].c;
 const verifyMovement = (token, sessionId) => {
   const start = Date.now() - 180000;
@@ -206,7 +220,14 @@ try {
     await narrow.goto(`http://127.0.0.1:${webPort}/${p}/`);
     check(`${p} fits 320px`, !(await narrow.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)));
   }
+  const home = await browser.newPage();
+  await home.goto(`http://127.0.0.1:${webPort}/`, { waitUntil: "networkidle" });
+  for (const p of ["privacy", "support", "docs"]) await home.goto(`http://127.0.0.1:${webPort}/${p}/`, { waitUntil: "networkidle" });
+  check("no Content-Security-Policy violations on any page visited", cspViolations.length === 0, cspViolations.slice(0, 3).join(" | "));
   check("provider calls seen", true, [...new Set(sbLog)].join(" | "));
+} catch (error) {
+  // A step that throws is a failure, never a shorter passing run.
+  check("run completed", false, String(error?.message ?? error).slice(0, 200));
 } finally {
   console.log(JSON.stringify(results, null, 1));
   const failed = results.filter((r) => r[1] === "FAIL").length;
