@@ -270,6 +270,55 @@ package `io.movenrun.app`, the EAS key's SHA-1.
 `ANDROID_DEVICE_GATE_PLAN.md`. Optionally unpack the APK's
 `assets/index.android.bundle` and run `node scripts/check-secrets.mjs <folder>`.
 
+### Free EAS readiness (reviewed 17 Oct 2026, no build run)
+
+**Config: ready, no change needed.**
+
+| Item | State |
+|---|---|
+| `mobile/eas.json` `preview` | `buildType: apk`, `distribution: internal`, `environment: preview` (reads the X-08 variables from Expo's **preview** environment). An installable APK, no Play needed |
+| `mobile/eas.json` `production` | `buildType: app-bundle`, `autoIncrement`, `environment: production`. Not for the device gate |
+| Versions | `appVersionSource: remote`. On the first build EAS starts `versionCode` from the local value (1). Preview does not increment, which is fine for sideloading over the same APK |
+| Project link | `app.json` `extra.eas.projectId` is set, so `eas init` has already been run under an Expo account |
+| `.github/workflows/eas-apk-build.yml` | On `main`, so it shows in Actions; **Run workflow** lets you pick any branch, and that branch's copy of the file runs. Pinned `eas-cli@24.8.0`, `contents: read`, `EXPO_TOKEN` only on the steps that need it |
+| Keystore | Nothing to make by hand. Checked in the `eas-cli@24.8.0` source: in `--non-interactive` mode, when the project has no Android keystore, EAS generates one and keeps it on Expo's servers. Never put a keystore in the repository |
+| `.github/workflows/eas-production-aab.yml` | Not on `main` yet, so it cannot be started until it is merged (X-14, X-09) |
+
+The APK workflow does not run the tests. Start it only on a commit whose
+`mobile-checks` run (job "Mobile type-check": type-check, tests and Hermes
+export) is green.
+
+**Owner accounts and settings (all free):**
+
+1. **Expo account** that owns the linked project: sign in at expo.dev and
+   check the project with id `73abbcb8-…` is listed. If it is under another
+   account, either sign in to that one or create a new project with `eas
+   init` (that changes `projectId`, a one-line `app.json` change to review).
+2. **`EXPO_TOKEN`**: expo.dev → Account settings → Access tokens → create a
+   token (a robot user's token if you have one), and set it under GitHub →
+   Settings → Secrets and variables → Actions. The README says one is set;
+   check it has not been revoked or expired.
+3. **X-08 variables** in Expo's **preview** environment (and production
+   later). `EXPO_PUBLIC_*` values end up inside the app bundle, so give them
+   Plain text or Sensitive visibility; Secret visibility protects nothing
+   there. `GOOGLE_MAPS_ANDROID_API_KEY` as Sensitive.
+4. **Maps key SHA-1 without spending a build:** `npx eas-cli@24.8.0
+   credentials -p android` (signed in, from `movenrun/mobile`), pick the
+   preview profile, let it set up a new keystore, and read its SHA-1. This
+   uses no build quota. Add that SHA-1 to the Maps key restriction before the
+   first build, so the first APK already shows tiles. The production profile
+   uses the same default Android credentials unless you set others.
+5. No payment method, no paid plan, no Google Play account needed for the
+   preview APK.
+
+**Quota.** The Free plan has a monthly build allowance and a low-priority
+queue, so a build can wait. Expo's pricing page listed 30 builds a month (at
+most 15 of them iOS) when last checked; check expo.dev/pricing and the
+project's Usage page on the day. Assume every build that starts counts,
+including one that fails. Plan for this month: one preview APK for the device
+gate, one spare for a fix, then one production AAB after the merge. Do not
+re-run the workflow to "try again" before reading why it failed.
+
 ## Free host: what not to add
 
 The Render Free API sleeps after 15 idle minutes. The app and website already
