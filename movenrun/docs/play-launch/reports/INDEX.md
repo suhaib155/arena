@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-10-17 | X-27 live reconciled; website apex check, X-05 preflight, G2 holding ledger | 9f1f45a | [MOVENRUN_2026-10-17_X05_PREFLIGHT_G2_LEDGER_FINAL_REPORT_9f1f45a.md](MOVENRUN_2026-10-17_X05_PREFLIGHT_G2_LEDGER_FINAL_REPORT_9f1f45a.md) |
 | 2026-10-17 | X-27: #112 single-use Google exchange and migration 0010 live on Render staging, verified | 2192de6 | [MOVENRUN_2026-10-17_X27_GOOGLE_EXCHANGE_STAGING_LIVE_FINAL_REPORT_2192de6.md](MOVENRUN_2026-10-17_X27_GOOGLE_EXCHANGE_STAGING_LIVE_FINAL_REPORT_2192de6.md) |
 | 2026-10-17 | X-24 live reconciled; #112 sign-in time taken only from the `oauth` entry, records kept 30 days | 2192de6 | [MOVENRUN_2026-10-17_X24_LIVE_RECONCILED_AMR_FIX_FINAL_REPORT_2192de6.md](MOVENRUN_2026-10-17_X24_LIVE_RECONCILED_AMR_FIX_FINAL_REPORT_2192de6.md) |
 | 2026-10-17 | Owner review answered: #112 claim after admission and once per Supabase session, X-24 preflight, decision records (X-24 still not granted) | 7e3a9c9 | [MOVENRUN_2026-10-17_X24_PREFLIGHT_GOOGLE_EXCHANGE_HOLD_FINAL_REPORT_7e3a9c9.md](MOVENRUN_2026-10-17_X24_PREFLIGHT_GOOGLE_EXCHANGE_HOLD_FINAL_REPORT_7e3a9c9.md) |

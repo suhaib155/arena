@@ -227,6 +227,16 @@ app CTAs (D-35). Done:
   (E-64). No DNS change was made from here. The reviewed site is still not
   published (X-21).
 
+## Checkpoint 2026-10-17 (website checked, X-05 preflight, G2 ledger)
+
+- Website PRs #108, #113 and #116 already treat the apex as canonical; no
+  change was needed (E-66).
+- X-05 preflight written (`X05_PROVIDER_ENABLEMENT_PREFLIGHT.md`, 9f1f45a):
+  preconditions, Google and wallet dashboard steps, checks C1–C5, rollback.
+  Nothing was enabled. Open: which client signs in for the checks (X-21
+  first, or an app build), and the owner's two-network check.
+- G2 event ledger, draft #117 at 9a272f7 (E-65).
+
 ## Open owner decisions
 
 - X-01a: Play account type, chosen truthfully (Personal unless MovenRun is a
