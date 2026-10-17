@@ -120,6 +120,10 @@ before(async () => {
   url.pathname = `/${dbName}`;
   dbUrl = url.toString();
   pool = new pg.Pool({ connectionString: dbUrl, max: 20 });
+  // As in hookContract.test.ts: the final DROP DATABASE … WITH (FORCE) ends
+  // any backend the pool has not finished closing, and an unhandled pool
+  // error would fail the file after its tests have passed.
+  pool.on("error", () => undefined);
   db = drizzle(pool) as unknown as Db;
   await committedChain();
   service = new GameplayService({ db, rules: RULES, now: () => clock });
@@ -128,6 +132,7 @@ before(async () => {
 after(async () => {
   if (!DATABASE_URL) return;
   await pool.end();
+  admin.on("error", () => undefined);
   await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
   await admin.end();
 });
