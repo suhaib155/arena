@@ -205,6 +205,7 @@ app CTAs (D-35). Done:
   it (E-58). Unpublishing is a repository-admin click for the owner.
 - **A4** apex domain: live apex redirects to `www` (E-59). The Vercel steps,
   checks and rollback are in `X21A_APEX_DOMAIN_PREP.md`; nothing changed.
+- **A5** website copy repairs: draft #116 at bca2692 (E-60). Not published.
 
 ## Open owner decisions
 
