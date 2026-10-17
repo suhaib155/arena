@@ -46,6 +46,7 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | `web/a09-strict-csp` | b20f5ed | #113 on W1: strict website CSP |
 | `feat/g2-holding-model` | 59185eb | #114 on G0: holding arithmetic reference model, one push per walker per unit per day |
 | `feat/g2-holding-ledger` | 9a272f7 | #117 on #114: idempotent holding event ledger |
+| `feat/g3-strength-settlement` | 493b3fa | #118 on #117: holdings at day close, day and season credits settlement |
 | `feat/v3-onchain-core` | c8262ec | Separate prototype contracts branch. Not part of Play v1 |
 
 ## Work packets
@@ -60,7 +61,7 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | **G0** | Canonical product spec (V3 economy, settlement invariants, threat model) | `feat/g0-economy-v3`, draft #109 | IN_REVIEW | `docs/GAME_ECONOMY_V3.md` from the owner's V3 PDF (rev 2, 31 Aug 2026), every rule tagged SOURCE / ASSUMPTION / DECISION NEEDED. Reference model `@movenrun/shared/economy-v3`: CODE TESTED LOCALLY, 23 tests reproduce the source's worked numbers; shared 179/179 | Owner answers D1–D13 (D5 cell vs zone and D2 shade shape gate G2). #88 was not used as input and can be closed once #109 is accepted |
 | **G1** | Server-authoritative spatial pipeline and map geometry contract | `feat/g1-territory-geometry`, draft #107 | IN_REVIEW | CODE TESTED LOCALLY: shared 170/170 (14 new), backend 411/411 (2 new), API 17/17, build; CI green | Review. Route cells between samples done (`route-cells`, unwired). Inferred cells are analytic only: they never award, claim, defend, erode, validate or count for tolls or deed traffic; `covered` stays distinct from `held` |
 | **G2** | Sealing claims, solid/shade, one holder per unit | `feat/g2-holding-model`, draft #114 (holding arithmetic); `feat/g2-holding-ledger`, draft #117 (event ledger) | IN_PROGRESS | Holding model CODE TESTED LOCALLY: shared 190/190 (E-52, E-61); ledger shared 198/198 (E-65); owner set A9 on 17 Oct (V3 numbers stay, one push per walker per unit per day); sealing engine exists (#93, included) | Review #114 and #117. Still needs D2 (shade shape and sprawl), D4 (decay numbers) and D5 (zone and cell size) for enclosed-area computation and the territory ledger |
-| **G3** | Strength, erosion, defence, credits settlement | — | NOT_STARTED | — | After G2 |
+| **G3** | Strength, erosion, defence, credits settlement | `feat/g3-strength-settlement`, draft #118 | IN_PROGRESS | Settlement reference model CODE TESTED LOCALLY: shared 210/210, §17–§19 worked numbers reproduced (E-67); strength, erosion and defence were already in the G2 model | Review #118. Owner decisions D4, D5, D14–D17 (new: paid-in-condition effect, shade-only upkeep, two-level loss and 14-day restore, away days) |
 | **G4** | Clubs, contributions, districts, seasons | — | NOT_STARTED | Website and app show clubs as preview/mockup only | After G2; no seeded-as-live leaderboards |
 | **G5** | Deed lifecycle and eligibility (pre-financial) | Old chain #80–#87 | DEFERRED | Contracts prototype on a separate branch; not audited | After a safe pilot; reuse #80/#81 only after review against V3 |
 | **G6** | Economy simulation and limited-token research | — | DEFERRED | — | Separate from Play v1 |
