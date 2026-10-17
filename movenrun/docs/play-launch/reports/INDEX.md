@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-10-17 | Continuous packet: X-21 preflight, G2 churn study, G3/G4 server draft, QA0, G5–G7 research | c6dc208 | [MOVENRUN_2026-10-17_CONTINUOUS_PACKET_FINAL_REPORT_c6dc208.md](MOVENRUN_2026-10-17_CONTINUOUS_PACKET_FINAL_REPORT_c6dc208.md) |
 | 2026-10-17 | X-05 reconfirmation, two-network check, website release candidate, G2–G4 simulation ruleset | a8586c9 | [MOVENRUN_2026-10-17_X05_G2G4_PACKET_FINAL_REPORT_a8586c9.md](MOVENRUN_2026-10-17_X05_G2G4_PACKET_FINAL_REPORT_a8586c9.md) |
 | 2026-10-17 | G3 credits settlement and G4 clubs, districts and leaderboards reference models | d7a58b2 | [MOVENRUN_2026-10-17_G3_G4_GAMEPLAY_MODELS_FINAL_REPORT_d7a58b2.md](MOVENRUN_2026-10-17_G3_G4_GAMEPLAY_MODELS_FINAL_REPORT_d7a58b2.md) |
 | 2026-10-17 | X-27 live reconciled; website apex check, X-05 preflight, G2 holding ledger | 9f1f45a | [MOVENRUN_2026-10-17_X05_PREFLIGHT_G2_LEDGER_FINAL_REPORT_9f1f45a.md](MOVENRUN_2026-10-17_X05_PREFLIGHT_G2_LEDGER_FINAL_REPORT_9f1f45a.md) |

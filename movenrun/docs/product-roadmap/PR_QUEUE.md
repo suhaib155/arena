@@ -49,8 +49,11 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | `feat/g3-strength-settlement` | 8b9b3fa | #118 on #117: holdings at day close, day and season credits settlement |
 | `feat/g4-clubs-districts` | 8f83339 | #119 on #118: clubs, contributions, district control, season leaderboard |
 | `feat/sim-pilot-ruleset` | e6cfe42 | #120 on #119: simulation-only pilot ruleset `sim-pilot-1` and sweeps (not production) |
-| `privacy/a2-android-backup-off` | 058c27c | #115: Android backup and transfer off, QA0 device checks, free EAS and Play Console prep |
-| `web/a5-website-repairs` | a8586c9 | #116 on #113: website release candidate (X-21 not approved) |
+| `privacy/a2-android-backup-off` | 3c8d2f8 | #115: Android backup and transfer off, QA0 device checks, free EAS and Play Console prep |
+| `web/a5-website-repairs` | 61d30bb | #116 on #113: website release candidate with publishable key (X-21 waiting on the mail check) |
+| `feat/g34-server-holdings` | c6dc208 | #121 on #120 (with #112 merged in): server-side holdings, settlement, clubs, districts; migration 0011 proposed, not applied; flag off |
+| `feat/sim-churn-study` | ba7519f | #123 on #120: churn comparison and proposed sim-pilot-2 (simulation only) |
+| `research/g5-g7-economy` | 560d3bc | #122 on #120: off-chain Deeds, conversion and Sybil research; contract review |
 | `ops/two-network-check` | b23c31e | Scratch workflow for the two-network check (E-70). Owner to delete; the proxy here refuses ref deletion |
 | `feat/v3-onchain-core` | c8262ec | Separate prototype contracts branch. Not part of Play v1 |
 

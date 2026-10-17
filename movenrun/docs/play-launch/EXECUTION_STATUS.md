@@ -256,6 +256,16 @@ app CTAs (D-35). Done:
   production; D1–D23 stay open.
 - #115 at 058c27c with QA0 and free EAS prep (E-71). No build run.
 
+## Checkpoint 2026-10-17 (continuous packet: X-21 preflight, churn, server draft)
+
+- X-21: release 61d30bb passes every check except the mail receipt (E-74).
+  Not published. Live site has no security headers and 404s the four pages.
+- X-05: still blocked on X-21. Nothing enabled.
+- G2 churn: #123, proposed sim-pilot-2 (E-77). Needs owner decisions.
+- G3/G4: server draft #121 with proposed migration 0011, flag off (E-76).
+- QA0: #115 at 3c8d2f8 (E-75). No build run.
+- G5–G7: research #122 (E-78).
+
 ## Open owner decisions
 
 - X-01a: Play account type, chosen truthfully (Personal unless MovenRun is a
