@@ -158,8 +158,9 @@ export function disk(cq: number, cr: number, k: number): [number, number][] {
 
 /* ── the population ───────────────────────────────────────────────────────── */
 
-export type Profile = "casual" | "regular" | "heavy" | "colluder" | "switcher" | "route_farmer" | "shade_farmer";
-export const PROFILES: readonly Profile[] = ["casual", "regular", "heavy", "colluder", "switcher", "route_farmer", "shade_farmer"];
+export type Profile = "casual" | "regular" | "heavy" | "colluder" | "switcher" | "route_farmer" | "shade_farmer" | "griefer";
+/** Griefers come last and default to none, so populations without them are drawn exactly as before. */
+export const PROFILES: readonly Profile[] = ["casual", "regular", "heavy", "colluder", "switcher", "route_farmer", "shade_farmer", "griefer"];
 
 export interface Player {
   id: string;
@@ -184,6 +185,8 @@ export interface PopulationSpec {
   switcher: number;
   route_farmer: number;
   shade_farmer: number;
+  /** Churn study: walkers who only knock other people's ground over and never tend their own. Default 0. */
+  griefer?: number;
   honestClubs: number;
 }
 
@@ -205,7 +208,7 @@ export function buildPopulation(w: World, spec: PopulationSpec, seed: number, se
   const players: Player[] = [];
   const honest = Array.from({ length: spec.honestClubs }, (_, i) => `club-${String(i + 1).padStart(2, "0")}`);
   for (const profile of PROFILES) {
-    for (let i = 0; i < spec[profile]; i++) {
+    for (let i = 0; i < (spec[profile] ?? 0); i++) {
       const id = `${profile}-${String(i + 1).padStart(3, "0")}`;
       const g = keyed(seed, "player", id);
       // Homes uniform over the disc, in metres, then snapped to a unit.
@@ -219,6 +222,7 @@ export function buildPopulation(w: World, spec: PopulationSpec, seed: number, se
       if (profile === "colluder") initialClub = COLLUDING_CLUB;
       else if (profile === "shade_farmer") initialClub = SHADE_CLUB;
       else if (profile === "route_farmer" || profile === "switcher") initialClub = pick();
+      else if (profile === "griefer") initialClub = null;
       else if (profile === "casual") initialClub = g() < 0.25 ? pick() : null;
       else initialClub = g() < 0.5 ? pick() : null;
       const p: Player = { id, profile, homeQ: q, homeR: r, vacationStart: vacation, initialClub };

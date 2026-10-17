@@ -39,6 +39,8 @@ The owner's 17 Oct rule (one push per walker per unit per day) only slows takeov
 
 This is reported for the owner to see, not decided here. The levers are A9, fortify (D9) and the unit size (D5, below).
 
+**Follow-up:** `docs/SIM_CHURN_STUDY.md` compares those levers and more (a two-day challenge, flip and take caps, owner defence, fortify, 76 m units in 201 m zones, route farming) over three seeds with griefers and an attrition assumption, and proposes a combined `sim-pilot-2`. sim-pilot-1 and every number in this document are unchanged.
+
 **A second finding, also outside the D list: credits are set by the ceilings, not by the pool.** With 368 players the season issued 235,449 of 9,000,000 credits (2.6%). With 5,152 players it issued 3,278,276 (36%). The pool binds only when about 5,000 or more players are active on the same day (100,000 ÷ 20 per player). Until then every active player earns the day ceiling, so credits follow active days and nothing else. Route farmers make two 11-minute walks a day, which meet the SOURCE §2 minimum of 10 minutes and 750 m, and they finish with the most credits: 1,350, the maximum possible for 90 days. Concentration is moderate: Gini 0.336 (0.334–0.338), top 10% of players hold 24.0% of credits. The minimum session and the effort floor are HYPOTHESIS values in SOURCE §2 and §17, and are worth recalibrating before the pilot.
 
 ## Recommended pilot ruleset (PILOT PROPOSALS)
