@@ -203,6 +203,8 @@ app CTAs (D-35). Done:
   native config only. Phone check added to the device gate.
 - **A3** GitHub Pages: still serving the old prototype, nothing depends on
   it (E-58). Unpublishing is a repository-admin click for the owner.
+- **A4** apex domain: live apex redirects to `www` (E-59). The Vercel steps,
+  checks and rollback are in `X21A_APEX_DOMAIN_PREP.md`; nothing changed.
 
 ## Open owner decisions
 
