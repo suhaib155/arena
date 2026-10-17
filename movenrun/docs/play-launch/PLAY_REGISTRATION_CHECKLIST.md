@@ -86,3 +86,25 @@ All drafts exist; you accept every declaration yourself.
 | No secrets in the build | `scripts/check-secrets.mjs` on the unpacked bundle | `LIVE_SETUP_OPERATOR_GUIDE.md` X-04 |
 
 Open, owner side: X-01a–c, X-09, X-11–X-13, X-15, X-16.
+
+## 6. Ready vs owner-only (17 Oct 2026)
+
+Nothing below has been registered, paid, built or uploaded.
+
+| Item | State | Who |
+|---|---|---|
+| Account type guide, registration steps, testing tracks | Written (§1–§3) | Ready |
+| Developer name, contact email, website | Answered (X-02) | Ready |
+| Store listing text, icon, feature graphic | `STORE_LISTING.md`, `store-assets/` | Ready |
+| App content declarations, reviewer access text | Drafted in `PLAY_CONSOLE_WORKSHEET.md` | Ready to paste; you accept each one |
+| Data safety form | Drafted question by question in the worksheet from `DATA_INVENTORY.md`. 17 Oct corrections: stored cells are **precise** location (finer than Play's ~3 km² approximate threshold) and session distance and duration are declared as **fitness info** | Ready to paste; two points to confirm in the console |
+| Backup and transfer off (A2, #115) | In the build config, checked by `expo prebuild`; phone check is Q0-6 in `ANDROID_DEVICE_GATE_PLAN.md` | Device check: owner |
+| Preview APK pipeline (free EAS) | Config ready, no fix needed; accounts and quota in `LIVE_SETUP_OPERATOR_GUIDE.md` "Free EAS readiness" | Running a build: owner (X-04) |
+| QA0 device checks (Hermes start, location, Google, wallet, deletion, backup) | Steps, expected results and evidence rules in `ANDROID_DEVICE_GATE_PLAN.md` | Owner, on a phone |
+| Privacy policy and deletion pages live on the apex domain | Pages written; apex still redirects to `www` (E-49) | Owner (X-21) |
+| Google account with 2-Step Verification for Play | Not started | Owner |
+| Play developer registration and the **US$25** fee | Not started (spending) | **Owner only** (X-01b) |
+| Identity, phone and device verification | Not started | **Owner only** |
+| Create the app, accept declarations, upload the AAB | Not started; needs X-01b and the production AAB | **Owner only** (X-11, X-12) |
+| Closed test with 12 testers for 14 days, production access | Only if the account is Personal | **Owner only** (X-01c, X-15) |
+| Publish | | **Owner only** (X-16) |
