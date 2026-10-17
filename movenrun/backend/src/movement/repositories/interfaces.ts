@@ -100,9 +100,26 @@ export class MovementSessionConflictError extends Error {
   }
 }
 
+/**
+ * A per-account admission bound checked in the same atomic step as the insert:
+ * at most `max` rows for this user created at or after `since`, counting the
+ * new one. Checked before the insert, a count can be passed by any number of
+ * concurrent requests that all read the same total.
+ */
+export interface DailyAdmission {
+  since: Date;
+  max: number;
+}
+
 export interface MovementVerificationRepository {
-  /** Throws {@link MovementSessionConflictError} if the pair already exists. */
-  create(input: CreateMovementVerificationInput): Promise<MovementVerificationRecord>;
+  /**
+   * Throws {@link MovementSessionConflictError} if the pair already exists,
+   * and, with `admission`, {@link MovementDailyLimitError} when the account
+   * already holds `admission.max` rows since `admission.since`. An existing
+   * pair wins over the limit, so a concurrent retry of an admitted session
+   * still converges on its row.
+   */
+  create(input: CreateMovementVerificationInput, admission?: DailyAdmission): Promise<MovementVerificationRecord>;
   /** The idempotency lookup. Scoped by userId, so one user can never read
    *  another's verification even with a guessed session id. */
   findByUserSession(
@@ -130,12 +147,15 @@ export class InMemoryMovementVerificationRepository
 
   async create(
     input: CreateMovementVerificationInput,
+    admission?: DailyAdmission,
   ): Promise<MovementVerificationRecord> {
     const key = InMemoryMovementVerificationRepository.key(
       input.userId,
       input.clientSessionId,
     );
+    // No await between the checks and the write, so this is atomic in-process.
     if (this.byKey.has(key)) throw new MovementSessionConflictError();
+    if (admission && this.countSync(input.userId, admission.since) >= admission.max) throw new MovementDailyLimitError();
     const record: MovementVerificationRecord = { ...input, createdAt: new Date() };
     this.byKey.set(key, record);
     return record;
@@ -149,6 +169,10 @@ export class InMemoryMovementVerificationRepository
   }
 
   async countCreatedSince(userId: string, since: Date): Promise<number> {
+    return this.countSync(userId, since);
+  }
+
+  private countSync(userId: string, since: Date): number {
     let n = 0;
     for (const record of this.byKey.values()) {
       if (record.userId === userId && record.createdAt.getTime() >= since.getTime()) n += 1;

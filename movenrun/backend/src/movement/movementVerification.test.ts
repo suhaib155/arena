@@ -15,6 +15,7 @@ import {
   MovementDailyLimitError,
   MovementSessionConflictError,
   type CreateMovementVerificationInput,
+  type DailyAdmission,
   type MovementVerificationRepository,
 } from "./repositories/interfaces.js";
 import { MAX_NEW_VERIFICATIONS_PER_DAY, MovementVerificationService } from "./services/movementVerification.service.js";
@@ -186,7 +187,7 @@ test("two concurrent retries converge on one row via the DB constraint", async (
       if (lookups <= 2) return null;
       return inner.findByUserSession(userId, sessionId);
     },
-    create: (input: CreateMovementVerificationInput) => inner.create(input),
+    create: (input: CreateMovementVerificationInput, admission?: DailyAdmission) => inner.create(input, admission),
     listByUser: (userId, limit) => inner.listByUser(userId, limit),
     countCreatedSince: (userId, since) => inner.countCreatedSince(userId, since),
   };
@@ -456,6 +457,17 @@ test("one user stores at most the daily allowance of new sessions; retries still
   // Another player is unaffected.
   const other = await service.submit({ userId: "usr_other", clientSessionId: "session-other001", observation: observation() });
   assert.equal(other.created, true);
+});
+
+test("a concurrent burst of new sessions cannot pass the daily allowance", async () => {
+  const service = buildService();
+  const results = await Promise.allSettled(Array.from({ length: MAX_NEW_VERIFICATIONS_PER_DAY + 10 }, (_, i) =>
+    service.submit({ userId: "usr_burst", clientSessionId: `session-burst${String(i).padStart(5, "0")}`, observation: observation() })));
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, MAX_NEW_VERIFICATIONS_PER_DAY);
+  for (const r of results.filter((r) => r.status === "rejected")) {
+    assert.ok((r as PromiseRejectedResult).reason instanceof MovementDailyLimitError);
+  }
+  assert.equal((await service.list("usr_burst", 100)).length, MAX_NEW_VERIFICATIONS_PER_DAY);
 });
 
 test("HTTP: over the daily allowance is a 429 that names the limit and stores nothing", async () => {

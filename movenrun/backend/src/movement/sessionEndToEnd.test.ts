@@ -33,9 +33,12 @@ import { DEFAULT_MOVEMENT_MODE, SESSION_RULES_VERSION } from "@movenrun/shared/s
 
 import { movementVerifications } from "../db/movement.schema.js";
 import { parseBody, submitMovementSchema } from "./http/validation.js";
-import { MovementVerificationService } from "./services/movementVerification.service.js";
+import { MAX_NEW_VERIFICATIONS_PER_DAY, MovementVerificationService } from "./services/movementVerification.service.js";
 import { DrizzleMovementVerificationRepository } from "./repositories/drizzle/store.js";
-import { MovementSessionMetadataConflictError, MovementSessionConflictError, type CreateMovementVerificationInput } from "./repositories/interfaces.js";
+import {
+  MovementDailyLimitError, MovementSessionMetadataConflictError, MovementSessionConflictError,
+  type CreateMovementVerificationInput, type DailyAdmission,
+} from "./repositories/interfaces.js";
 import type { Db } from "../db/client.js";
 import { createMovementRouter } from "./http/router.js";
 import { GpsService } from "../services/gps.service.js";
@@ -104,8 +107,8 @@ before(async () => {
       }
       return record;
     }
-    override async create(input: CreateMovementVerificationInput) {
-      try { return await super.create(input); }
+    override async create(input: CreateMovementVerificationInput, admission?: DailyAdmission) {
+      try { return await super.create(input, admission); }
       catch (error) {
         if (input.clientSessionId === "mv-http-pg-concurrent" && error instanceof MovementSessionConflictError) httpUniqueConflicts++;
         throw error;
@@ -170,10 +173,10 @@ function requestBody() {
   };
 }
 
-function buildService(database: Db) {
+function buildService(database: Db, repository: DrizzleMovementVerificationRepository = new DrizzleMovementVerificationRepository(database)) {
   let n = 0;
   return new MovementVerificationService({
-    repository: new DrizzleMovementVerificationRepository(database),
+    repository,
     generateId: () => `mv-row-${++n}-${Math.random().toString(36).slice(2, 8)}`,
     now: () => T0 + 300_000,
     detectAnomalies: () => ({ isAnomaly: false, reasons: [], confidence: 0.95 }),
@@ -484,4 +487,86 @@ test("HTTP PostgreSQL owner isolation follows real bearer sessions", { skip }, a
   assert.equal(rows[0].userId, "usr_http_a");
   assert.equal((await postHttp(request, accessB)).status, 201);
   assert.equal((await httpRows(request.sessionId)).length, 2);
+});
+
+/**
+ * A repository whose early count waits until `n` callers have read it, so all
+ * of them see the same total before any inserts: the interleaving a burst of
+ * requests can produce on a real server, made certain instead of likely.
+ */
+function raceRepository(database: Db, n: number, options: { ignoreAdmission?: boolean; barrierOnLookup?: boolean } = {}) {
+  let arrived = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const wait = async () => { if (++arrived === n) release(); await gate; };
+  return new (class extends DrizzleMovementVerificationRepository {
+    override async countCreatedSince(userId: string, since: Date) {
+      const total = await super.countCreatedSince(userId, since);
+      if (!options.barrierOnLookup) await wait();
+      return total;
+    }
+    override async findByUserSession(userId: string, sessionId: string) {
+      const record = await super.findByUserSession(userId, sessionId);
+      if (options.barrierOnLookup && !record) await wait();
+      return record;
+    }
+    override async create(input: CreateMovementVerificationInput, admission?: DailyAdmission) {
+      return super.create(input, options.ignoreAdmission ? undefined : admission);
+    }
+  })(database);
+}
+
+function sessionObservation(sessionId: string) {
+  const parsed = parseBody(submitMovementSchema, { ...requestBody(), sessionId });
+  return { startTime: parsed.startTime, endTime: parsed.endTime, points: parsed.points, session: parsed.session };
+}
+
+async function storedFor(userId: string): Promise<number> {
+  const rows = await db!.select({ id: movementVerifications.id }).from(movementVerifications).where(eq(movementVerifications.userId, userId));
+  return rows.length;
+}
+
+test("without the atomic bound, a burst passes the count check: the race this guards", { skip }, async () => {
+  const user = "usr_race_unbounded";
+  const burst = MAX_NEW_VERIFICATIONS_PER_DAY + 10;
+  const service = buildService(db!, raceRepository(db!, burst, { ignoreAdmission: true }));
+  const results = await Promise.allSettled(Array.from({ length: burst }, (_, i) =>
+    service.submit({ userId: user, clientSessionId: `mv-unbounded-${String(i).padStart(4, "0")}`, observation: sessionObservation(`mv-unbounded-${i}`) })));
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, burst);
+  assert.equal(await storedFor(user), burst, "the early count alone let every request in");
+});
+
+test("a burst of distinct sessions from one account stores exactly the daily allowance, in PostgreSQL", { skip }, async () => {
+  const user = "usr_race_bounded";
+  const burst = MAX_NEW_VERIFICATIONS_PER_DAY + 10;
+  const service = buildService(db!, raceRepository(db!, burst));
+  const results = await Promise.allSettled(Array.from({ length: burst }, (_, i) =>
+    service.submit({ userId: user, clientSessionId: `mv-bounded-${String(i).padStart(4, "0")}`, observation: sessionObservation(`mv-bounded-${i}`) })));
+  const admitted = results.filter((r) => r.status === "fulfilled");
+  const refused = results.filter((r) => r.status === "rejected");
+  assert.equal(admitted.length, MAX_NEW_VERIFICATIONS_PER_DAY);
+  assert.equal(refused.length, 10);
+  for (const r of refused) assert.ok((r as PromiseRejectedResult).reason instanceof MovementDailyLimitError);
+  assert.equal(await storedFor(user), MAX_NEW_VERIFICATIONS_PER_DAY);
+  // Every admitted session still answers its retry, unchanged, at the limit.
+  const retry = await buildService(db!).submit({ userId: user, clientSessionId: "mv-bounded-0000", observation: sessionObservation("mv-bounded-0000") });
+  assert.equal(retry.created, false);
+  // Another account is unaffected by this one's limit.
+  const other = await buildService(db!).submit({ userId: "usr_race_other", clientSessionId: "mv-bounded-0000", observation: sessionObservation("mv-bounded-0000") });
+  assert.equal(other.created, true);
+});
+
+test("concurrent retries of the session that reaches the limit all get its row, not the limit", { skip }, async () => {
+  const user = "usr_race_lastslot";
+  const fill = buildService(db!);
+  for (let i = 0; i < MAX_NEW_VERIFICATIONS_PER_DAY - 1; i++) {
+    await fill.submit({ userId: user, clientSessionId: `mv-fill-${String(i).padStart(4, "0")}`, observation: sessionObservation(`mv-fill-${i}`) });
+  }
+  const copies = 5;
+  const service = buildService(db!, raceRepository(db!, copies, { barrierOnLookup: true }));
+  const results = await Promise.all(Array.from({ length: copies }, () =>
+    service.submit({ userId: user, clientSessionId: "mv-lastslot-0001", observation: sessionObservation("mv-lastslot-0001") })));
+  assert.equal(results.filter((r) => r.created).length, 1);
+  assert.equal(new Set(results.map((r) => r.record.id)).size, 1);
+  assert.equal(await storedFor(user), MAX_NEW_VERIFICATIONS_PER_DAY);
 });

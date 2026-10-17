@@ -75,7 +75,11 @@ export class MovementVerificationService {
       return { record: existing, created: false };
     }
 
-    const recent = await this.deps.repository.countCreatedSince(input.userId, new Date(this.deps.now() - DAY_MS));
+    // A cheap early refusal before the verification work. It is not the
+    // bound: concurrent requests can all read the same count, so the insert
+    // below re-checks it atomically (see the repository's create).
+    const since = new Date(this.deps.now() - DAY_MS);
+    const recent = await this.deps.repository.countCreatedSince(input.userId, since);
     if (recent >= MAX_NEW_VERIFICATIONS_PER_DAY) throw new MovementDailyLimitError();
 
     const result = verifyMovement(input.observation, this.deps);
@@ -95,7 +99,7 @@ export class MovementVerificationService {
         endTime: input.observation.endTime,
         ...sessionColumns(input.observation.session),
         ...sealColumns(result),
-      });
+      }, { since, max: MAX_NEW_VERIFICATIONS_PER_DAY });
       return { record, created: true };
     } catch (err) {
       if (!(err instanceof MovementSessionConflictError)) throw err;
