@@ -242,6 +242,20 @@ app CTAs (D-35). Done:
 - Vercel free plan hit its 100 deployments per day limit at 12:43 UTC, so
   preview builds fail for about 24 hours. GitHub checks are unaffected.
 
+## Checkpoint 2026-10-17 (X-05 and G2–G4 packet)
+
+- Pages URL 404 confirmed; apex and www unchanged (E-69).
+- X-05 prerequisites reconfirmed read only (E-69). Two-network rate-limit
+  check PASS (E-70).
+- Website release candidate #116 at a8586c9 (E-73). Not published; X-21
+  needs the owner's approval of that SHA, the publishable key, a mail test
+  and the Vercel quota.
+- X-05 decision: **BLOCKED** until X-21 is published, because the pilot's
+  web checks need the live sign-in and deletion pages. Nothing enabled.
+- G2–G4 stack fixed and #120 simulation ruleset added (E-72). Not
+  production; D1–D23 stay open.
+- #115 at 058c27c with QA0 and free EAS prep (E-71). No build run.
+
 ## Open owner decisions
 
 - X-01a: Play account type, chosen truthfully (Personal unless MovenRun is a

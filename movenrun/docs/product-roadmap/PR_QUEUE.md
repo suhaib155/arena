@@ -44,10 +44,14 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | `security/deep-audit-hardening` | 7f4c0d4 (code 5b4170c) | #111 on #110: audit fixes, admission race, client address. **Live as X-24** (not merged to main) |
 | `security/a10-single-use-google-exchange` | 2192de6, then the 17 Oct board commit | #112 on #111 (contains its head): single-use Google exchange, migration 0010 |
 | `web/a09-strict-csp` | b20f5ed | #113 on W1: strict website CSP |
-| `feat/g2-holding-model` | 59185eb | #114 on G0: holding arithmetic reference model, one push per walker per unit per day |
-| `feat/g2-holding-ledger` | 9a272f7 | #117 on #114: idempotent holding event ledger |
-| `feat/g3-strength-settlement` | 493b3fa | #118 on #117: holdings at day close, day and season credits settlement |
-| `feat/g4-clubs-districts` | d7a58b2 | #119 on #118: clubs, contributions, district control, season leaderboard |
+| `feat/g2-holding-model` | 97bbc0b | #114 on G0: holding arithmetic reference model, one push per walker per unit per day |
+| `feat/g2-holding-ledger` | bf13031 | #117 on #114: idempotent holding event ledger |
+| `feat/g3-strength-settlement` | 8b9b3fa | #118 on #117: holdings at day close, day and season credits settlement |
+| `feat/g4-clubs-districts` | 8f83339 | #119 on #118: clubs, contributions, district control, season leaderboard |
+| `feat/sim-pilot-ruleset` | e6cfe42 | #120 on #119: simulation-only pilot ruleset `sim-pilot-1` and sweeps (not production) |
+| `privacy/a2-android-backup-off` | 058c27c | #115: Android backup and transfer off, QA0 device checks, free EAS and Play Console prep |
+| `web/a5-website-repairs` | a8586c9 | #116 on #113: website release candidate (X-21 not approved) |
+| `ops/two-network-check` | b23c31e | Scratch workflow for the two-network check (E-70). Owner to delete; the proxy here refuses ref deletion |
 | `feat/v3-onchain-core` | c8262ec | Separate prototype contracts branch. Not part of Play v1 |
 
 ## Work packets
@@ -63,7 +67,7 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | **G1** | Server-authoritative spatial pipeline and map geometry contract | `feat/g1-territory-geometry`, draft #107 | IN_REVIEW | CODE TESTED LOCALLY: shared 170/170 (14 new), backend 411/411 (2 new), API 17/17, build; CI green | Review. Route cells between samples done (`route-cells`, unwired). Inferred cells are analytic only: they never award, claim, defend, erode, validate or count for tolls or deed traffic; `covered` stays distinct from `held` |
 | **G2** | Sealing claims, solid/shade, one holder per unit | `feat/g2-holding-model`, draft #114 (holding arithmetic); `feat/g2-holding-ledger`, draft #117 (event ledger) | IN_PROGRESS | Holding model CODE TESTED LOCALLY: shared 190/190 (E-52, E-61); ledger shared 198/198 (E-65); owner set A9 on 17 Oct (V3 numbers stay, one push per walker per unit per day); sealing engine exists (#93, included) | Review #114 and #117. Still needs D2 (shade shape and sprawl), D4 (decay numbers) and D5 (zone and cell size) for enclosed-area computation and the territory ledger |
 | **G3** | Strength, erosion, defence, credits settlement | `feat/g3-strength-settlement`, draft #118 | IN_PROGRESS | Settlement reference model CODE TESTED LOCALLY: shared 210/210, §17–§19 worked numbers reproduced (E-67); strength, erosion and defence were already in the G2 model | Review #118. Owner decisions D4, D5, D14–D17 (new: paid-in-condition effect, shade-only upkeep, two-level loss and 14-day restore, away days) |
-| **G4** | Clubs, contributions, districts, seasons | `feat/g4-clubs-districts`, draft #119 | IN_PROGRESS | Reference model CODE TESTED LOCALLY: shared 223/223 (E-68); leaderboards built only from settled days, never seeded. Website and app still show clubs as preview only | Review #119. Owner decisions D18–D23 (club membership, contribution weight, what a district is, control rule, leaderboard metric, club-mate erosion) |
+| **G4** | Clubs, contributions, districts, seasons | `feat/g4-clubs-districts`, draft #119 | IN_PROGRESS | Reference model CODE TESTED LOCALLY: shared 225/225 at 8f83339 after the stack fix (E-72; first 223/223, E-68). Simulation ruleset on top: draft #120, shared 233/233 (E-72), not production; leaderboards built only from settled days, never seeded. Website and app still show clubs as preview only | Review #119. Owner decisions D18–D23 (club membership, contribution weight, what a district is, control rule, leaderboard metric, club-mate erosion) |
 | **G5** | Deed lifecycle and eligibility (pre-financial) | Old chain #80–#87 | DEFERRED | Contracts prototype on a separate branch; not audited | After a safe pilot; reuse #80/#81 only after review against V3 |
 | **G6** | Economy simulation and limited-token research | — | DEFERRED | — | Separate from Play v1 |
 | **G7** | Production economy, wallets, audited mainnet readiness | — | DEFERRED | — | Security, legal and audit gates |
