@@ -199,6 +199,10 @@ app CTAs (D-35). Done:
   of `amr`, never a `token_refresh` entry, `iat` or the newest time; spent
   records are kept 30 days. Pushed as 2192de6 (E-56). Migration 0010 is
   unchanged and still needs its own approval. Nothing deployed.
+- **A2** Android backup and device transfer off: draft #115 at 770042a (E-57),
+  native config only. Phone check added to the device gate.
+- **A3** GitHub Pages: still serving the old prototype, nothing depends on
+  it (E-58). Unpublishing is a repository-admin click for the owner.
 
 ## Open owner decisions
 
