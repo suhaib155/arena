@@ -158,7 +158,8 @@ export function stageOf(state: UnitState, rules: HoldingRules): Stage {
  * One walker's push on one unit on `day` (section 5).
  *
  * - Unheld: the walker claims it, at 100 if stepped on, at the shade value if
- *   only enclosed.
+ *   only enclosed. A shade value under 1 would hold it at 0, which
+ *   `unitProblems()` refuses, so a store (and the ledger) rejects that write.
  * - The walker's own: a visit restores 100, free, and stepping on own shade
  *   makes it solid. Enclosing it again never lowers it.
  * - Someone else's: the push, less the unit's erosion resistance, is taken
@@ -232,6 +233,9 @@ export function unitProblems(state: UnitState): string[] {
   const problems: string[] = [];
   if (!Number.isInteger(state.strength) || state.strength < 0 || state.strength > MAX_STRENGTH) problems.push("strength out of range");
   if (state.holderId === null && state.strength !== 0) problems.push("unheld ground has strength");
+  // Strength 0 means "back on the map" everywhere else (stageOf, decay); a holder at 0 would be
+  // charged upkeep and counted for control while reading as unheld. Only a shade claim under 1 makes one.
+  if (state.holderId !== null && state.strength === 0) problems.push("held ground has no strength");
   if (state.masked && state.holderId !== null) problems.push("masked ground is held");
   if (state.deeded && state.ground !== "solid") problems.push("deeded ground is not solid");
   if (state.deeded && state.holderId === null) problems.push("deeded ground has no holder");
