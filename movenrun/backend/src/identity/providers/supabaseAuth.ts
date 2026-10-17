@@ -31,9 +31,9 @@ export class SupabaseAuthError extends Error {
 export interface SupabaseAuthConfig {
   /** Project URL, e.g. https://<ref>.supabase.co (no trailing slash). */
   url: string;
-  /** Publishable (or legacy anon) key: sent as `apikey` on public auth calls. */
+  /** Publishable key (`sb_publishable_…`): sent as `apikey` on public auth calls. */
   publishableKey: string;
-  /** Secret (or legacy service role) key: admin calls only. Never leaves the server. */
+  /** Secret key (`sb_secret_…`): admin calls only. Never leaves the server. */
   secretKey: string;
   /** Legacy HS256 JWT secret. Only for projects that have not moved to signing keys. */
   legacyJwtSecret?: string | null;
@@ -49,6 +49,15 @@ export interface VerifiedSupabaseUser {
   methods: string[];
   /** Providers linked to the auth user (`app_metadata.providers`). */
   providers: string[];
+  /** The Supabase session this token belongs to (`session_id`), or null if absent. */
+  sessionId: string | null;
+  /**
+   * When this session's Google (OAuth) sign-in happened: the timestamp of its
+   * single `amr` entry with method `oauth`. Entries for other methods
+   * (`token_refresh`, `otp`, ...) are never used. Null when there is no such
+   * entry, more than one, or no usable timestamp.
+   */
+  oauthSignedInAt: Date | null;
   expiresAt: Date;
 }
 
@@ -132,7 +141,14 @@ export class SupabaseTokenVerifier {
     const providers = Array.isArray(appMetadata.providers) ? appMetadata.providers.filter((p): p is string => typeof p === "string") : [];
     const email = typeof claims.email === "string" && claims.email.includes("@") ? claims.email.trim().toLowerCase() : null;
 
-    return { subject: claims.sub.toLowerCase(), email, methods, providers, expiresAt: new Date(claims.exp * 1000) };
+    const sessionId = typeof claims.session_id === "string" && UUID.test(claims.session_id) ? claims.session_id.toLowerCase() : null;
+    const oauthEntries = Array.isArray(claims.amr)
+      ? claims.amr.filter((m) => m && typeof m === "object" && (m as { method?: unknown }).method === "oauth")
+      : [];
+    const oauthStamp = oauthEntries.length === 1 ? (oauthEntries[0] as { timestamp?: unknown }).timestamp : undefined;
+    const oauthSignedInAt = typeof oauthStamp === "number" && Number.isFinite(oauthStamp) && oauthStamp > 0 ? new Date(oauthStamp * 1000) : null;
+
+    return { subject: claims.sub.toLowerCase(), email, methods, providers, sessionId, oauthSignedInAt, expiresAt: new Date(claims.exp * 1000) };
   }
 
   private async keyFor(kid: string) {
@@ -296,6 +312,14 @@ export class SupabaseAuthClient {
 }
 
 /**
+ * Which keys this API trusts for Supabase access tokens, for the startup log.
+ * Says only whether a legacy secret is configured, never anything about it.
+ */
+export function tokenTrustSummary(config: Pick<SupabaseAuthConfig, "legacyJwtSecret">): string {
+  return config.legacyJwtSecret ? "signing keys and legacy secret" : "signing keys only";
+}
+
+/**
  * Read Supabase settings from the environment. Nothing set → null (sign-in
  * fails closed). Partly set or malformed → startup error, never a silent fallback.
  */
@@ -309,6 +333,11 @@ export function supabaseAuthConfigFrom(env: Record<string, string | undefined>):
     throw new Error("Invalid Supabase configuration: SUPABASE_URL (https), SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY are required together");
   }
   if (publishableKey === secretKey) throw new Error("Invalid Supabase configuration: the secret key must differ from the publishable key");
+  // The legacy anon and service_role keys are JWTs signed with the legacy
+  // shared secret, so they stop working once that secret is revoked. Only the
+  // new keys are accepted, which keeps revoking it safe for this service.
+  if (!publishableKey.startsWith("sb_publishable_")) throw new Error("Invalid Supabase configuration: SUPABASE_PUBLISHABLE_KEY must be an sb_publishable_ key");
+  if (!secretKey.startsWith("sb_secret_")) throw new Error("Invalid Supabase configuration: SUPABASE_SECRET_KEY must be an sb_secret_ key");
   if (legacyJwtSecret !== null && legacyJwtSecret.length < 32) throw new Error("Invalid Supabase configuration: SUPABASE_LEGACY_JWT_SECRET is too short");
   return { url: url.replace(/\/$/, ""), publishableKey, secretKey, legacyJwtSecret };
 }

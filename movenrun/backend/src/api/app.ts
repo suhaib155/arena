@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler } from "express";
 import {
   users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations,
+  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, googleSignInExchanges,
 } from "../db/identity.schema.js";
 import { movementVerifications } from "../db/movement.schema.js";
 import { getDb } from "../db/client.js";
@@ -19,6 +19,7 @@ import { createCorsMiddleware, createSecurityHeadersMiddleware } from "../middle
 import { createGlobalRateLimiter, createWriteRateLimiter } from "../middleware/rateLimit.js";
 import type { ApiConfig } from "./config.js";
 import { createMaintenance } from "./maintenance.js";
+import { trustProxySetting } from "./trustedProxies.js";
 
 export function createApiApp(config: ApiConfig) {
   // Sign-in is Google or wallet through Supabase Auth only. The email-code
@@ -57,7 +58,7 @@ export function createApiApp(config: ApiConfig) {
   maintenance.start();
   const app = express();
   app.disable("x-powered-by");
-  app.set("trust proxy", config.TRUST_PROXY_HOPS);
+  app.set("trust proxy", trustProxySetting(config.TRUST_PROXY, config.TRUST_PROXY_HOPS));
   app.use(maintenance.afterResponse);
   app.use(createSecurityHeadersMiddleware(), createCorsMiddleware(config));
   app.use(createGlobalRateLimiter(config));
@@ -67,7 +68,7 @@ export function createApiApp(config: ApiConfig) {
       // Probe migrated columns, not just database connectivity. No rows or
       // coordinates are selected and no connection errors reach the logs.
       for (const table of [users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, movementVerifications]) {
+        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, googleSignInExchanges, movementVerifications]) {
         await db.select().from(table).limit(0);
       }
       res.json({ status: "ready", database: "ready", signIn: "supabase" });
@@ -75,9 +76,15 @@ export function createApiApp(config: ApiConfig) {
       res.status(503).json({ status: "unavailable" });
     }
   });
-  app.use(express.json({ limit: "2mb" }));
-  // Authentication entry is public, but still subject to the write limit.
+  // Authentication entry is public, but still subject to the write limit,
+  // checked before any body is read.
   app.use("/identity/auth", createWriteRateLimiter(config));
+  // Identity bodies are a token, a signed message or a code: a few kilobytes
+  // at most. Only a movement session (up to 10,000 points) needs more, so the
+  // larger limit applies there alone and nobody can make the public sign-in
+  // routes parse megabytes.
+  app.use("/identity", express.json({ limit: "32kb" }));
+  app.use("/movement", express.json({ limit: "2mb" }));
   app.use("/identity", createIdentityRouter(identity, {
     accountDeletion: createDrizzleAccountDeletionStore(db),
     supabaseSignIn,

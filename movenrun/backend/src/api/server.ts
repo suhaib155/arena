@@ -1,11 +1,14 @@
 import { createApiApp } from "./app.js";
 import { resolveApiConfig } from "./config.js";
 import { closeDb } from "../db/client.js";
+import { tokenTrustSummary } from "../identity/providers/supabaseAuth.js";
 
 try {
   const config = resolveApiConfig();
   const server = createApiApp(config).listen(config.PORT, "0.0.0.0", () => {
-    console.info("V3 API listening");
+    // Which proxies may name the client, so a deploy log shows the rate-limit keying.
+    const proxies = config.TRUST_PROXY === "render-cloudflare" ? "trusted by network (Cloudflare, private)" : `${config.TRUST_PROXY_HOPS} trusted hop(s)`;
+    console.info(`V3 API listening; Supabase tokens: ${tokenTrustSummary(config.supabase)}; proxies: ${proxies}`);
   });
   // A client must finish sending its request (headers in 20 s, all of it in
   // 30 s), so a slow or stalled sender cannot hold connections open on the

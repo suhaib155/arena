@@ -73,8 +73,8 @@ jobs:
     needs: gates
     runs-on: ubuntu-latest
     environment: play-release
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    # EXPO_TOKEN goes only to the steps that need it, never to the job:
+    # `yarn install` runs third-party install scripts.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -83,6 +83,8 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
       - name: Verify EXPO_TOKEN secret is present
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "${EXPO_TOKEN}" ]; then
             echo "::error::EXPO_TOKEN secret is not set."
@@ -93,7 +95,11 @@ jobs:
         run: yarn install --immutable
       - name: Build Android App Bundle (EAS production profile)
         working-directory: movenrun/mobile
-        run: npx eas-cli@latest build -p android --profile production --non-interactive --json > "$RUNNER_TEMP/eas-build.json"
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        # Pinned: `@latest` would run whatever was published last with the
+        # Expo token in its environment. Update the pin deliberately.
+        run: npx --yes eas-cli@24.8.0 build -p android --profile production --non-interactive --json > "$RUNNER_TEMP/eas-build.json"
       - name: Record build
         working-directory: movenrun/mobile
         run: |

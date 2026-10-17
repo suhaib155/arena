@@ -12,13 +12,15 @@
  * than in a process-local cache, so the guarantee survives a restart and holds
  * across replicas.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { isSealMethod, type SealMethod } from "@movenrun/shared/sealing";
 import type { Db } from "../../../db/client.js";
 import { movementVerifications } from "../../../db/movement.schema.js";
 import {
+  MovementDailyLimitError,
   MovementSessionConflictError,
   type CreateMovementVerificationInput,
+  type DailyAdmission,
   type MovementVerificationRecord,
   type MovementVerificationRepository,
 } from "../interfaces.js";
@@ -77,12 +79,45 @@ export class DrizzleMovementVerificationRepository
 {
   constructor(private readonly db: Db) {}
 
+  /**
+   * With `admission`, the count and the insert run in one transaction that
+   * first takes a transaction-scoped advisory lock keyed by the user. Two
+   * submissions from one account therefore run one after the other: the second
+   * waits for the first to commit, and under READ COMMITTED its count then
+   * sees the first row. Other accounts take different keys and never wait on
+   * each other (a hash collision only serialises two accounts, never admits
+   * extra rows). The lock is released by COMMIT or ROLLBACK, so a crash cannot
+   * leave it held, and it works through a transaction-mode pooler.
+   *
+   * The session lookup comes before the count so a concurrent retry of a
+   * session admitted moments ago gets the conflict (and so its stored row),
+   * never the limit.
+   */
   async create(
     input: CreateMovementVerificationInput,
+    admission?: DailyAdmission,
   ): Promise<MovementVerificationRecord> {
     try {
-      const [row] = await this.db.insert(movementVerifications).values(input).returning();
-      return toRecord(row);
+      if (!admission) {
+        const [row] = await this.db.insert(movementVerifications).values(input).returning();
+        return toRecord(row);
+      }
+      return await this.db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"movement_admission:" + input.userId}, 0))`);
+        const [same] = await tx
+          .select({ id: movementVerifications.id })
+          .from(movementVerifications)
+          .where(and(eq(movementVerifications.userId, input.userId), eq(movementVerifications.clientSessionId, input.clientSessionId)))
+          .limit(1);
+        if (same) throw new MovementSessionConflictError();
+        const [counted] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(movementVerifications)
+          .where(and(eq(movementVerifications.userId, input.userId), gte(movementVerifications.createdAt, admission.since)));
+        if ((counted?.n ?? 0) >= admission.max) throw new MovementDailyLimitError();
+        const [row] = await tx.insert(movementVerifications).values(input).returning();
+        return toRecord(row);
+      });
     } catch (err) {
       if (isSessionConflict(err)) throw new MovementSessionConflictError();
       throw err;
@@ -97,6 +132,14 @@ export class DrizzleMovementVerificationRepository
       .orderBy(desc(movementVerifications.endTime), desc(movementVerifications.createdAt))
       .limit(limit);
     return rows.map(toRecord);
+  }
+
+  async countCreatedSince(userId: string, since: Date): Promise<number> {
+    const [row] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(movementVerifications)
+      .where(and(eq(movementVerifications.userId, userId), gte(movementVerifications.createdAt, since)));
+    return row?.n ?? 0;
   }
 
   async findByUserSession(

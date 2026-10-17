@@ -41,7 +41,7 @@ test("V3 requires explicit HTTPS origins and bounded proxy/rate-limit settings",
   for (const CORS_ORIGINS of [undefined, "", "*", "http://example.com", "https://example.com/path", "https://user:password@example.com"]) {
     assert.throws(() => resolveApiConfig({ ...env(), CORS_ORIGINS }));
   }
-  for (const [key, value] of [["TRUST_PROXY_HOPS", "2"], ["RATE_LIMIT_MAX", "0"], ["DATABASE_URL", "https://example.com"]]) {
+  for (const [key, value] of [["TRUST_PROXY_HOPS", "4"], ["TRUST_PROXY", "all"], ["TRUST_PROXY_HOPS", "-1"], ["RATE_LIMIT_MAX", "0"], ["DATABASE_URL", "https://example.com"]]) {
     assert.throws(() => resolveApiConfig({ ...env(), [key]: value }));
   }
 });

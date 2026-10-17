@@ -20,7 +20,7 @@
  */
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from "express";
 import { IdentityError, isIdentityError } from "../../identity/domain/errors.js";
-import { MovementSessionMetadataConflictError } from "../repositories/interfaces.js";
+import { MovementDailyLimitError, MovementSessionMetadataConflictError } from "../repositories/interfaces.js";
 import type { MovementVerificationRecord } from "../repositories/interfaces.js";
 import type { MovementVerificationService } from "../services/movementVerification.service.js";
 import { parseBody, submitMovementSchema, CLIENT_SESSION_ID_RE } from "./validation.js";
@@ -54,6 +54,9 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
            no submitted values, no timestamps. Echoing either would tell a
            prober what is on file for a session id. */
         res.status(409).json({ error: "session_metadata_conflict" });
+      } else if (err instanceof MovementDailyLimitError) {
+        // Retrying later helps; the stored sessions are untouched.
+        res.status(429).json({ error: "daily_limit_reached" });
       } else {
         next(err instanceof Error ? err : new Error(String(err)));
       }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
-import { SupabaseAuthClient, SupabaseAuthError, SupabaseTokenVerifier, supabaseAuthConfigFrom } from "./supabaseAuth.js";
+import { SupabaseAuthClient, SupabaseAuthError, SupabaseTokenVerifier, supabaseAuthConfigFrom, tokenTrustSummary } from "./supabaseAuth.js";
 
 const URL_ = "https://tavxtestproject.supabase.co";
 const SUB = "5f6c2a1e-4b7d-4c8e-9f10-112233445566";
@@ -36,6 +36,7 @@ const good = {
   amr: [{ method: "oauth", timestamp: nowS - 10 }],
   app_metadata: { provider: "google", providers: ["google"] },
   is_anonymous: false,
+  session_id: "4F1C2B3A-1D2E-4F50-8A6B-7C8D9E0F1A2B",
 };
 
 function jwksFetch(keys: unknown[], counter = { n: 0 }): typeof fetch {
@@ -59,6 +60,22 @@ test("a valid ES256 token yields the subject, verified email and sign-in method"
   assert.equal(user.email, "player@example.com");
   assert.deepEqual(user.methods, ["oauth"]);
   assert.deepEqual(user.providers, ["google"]);
+  assert.equal(user.sessionId, "4f1c2b3a-1d2e-4f50-8a6b-7c8d9e0f1a2b");
+  const { session_id: _omit, ...withoutSession } = good;
+  assert.equal((await verifier().verify(token(withoutSession))).sessionId, null);
+  assert.equal((await verifier().verify(token({ ...good, session_id: "not-a-uuid" }))).sessionId, null);
+  // The Google sign-in time is the oauth entry's timestamp only; a newer
+  // token_refresh (or any other method) entry never replaces it.
+  assert.equal(user.oauthSignedInAt?.getTime(), (nowS - 10) * 1000);
+  const refreshed = await verifier().verify(token({ ...good, iat: nowS, amr: [{ method: "oauth", timestamp: nowS - 900 }, { method: "token_refresh", timestamp: nowS - 5 }] }));
+  assert.equal(refreshed.oauthSignedInAt?.getTime(), (nowS - 900) * 1000);
+  const reordered = await verifier().verify(token({ ...good, amr: [{ method: "token_refresh", timestamp: nowS - 5 }, { method: "otp", timestamp: nowS - 1 }, { method: "oauth", timestamp: nowS - 900 }] }));
+  assert.equal(reordered.oauthSignedInAt?.getTime(), (nowS - 900) * 1000);
+  // No oauth entry, two of them, or no usable timestamp: no sign-in time.
+  for (const amr of [undefined, [], [{ method: "token_refresh", timestamp: nowS - 5 }], [{ method: "oauth" }], [{ method: "oauth", timestamp: "soon" }], [{ method: "oauth", timestamp: nowS - 900 }, { method: "oauth", timestamp: nowS - 5 }], ["oauth"]]) {
+    const { amr: _drop, ...rest } = good;
+    assert.equal((await verifier().verify(token(amr === undefined ? rest : { ...rest, amr }))).oauthSignedInAt, null, JSON.stringify(amr));
+  }
 });
 
 test("RS256 keys from the JWKS are accepted", async () => {
@@ -185,9 +202,26 @@ test("reading one auth user returns only its id and timestamps; a missing user i
 test("configuration is all or nothing", () => {
   assert.equal(supabaseAuthConfigFrom({}), null);
   assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: URL_ }));
-  assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: "http://x.supabase.co", SUPABASE_PUBLISHABLE_KEY: "a", SUPABASE_SECRET_KEY: "b" }));
-  assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: URL_, SUPABASE_PUBLISHABLE_KEY: "a", SUPABASE_SECRET_KEY: "a" }));
-  assert.deepEqual(supabaseAuthConfigFrom({ SUPABASE_URL: `${URL_}/`, SUPABASE_PUBLISHABLE_KEY: "a", SUPABASE_SECRET_KEY: "b" }), {
-    url: URL_, publishableKey: "a", secretKey: "b", legacyJwtSecret: null,
+  const keys = { SUPABASE_PUBLISHABLE_KEY: "sb_publishable_a", SUPABASE_SECRET_KEY: "sb_secret_b" };
+  assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: "http://x.supabase.co", ...keys }));
+  assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: URL_, ...keys, SUPABASE_SECRET_KEY: keys.SUPABASE_PUBLISHABLE_KEY }));
+  assert.deepEqual(supabaseAuthConfigFrom({ SUPABASE_URL: `${URL_}/`, ...keys }), {
+    url: URL_, publishableKey: "sb_publishable_a", secretKey: "sb_secret_b", legacyJwtSecret: null,
   });
+});
+
+test("legacy anon and service_role JWT keys are refused, so revoking the legacy secret cannot break the API", () => {
+  const legacyShaped = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.c2ln"; // shape only, signs nothing
+  const keys = { SUPABASE_PUBLISHABLE_KEY: "sb_publishable_a", SUPABASE_SECRET_KEY: "sb_secret_b" };
+  assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: URL_, ...keys, SUPABASE_PUBLISHABLE_KEY: legacyShaped }), /sb_publishable_/);
+  assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: URL_, ...keys, SUPABASE_SECRET_KEY: legacyShaped }), /sb_secret_/);
+  assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: URL_, SUPABASE_PUBLISHABLE_KEY: "sb_secret_b", SUPABASE_SECRET_KEY: "sb_publishable_a" }));
+});
+
+test("the startup summary says whether a legacy secret is trusted and nothing else", () => {
+  assert.equal(tokenTrustSummary({ legacyJwtSecret: null }), "signing keys only");
+  const secret = "s".repeat(40);
+  const summary = tokenTrustSummary({ legacyJwtSecret: secret });
+  assert.equal(summary, "signing keys and legacy secret");
+  assert.ok(!summary.includes(secret.slice(0, 4)));
 });
