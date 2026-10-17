@@ -142,7 +142,7 @@ export function decayTo(state: UnitState, day: number, rules: HoldingRules): Uni
 }
 
 function unheld(state: UnitState, day: number): UnitState {
-  // Section 9: losing ground drops its level; the 14-day restore is G3 bookkeeping.
+  // Section 9: losing ground drops its level; how far, and the 14-day restore, are D16.
   return { ...state, holderId: null, strength: 0, ground: "solid", level: 1, fortified: false, asOfDay: day };
 }
 

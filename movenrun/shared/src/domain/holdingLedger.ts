@@ -66,6 +66,8 @@ export interface LedgerEntry {
   unitId: string;
   walkerId: string;
   day: number;
+  /** Stepped on ("solid") or only enclosed ("shade"); settlement counts only stepped-on visits. */
+  pushKind: Push["kind"];
   outcome: PushOutcome;
   previousHolderId: string | null;
   newHolderId: string | null;
@@ -187,6 +189,7 @@ export function applyLedger(input: LedgerInput): LedgerResult {
       unitId,
       walkerId: event.walkerId,
       day: event.day,
+      pushKind: event.push.kind,
       outcome: next.outcome,
       previousHolderId: before.holderId,
       newHolderId: next.state.holderId,
