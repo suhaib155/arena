@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-10-17 | Owner review answered: #112 claim after admission and once per Supabase session, X-24 preflight, decision records (X-24 still not granted) | 7e3a9c9 | [MOVENRUN_2026-10-17_X24_PREFLIGHT_GOOGLE_EXCHANGE_HOLD_FINAL_REPORT_7e3a9c9.md](MOVENRUN_2026-10-17_X24_PREFLIGHT_GOOGLE_EXCHANGE_HOLD_FINAL_REPORT_7e3a9c9.md) |
 | 2026-10-17 | Security reconciliation after X-26 closed: admission race and client-address fixes, X-24 candidate, strict CSP, single-use Google exchange, G2 holding model | 5b4170c | [MOVENRUN_2026-10-17_SECURITY_RECONCILIATION_X24_CANDIDATE_FINAL_REPORT_5b4170c.md](MOVENRUN_2026-10-17_SECURITY_RECONCILIATION_X24_CANDIDATE_FINAL_REPORT_5b4170c.md) |
 | 2026-10-16 | X-26 incident closed (secret revoked, verified), X-07 hook attached | 82c729e | [MOVENRUN_2026-10-16_X26_CLOSED_X07_ATTACHED_FINAL_REPORT_82c729e.md](MOVENRUN_2026-10-16_X26_CLOSED_X07_ATTACHED_FINAL_REPORT_82c729e.md) |
 | 2026-10-15 | Deep security, privacy and performance audit: 19 findings, 9 fixed on a branch, owner actions listed | 4d10dc3 | [MOVENRUN_2026-10-15_DEEP_SECURITY_PRIVACY_PERFORMANCE_AUDIT_FINAL_REPORT_4d10dc3.md](MOVENRUN_2026-10-15_DEEP_SECURITY_PRIVACY_PERFORMANCE_AUDIT_FINAL_REPORT_4d10dc3.md) |

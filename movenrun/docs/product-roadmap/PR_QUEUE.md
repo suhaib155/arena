@@ -41,8 +41,8 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | `feat/g1-territory-geometry` | 635ad7f | G1: map regions + covered-ground endpoint (on top of the chore branch) |
 | `web/w1-review-preview` | bd7fff2 | W1: website review version (on top of the chore branch) |
 | `security/x26-signing-keys` | 77a06b3 | #110: legacy key refusal, X-26 closure records (16 Oct) |
-| `security/deep-audit-hardening` | the 17 Oct report's SHA | #111 on #110: audit fixes, admission race, client address. **The X-24 candidate** |
-| `security/a10-single-use-google-exchange` | 52bdc90 | #112 on #111: single-use Google exchange, migration 0010 |
+| `security/deep-audit-hardening` | 7f4c0d4 (code 5b4170c), held | #111 on #110: audit fixes, admission race, client address. **The X-24 candidate** |
+| `security/a10-single-use-google-exchange` | 7e3a9c9, then the 17 Oct docs commit | #112 on #111 (contains its head): single-use Google exchange, migration 0010 |
 | `web/a09-strict-csp` | b20f5ed | #113 on W1: strict website CSP |
 | `feat/g2-holding-model` | e6fd943 | #114 on G0: holding arithmetic reference model |
 | `feat/v3-onchain-core` | c8262ec | Separate prototype contracts branch. Not part of Play v1 |
@@ -66,7 +66,7 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | **G7** | Production economy, wallets, audited mainnet readiness | — | DEFERRED | — | Security, legal and audit gates |
 | **UX0** | Real geographic territory map and full game UX in the app | — | BLOCKED_OWNER | Contract ready: `docs/TERRITORY_GEOMETRY.md` | Waits for the owner's mobile design instruction |
 | **S1** | Security audit fixes and X-24 candidate | `security/deep-audit-hardening`, draft #111 (on #110) | IN_REVIEW | CODE TESTED LOCALLY: backend and API on PostgreSQL 16, mobile 910/910 (E-46–E-48); live client-address check FAILS on dd83065 as expected (E-47) | X-24 approval (`docs/play-launch/X24_DEPLOY_CANDIDATE.md`) |
-| **S2** | Single-use Google exchange (A-10) | `security/a10-single-use-google-exchange`, draft #112 | IN_REVIEW | CODE TESTED LOCALLY: 420/420, API 21/21 (E-51) | Own approval: adds migration 0010. Before X-05 |
+| **S2** | Single-use Google exchange (A-10) | `security/a10-single-use-google-exchange`, draft #112 | IN_REVIEW | CODE TESTED LOCALLY: 424/424, API 21/21 after the owner's review (E-53) | ON HOLD: owner approves `A10_GOOGLE_EXCHANGE_PLAN.md` and migration 0010, after X-24 and before X-05 |
 | **W1a** | Strict website CSP (A-09) | `web/a09-strict-csp`, draft #113 (on W1) | IN_REVIEW | e2e 24/24 under the policy (E-50) | Ships with W1 at X-21 |
 | **QA0** | Release build, phone, Play prerequisites | — | BLOCKED_OWNER | Plans: `ANDROID_DEVICE_GATE_PLAN.md`, `PLAY_REGISTRATION_CHECKLIST.md` | X-08, X-04, X-10; Play account X-01 |
 
