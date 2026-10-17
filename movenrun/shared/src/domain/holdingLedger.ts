@@ -119,6 +119,10 @@ function eventProblem(e: PushEvent): string | null {
   if (p.kind === "shade" && (!Number.isFinite(p.strength) || p.strength < 0 || p.strength > MAX_SHADE_STRENGTH)) {
     return "shade strength must be between 0 and 25";
   }
+  // Under 1 a shade push floors to nothing: it would hold unheld ground at 0 or spend the
+  // walker's one push of the day on someone else's ground for no effect. Rejected here, on
+  // the event alone, so a retry is rejected again whatever the unit's state by then.
+  if (p.kind === "shade" && Math.floor(p.strength) < 1) return "shade strength under 1 pushes nothing";
   return null;
 }
 

@@ -15,6 +15,15 @@ const held = (unitId: string, over: Partial<UnitState> = {}): UnitState => ({ ..
 const ev = (eventId: string, unitId: string, walkerId: string, day: number, push: Push = SOLID): PushEvent => ({ eventId, unitId, walkerId, push, day });
 const mapOf = (...states: UnitState[]) => new Map(states.map((s) => [s.unitId, s]));
 
+test("a shade push under 1 is rejected on the event alone and spends nothing", () => {
+  const r = applyLedger({ states: mapOf(newUnit("u1", 0)), events: [ev("e1", "u1", "ana", 0, { kind: "shade", strength: 0.6 })], rules });
+  assert.deepEqual(r.results, [{ eventId: "e1", unitId: "u1", status: "rejected", reason: "invalid_event", detail: "shade strength under 1 pushes nothing" }]);
+  assert.deepEqual([r.states.get("u1")?.holderId, r.entries, r.appliedEventIds], [null, [], []]);
+  // On someone else's ground it would spend the walker's one push of the day for nothing.
+  const other = applyLedger({ states: mapOf(held("u1")), events: [ev("e2", "u1", "ben", 0, { kind: "shade", strength: 0 }), ev("e3", "u1", "ben", 0)], rules });
+  assert.deepEqual(other.results.map((x) => (x.status === "applied" ? x.outcome : x.status)), ["rejected", "flipped"]);
+});
+
 test("a flip is recorded with the previous and the new holder", () => {
   const r = applyLedger({ states: mapOf(held("u1")), events: [ev("e1", "u1", "ben", 0)], rules });
   assert.deepEqual(r.results, [{ eventId: "e1", unitId: "u1", status: "applied", outcome: "flipped", removed: 100 }]);
