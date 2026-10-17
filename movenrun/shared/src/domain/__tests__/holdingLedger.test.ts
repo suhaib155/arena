@@ -28,7 +28,7 @@ test("a flip is recorded with the previous and the new holder", () => {
   const r = applyLedger({ states: mapOf(held("u1")), events: [ev("e1", "u1", "ben", 0)], rules });
   assert.deepEqual(r.results, [{ eventId: "e1", unitId: "u1", status: "applied", outcome: "flipped", removed: 100 }]);
   assert.deepEqual(r.entries, [
-    { eventId: "e1", unitId: "u1", walkerId: "ben", day: 0, outcome: "flipped", previousHolderId: "ana", newHolderId: "ben", strengthBefore: 100, strengthAfter: 1, rulesVersion: 7 },
+    { eventId: "e1", unitId: "u1", walkerId: "ben", day: 0, pushKind: "solid", outcome: "flipped", previousHolderId: "ana", newHolderId: "ben", strengthBefore: 100, strengthAfter: 1, rulesVersion: 7 },
   ]);
   assert.equal(r.states.get("u1")?.holderId, "ben");
   assert.deepEqual(r.appliedEventIds, ["e1"]);

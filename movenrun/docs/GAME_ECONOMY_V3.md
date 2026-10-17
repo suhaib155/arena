@@ -345,6 +345,10 @@ When the system is unsure (§28): *pending* keeps tokens and tolls reversible un
 | D11 | Revenue valve period and revenue definition |
 | D12 | Production fixed-point format and rounding order |
 | D13 | Embedded wallet and paymaster provider, when the economy phase starts |
+| D14 | What "paid in condition" does to ground (§7, §8: "those zones decay that day as if unpaid"): how much strength, and which zones when only part of the upkeep is taken. The G3 model reports the amount and the unvisited zones and changes no strength |
+| D15 | Whether ground held only as shade counts as a held zone for upkeep (§4 lists map colour, area, leaderboards and district control, not upkeep). A required parameter in the G3 model, no default |
+| D16 | Levels on loss (§9: "losing a zone drops two levels; reclaiming within 14 days restores it"): whose level drops, and what a reclaim after 14 days restores. The holding model resets lost ground to level 1 and the G3 model reads levels as the ledger left them |
+| D17 | When the 14 free away days per season (§7) and the level bonus away days (§9) are spent: automatically on any unvisited day, or by the player. The G3 model takes "away protected" per player from the caller |
 
 ## 9. What is built (truth table, 14 Oct 2026)
 
@@ -357,11 +361,12 @@ When the system is unsure (§28): *pending* keeps tokens and tolls reversible un
 | Cells between samples | IN REVIEW, unwired, analytic only | G1 `route-cells` |
 | Day reward, toll, day-close charges, books check | REFERENCE MODEL, tested, not wired, mints nothing | `shared/src/domain/economyV3.ts` (`@movenrun/shared/economy-v3`) |
 | Holding arithmetic: claim, reinforce, erode, flip, decay, stages, deed and mask refusals, one push per walker per unit per day | REFERENCE MODEL, tested, not wired, stores nothing; D4 numbers are parameters, shade strength (D2) is an input, a unit is whatever D5 decides | `shared/src/domain/holding.ts` (`@movenrun/shared/holding`) |
-| Holding ledger: a batch of a session's pushes applied to many units, sorted by day then event id, each event id applied once (a retried upload is skipped), stale-day and unknown-unit events rejected one by one, an append-only entry per applied push with previous and new holder and the rules version | REFERENCE MODEL, tested, not wired, stores nothing; same open parameters as the holding arithmetic | `shared/src/domain/holdingLedger.ts` (`@movenrun/shared/holdingLedger`) |
+| Holding ledger: a batch of a session's pushes applied to many units, sorted by day then event id, each event id applied once (a retried upload is skipped), stale-day and unknown-unit events rejected one by one, an append-only entry per applied push with previous and new holder, whether it was stepped on or enclosed, and the rules version | REFERENCE MODEL, tested, not wired, stores nothing; same open parameters as the holding arithmetic | `shared/src/domain/holdingLedger.ts` (`@movenrun/shared/holdingLedger`) |
+| Credits settlement from the holding ledger: zones held, their level and whether the holder stepped on them, read from the ledger's states and entries at day close (ground decayed to close first, so ground that ran out is not charged); fed to the day settlement for reward, toll on deeded units, recharge and upkeep under the 60% cap; per-player off-chain credit lines; a season sum that refuses repeated, extra, refused or foreign days and checks the season pool. Strength, erosion, defence and fortification resistance are the holding arithmetic above, unchanged. Off-chain game credits only: nothing transferable, no token, no chain | REFERENCE MODEL (G3), tested, not wired, stores nothing; D4 (`holdingRules`), D5 (`zoneOf`) and D15 (`shadeCountsAsHeld`) are required parameters with no default; D2 stays an input to the holding model; D14, D16 and D17 are not decided here; a day with any problem (mixed levels in one holder's zone, a ledger entry under another holding rules version, a unit with no zone, an unknown economy rules version, books that do not close) is refused whole | `shared/src/domain/holdingSettlement.ts` (`@movenrun/shared/holdingSettlement`) |
 | Enclosed-area (shade) geometry, stored territory ledger | NOT BUILT | G2, after D2 and D5 |
 | Deeds, contests, escrow | NOT BUILT | Later |
 | Clubs, districts, seasons | NOT BUILT (preview only in the app) | G4 |
-| Daily settlement, trust weight service | NOT BUILT | G3 |
+| Daily settlement job, trust weight service | NOT BUILT (the G3 reference model above is the algorithm such a job would run) | G3 |
 | Locked/liquid in a token contract | NOT BUILT | Contracts; needs audit and approval |
 | Embedded wallet, paymaster | NOT BUILT, no provider | D13 |
 | Anything on Base mainnet | NOTHING | — |
