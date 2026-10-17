@@ -73,10 +73,19 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     }
     assert.ok(healthy, "compiled API reaches readiness with migrated PostgreSQL and no legacy variables");
     assert.equal((await originalFetch(`http://127.0.0.1:${port}/gps/submit`, { method: "POST" })).status, 404);
+    // Public sign-in routes refuse large bodies; only movement accepts megabytes.
+    const bulky = JSON.stringify({ address: "0x" + "a".repeat(40_000) });
+    assert.equal((await originalFetch(`http://127.0.0.1:${port}/identity/auth/wallet/begin`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: bulky,
+    })).status, 413);
+    assert.notEqual((await originalFetch(`http://127.0.0.1:${port}/movement/verify`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: bulky,
+    })).status, 413);
     child.kill();
     await once(child, "exit");
     child = undefined;
     assert.match(logs, /V3 API listening/);
+    assert.match(logs, /proxies: 0 trusted hop\(s\)/);
     assert.ok(!logs.includes(process.env.IDENTITY_SESSION_PEPPER!));
     const graph = JSON.parse(await readFile("dist/api-inputs.json", "utf8")) as string[];
     assert.ok(!graph.some(path => /src\/(workers|routes|blockchain)\//.test(path)));

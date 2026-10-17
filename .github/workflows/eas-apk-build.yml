@@ -6,14 +6,17 @@ name: EAS APK Build
 on:
   workflow_dispatch:
 
+# Least privilege: the job only reads the repository.
+permissions:
+  contents: read
+
 jobs:
   build-apk:
     name: Build Android APK (EAS, preview)
     runs-on: ubuntu-latest
-    env:
-      # Authenticates EAS CLI non-interactively. Set in:
-      # repo Settings -> Secrets and variables -> Actions -> EXPO_TOKEN
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    # EXPO_TOKEN (repo Settings -> Secrets and variables -> Actions) is given
+    # only to the steps that need it, never to the job: `yarn install` runs
+    # third-party install scripts, which must not be able to read it.
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +34,8 @@ jobs:
         run: corepack enable
 
       - name: Verify EXPO_TOKEN secret is present
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "${EXPO_TOKEN}" ]; then
             echo "::error::EXPO_TOKEN secret is not set. Add it under Settings -> Secrets and variables -> Actions."
@@ -58,4 +63,8 @@ jobs:
       # `eas build` submits to EAS Build and prints the build details URL.
       - name: Build Android APK (EAS preview profile)
         working-directory: movenrun/mobile
-        run: npx eas-cli@latest build -p android --profile preview --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        # A pinned CLI: `@latest` would run whatever was published last with
+        # the Expo token in its environment. Update the pin deliberately.
+        run: npx --yes eas-cli@24.8.0 build -p android --profile preview --non-interactive

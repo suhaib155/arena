@@ -68,6 +68,18 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-44 | B | `security/x26-signing-keys`: backend `yarn test` and `yarn test:api` on local PostgreSQL 16, `tsc --noEmit`, secret scan | 388 pass / 0 fail, API 16 pass / 0 fail, typecheck clean, scan clean; legacy-key refusal and startup trust line covered by new tests | 82c729e |
 | E-45 | B | X-26 close-out and X-07 re-check, 16 Oct 2026 ~22:20 UTC, no secret values: public JWKS, forged-token requests to the live API and to Supabase Auth admin from an outside shell, read-only SQL as `supabase_read_only_user`; owner dashboard confirmations | JWKS 1 key EC ES256. API at dd83065: `/ready` 200; forged HS256, unknown-kid ES256, `alg: none` 401 each, missing token 400. Forged HS256 `service_role` on `/auth/v1/admin/users` 401. Legacy API keys `enabled: false`. Owner: legacy secret revoked, Render legacy variable removed, hook enabled. SQL: auth admin EXECUTE yes, anon/authenticated no, schema usage yes, 1,000 / 50, 0 users, 10 migrations, 0 tables without RLS | dd83065 (live) |
 
+## Recorded 2026-10-17
+
+| ID | Gate | What was run | Result | Commit |
+|---|---|---|---|---|
+| E-46 | B | Movement admission race on local PostgreSQL 16: 40 distinct sessions from one account released together (all pass the early count), with and without the atomic bound; 5 concurrent copies of the session that fills the last slot | Without the bound 40 of 40 stored; with it 30 stored, 10 refused `daily_limit_reached`; last slot: 1 created, 4 get the same row; backend 419/419 | f992304 |
+| E-47 | B | Client address: `trustedProxies.test.ts` (one client across proxy nodes with forged `X-Forwarded-For` and `Forwarded`, two clients, IPv6, sign-in write limit); live `scripts/check-client-ip.mjs … 12 --write` against dd83065, 17 Oct ~04:20 UTC, from an outside shell | Tests 4/4, API 21/21. Live: `server: cloudflare`, `cf-ray`, `x-render-origin-server: Render`; global `299 298 299 297 298 296 295 294 293 297 292 291` FAIL (proxy-keyed); write limit `19 18 17 16` (4 samples, inconclusive) | 5b4170c (tests), dd83065 (live) |
+| E-48 | B | Supply chain and focused build: list of packages with install scripts; `yarn workspaces focus @movenrun/backend` on a clean export, build, `test:api`; mobile `tsc` and `yarn test` | Install scripts only in esbuild (allowed), keccak and secp256k1 (hardhat only, load from prebuilds), msgpackr-extract (optional native). Focused tree 160 MB with `@movenrun/backend` and `@movenrun/shared`, API 21/21. Mobile tsc clean, 910/910 | 5b4170c |
+| E-49 | P | Website and Pages, 17 Oct ~04:25 UTC, read only from an outside shell | `movenrun.xyz` and `/sign-in/` 308 → `www`; API preflight from `www` no `access-control-allow-origin`, from the apex 204 allowed; `movenrun-website.vercel.app` 404; `suhaib155.github.io/arena/` 200 serving old prototype source; live site sends HSTS only | dd83065 (API), main (site) |
+| E-50 | P | Draft #113: `web-sign-in-deletion-e2e.mjs` with pages served under the `vercel.json` policy; repeated with `script-src 'none'` | 24/24 with the backend of #111 and of #112; the negative run fails (`run completed` FAIL, exit 1) | b20f5ed |
+| E-51 | B | Draft #112 (single-use Google exchange): backend `yarn test`, `yarn build`, `yarn test:api` on PostgreSQL 16 | 420/420, API 21/21 (concurrent replays: one 200, three 401, then 401), migration checksums pinned | 52bdc90 |
+| E-52 | G | Draft #114 (holding model): shared `tsc`, `yarn test` | Clean, 188/188 (9 new, 300 seeded random runs) | e6fd943 |
+
 ## Evidence level by capability
 
 Levels: **implemented** → **locally tested** (tests or browser here, providers
