@@ -20,6 +20,8 @@ import { createGlobalRateLimiter, createWriteRateLimiter } from "../middleware/r
 import type { ApiConfig } from "./config.js";
 import { createMaintenance } from "./maintenance.js";
 import { trustProxySetting } from "./trustedProxies.js";
+import { gameplayRulesFromEnv } from "../gameplay/rules.js";
+import { createProductionGameplay } from "../gameplay/wiring.js";
 
 export function createApiApp(config: ApiConfig) {
   // Sign-in is Google or wallet through Supabase Auth only. The email-code
@@ -46,6 +48,18 @@ export function createApiApp(config: ApiConfig) {
   //  - Provider users that never became a MovenRun account (sweepOrphanProviderUsers).
   //  - Sign-in sessions a week past their refresh expiry: every refresh adds
   //    a row, and Supabase Free holds 500 MB (FREE_HOSTING_READINESS.md).
+  // Gameplay (G3/G4) is off unless MOVENRUN_GAMEPLAY_ENABLED is "true": no
+  // route, no task and no query against its tables (migration 0011 is only
+  // proposed). Enabling it is an owner decision; see G34_SERVER_ARCHITECTURE.md.
+  const gameplayRules = gameplayRulesFromEnv();
+  const gameplay = gameplayRules
+    ? createProductionGameplay({
+      db,
+      rules: gameplayRules,
+      verifyBearer: async (token) => ({ userId: (await identity.sessions.verifyAccess(token)).userId }),
+      rateLimit: config,
+    })
+    : null;
   const maintenance = createMaintenance([
     {
       name: "pending sign-in deletions",
@@ -54,6 +68,7 @@ export function createApiApp(config: ApiConfig) {
     },
     { name: "unused sign-in records", everyMs: 30 * 60 * 1000, run: () => supabaseSignIn.sweepOrphanProviderUsers() },
     { name: "expired sign-in sessions", everyMs: 60 * 60 * 1000, run: () => identity.sessions.pruneExpiredSessions() },
+    ...(gameplay ? [gameplay.dayClose] : []),
   ]);
   maintenance.start();
   const app = express();
@@ -91,6 +106,10 @@ export function createApiApp(config: ApiConfig) {
     emailOtpEnabled: false,
   }));
   app.use("/movement", createProductionMovementRouter(config));
+  if (gameplay) {
+    app.use("/gameplay", express.json({ limit: "8kb" }));
+    app.use("/gameplay", gameplay.router);
+  }
   app.use((_req, res) => { res.status(404).json({ error: "not_found" }); });
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error?.type === "entity.too.large" ? 413 : error?.type === "entity.parse.failed" ? 400 : 500;
