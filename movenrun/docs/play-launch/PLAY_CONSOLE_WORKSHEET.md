@@ -88,6 +88,37 @@ Does the app collect or share user data? **Yes.** Is all data encrypted in trans
 not "sharing" under Play's definition. Google Maps SDK: confirm Google's current
 SDK guidance for Data safety in the console. REQUIRES_OWNER/CONSOLE_CONFIRMATION.
 
+**Cross-check, 17 Oct, against the website candidate (`a8586c9`,
+`website/privacy/`) and `DATA_INVENTORY.md`.** The form above matches both,
+with four points for the owner to see before submitting:
+
+- *Profile picture and name.* The privacy page says Google shares "email
+  address, name and profile picture" with Supabase Auth (stored in user
+  metadata; the app never shows them). Name is declared. The picture is a
+  URL, not a photo the app collects; Play's "Photos" type is about photos
+  and the app does not receive image files. Declare Personal info → **Other
+  info** for the picture URL if the console's wording suggests it.
+  REQUIRES_OWNER/CONSOLE_CONFIRMATION.
+- *Network address.* Used in memory for rate limiting and not stored by
+  MovenRun (privacy page "Your network address"). Play has no IP address data
+  type; providers' logs are theirs. No declaration.
+- *Used Google sign-ins (30 days).* The privacy page describes a record of
+  each spent Google sign-in session id with an expiry and no email or account
+  id (migration 0010, draft #112). It holds no Play data type; no
+  declaration. `DATA_INVENTORY.md` gets the table row when #112 is merged.
+- *Website-only providers.* Vercel and Google Fonts serve the website, not
+  the app; they do not enter the app's Data safety form.
+
+**Store listing facts (check against `STORE_LISTING.md` before pasting).**
+App name MovenRun; package `io.movenrun.app`; version 1.0.0; Game →
+Adventure (or Sports); Free, no in-app purchases; contains ads: No; contact
+`info@movenrun.xyz`; website `https://movenrun.xyz/`; privacy policy
+`https://movenrun.xyz/privacy/`; account deletion
+`https://movenrun.xyz/account-deletion/`; target audience 13+; Android 7.0+
+(minSdk 24), target API 36; permissions: precise and approximate location
+(foreground only), internet, vibration. Testing and release steps:
+`PLAY_INTERNAL_RELEASE_WORKFLOW.md`.
+
 ## App access instructions for reviewers (paste into App access)
 
 > MovenRun can be played without an account. On the first screen, accept the

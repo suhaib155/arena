@@ -47,6 +47,9 @@ close the account.
 | Production access application (Personal only) | After the 14 days | Answers about the test, the app and readiness | Google decides; no date can be promised |
 | Production (X-16) | After access is granted (Personal) or after review (Organization) | Your **Publish** | Staged rollout, then `POST_LAUNCH_MONITORING.md` |
 
+Rule wording, cited and step-by-step workflow (read 17 Oct 2026):
+`PLAY_INTERNAL_RELEASE_WORKFLOW.md`.
+
 Closed-test tester list: keep names and emails out of the repository. Testers
 must keep the app installed and stay opted in; a tester who leaves early may
 not count toward the 14 days.
@@ -77,7 +80,7 @@ All drafts exist; you accept every declaration yourself.
 | Versioning | Met: `appVersionSource: remote`, `autoIncrement` on production; user-visible version 1.0.0 | `mobile/eas.json`, D-03 |
 | Permissions | Met: only fine and coarse foreground location; background location, foreground service, overlay, storage, media and audio blocked; the AAB workflow checks the merged manifest | `app.json`, `androidRuntimePolicy.test.ts`, `eas-production-aab.yml`, D-04 |
 | 64-bit | Expected: React Native 0.81 builds arm64-v8a and x86_64. **Confirm in the App bundle explorer** (R-04) | After X-12 |
-| 16 KB memory pages | Expected: React Native 0.81 and Expo SDK 54 ship 16 KB-aligned native libraries. **Confirm in the App bundle explorer** (R-04) | After X-12 |
+| 16 KB memory pages | Expected (17 Oct inventory): fbjni 0.7.0 and the Fresco 3.6.0 natives read at 16 KB from their AARs; React Native, Hermes, expo-modules-core and react-native-screens built with the 16 KB flag on NDK r27; AGP 8.11 zip-aligns uncompressed libraries. Guarded by `android16kPageSize.test.ts`. **Confirm on the built APK/AAB and in the App bundle explorer** (R-04) | `ANDROID_16KB_PAGE_SIZE.md` |
 | Signing custody | Play App Signing (Google holds the app signing key); EAS holds the upload key; nothing is in the repository. A lost upload key is reset through Play support | D-09 |
 | Maps key | Restricted to Android, `io.movenrun.app`, the EAS upload key's SHA-1, and after the first upload the **Play App Signing SHA-1** (Console → Setup → App signing) | X-08, R-05 |
 | Data safety consistency | Matches `DATA_INVENTORY.md`; no analytics, ads or crash SDK | Worksheet |
@@ -99,7 +102,10 @@ Nothing below has been registered, paid, built or uploaded.
 | App content declarations, reviewer access text | Drafted in `PLAY_CONSOLE_WORKSHEET.md` | Ready to paste; you accept each one |
 | Data safety form | Drafted question by question in the worksheet from `DATA_INVENTORY.md`. 17 Oct corrections: stored cells are **precise** location (finer than Play's ~3 km² approximate threshold) and session distance and duration are declared as **fitness info** | Ready to paste; two points to confirm in the console |
 | Backup and transfer off (A2, #115) | In the build config, checked by `expo prebuild`; phone check is Q0-6 in `ANDROID_DEVICE_GATE_PLAN.md` | Device check: owner |
-| Preview APK pipeline (free EAS) | Config ready, no fix needed; accounts and quota in `LIVE_SETUP_OPERATOR_GUIDE.md` "Free EAS readiness" | Running a build: owner (X-04) |
+| Preview APK pipeline (free EAS) | Config ready, no fix needed; exact steps, variable names and APK checks in `X04_PREVIEW_BUILD_RUNBOOK.md` | Running a build: owner (X-04) |
+| Manifest hardening (cleartext off, background location service removed, unused exported clipboard provider gone) | In the build config, #115; phone check Q0-7 | Device check: owner |
+| 16 KB page size | Inventory and verification commands in `ANDROID_16KB_PAGE_SIZE.md` | Check on the built APK/AAB: owner's build |
+| AAB to internal track | `PLAY_INTERNAL_RELEASE_WORKFLOW.md` | **Owner only** (needs X-01b) |
 | QA0 device checks (Hermes start, location, Google, wallet, deletion, backup) | Steps, expected results and evidence rules in `ANDROID_DEVICE_GATE_PLAN.md` | Owner, on a phone |
 | Privacy policy and deletion pages live on the apex domain | Pages written; apex still redirects to `www` (E-49) | Owner (X-21) |
 | Google account with 2-Step Verification for Play | Not started | Owner |

@@ -264,7 +264,8 @@ for p in privacy support account-deletion sign-in; do curl -s -o /dev/null -w "$
 package `io.movenrun.app`, the EAS key's SHA-1.
 
 **X-04 (APPROVAL: uses the free EAS build quota).** GitHub → Actions →
-**EAS APK Build** on the reviewed branch.
+**EAS APK Build** on the reviewed branch. Exact steps, variable names and the
+static APK checks: `X04_PREVIEW_BUILD_RUNBOOK.md`.
 
 **Proof.** The workflow is green; the APK installs; then
 `ANDROID_DEVICE_GATE_PLAN.md`. Optionally unpack the APK's

@@ -79,6 +79,9 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-50 | P | Draft #113: `web-sign-in-deletion-e2e.mjs` with pages served under the `vercel.json` policy; repeated with `script-src 'none'` | 24/24 with the backend of #111 and of #112; the negative run fails (`run completed` FAIL, exit 1) | b20f5ed |
 | E-51 | B | Draft #112 (single-use Google exchange): backend `yarn test`, `yarn build`, `yarn test:api` on PostgreSQL 16 | 420/420, API 21/21 (concurrent replays: one 200, three 401, then 401), migration checksums pinned | 52bdc90 |
 | E-52 | G | Draft #114 (holding model): shared `tsc`, `yarn test` | Clean, 188/188 (9 new, 300 seeded random runs) | e6fd943 |
+| E-QA0-1 | M | #115: `expo prebuild -p android --no-install` (local, no EAS) and mobile `yarn test`, `tsc` | Generated manifest has `allowBackup="false"`, `usesCleartextTraffic="false"`, `dataExtractionRules`, `LocationTaskService` with `tools:node="remove"`; only `MainActivity` exported; 920/920 tests, type-check clean | #115 head |
+| E-QA0-2 | R | 64-bit `.so` files from Maven Central AARs read with `llvm-readelf -lW` | fbjni 0.7.0 (`libfbjni`, `libc++_shared`), Fresco 3.6.0 (`libimagepipeline`, `libnative-filters`, `libnative-imagetranscoder`, `libgifimage`, `libstatic-webp`): every LOAD `0x4000` on arm64-v8a and x86_64. react-android and hermes-android 0.81.5 not read (`repo.reactnative.dev` unreachable from the workspace); source flags recorded | #115 head |
+| E-QA0-3 | O | Google help pages read 17 Oct 2026 (answer 14151465, 9845334; developer.android.com page-sizes) | Personal accounts created after 13 Nov 2023: closed test, ≥ 12 testers opted in continuously ≥ 14 days, then apply for production access; internal test up to 100 testers; 16 KB required for apps targeting API 35+, updates blocked from 1 Feb 2027 without it | `PLAY_INTERNAL_RELEASE_WORKFLOW.md` |
 
 ## Evidence level by capability
 

@@ -49,14 +49,16 @@ stand-in.
 | Backup and transfer (A2) | The installed APK's merged manifest has `allowBackup="false"` and `dataExtractionRules`; `adb shell bmgr backupnow io.movenrun.app` backs nothing up; after a phone-to-phone transfer (Android 12+) the app opens signed out with no unsent session | STOP: privacy blocker |
 | Hermes start (Q0-1) | Hermes bundle; three cold starts reach the first screen; no `RangeError` or fatal in logcat; Territory draws | STOP: release blocker (#94 regression) |
 | Location (Q0-2) | No "Allow all the time" option; tracking stops when backgrounded and the summary says so; no invented route | STOP: privacy blocker |
+| Manifest (Q0-7) | No cleartext, no background location service, no clipboard provider; only `MainActivity` handles `movenrun://`; forged callback links sign nobody in and do not crash | STOP: security blocker |
+| 16 KB (R-04 on the APK) | `zipalign -c -P 16` passes; every 64-bit `.so` has LOAD align `0x4000` (`ANDROID_16KB_PAGE_SIZE.md`) | STOP before the production AAB: note the library |
 
 A step not run is not a pass. Any crash is a fail.
 
 ## QA0 device checks
 
-Six checks that close QA0 on the preview APK. Each reuses the handset script
+Seven checks that close QA0 on the preview APK. Each reuses the handset script
 steps where they exist and adds what the script does not prove. Run them on
-the same phone and APK as the script, in this order (Q0-6 last: it ends with a
+the same phone and APK as the script, in order Q0-1 to Q0-5, then Q0-7, with Q0-6 last (it ends with a
 reset or transfer). Tools: a computer with `adb` (Android platform-tools) and
 USB debugging on (Settings → About phone → tap Build number seven times →
 Developer options → USB debugging). `aapt2` (Android build-tools) only for
@@ -159,6 +161,22 @@ Handset steps 15e and 16. Add:
 
 Evidence: screenshots of the dialog, the signed-out state after c and d, and
 the 0-session Account screen after e.
+
+### Q0-7 Manifest hardening on the installed app
+
+Static checks are in `X04_PREVIEW_BUILD_RUNBOOK.md`; this confirms the phone
+sees the same thing.
+
+| # | Step | Expected |
+|---|---|---|
+| a | `adb shell dumpsys package io.movenrun.app \| grep -E "^ *(pkgFlags\|flags\|privateFlags)="` | No `USES_CLEARTEXT_TRAFFIC` and no `ALLOW_BACKUP` in any line. If the Android version does not print cleartext as a flag, the `aapt2` line from the runbook (`usesCleartextTraffic` false) is the proof |
+| b | `adb shell dumpsys package io.movenrun.app \| grep -E "LocationTaskService\|ClipboardFileProvider"` | No output |
+| c | `adb shell cmd package query-activities --components -a android.intent.action.VIEW -d "movenrun://auth/callback"` | Only `io.movenrun.app/.MainActivity` |
+| d | `adb shell am start -W -a android.intent.action.VIEW -d "movenrun://auth/wallet?code=AAAAAAAAAAAA" io.movenrun.app` while signed out and with no wallet sign-in started | The app opens, shows "Finishing wallet sign-in…" briefly, returns, still signed out; no crash (a code without this phone's verifier is refused) |
+| e | `adb shell am start -W -a android.intent.action.VIEW -d "movenrun://auth/callback?code=x" io.movenrun.app` | The app opens and steps back; still signed out; no crash |
+
+Evidence: the empty outputs of a and b, the component line of c, and a note
+for d and e (yes/no). No codes from a real sign-in.
 
 ### Q0-6 Backup and transfer exclusion (A2)
 

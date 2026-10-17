@@ -68,3 +68,14 @@ Declared: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, plus `INTERNET` and
 system alert window, external storage read/write, media images, record audio.
 Verified by `expo prebuild` on 2026-10-12 (see EVIDENCE E-07). The merged
 manifest of the real AAB still has to be checked (R-04).
+
+17 Oct (#115): the application sets `android:allowBackup="false"`,
+`android:dataExtractionRules` (every domain excluded from cloud backup and
+device transfer) and `android:usesCleartextTraffic="false"`; expo-location's
+background `LocationTaskService` is removed (`tools:node="remove"`); and the
+unused `expo-clipboard`, which added an exported content provider, is no
+longer a dependency. The only exported component left is the launcher
+`MainActivity` (with the `movenrun://` scheme), plus AndroidX's
+`ProfileInstallReceiver`, which only the system can call (`DUMP`
+permission). Checked by `expo prebuild` and `androidManifestHardening.test.ts`;
+on the phone by Q0-7.
