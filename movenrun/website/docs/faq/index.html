@@ -34,7 +34,7 @@
 <div class="dlayout">
   <nav id="dsidebar" class="dsidebar" aria-label="Documentation navigation">
     <div class="dsidebar-inner">
-<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup"><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup"><summary>The network</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup" open><summary>Resources</summary><ul><li><a href="/docs/faq/" aria-current="page">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
+<details class="dgroup"><summary>Start here</summary><ul><li><a href="/docs/">Home</a></li></ul></details><details class="dgroup"><summary>Playing the game</summary><ul><li><a href="/docs/how-it-works/">How a session works</a></li><li><a href="/docs/capture/">Capture and the map</a></li><li><a href="/docs/holding/">Holding your ground</a></li><li><a href="/docs/community/">Districts and clubs</a></li><li><a href="/docs/progress/">Tasks, streaks, levels</a></li></ul></details><details class="dgroup"><summary>Trust</summary><ul><li><a href="/docs/verification/">Movement verification</a></li><li><a href="/docs/points/">Points</a></li></ul></details><details class="dgroup"><summary>What comes next</summary><ul><li><a href="/docs/onchain/">Deeds and onchain</a></li><li><a href="/docs/roadmap/">Roadmap</a></li></ul></details><details class="dgroup" open><summary>Resources</summary><ul><li><a href="/docs/faq/" aria-current="page">FAQ</a></li><li><a href="/docs/disclaimers/">Disclaimers</a></li></ul></details>
     <div class="dside-foot"><a href="/">← Back to the MovenRun website</a></div>
     </div>
   </nav>
@@ -58,7 +58,7 @@
 <p>Your hold on a cell fades while you stay away, and a cell left long enough goes dormant and drops off your active map. Walking it again brings it back. No other player can take a cell from you. See <a href="/docs/holding/">Holding your ground</a>.</p>
 
 <h2 id="location">What happens to my location data?</h2>
-<p>Your positions are used during a session to check the movement was plausible and to work out which cells you crossed, and then they are gone. No latitude or longitude is stored. What is kept is distance, duration, which cells you touched, and a signal score. See <a href="/docs/verification/">Movement verification</a>.</p>
+<p>Your positions are used during a session to check the movement was plausible and to work out which cells you crossed, and then they are discarded. A signed-in session that cannot be sent straight away waits on your phone for up to seven days. The MovenRun server stores no latitude or longitude. What is kept is distance, duration, which cells you touched, and a signal score. See <a href="/docs/verification/">Movement verification</a>.</p>
 
 <h2 id="background">Does it track me in the background?</h2>
 <p>No. Location is read only while a session is running and only in the foreground.</p>
@@ -67,7 +67,7 @@
 <p>Every route is checked for plausible speed, usable accuracy and continuous motion, and any route that repeats one already counted is rejected. See <a href="/docs/verification/">Movement verification</a>.</p>
 
 <h2 id="crypto">Do I need to know anything about crypto?</h2>
-<p>No. There is no wallet in the app and nothing to connect. Deeds are a planned layer and are described in <a href="/docs/onchain/">Deeds and onchain</a>.</p>
+<p>No. A wallet is one optional way to sign in, next to Google, and you can also play as a guest. Signing in with a wallet is one signed message, never a transaction, and MovenRun has no tokens or balances. Deeds are a planned layer and are described in <a href="/docs/onchain/">Deeds and onchain</a>.</p>
 
 <h2 id="buy">Is there anything to buy?</h2>
 <p>No. There is no purchase anywhere in MovenRun and none is planned.</p>
@@ -79,7 +79,7 @@
 <p>Not yet. The club and city screens are a local preview built from seeded data and do not sync between players. Making them real is the next phase. See <a href="/docs/community/">Districts and clubs</a>.</p>
 
 <h2 id="live">What is actually built?</h2>
-<p>In the app: movement sessions, XP, levels, streaks, collections, the weekly recap, and route checking. An on-device preview: capture, holding and decay, districts and mastery, worked out on your phone with no record held on a server yet. A local preview built from seeded data: clubs, the city season board, rivals and sponsor zones. Planned: server-held territory, Points, deeds, and wallets. The <a href="/docs/roadmap/">roadmap</a> gives the order.</p>
+<p>In the app: movement sessions, XP, levels, streaks, collections, the weekly recap, and route checking. An on-device preview: capture, holding and decay, districts and mastery, worked out on your phone with no record held on a server yet. A local preview built from seeded data: clubs, the city season board, rivals and sponsor zones. Planned: server-held territory, Points, deeds, and a wallet to keep deeds in. Today a wallet is used only to sign in. The <a href="/docs/roadmap/">roadmap</a> gives the order.</p>
 
     </article>
     <nav class="dpagenav" aria-label="Previous and next page"><a class="pn prev" href="/docs/roadmap/"><span>Previous</span><strong>Roadmap</strong></a><a class="pn next" href="/docs/disclaimers/"><span>Next</span><strong>Disclaimers</strong></a></nav>

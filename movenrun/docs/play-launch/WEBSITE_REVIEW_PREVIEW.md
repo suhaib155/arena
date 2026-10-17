@@ -1,5 +1,21 @@
 # Website review preview (X-21 is NOT approved)
 
+## Release candidate for the first Google and wallet pilot (17 Oct 2026, #116)
+
+The head of `web/a5-website-repairs` (#116, on #113 and #108) is the publication candidate for `movenrun.xyz` as the pilot's sign-in client. Nothing was deployed or published.
+
+**Changed for the candidate:**
+- The unproven "within 30 days" promise for email deletion is gone. Email requests are now described as handled by the team by hand, with no fixed time; options 1 and 2 delete straight away. Support no longer says "We read every message" and promises no response time.
+- Privacy policy checked against the live API (2192de6) and `DATA_INVENTORY.md`: added security records, sign-in session clean-up (a week past expiry), the 30-day record of used Google sign-ins (no email or account id), removal of sign-in records that never become an account (about an hour, later if the free host is asleep), provider logs, Vercel and Google Fonts for this website. The backups line no longer says data cannot live on in a backup: the Free plan gives no automatic backups, owner-made encrypted exports can still hold deleted data until they are deleted, and provider copies follow provider terms. Wallet message clean-up now says when it really runs (at the next wallet sign-in, once a day past expiry).
+- `{{API_BASE_URL}}` is filled with `https://movenrun-staging-api.onrender.com`. `{{SUPABASE_PUBLISHABLE_KEY}}` stays a placeholder: the owner fills it at publish time and runs `node scripts/check-launch-placeholders.mjs`, which now also refuses a secret or JWT key (see `website/README.md`).
+- Landing and docs: districts labelled as an on-device preview; Onchain section labelled planned and says a wallet is only a sign-in method with no tokens or balances; "no coordinates stored" replaced by "no raw route on our servers" (the phone keeps an unsent signed-in route for up to 7 days); FAQ and Deeds pages no longer say there is no wallet in the app; verification page says the server runs for early testing; docs sidebar group "The network" renamed "What comes next".
+- Accessibility: docs link and muted text colours darkened to pass contrast, prose links underlined, scrollable tables focusable, the mockup button removed from tab order. axe (WCAG 2.1 A/AA) reports 0 violations on 17 pages at 390 and 1440 px.
+
+**Still for the owner before X-21:** confirm `info@movenrun.xyz` receives mail (MX records point at Hostinger; delivery was not tested); fill the publishable key; Vercel domain; review and approve.
+
+---
+
+
 **Rendered:** 13 Oct 2026, from the Git sources at `dd83065` (`movenrun/website/`).
 
 **How it was rendered:**
@@ -19,7 +35,7 @@ Screenshots: `/mnt/project-files/movenrun-play-launch/website-preview/`, named `
 - `web-delete-wallet-confirm.png`
 - `web-wallet-handoff-code.png`
 
-## Route-by-route
+## Route-by-route (13 Oct preview; superseded where the section above says so)
 
 | Page | What it shows | Desktop / mobile | Depends on | Notes for your review |
 |---|---|---|---|---|

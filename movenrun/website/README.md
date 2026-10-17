@@ -78,6 +78,24 @@ Static export, `vercel.json` in this folder sets the build to a no-op. Project s
 - **Build Command:** (empty)
 - **Output Directory:** `.`
 
+### Public values in the sign-in and deletion pages
+
+There is no build step, so nothing is injected at build time. The pages read
+their configuration from `<meta>` tags:
+
+- `movenrun-api` (in `sign-in/` and `account-deletion/`) is the public API
+  origin, `https://movenrun-staging-api.onrender.com`, already filled in. It
+  must stay in step with `connect-src` in `vercel.json`.
+- `movenrun-supabase-url` is the public Supabase project URL, already filled in.
+- `movenrun-supabase-publishable-key` (in `account-deletion/`) stays as the
+  placeholder `{{SUPABASE_PUBLISHABLE_KEY}}` in Git. At publish time the owner
+  replaces it with the project's **publishable** key (`sb_publishable_…`,
+  public by design), then runs `node scripts/check-launch-placeholders.mjs`
+  from `movenrun/`. The check fails while a placeholder remains and refuses a
+  secret key (`sb_secret_…`) or a legacy JWT key. Never put a secret key in
+  any page. Until the key is filled in, the deletion page hides "Continue with
+  Google"; wallet sign-in and wallet deletion need only the API.
+
 ## Structure
 
 - `index.html` — all eleven scroll scenes (hero, globe-to-city descent, core

@@ -114,7 +114,9 @@ const web = http.createServer(async (req, res) => {
   try {
     let text = await readFile(path, "utf8");
     if (path.endsWith(".html")) {
-      text = text.replace("{{API_BASE_URL}}", `http://127.0.0.1:${webPort}`)
+      // The pages carry the real API origin (or, in older commits, a placeholder);
+      // both are pointed at the local API so nothing reaches the deployed one.
+      text = text.replace(/\{\{API_BASE_URL\}\}|https:\/\/movenrun-staging-api\.onrender\.com/g, `http://127.0.0.1:${webPort}`)
         .replace("https://tavxmwuwkeynbnzfwove.supabase.co", SB)
         .replace("{{SUPABASE_PUBLISHABLE_KEY}}", "sb_publishable_e2e");
     }

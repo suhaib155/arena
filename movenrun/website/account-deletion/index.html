@@ -6,7 +6,7 @@
 <title>Delete your account · MovenRun</title>
 <meta name="description" content="How to permanently delete your MovenRun account and its data, in the app, on the web or by email. Works for Google and wallet accounts." />
 <meta name="theme-color" content="#F8FAF7" />
-<meta name="movenrun-api" content="{{API_BASE_URL}}" />
+<meta name="movenrun-api" content="https://movenrun-staging-api.onrender.com" />
 <meta name="movenrun-supabase-url" content="https://tavxmwuwkeynbnzfwove.supabase.co" />
 <meta name="movenrun-supabase-publishable-key" content="{{SUPABASE_PUBLISHABLE_KEY}}" />
 <link rel="canonical" href="https://movenrun.xyz/account-deletion/" />
@@ -33,7 +33,7 @@
   <li>Every verified session summary saved to your account (distance, time, map cells crossed)</li>
   <li>Your account's security history</li>
 </ul>
-<p>Deletion happens immediately and cannot be undone. Your Google account and your wallet themselves are not affected: we only remove MovenRun's record of them. We keep only an anonymous record that an account was deleted, with no email, account id or other detail that could identify you. Our database plan keeps no provider backups, so deleted data does not live on in a backup.</p>
+<p>Deletion from our database happens immediately and cannot be undone. Your sign-in record at our sign-in provider is removed straight after, and the removal is retried automatically if the provider cannot be reached at that moment. Your Google account and your wallet themselves are not affected: we only remove MovenRun's record of them. We keep only an anonymous record that an account was deleted, with no email, account id or other detail that could identify you. Our database plan has no automatic backups; an encrypted copy we made ourselves before your deletion still holds your data until that copy is deleted. See the <a href="/privacy/#retention">privacy policy</a> for details.</p>
 <p>Progress stored only on your phone (XP, streak, badges) is not on our servers. Deleting your account in the app also clears it from that phone; otherwise, uninstalling the app removes it.</p>
 
 <h2 id="in-app">Option 1: in the app</h2>
@@ -59,9 +59,8 @@
 </div>
 
 <h2 id="email">Option 3: by email</h2>
-<p>If you can no longer sign in, write to <a href="mailto:info@movenrun.xyz?subject=Delete%20my%20MovenRun%20account">info@movenrun.xyz</a> with the subject "Delete my MovenRun account". Tell us how you signed in: the Google email address, or the public wallet address (never send a recovery phrase or private key; we will never ask for one). We may ask you to confirm you control that address before deleting.
-<!-- BLOCKED_OWNER_PROOF: keep only after the mailbox, ownership checks and deletion log are proven (see docs/play-launch/ACCOUNT_DELETION_OPERATIONS.md) -->
-We complete the deletion within 30 days and reply when it is done.</p>
+<p>If you can no longer sign in, write to <a href="mailto:info@movenrun.xyz?subject=Delete%20my%20MovenRun%20account">info@movenrun.xyz</a> with the subject "Delete my MovenRun account". Tell us how you signed in: the Google email address, or the public wallet address (never send a recovery phrase or private key; we will never ask for one). We may ask you to confirm you control that address before deleting.</p>
+<p>Email requests are handled by the MovenRun team by hand, so we cannot promise a fixed time for them. If you can still sign in, options 1 and 2 delete your account straight away.</p>
 </main>
 <footer>
   <p>MovenRun is provided by Team MovenRun. Contact: <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>.</p>
