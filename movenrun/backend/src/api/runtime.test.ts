@@ -85,6 +85,7 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     await once(child, "exit");
     child = undefined;
     assert.match(logs, /V3 API listening/);
+    assert.match(logs, /proxies: 0 trusted hop\(s\)/);
     assert.ok(!logs.includes(process.env.IDENTITY_SESSION_PEPPER!));
     const graph = JSON.parse(await readFile("dist/api-inputs.json", "utf8")) as string[];
     assert.ok(!graph.some(path => /src\/(workers|routes|blockchain)\//.test(path)));

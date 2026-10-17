@@ -11,6 +11,23 @@ dependencies and the whole git history (364 commits, every branch). Earlier
 reviews (F-01 to F-18 in `AUTH_SECURITY_REVIEW.md`, X-26) were built on, not
 repeated. This is not an independent audit.
 
+> **Status update, 17 Oct 2026.** The findings below are as found on 15 Oct and
+> are kept unchanged as the dated record. Since then:
+> - **A-01 is closed.** It was a pre-remediation finding. The legacy JWT secret
+>   was revoked on 16 Oct and checks V1–V6 passed (X-26 closed, E-45,
+>   `MOVENRUN_2026-10-16_X26_CLOSED_X07_ATTACHED_FINAL_REPORT_82c729e.md`).
+>   Owner action 1 below is done.
+> - **A-02**: the API can now trust its proxies by network instead of by hop
+>   count (`TRUST_PROXY=render-cloudflare`); live after X-24.
+> - **A-04**: a burst of concurrent sessions could pass the 30-a-day count;
+>   the count and the insert are now one atomic step.
+> - **A-09** (strict website CSP) and **A-10** (single-use Google exchange)
+>   are built and tested on their own draft PRs.
+> - A-03, A-08 and A-12 are written up for decision in
+>   `OWNER_DECISIONS_PRIVACY_REPO_DOMAIN.md`.
+>
+> Details and proof: `MOVENRUN_2026-10-17_SECURITY_RECONCILIATION_X24_CANDIDATE_FINAL_REPORT_5b4170c.md`.
+
 ## What the owner needs to do
 
 | # | Action | Why | Where |
