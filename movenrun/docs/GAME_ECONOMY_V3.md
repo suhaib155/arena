@@ -169,6 +169,15 @@ Rally beacon, bounties, pincer, ghost, streak shields (never purchasable), the A
 
 None of these create tokens. They are G4 and later; this spec records them so the territory model leaves room for them (club contributions, district control from solid plus shade).
 
+What the source fixes for G4 is short: seasons are 90 days (§17), solid and shade both count for leaderboards and district control (§4), and none of this creates tokens (§15). Everything else is open and recorded as a decision:
+
+- **DECISION NEEDED D18:** how many clubs a walker may be in at once, and on which day joining or leaving takes effect. The G4 model takes membership spans from the caller and reports a walker in two clubs on one day as a problem instead of splitting their ground.
+- **DECISION NEEDED D19:** what a club contribution is worth. The G4 model only counts each member's ledger entries by outcome (claimed, reinforced, eroded, flipped, each refusal) and by kind (stepped on or enclosed); it gives them no weight.
+- **DECISION NEEDED D20:** what a district is (and the block, suburb, city, country, world layers of §15). A required parameter (`districtOf`, unit id to district id) in the G4 model, no default; the grid stays a backend index.
+- **DECISION NEEDED D21:** how control of a district is decided: what a shade unit counts for against a solid one (more than 0, since §4 says shade counts), and the share of the district's held ground a club needs. Both are required parameters in the G4 model, no default. A club also needs strictly more than every other club; an exact tie is reported as tied and controls nothing.
+- **DECISION NEEDED D22:** what a season leaderboard ranks and how ties are broken. The G4 model offers player credits, club credits and club district-days, all from settled days only, as a required choice with no default; equal scores share a rank and are listed by id, which favours nobody until the owner decides.
+- **DECISION NEEDED D23:** whether a walker's push on a club-mate's ground erodes it. The holding model has no clubs, so today it does; the G4 model counts such pushes apart so they are never taken for contributions.
+
 ## 5. Rewards and the toll (SOURCE §16–§21)
 
 ### 5.1 Supply and the daily pool (SOURCE §17, §29)
@@ -349,6 +358,12 @@ When the system is unsure (§28): *pending* keeps tokens and tolls reversible un
 | D15 | Whether ground held only as shade counts as a held zone for upkeep (§4 lists map colour, area, leaderboards and district control, not upkeep). A required parameter in the G3 model, no default |
 | D16 | Levels on loss (§9: "losing a zone drops two levels; reclaiming within 14 days restores it"): whose level drops, and what a reclaim after 14 days restores. The holding model resets lost ground to level 1 and the G3 model reads levels as the ledger left them |
 | D17 | When the 14 free away days per season (§7) and the level bonus away days (§9) are spent: automatically on any unvisited day, or by the player. The G3 model takes "away protected" per player from the caller |
+| D18 | Club membership: how many clubs at once, and when joining or leaving takes effect. The G4 model reports a walker in two clubs on one day as a problem |
+| D19 | What a club contribution is worth. The G4 model counts ledger entries by outcome and kind, unweighted |
+| D20 | What a district is, and the leaderboard layers (block, suburb, city, country, world, §15). A required parameter (`districtOf`) in the G4 model, no default |
+| D21 | District control: shade weight against solid (above 0, §4) and the minimum share of held ground. Required parameters in the G4 model, no default; ties control nothing |
+| D22 | What a season leaderboard ranks and the tie-break. A required metric in the G4 model, no default; ties share a rank, listed by id |
+| D23 | Whether pushing a club-mate's ground erodes it. Today it does (the holding model has no clubs); the G4 model counts such pushes apart |
 
 ## 9. What is built (truth table, 14 Oct 2026)
 
@@ -365,7 +380,7 @@ When the system is unsure (§28): *pending* keeps tokens and tolls reversible un
 | Credits settlement from the holding ledger: zones held, their level and whether the holder stepped on them, read from the ledger's states and entries at day close (ground decayed to close first, so ground that ran out is not charged); fed to the day settlement for reward, toll on deeded units, recharge and upkeep under the 60% cap; per-player off-chain credit lines; a season sum that refuses repeated, extra, refused or foreign days and checks the season pool. Strength, erosion, defence and fortification resistance are the holding arithmetic above, unchanged. Off-chain game credits only: nothing transferable, no token, no chain | REFERENCE MODEL (G3), tested, not wired, stores nothing; D4 (`holdingRules`), D5 (`zoneOf`) and D15 (`shadeCountsAsHeld`) are required parameters with no default; D2 stays an input to the holding model; D14, D16 and D17 are not decided here; a day with any problem (mixed levels in one holder's zone, a ledger entry under another holding rules version, a unit with no zone, an unknown economy rules version, books that do not close) is refused whole | `shared/src/domain/holdingSettlement.ts` (`@movenrun/shared/holdingSettlement`) |
 | Enclosed-area (shade) geometry, stored territory ledger | NOT BUILT | G2, after D2 and D5 |
 | Deeds, contests, escrow | NOT BUILT | Later |
-| Clubs, districts, seasons | NOT BUILT (preview only in the app) | G4 |
+| Clubs, contributions, districts and season leaderboards: who is in which club on a day (from membership spans), each member's ledger entries that day counted by outcome and kind, the ground each club holds per district at day close (decayed first, solid and shade both counted) and which club controls it, and a season ranking built only from days that settled (refused, repeated, extra or foreign days refuse the board; nothing settled is an empty board, never seeded; the board says how many days it covers and through which day). Equal scores share a rank and are listed by id. Off-chain game data only: no token, balance or chain | REFERENCE MODEL (G4), tested, not wired, stores nothing, draws nothing; D20 (`districtOf`), D21 (`rule.shadeWeight`, `rule.minShare`) and D22 (`metric`) are required parameters with no default; D18 (two clubs on a day) is reported as a problem; D19 (contribution weight) and D23 (club-mate erosion) are counted, not decided; the app's clubs stay a preview | `shared/src/domain/clubsDistricts.ts` (`@movenrun/shared/clubsDistricts`) |
 | Daily settlement job, trust weight service | NOT BUILT (the G3 reference model above is the algorithm such a job would run) | G3 |
 | Locked/liquid in a token contract | NOT BUILT | Contracts; needs audit and approval |
 | Embedded wallet, paymaster | NOT BUILT, no provider | D13 |

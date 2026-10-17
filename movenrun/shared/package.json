@@ -17,6 +17,7 @@
     "./holding": "./src/domain/holding.ts",
     "./holdingLedger": "./src/domain/holdingLedger.ts",
     "./holdingSettlement": "./src/domain/holdingSettlement.ts",
+    "./clubsDistricts": "./src/domain/clubsDistricts.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
