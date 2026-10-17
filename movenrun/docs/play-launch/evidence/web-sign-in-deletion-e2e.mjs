@@ -114,11 +114,12 @@ const web = http.createServer(async (req, res) => {
   try {
     let text = await readFile(path, "utf8");
     if (path.endsWith(".html")) {
-      // The pages carry the real API origin (or, in older commits, a placeholder);
-      // both are pointed at the local API so nothing reaches the deployed one.
+      // The pages carry the real API origin and publishable key (or, in older
+      // commits, placeholders); both are swapped for the local stand-ins so
+      // nothing reaches the deployed API or Supabase project.
       text = text.replace(/\{\{API_BASE_URL\}\}|https:\/\/movenrun-staging-api\.onrender\.com/g, `http://127.0.0.1:${webPort}`)
         .replace("https://tavxmwuwkeynbnzfwove.supabase.co", SB)
-        .replace("{{SUPABASE_PUBLISHABLE_KEY}}", "sb_publishable_e2e");
+        .replace(/\{\{SUPABASE_PUBLISHABLE_KEY\}\}|sb_publishable_[A-Za-z0-9_-]+/, "sb_publishable_e2e");
     }
     res.writeHead(200, { "content-type": types[extname(path)] ?? "application/octet-stream", ...(path.endsWith(".html") ? { "content-security-policy": csp } : {}) }); res.end(text);
   } catch { res.writeHead(404); res.end(); }
