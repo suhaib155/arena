@@ -78,6 +78,24 @@ Static export, `vercel.json` in this folder sets the build to a no-op. Project s
 - **Build Command:** (empty)
 - **Output Directory:** `.`
 
+### Public values in the sign-in and deletion pages
+
+There is no build step, so nothing is injected at build time. The pages read
+their configuration from `<meta>` tags:
+
+- `movenrun-api` (in `sign-in/` and `account-deletion/`) is the public API
+  origin, `https://movenrun-staging-api.onrender.com`, already filled in. It
+  must stay in step with `connect-src` in `vercel.json`.
+- `movenrun-supabase-url` is the public Supabase project URL, already filled in.
+- `movenrun-supabase-publishable-key` (in `account-deletion/`) stays as the
+  placeholder `{{SUPABASE_PUBLISHABLE_KEY}}` in Git. At publish time the owner
+  replaces it with the project's **publishable** key (`sb_publishable_…`,
+  public by design), then runs `node scripts/check-launch-placeholders.mjs`
+  from `movenrun/`. The check fails while a placeholder remains and refuses a
+  secret key (`sb_secret_…`) or a legacy JWT key. Never put a secret key in
+  any page. Until the key is filled in, the deletion page hides "Continue with
+  Google"; wallet sign-in and wallet deletion need only the API.
+
 ## Structure
 
 - `index.html` — all eleven scroll scenes (hero, globe-to-city descent, core
@@ -95,17 +113,17 @@ Static export, `vercel.json` in this folder sets the build to a no-op. Project s
 - `js/main.js` — the scroll engine: smoothed sticky-scene progress drives the
   globe descent camera, phone screens, live-session route draw, roadmap orb and
   page-long runner rail; IntersectionObservers fire the one-shot moments.
-  **Unchanged.**
+  The club board and district map paint once and stay static.
 
-The only JavaScript added by the polish pass is a small inline progressive
-enhancement in `index.html` that closes the native `<details>` mobile menu
-after a link is chosen (or on Escape / outside click). The menu is fully
-functional without it.
+The only JavaScript added by the polish pass is `js/nav-menu.js`, a small
+progressive enhancement that closes the native `<details>` mobile menu after a
+link is chosen (or on Escape / outside click). The menu is fully functional
+without it. No page carries inline scripts or styles.
 
 ## Navigation
 
 - **≥1101px** — full pill navigation (How it works · Experience · Wellbeing ·
-  Community · Web3 · Roadmap) plus the “Follow the launch” CTA.
+  Community · Onchain · Roadmap · Docs) plus the “Read the whitepaper” CTA.
 - **≤1100px** — pill hides; a keyboard-operable `<details>/<summary>`
   hamburger menu appears with all links and a prominent CTA.
 - **≤720px** — the desktop CTA hides; the mobile menu and the sticky bottom
@@ -157,19 +175,27 @@ Checked with headless Chromium (Playwright) after the polish pass:
 
 Also verified at multiple scroll positions per viewport: splash dismissal,
 hero globe + route draw, globe-to-city descent and area cascade, all six phone
-walkthrough screens, live session counters and zone toasts, reward count-ups
-and particles, economy cards, clubs map + leaderboard, roadmap orb, final
+walkthrough screens, the scroll-driven session demo and zone toasts, reward
+particles, economy cards, clubs map + leaderboard, roadmap orb, final
 route animation, mobile menu open/close (pointer + keyboard), anchor
 navigation, external CTAs, visible focus states, and `prefers-reduced-motion`
 static rendering.
 
 ## Product guardrails
 
-- Movement points / XP are presented as **in-app gameplay features**, with an
-  inline note that MovenRun does not promise financial returns.
-- Ownership (Zone Deeds) is framed as an **optional, future, Base-powered
-  layer** introduced only with product readiness, legal compliance, and clear
+- XP is presented as an **in-app gameplay feature**, with an inline note that
+  MovenRun does not promise financial returns. Points are planned and are not
+  shown as earned in the app.
+- Territory (claiming, holding and decay, districts and mastery) is labelled
+  once per section as an **on-device preview**. Server-held territory and
+  clubs syncing between players are planned and never shown as live.
+- Ownership (Zone Deeds) is framed as an **optional, future layer**
+  introduced only with product readiness, legal compliance, and clear
   community benefit. No urgency, scarcity, or investment language.
-- The clubs leaderboard and city-challenge map are labeled as an
-  **illustrative product preview**, not live data.
+- The clubs leaderboard and city-district map are labelled as an
+  **interface mockup** with sample numbers. Both are static: no ticking
+  counters, reordering rows or changing areas that imitate live activity.
+  The sample session summary shows fixed numbers rather than count-ups.
+- The map visuals are organic parcels on a street map. No hexagons or
+  hex grids appear anywhere on the site.
 - No launch dates, city counts, or mainnet commitments are promised.

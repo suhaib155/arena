@@ -21,7 +21,7 @@
 </header>
 <main id="main">
 <h1>Privacy policy</h1>
-<p class="meta">Applies to the MovenRun Android app (package io.movenrun.app) version 1.0 and the MovenRun account service.</p>
+<p class="meta">Applies to the MovenRun Android app (package io.movenrun.app) version 1.0, the MovenRun account service, and the sign-in and account deletion pages on this website.</p>
 <p class="lede">MovenRun is a walking and running game. It uses your location while you play to draw your route and measure your progress. This policy explains exactly what we collect, why, who processes it, how long we keep it, and how to delete it.</p>
 
 <h2 id="who">Who we are</h2>
@@ -37,7 +37,7 @@
 </ul>
 
 <h2 id="collect">What we collect and why</h2>
-<div class="table-wrap"><table>
+<div class="table-wrap" tabindex="0" role="region" aria-label="What we collect and why"><table>
   <thead><tr><th>Data</th><th>When</th><th>Why</th><th>Where it goes</th></tr></thead>
   <tbody>
     <tr><td>Precise location (GPS points: latitude, longitude, accuracy, time)</td><td>While a movement session is running in the foreground, or a single fix when you tap Locate me</td><td>To draw your route, measure distance and time, and decide whether a mission was completed</td><td>Kept on your phone. If you are signed in and save a session, the points are sent once over HTTPS to our server to verify it (see below)</td></tr>
@@ -45,7 +45,8 @@
     <tr><td>Google sign-in: your Google account's email address, name and profile picture, and a Google account identifier</td><td>When you choose Continue with Google</td><td>To create your account and recognise you when you sign in again. We do not use your name or picture in the app</td><td>Held by our sign-in provider (Supabase Auth); our server keeps your email address and the sign-in provider's user id</td></tr>
     <tr><td>Wallet sign-in: your public wallet address and the signed sign-in message</td><td>When you choose Continue with Wallet</td><td>To prove you control the address and recognise you when you sign in again. We never receive your private key or recovery phrase, never read your balance and never request a transaction</td><td>Held by our sign-in provider (Supabase Auth); our server keeps the sign-in provider's user id, and the signed message for up to a day</td></tr>
     <tr><td>Sign-in sessions: a device label such as "Android device", a one-way hash of the app's user agent, sign-in times</td><td>When you sign in or refresh your session</td><td>To keep you signed in and let you see and sign out your devices</td><td>Stored on our server</td></tr>
-    <tr><td>Your network address</td><td>When you sign in</td><td>To limit repeated sign-in attempts and protect accounts from abuse</td><td>Used in memory by our server and seen by our sign-in provider; not stored in our database</td></tr>
+    <tr><td>Security records: events such as sign-up, sign-in, new and ended sessions, with the sign-in method used. No email address, network address or route</td><td>When those events happen</td><td>To protect your account and investigate misuse</td><td>Stored on our server with your account</td></tr>
+    <tr><td>Your network address</td><td>When the app or this website contacts our server or sign-in provider</td><td>To limit repeated sign-in attempts and protect accounts from abuse</td><td>Used in memory by our server; not stored in our database. Our hosting and sign-in providers see it and may keep it in their own logs (see below)</td></tr>
     <tr><td>Game progress: XP, level, streak, quests, badges, saved route reviews (without coordinates)</td><td>As you play</td><td>To run the game</td><td>Stored on your phone only</td></tr>
   </tbody>
 </table></div>
@@ -59,6 +60,8 @@
   <li><strong>Google Sign-In</strong> (Google LLC) authenticates you when you choose Continue with Google, and shares your email address and basic profile with our sign-in provider.</li>
   <li><strong>Supabase</strong> (Supabase, Inc.) provides sign-in (Supabase Auth) and hosts the database that stores the account data described above, in the United States (us-east-1).</li>
   <li><strong>Render</strong> (Render Services, Inc.) runs the MovenRun account service, in the United States.</li>
+  <li><strong>Vercel</strong> (Vercel Inc.) hosts this website, including the sign-in and account deletion pages. It receives standard request information such as your network address and browser type.</li>
+  <li><strong>Google Fonts</strong> (Google LLC) serves the typefaces used on this website, so your browser requests them from Google.</li>
   <li><strong>Your wallet app</strong> (for example MetaMask, Coinbase Wallet or Trust Wallet) shows you the sign-in message and signs it. It is your app, run under its own terms; MovenRun sends it nothing but the message.</li>
   <li><strong>Google Play</strong> distributes the app and may provide us with aggregated crash and performance statistics under Google's terms.</li>
 </ul>
@@ -66,15 +69,19 @@
 
 <h2 id="retention">How long we keep data</h2>
 <ul>
-  <li><strong>Account data</strong> (your Google email address or wallet sign-in, sign-in sessions, verified session summaries) is kept until you delete your account.</li>
-  <li><strong>Wallet sign-in messages</strong> expire after 5 minutes and are deleted within a day. One-time codes that carry a wallet sign-in back to the app are stored only as a one-way hash, expire after 5 minutes and are deleted within a day.</li>
+  <li><strong>Account data</strong> (your Google email address or wallet sign-in, verified session summaries and security records) is kept until you delete your account.</li>
+  <li><strong>Sign-in sessions</strong> are deleted by an automatic clean-up once they are more than a week past their expiry, or with your account if that is sooner.</li>
+  <li><strong>Wallet sign-in messages</strong> expire after 5 minutes. Expired messages are cleared out once they are a day old, when the next wallet sign-in starts. One-time codes that carry a wallet sign-in back to the app are stored only as a one-way hash, expire after 5 minutes and are deleted after a day.</li>
+  <li><strong>Used Google sign-ins</strong>: so that one Google sign-in cannot be used twice, our server records its sign-in session identifier and an expiry time, with no email address or account id, and keeps that record for 30 days.</li>
+  <li><strong>Sign-ins that never become an account</strong>: if a sign-in is abandoned, a wallet code is never collected, or new accounts are closed, the record it created at our sign-in provider is removed automatically, normally once it is about an hour old. Our service sleeps when it is idle, so this clean-up can run later than that.</li>
   <li><strong>Unsent sessions</strong> waiting for a connection are kept on your phone for up to 7 days, and are deleted when they are sent, expire, are discarded, or you sign out.</li>
   <li><strong>On your phone</strong>, game progress stays until you reset progress, delete your account in the app, or uninstall the app.</li>
-  <li><strong>Backups</strong>: our database plan keeps no provider backups, so data you delete does not live on in a backup.</li>
+  <li><strong>Provider logs</strong>: our sign-in, hosting and website providers keep their own operational logs (for example network address, browser or device details and the time of a request or sign-in) for the periods their own terms set.</li>
+  <li><strong>Backups</strong>: our database plan does not give us automatic backups or point-in-time recovery. We may make occasional encrypted copies of the database ourselves to protect against data loss; a copy made before you delete your account still contains your account data until that copy is deleted. Any copies our providers keep for their own operations are governed by their terms.</li>
 </ul>
 
 <h2 id="delete">Deleting your account</h2>
-<p>In the app: <strong>Profile → Account → Account security → Delete account</strong>. Or use the <a href="/account-deletion/">account deletion page</a>, which works without the app, with Google or with your wallet. Deletion permanently removes your account, your sign-in record at our sign-in provider (email address or wallet address), sign-in sessions and every verified session summary. We keep only an anonymous count that a deletion happened, with nothing that identifies you.</p>
+<p>In the app: <strong>Profile → Account → Account security → Delete account</strong>. Or use the <a href="/account-deletion/">account deletion page</a>, which works without the app, with Google or with your wallet. Deletion permanently removes your account, your sign-in record at our sign-in provider (email address or wallet address), sign-in sessions and every verified session summary. Your sign-in record at our sign-in provider is removed straight after, and the removal is retried automatically if the provider cannot be reached at that moment. We keep only an anonymous count that a deletion happened, with nothing that identifies you. If you cannot sign in, you can ask by email; the team handles those requests by hand, and we do not promise a fixed time.</p>
 
 <h2 id="choices">Your choices and rights</h2>
 <ul>
