@@ -24,6 +24,9 @@ Persistent record of the Google Play v1 launch for MovenRun.
 | `WEBSITE_REVIEW_PREVIEW.md` | Four website pages previewed for review before X-21 |
 | `LIVE_SETUP_OPERATOR_GUIDE.md` | Owner's gate-by-gate live setup with proof commands, migrations, backup |
 | `PLAY_REGISTRATION_CHECKLIST.md` | Play developer registration, testing tracks, pre-listing review |
-| `ANDROID_DEVICE_GATE_PLAN.md` | Phone gate by 24 Oct: preconditions, schedule, pass rules |
+| `ANDROID_DEVICE_GATE_PLAN.md` | Phone gate by 24 Oct: preconditions, schedule, pass rules, QA0 checks Q0-1 to Q0-7 |
+| `X04_PREVIEW_BUILD_RUNBOOK.md` | The one free preview APK: variable names, steps, static APK checks |
+| `ANDROID_16KB_PAGE_SIZE.md` | Native library inventory, 16 KB evidence, how to verify the APK/AAB |
+| `PLAY_INTERNAL_RELEASE_WORKFLOW.md` | Testing rules (cited) and AAB to internal track, closed test, production access |
 | `reports/` | Milestone reports, uniquely named (`reports/INDEX.md`, D-26) |
 | `evidence/` | Scripts and screenshots behind evidence rows |
