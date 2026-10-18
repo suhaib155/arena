@@ -62,6 +62,8 @@ The comparison had to keep the owner's 17 Oct rule (one push per walker per unit
 | challenge + take-cap-5 (201 m) | 13.4 (13.2–13.5) | 13.5 | 0.50 / 0.38 / 0.27 | 0.87 / 0.84 / 0.82 | 0.98 / 0.97 / 0.97 | 0.204 |
 | **sim-pilot-2** | **9.0 (8.8–9.1)** | **9.4** | **0.93 / 0.86 / 0.81** | **1.00 / 1.00 / 1.00** | **1.00 / 1.00 / 1.00** | **0.419** |
 
+The 0.81 (81%) casual hold at day 90 under sim-pilot-2 is **synthetic with attrition assumptions**: synthetic players, 8 synthetic griefers and an assumed attrition rate. It is not a real-world retention figure and is not proof of player retention.
+
 ### Retention, exploits, credits and checks
 
 | Variant | Playing d90 casual / regular / heavy | Griefer ha / active day | Honest ha lost to griefers / player | Heavy + griefer share of held ground | Colluder hold × | Colluder flips / day | Route-farmer credit share | Gini | Issued / pool | Violations | Books |

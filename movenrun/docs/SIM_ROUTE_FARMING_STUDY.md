@@ -153,3 +153,176 @@ Under comparator 2 with a binding pool, unscored sessions drop out of the day's 
 - XP, streaks and achievements are simulator tallies. Credits are V3's `settleDay` with no tolls, upkeep or kit charge, and with kit level 1.
 - The season simulator (`simulate.ts`) is not wired to these rules. Spending credits on levels could change ground indirectly, and that is out of scope here.
 - Thresholds were compared at a few settings: free repeats 14/10/6 and similarities 0.8/0.6. A finer sweep should wait for real session data.
+
+## Second round: less punitive alternatives and the A6 trust order
+
+> **SIMULATION ONLY.** Synthetic populations with assumed behaviour, an assumed risk-graph link structure and an assumed reviewer. This is not fraud-detection proof. Nothing here is adopted. The rule candidate below is a proposal for the owner to decide.
+
+The owner's constraints for this round:
+- The minimum qualifying session stays at SOURCE §2's 10 minutes and 750 m (tests assert `minSessionMinutes = 10` and `minSessionMeters = 750`).
+- Repeated daily routes stay fully valid for territory, XP, streaks and achievements. A rule may only change the session's share of the credits pool.
+- Commuters, repeated exercise loops and short accessible loops must be protected.
+
+Every first-round table above still reproduces exactly. The new populations are added after the first-round ones under new keys, so the first-round accounts and draws are unchanged. A diff of `sim --route-farming` output before and after this change is empty.
+
+- Reproduce: `yarn workspace @movenrun/shared sim --route-alternatives --seeds 1,2,3,4,5,6,7,8,9,10` (about 18 minutes; `--territory` also runs the holding ledger; `--json out.json` writes every run).
+- Numbers are **mean ± 95% confidence half-width [min–max] over 10 seeds**. The seed is the unit of replication, with a Student t interval on 9 degrees of freedom. A missing ± means every seed gave the same value. The interval covers seed-to-seed variation of *this synthetic model* only. It says nothing about how well the model matches real players.
+
+### Populations added (ASSUMPTION)
+
+The second-round population is the first round's 195 accounts plus 68 more, 263 in all. Honest accounts are grouped the way the owner asked:
+
+| Group | Populations |
+|---|---|
+| commuters | commuter |
+| loop walkers | laps_runner, park_walker, gps_jitter, **exercise_loop** (the same ~3 km neighbourhood loop on 80% of days, twice on one day in four) |
+| accessible loops | low_mobility, **accessible_loop** (a step-free 760–800 m loop at 55 m/min, wheelchair or limited mobility; 1–3 times a day on 90% of days, just over §2's minimum) |
+| households | household (linked pairs), **family** (linked trios that walk together on 60% of days; on other days each may walk the usual loop alone at their own time) |
+| rural | rural |
+
+There is one new exploit population: **colluder_pair**, one walker carrying two linked phones (5 pairs). This is the gap that any household allowance of two leaves open.
+
+Every session now also carries a start minute, which comes from its own random stream so earlier draws are unchanged. A group planned together shares a start, with ±3 minutes per phone. Only the "walking together" cluster rules read it.
+
+### Variants
+
+All of these are `sim-route-*`, version 1, simulation only and frozen. All of them change credits only.
+
+| # | Variant | Rule |
+|---|---|---|
+| 3 | `taper-10` / `taper-12` / `taper-14` | The first round's per-account taper, with a high free-repeat threshold N per week. |
+| A | `soft-ceiling-100w` | **Diminishing returns only above a per-account soft ceiling.** The first 100 credits in a rolling 7 days are paid in full. Anything above is paid at 50%. There is no route test, and it keeps no location data (amounts only). |
+| 5 | `linked-identical-as-one` | The first round's recommendation: linked accounts' matching sessions on one day earn as one. |
+| B | `cluster-together-k1/k2/k3` | **Cluster-level cap.** Linked accounts whose sessions match (similarity ≥ 0.8) *and start within 20 minutes* form a cluster. The **household allowance** k sets how many co-walkers keep full credits. A larger cluster earns what its k best-paid accounts earned, trimmed in proportion. A single account is never changed. |
+| C | `review-flag-2plus` / `-3plus` | **Appealable review flags instead of automatic penalties.** A linked group with more than 1 (or 2) accounts walking together on 4 days in 14 opens a review. Credits are untouched while the review is open. If a reviewer upholds it, the group's clusters earn as one from 3 days after the flag. Nothing already settled changes. A group the reviewer clears is not flagged again for 90 days. Without that exemption a real household is re-reviewed every 14 days, so the 5% reviewer error compounds. In a 2-seed trial run without the exemption, 28.9% of household and family accounts were penalised, against 7.4% with it. |
+| T | `trust-after-ceiling` and spoofer trust 0.25 / 0.75 | The A6 order (below). |
+| ★ | `candidate-review2-trust-after` | C with 2+ accounts, plus trust after the ceilings. |
+| ★ | `candidate-review3-trust-after` | The same, but pairs are never flagged. |
+| ★ | `k2-review3-trust-after` | Automatic household allowance 2, plus review for 3+, plus trust after the ceilings. |
+
+**Reviewer model (ASSUMPTION, not measured):** a reviewer upholds 90% of flags on a group that really is one walker carrying several phones. They wrongly uphold 5% of flags on real people walking together. Each decision is seeded and deterministic.
+
+### Results: launch pool (V3's pool, ceilings bind)
+
+"Penalised" means earning at least 1% less over the season than the baseline does. "×" is season credits per *physical walker* ÷ credits per honest walker. In this population, honest walkers average more than in round one, so the baseline multipliers differ slightly from the first-round table.
+
+| # | Variant | Honest penalised | Commuters | Loop walkers | Accessible loops | Households penalised | Household credits vs baseline | Colluder trio × | Colluder pair × | Spoofer × | Farmer × | Honest flagged | Colluders upheld | Reviews / 1,000 accounts |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | baseline | 0.0% | 0% | 0% | 0% | 0% | 100% | 4.68 ± 0.06 | 3.13 ± 0.03 | 1.41 ± 0.11 | 1.70 ± 0.01 | 0% | – | 0 |
+| 3 | taper-10 | 19.5% ± 0.5 | 0% | 4.5% ± 1.2 | **94.5% ± 2.9** | 0% | 100% | 4.92 ± 0.06 | 3.29 ± 0.03 | 1.09 ± 0.11 | 1.11 ± 0.05 | 0% | – | 0 |
+| 3 | taper-12 | 15.3% ± 0.7 | 0% | 0% | **81.3% ± 3.7** | 0% | 100% | 4.73 ± 0.06 | 3.16 ± 0.03 | 1.27 ± 0.11 | 1.47 ± 0.02 | 0% | – | 0 |
+| 3 | taper-14 | 0.0% | 0% | 0% | 0% | 0% | 100% | 4.68 ± 0.06 | 3.13 ± 0.03 | 1.41 ± 0.11 | 1.70 ± 0.01 | 0% | – | 0 |
+| A | soft-ceiling-100w | **47.5% ± 1.1** | **100%** | 36.6% ± 2.7 | **100%** | 0% | 100% | 4.02 ± 0.03 | 2.68 ± 0.01 | 1.13 ± 0.09 | 1.39 ± 0.00 | 0% | – | 0 |
+| 5 | linked-identical-as-one | 17.8% ± 0.0 | 0% | 0% | 0% | **100%** | 57.8% ± 1.1 | 1.75 ± 0.03 | 1.71 ± 0.02 | 1.48 ± 0.12 | 1.79 ± 0.01 | 0% | – | 0 |
+| B | cluster-together-k1 | 17.8% ± 0.0 | 0% | 0% | 0% | **100%** | 62.9% ± 1.1 | 1.73 ± 0.03 | 1.70 ± 0.02 | 1.47 ± 0.11 | 1.78 ± 0.01 | 0% | – | 0 |
+| B | cluster-together-k2 | 8.5% | 0% | 0% | 0% | 47.4% (all families) | 90.8% ± 0.6 | 3.25 ± 0.05 | **3.17 ± 0.03** | 1.42 ± 0.11 | 1.72 ± 0.01 | 0% | – | 0 |
+| B | cluster-together-k3 | 0.0% | 0% | 0% | 0% | 0% | 100% | 4.68 ± 0.06 | 3.13 ± 0.03 | 1.41 ± 0.11 | 1.70 ± 0.01 | 0% | – | 0 |
+| C | review-flag-2plus | 1.3% ± 0.8 | 0% | 0% | 0% | 7.4% ± 4.3 | 97.6% ± 1.6 | 2.11 ± 0.21 | 1.91 ± 0.20 | 1.41 ± 0.11 | 1.71 ± 0.01 | 17.8% | 90% ± 8 | 98.9 |
+| C | review-flag-3plus | 0.4% ± 0.7 | 0% | 0% | 0% | 2.4% ± 3.8 | 99.1% ± 1.5 | 2.11 ± 0.21 | **3.14 ± 0.03** | 1.41 ± 0.11 | 1.71 ± 0.00 | 8.5% | 55% ± 4 | 41.8 |
+| T | trust-after-ceiling | 0.0% | 0% | 0% | 0% | 0% | 100% | 4.68 ± 0.06 | 3.13 ± 0.03 | **0.70 ± 0.05** | 1.70 ± 0.01 | 0% | – | 0 |
+| ★ | **candidate-review2-trust-after** | **1.3% ± 0.8** [0–3.8%] | **0%** | **0%** | **0%** | 7.4% ± 4.3 [0–21%] | 97.6% ± 1.6 | **2.11 ± 0.21** | **1.91 ± 0.20** | **0.71 ± 0.06** | 1.71 ± 0.01 | 17.8% | 90% ± 8 | 98.9 |
+| ★ | candidate-review3-trust-after | 0.4% ± 0.7 | 0% | 0% | 0% | 2.4% ± 3.8 | 99.1% ± 1.5 | 2.11 ± 0.21 | 3.14 ± 0.03 | 0.71 ± 0.05 | 1.71 ± 0.00 | 8.5% | 55% ± 4 | 41.8 |
+| ★ | k2-review3-trust-after | 8.5% | 0% | 0% | 0% | 47.4% | 90.3% ± 1.0 | 1.91 ± 0.11 | 3.17 ± 0.03 | 0.71 ± 0.06 | 1.72 ± 0.00 | 8.5% | 55% ± 4 | 41.8 |
+
+In every variant and every seed, in both regimes, movement (XP, streaks, achievements) was identical to the baseline. Every day's books closed exactly: `dayBooksProblems` came back empty, credited + returned = pool, no session was paid more than V3 minted for it, and no session or day went over its ceiling. Territory is checked by the tests (identical holding-ledger states for every second-round rule in both regimes). The 10-seed CLI run leaves the ledger off for speed.
+
+Per population (launch, % of baseline credits):
+- taper-10 leaves `low_mobility` at 82% and `accessible_loop` at 83%.
+- taper-12 leaves them at 96% and 97%, and farmers at 86%.
+- soft-ceiling-100w leaves commuters at 94%, `low_mobility` and `accessible_loop` at 85%, and farmers at 77%.
+- Under linked-as-one, families keep 48% and households 67%. Under k2, families keep 81% and households 100%.
+
+### Results: binding pool (8 credits per account per day)
+
+| # | Variant | Honest penalised | Households vs baseline | Colluder trio × | Colluder pair × | Spoofer × | Farmer × |
+|---|---|---|---|---|---|---|---|
+| 1 | baseline | 0.0% | 100% | 6.29 ± 0.10 | 4.22 ± 0.05 | 0.59 ± 0.04 | 1.30 ± 0.01 |
+| 3 | taper-12 | 15.4% ± 0.7 | 100% | 6.34 ± 0.10 | 4.25 ± 0.05 | 0.53 ± 0.04 | 1.12 ± 0.02 |
+| A | soft-ceiling-100w | 2.0% ± 0.9 (commuters 14% ± 6) | 100% | 5.76 ± 0.07 | 3.86 ± 0.03 | 0.59 ± 0.04 | 1.30 ± 0.01 |
+| B | cluster-together-k2 | 8.5% | 91.0% ± 0.6 | 4.36 ± 0.08 | 4.26 ± 0.05 | 0.59 ± 0.04 | 1.31 ± 0.01 |
+| C | review-flag-2plus | 1.3% ± 0.8 | 97.6% ± 1.6 | 2.82 ± 0.29 | 2.56 ± 0.27 | 0.59 ± 0.04 | 1.31 ± 0.01 |
+| T | trust-after-ceiling | 0.0% | 100% | 6.29 ± 0.10 | 4.22 ± 0.05 | 0.59 ± 0.04 | 1.30 ± 0.01 |
+| ★ | candidate-review2-trust-after | 1.3% ± 0.8 | 97.6% ± 1.6 | 2.82 ± 0.29 | 2.56 ± 0.27 | 0.59 ± 0.04 | 1.31 ± 0.01 |
+
+In the binding regime the two trust orders give identical results, as expected: no ceiling binds, so the order cannot matter. In the "spoofer trust 0.75" sensitivity run, spoofers show 150% of baseline because the baseline weight is 0.5. That row is a sensitivity run, not a penalty.
+
+### What the numbers say
+
+1. **A per-account taper cannot be made safe for accessible loops.**
+   - Taper-14 (N = 14 a week) never fires, because V3 scores at most two sessions a day (§17), so it protects everyone and catches no one.
+   - Taper-12 already penalises 81% of accessible-loop walkers (to 96–97% of their credits) in order to take farmers to 86%.
+   - The farmer and the wheelchair-loop walker do the same thing: two qualifying short loops a day. A route-repeat signal cannot tell them apart.
+2. **A soft ceiling is worse than a taper.** At the launch pool it penalises every commuter and every accessible-loop walker, and 47.5% of honest accounts overall. It only reaches colluders at 4.02×. A soft ceiling punishes diligence, not exploitation.
+3. **Walking together within a time window spares people on the same route at different times.** It does not separate households from colluders, because both really do walk together. k1 recovers about 5 points for families compared with linked-as-one (62.9% vs 57.8%). Each household allowance k trades household loss against the multiplier left open:
+   - k = 2 spares all pairs but leaves a two-phone colluder untouched at 3.17×.
+   - k = 3 spares everyone and catches no one.
+4. **Review flags remove most of the honest cost of a cluster rule.** With the 90%/5% reviewer assumption:
+   - review-flag-2plus cuts honest penalties from 17.8% (linked-as-one) to 1.3% ± 0.8. Those are real households and families whose review was wrongly upheld, and they keep 97.6% overall.
+   - It still takes colluder trios from 4.68× to 2.11× and pairs from 3.13× to 1.91×.
+   - The price is reviewer work: about 99 reviews per 1,000 accounts per season in this population. That number depends almost entirely on how many linked groups really walk together.
+   - The residual multiplier comes from the days before a review takes effect and from the 10% of colluder flags the assumed reviewer does not uphold.
+5. **Under A6 as the reference model reads it, the trust weight does nothing at launch scale.** With trust applied *before* the 12 / 20 ceilings:
+   - a spoofer at trust 0.5 keeps 1.41×, and even trust 0.25 keeps 1.41×;
+   - applied *after* the ceilings, trust 0.5 gives 0.70×, 0.25 gives 0.35× and 0.75 gives 1.06×;
+   - it changes no honest account (all honest trust is 1), and the withheld credits return to the season pool;
+   - once the pool binds, the two orders are identical.
+   So "after the ceiling" is the reading under which the trust weight works at every pool size. The V3 reference model (`settleDay`) is **not changed**. The order is a switch in the simulation layer (`trustOrder` on a route ruleset), and the owner decides how to read A6.
+6. **Nothing touched movement.** Every variant left XP, streaks, achievements and territory unchanged, every day's books closed exactly, and no settled day ever changed.
+
+### Trust checks: privacy-respecting, appealable, auditable (PROPOSAL)
+
+The simulation sets trust weights and reviewer accuracy by assumption. It shows what a trust weight *would do* if one existed. It shows nothing about how well any real signal detects spoofing. Each signal below needs its own real-data validation before it sets a weight.
+
+- **Signals.** Each is reduced to a coarse verdict or a count, never a raw stream.
+  - The platform integrity verdict: Play Integrity pass or fail, kept as the verdict only, not the token.
+  - The OS mock-location flag.
+  - Physical plausibility of the verified session: speed and acceleration limits, step cadence against GPS speed as one summary ratio, and gaps.
+  - Replay similarity: the same salted parent-zone fingerprint used by the route rules, compared within one account only.
+  - Linked-account structure: a hashed install or device identifier shared across accounts, and repeated co-walking at the same time. Only the salted fingerprint and a 15-minute start bucket are used.
+  - No contacts, no advertising IDs, no raw GPS beyond what `docs/LOCATION_DATA.md` already allows.
+- **Retention.**
+  - Route fingerprints: 14 days (unchanged).
+  - Co-walking hits: the 14-day review window.
+  - An open review's case file: reason codes, the counts that triggered it and the hashes of the evidence it relies on. It is kept for the review plus the 30-day appeal period. An upheld case is kept until season end plus 30 days, then deleted. A cleared case keeps only "cleared, date" for the 90-day exemption.
+- **Who reviews.**
+  - A trained operator who is not on the growth team. Upholding needs a second person (two-person rule) when the outcome cuts credits.
+  - Reviewers see reason codes, counts and fingerprint similarity scores, never a raw trace or a zone list, unless the player chooses to share a trace in an appeal.
+- **Appeal.**
+  - The player is told the reason code, the effect ("linked accounts on the same walk earn as one, from day d") and how to appeal within 30 days.
+  - A different reviewer handles the appeal. A successful appeal restores the allowance from the next settlement and exempts the group. Credits are never clawed back in either direction: outcomes are prospective only, as the tests require.
+- **Audit.**
+  - An append-only log of each flag, decision, reviewer pseudonym, reason code and effective day. `RouteCreditState.reviews` is the simulation's version of this log.
+  - A monthly sample of upheld and cleared cases is re-reviewed blind to measure the real false-uphold rate, which replaces the 5% assumption.
+  - The trust-weight distribution by population is reported, without identities, to the owner.
+- **Never automatic.** No trust signal unscores a session or touches movement, territory, XP, streaks or achievements. A weight below 1 only lowers that account's share of the credits pool, and only after the ceilings.
+
+### Rule candidate (NOT APPROVED; owner decision)
+
+**`sim-route-candidate-review2-trust-after`:**
+
+1. **No per-account route rule.** Commuters, repeated exercise loops and short accessible loops are never touched, and V3's two scoring sessions and its 12 / 20 ceilings remain the per-account bound.
+2. **Linked accounts that walk together are reviewed, not cut.** Two or more linked accounts may submit near-identical sessions (fingerprint similarity ≥ 0.8) starting within 20 minutes of each other on 4 days in 14. That opens an appealable review, with no credit change while it is open. If the review is upheld, their shared walks earn as one account from 3 days later. A cleared group is exempt for 90 days.
+3. **The trust weight applies after the ceilings.**
+
+In this synthetic model, at the launch pool, it penalises **1.3% ± 0.8** of honest accounts (0% of commuters, loop walkers and accessible-loop walkers; 7.4% of household and family accounts, through wrongly upheld reviews). It takes colluder trios from 4.68× to **2.11×**, colluder pairs from 3.13× to **1.91×** and spoofers from 1.41× to **0.71×**. Route farmers stay at 1.71×, which is a diligent walker's two scoring sessions a day: farmers are bounded by V3, not by a route rule. Movement, territory and the books are untouched.
+
+Owner decisions:
+- whether to adopt it at all;
+- 2+ or 3+ (3+ halves the review load but leaves two-phone colluders at 3.14×);
+- the flag thresholds (4 days in 14, 20 minutes, similarity 0.8), the review delay and the exemption;
+- what counts as a link;
+- the reading of A6;
+- reviewer staffing.
+
+### Real data needed to validate it
+
+- How often real linked households and families walk together at the same time, by household size. This drives both the false-flag rate and the review load.
+- The precision and recall of the real risk-graph links: shared install, shared payment or shared device against declared households.
+- The real reviewer uphold rate on confirmed multi-phone cases, and the real false-uphold rate on genuine households, from blind re-review. These replace the 90% / 5% assumption.
+- Review handling time and the appeal rate per review, to size staffing.
+- Real repeat-route and session-count distributions for commuters, exercise loops and accessible loops, including wheelchair users, from opt-in pilot data. These confirm that "no per-account rule" is still right.
+- Real GPS noise by device class and environment. It sets the 0.8 similarity and the 20-minute window.
+- The distribution of integrity verdicts and plausibility ratios among confirmed-honest and confirmed-spoofed sessions, before any trust weight below 1 is applied to anyone.
+- The real population mix and pool regime at launch. Whether ceilings bind decides whether the trust order matters.
+
+The churn study's 81% casual-hold figure for sim-pilot-2 (`SIM_CHURN_STUDY.md`) is **synthetic with attrition assumptions**. It is not real-world retention evidence, and nothing in this section relies on it.

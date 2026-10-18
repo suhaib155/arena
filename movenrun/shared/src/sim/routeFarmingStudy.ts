@@ -18,6 +18,17 @@ import { applyLedger, type PushEvent } from "../domain/holdingLedger";
 import { SIM_PILOT_2 } from "./pilotRuleset";
 import {
   REPEAT_ROUTE_UNSCORED_3,
+  ROUTE_CANDIDATE,
+  ROUTE_CANDIDATE_3,
+  ROUTE_CANDIDATE_K2,
+  ROUTE_CLUSTER_K1,
+  ROUTE_CLUSTER_K2,
+  ROUTE_CLUSTER_K3,
+  ROUTE_REVIEW_3PLUS,
+  ROUTE_REVIEW_ALL,
+  ROUTE_SOFT_CEILING,
+  ROUTE_TAPER_12,
+  ROUTE_TRUST_AFTER,
   ROUTE_BASELINE,
   ROUTE_DAILY_BOUND,
   ROUTE_LINKED_AS_ONE,
@@ -47,11 +58,24 @@ export type RoutePopulation =
   | "household"
   | "route_farmer"
   | "spoofer"
-  | "colluder";
+  | "colluder"
+  | "exercise_loop"
+  | "accessible_loop"
+  | "family"
+  | "colluder_pair";
 
-export const ROUTE_POPULATIONS: readonly RoutePopulation[] = ["commuter", "rural", "low_mobility", "laps_runner", "park_walker", "gps_jitter", "household", "route_farmer", "spoofer", "colluder"];
-export const HONEST: readonly RoutePopulation[] = ["commuter", "rural", "low_mobility", "laps_runner", "park_walker", "gps_jitter", "household"];
-export const EXPLOIT: readonly RoutePopulation[] = ["route_farmer", "spoofer", "colluder"];
+export const ROUTE_POPULATIONS: readonly RoutePopulation[] = ["commuter", "rural", "low_mobility", "laps_runner", "park_walker", "gps_jitter", "household", "route_farmer", "spoofer", "colluder", "exercise_loop", "accessible_loop", "family", "colluder_pair"];
+export const HONEST: readonly RoutePopulation[] = ["commuter", "rural", "low_mobility", "laps_runner", "park_walker", "gps_jitter", "household", "exercise_loop", "accessible_loop", "family"];
+
+/** Honest populations grouped the way the owner asked for false-positive rates. */
+export const HONEST_GROUPS: Readonly<Record<string, readonly RoutePopulation[]>> = Object.freeze({
+  commuters: ["commuter"],
+  "loop walkers": ["laps_runner", "park_walker", "gps_jitter", "exercise_loop"],
+  "accessible loops": ["low_mobility", "accessible_loop"],
+  households: ["household", "family"],
+  rural: ["rural"],
+});
+export const EXPLOIT: readonly RoutePopulation[] = ["route_farmer", "spoofer", "colluder", "colluder_pair"];
 
 /** Accounts per population. Households are linked pairs, colluders linked triples carried by one walker. */
 export const ROUTE_STUDY_POPULATION: Readonly<Record<RoutePopulation, number>> = Object.freeze({
@@ -65,16 +89,36 @@ export const ROUTE_STUDY_POPULATION: Readonly<Record<RoutePopulation, number>> =
   route_farmer: 15,
   spoofer: 10,
   colluder: 15,
+  exercise_loop: 0,
+  accessible_loop: 0,
+  family: 0,
+  colluder_pair: 0,
+});
+
+/**
+ * Second-round population: the first round's plus three explicit honest
+ * repeat populations (same 3 km exercise loop, a short wheelchair /
+ * limited-mobility loop, linked families of three) and one exploit (one
+ * walker carrying two linked phones, the gap a household allowance of two
+ * leaves open). The first round's
+ * accounts are generated identically (same keys), so only these are added.
+ */
+export const ROUTE_STUDY_POPULATION_2: Readonly<Record<RoutePopulation, number>> = Object.freeze({
+  ...ROUTE_STUDY_POPULATION,
+  exercise_loop: 20,
+  accessible_loop: 20,
+  family: 18,
+  colluder_pair: 10,
 });
 
 /** Accounts per physical walker: colluders carry three linked phones; a household is two people. */
 export const ACCOUNTS_PER_WALKER: Readonly<Record<RoutePopulation, number>> = Object.freeze({
-  commuter: 1, rural: 1, low_mobility: 1, laps_runner: 1, park_walker: 1, gps_jitter: 1, household: 1, route_farmer: 1, spoofer: 1, colluder: 3,
+  commuter: 1, rural: 1, low_mobility: 1, laps_runner: 1, park_walker: 1, gps_jitter: 1, household: 1, route_farmer: 1, spoofer: 1, colluder: 3, exercise_loop: 1, accessible_loop: 1, family: 1, colluder_pair: 2,
 });
 
 /** Trust weights (SOURCE §17 slot, values ASSUMPTION), identical under every rule. */
 export const ROUTE_TRUST: Readonly<Record<RoutePopulation, number>> = Object.freeze({
-  commuter: 1, rural: 1, low_mobility: 1, laps_runner: 1, park_walker: 1, gps_jitter: 1, household: 1, route_farmer: 1, spoofer: 0.5, colluder: 1,
+  commuter: 1, rural: 1, low_mobility: 1, laps_runner: 1, park_walker: 1, gps_jitter: 1, household: 1, route_farmer: 1, spoofer: 0.5, colluder: 1, exercise_loop: 1, accessible_loop: 1, family: 1, colluder_pair: 1,
 });
 
 type Pt = [number, number];
@@ -158,7 +202,7 @@ export function parentZoneOf(unit: string, parentEdgeMeters: number): string {
 function buildAccounts(seed: number, spec: Readonly<Record<RoutePopulation, number>>): Account[] {
   const out: Account[] = [];
   for (const pop of ROUTE_POPULATIONS) {
-    const group = pop === "colluder" ? 3 : pop === "household" ? 2 : 1;
+    const group = pop === "colluder" || pop === "family" ? 3 : pop === "household" || pop === "colluder_pair" ? 2 : 1;
     for (let i = 0; i < spec[pop]; i += group) {
       const g = keyed(seed, "route-account", pop, i);
       const a = g() * 2 * Math.PI;
@@ -198,6 +242,13 @@ function buildAccounts(seed: number, spec: Readonly<Record<RoutePopulation, numb
         sigma = i % 2 === 0 ? 0 : 10;
         // Odd spoofers evade exact matching: each replay is shifted by up to 80 m and noised.
         if (i % 2 === 1) routes.evade = [[1, 1]];
+      } else if (pop === "exercise_loop") {
+        routes.loop = randomLoop(g, home, 550);
+      } else if (pop === "accessible_loop") {
+        // A short step-free loop (wheelchair or limited mobility): 760–800 m at 55 m/min, just over §2's minimum.
+        routes.loop = rect(home, 190 + g() * 10, 190 + g() * 10);
+      } else if (pop === "family") {
+        routes.usual = randomLoop(g, home, 600);
       }
       const ids = Array.from({ length: Math.min(group, spec[pop] - i) }, (_, k) => `${pop}-${String(i + k + 1).padStart(3, "0")}`);
       for (const id of ids) out.push({ id, pop, linked: ids.filter((x) => x !== id), mover: ids[0]!, home, routes, gpsSigma: sigma });
@@ -214,8 +265,9 @@ interface PlannedRoute {
 
 /** Who plans an account's day: a colluder's carrier always; a household walks together on 70% of days. */
 function plannerOf(acc: Account, day: number, seed: number): string {
-  if (acc.pop === "colluder") return acc.mover;
+  if (acc.pop === "colluder" || acc.pop === "colluder_pair") return acc.mover;
   if (acc.pop === "household") return keyed(seed, "together", day, acc.mover)() < 0.7 ? acc.mover : acc.id;
+  if (acc.pop === "family") return keyed(seed, "together", day, acc.mover)() < 0.6 ? acc.mover : acc.id;
   return acc.id;
 }
 
@@ -259,10 +311,29 @@ function planDay(acc: Account, day: number, seed: number, planner: string): Plan
         const dy = (g() - 0.5) * 160;
         return { pts: r.replay!.map(([x, y]): Pt => [x + dx, y + dy]), pace: 90 };
       });
-    case "colluder": {
+    case "colluder":
+    case "colluder_pair": {
       if (g() >= 0.9) return [];
       return [0, 1].map(() => ({ pts: randomLoop(g, acc.home, 700), pace: 80 }));
     }
+    case "exercise_loop":
+      // The same neighbourhood loop, most days; one day in four twice (morning and evening).
+      if (g() >= 0.8) return [];
+      return g() < 0.25 ? [{ pts: r.loop!, pace: 110 }, { pts: r.loop!, pace: 110 }] : [{ pts: r.loop!, pace: 110 }];
+    case "accessible_loop": {
+      if (g() >= 0.9) return [];
+      const x = g();
+      const n = x < 0.4 ? 3 : x < 0.8 ? 2 : 1;
+      return Array.from({ length: n }, () => ({ pts: r.loop!, pace: 55 }));
+    }
+    case "family":
+      if (planner === acc.mover) {
+        // Together: their usual loop or a new one.
+        if (g() >= 0.65) return [];
+        return [{ pts: g() < 0.6 ? r.usual! : randomLoop(g, acc.home, 600), pace: 70 }];
+      }
+      // Apart: half the time each walks the usual loop alone, at their own time.
+      return g() < 0.5 ? [{ pts: r.usual!, pace: 75 }] : [];
   }
 }
 
@@ -279,7 +350,20 @@ export interface RouteStudyOptions {
   regime?: PoolRegime;
   /** Run the holding ledger for territory (slower). Default true. */
   territory?: boolean;
+  /** Trust weight overrides by population (sensitivity runs); default `ROUTE_TRUST`. */
+  trust?: Partial<Record<RoutePopulation, number>>;
+  /** Reviewer model for review flags (ASSUMPTION); default `assumedReviewer`. */
+  reviewer?: ReviewerModel;
 }
+
+/** ASSUMPTION: how often a human reviewer upholds a flag, by what the flagged group really is. */
+export interface ReviewerModel {
+  /** One walker carrying several linked accounts. */
+  upholdColluder: number;
+  /** Real people walking together (households, families). */
+  upholdGenuine: number;
+}
+export const ASSUMED_REVIEWER: Readonly<ReviewerModel> = Object.freeze({ upholdColluder: 0.9, upholdGenuine: 0.05 });
 
 export interface MovementTally {
   sessions: number;
@@ -309,17 +393,31 @@ export interface RouteStudyResult {
   books: { pool: number; credited: number; returned: number; withheld: number; ok: boolean };
   /** Credits settled each day. A rule only ever acts on the day being settled: earlier days never change. */
   dailyCreditedMicro: number[];
+  /** Accounts ever flagged for review, and those whose review was upheld (review rules only). */
+  flagged: string[];
+  upheld: string[];
+  reviewCount: number;
+  /** Every day's reconciliation problems (empty when the books close exactly). */
+  problems: string[];
 }
 
 export function runRouteStudy(opts: RouteStudyOptions): RouteStudyResult {
-  const problems = routeRuleProblems(opts.rule);
-  if (problems.length > 0) throw new RangeError(`route rule ${opts.rule.name}: ${problems.join("; ")}`);
+  const ruleProblems = routeRuleProblems(opts.rule);
+  if (ruleProblems.length > 0) throw new RangeError(`route rule ${opts.rule.name}: ${ruleProblems.join("; ")}`);
   const econ = economyRulesFor(SIM_PILOT_2.economyRulesVersion)!;
   const days = opts.days ?? econ.seasonDays;
   const regime = opts.regime ?? "launch";
   const accounts = buildAccounts(opts.seed, opts.population ?? ROUTE_STUDY_POPULATION);
   const pool = regime === "launch" ? dailyPoolMicro(econ, SIM_PILOT_2.season) : accounts.length * 8 * MICRO_PER_MOVE;
   const state = new RouteCreditState();
+  const reviewerModel = opts.reviewer ?? ASSUMED_REVIEWER;
+  state.reviewer = (ids, day) => {
+    const colluding = ids.some((id) => EXPLOIT.includes(popOf[id]!));
+    const g = keyed(opts.seed, "review", day, ids.join("+"))();
+    return g < (colluding ? reviewerModel.upholdColluder : reviewerModel.upholdGenuine);
+  };
+  const trustOf = (p: RoutePopulation) => opts.trust?.[p] ?? ROUTE_TRUST[p];
+  const problems: string[] = [];
   const credits: Record<string, number> = {};
   const popOf: Record<string, RoutePopulation> = {};
   const movement: Record<string, MovementTally> = {};
@@ -348,10 +446,13 @@ export function runRouteStudy(opts: RouteStudyOptions): RouteStudyResult {
       const plan = plans.get(planner) ?? planDay(a, day, opts.seed, planner);
       plans.set(planner, plan);
       const gn = keyed(opts.seed, "gps", day, a.id);
-      const sessions: RouteSession[] = plan.map((p) => {
+      const sessions: RouteSession[] = plan.map((p, si) => {
         const meters = Math.round(lengthOf(p.pts));
         const stepped = stepUnits(p.pts, a.gpsSigma, gn);
-        return { minutes: Math.round((meters / p.pace) * 10) / 10, meters, stepped, parents: stepped.map((u) => parentZoneOf(u, opts.rule.fingerprint.parentEdgeMeters)) };
+        // Start time: shared by a group planned together (own streams, so earlier draws are unchanged), ±3 min per phone.
+        const base = 360 + si * 480 + Math.floor(keyed(opts.seed, "start", day, planner, si)() * 420);
+        const startMinute = base + Math.round((keyed(opts.seed, "start-jitter", day, a.id, si)() - 0.5) * 6);
+        return { minutes: Math.round((meters / p.pace) * 10) / 10, meters, stepped, parents: stepped.map((u) => parentZoneOf(u, opts.rule.fingerprint.parentEdgeMeters)), startMinute };
       });
       const hist = active.get(a.id)!;
       hist.push(sessions.length > 0);
@@ -375,7 +476,7 @@ export function runRouteStudy(opts: RouteStudyOptions): RouteStudyResult {
       for (const km of [10, 50, 100, 250]) if (before < km * 1000 && m.verifiedMeters >= km * 1000) m.achievements += 1;
       if (st === 7 || st === 30) m.achievements += 1;
       sessionsByPop[a.pop] += sessions.length;
-      players.push({ playerId: a.id, linkedPlayerIds: a.linked, sessions, activeDaysThisWeek: Math.max(1, Math.min(7, hist.slice(-7).filter(Boolean).length)), trustWeight: ROUTE_TRUST[a.pop] });
+      players.push({ playerId: a.id, linkedPlayerIds: a.linked, sessions, activeDaysThisWeek: Math.max(1, Math.min(7, hist.slice(-7).filter(Boolean).length)), trustWeight: trustOf(a.pop) });
     }
 
     const res = settleRouteDay(econ, opts.rule, state, day, pool, players);
@@ -385,6 +486,10 @@ export function runRouteStudy(opts: RouteStudyOptions): RouteStudyResult {
     books.withheld += res.withheldByRuleMicro;
     dailyCreditedMicro.push(res.creditedMicro);
     if (res.creditedMicro + res.returnedMicro !== res.poolMicro || res.withheldByRuleMicro < 0 || res.creditedMicro > res.v3.books.mintedMicro) books.ok = false;
+    if (res.problems.length > 0) {
+      books.ok = false;
+      problems.push(...res.problems.map((x) => `day ${day}: ${x}`));
+    }
     for (const r of res.players) {
       credits[r.playerId] += r.dayCreditsMicro;
       unscored[popOf[r.playerId]!] += r.unscoredByRule;
@@ -414,7 +519,9 @@ export function runRouteStudy(opts: RouteStudyOptions): RouteStudyResult {
     const lines = [...store.values()].sort((a, b) => (a.unitId < b.unitId ? -1 : 1)).map((s) => `${s.unitId}:${s.holderId}:${s.strength}:${s.ground}:${s.asOfDay}`);
     territory = { fingerprint: hash32(lines.join("|")).toString(16), ...terr };
   }
-  return { rule: opts.rule.name, seed: opts.seed, regime, days, accounts: accounts.length, creditsByAccount: credits, popOf, movement, unscoredShare: share(unscored), reducedShare: share(reduced), territory, books, dailyCreditedMicro };
+  const flagged = [...new Set(state.reviews.flatMap((v) => v.ids))].sort();
+  const upheld = [...new Set(state.reviews.filter((v) => v.upheld).flatMap((v) => v.ids))].sort();
+  return { rule: opts.rule.name, seed: opts.seed, regime, days, accounts: accounts.length, creditsByAccount: credits, popOf, movement, unscoredShare: share(unscored), reducedShare: share(reduced), territory, books, dailyCreditedMicro, flagged, upheld, reviewCount: state.reviews.length, problems };
 }
 
 /* ── the comparison ───────────────────────────────────────────────────────── */
@@ -423,6 +530,8 @@ export interface RouteCase {
   comparator: string;
   label: string;
   rule: RouteCreditRuleset;
+  /** Trust weight overrides for a sensitivity run (the baseline keeps `ROUTE_TRUST`). */
+  trust?: Partial<Record<RoutePopulation, number>>;
 }
 
 export function routeFarmingPlan(): RouteCase[] {
@@ -458,6 +567,20 @@ export interface RouteMeasures {
   unscoredShare: Record<RoutePopulation, number>;
   reducedShare: Record<RoutePopulation, number>;
   booksOk: boolean;
+  /** Populations with at least one account in this run. */
+  present: RoutePopulation[];
+  /** Share of a population's accounts ever flagged for review / with a review upheld. */
+  flagged: Record<RoutePopulation, number>;
+  upheld: Record<RoutePopulation, number>;
+  /** Share of all honest accounts ever flagged for review (a flag never cuts credits by itself). */
+  honestFlagged: number;
+  /** Reviews opened over the season per 1,000 accounts (reviewer workload). */
+  reviewsPer1000: number;
+  /** Share of colluding accounts (trios and pairs) whose review was upheld. */
+  colludersUpheld: number;
+  /** Share of each honest group's accounts penalised, and its credits ÷ baseline. */
+  groupPenalised: Record<string, number>;
+  groupVsBaseline: Record<string, number>;
 }
 
 const byPop = <T>(f: (p: RoutePopulation) => T) => Object.fromEntries(ROUTE_POPULATIONS.map((p) => [p, f(p)])) as Record<RoutePopulation, T>;
@@ -495,6 +618,27 @@ export function measure(run: RouteStudyResult, base: RouteStudyResult): RouteMea
     unscoredShare: run.unscoredShare,
     reducedShare: run.reducedShare,
     booksOk: run.books.ok,
+    present: ROUTE_POPULATIONS.filter((p) => of(p).length > 0),
+    flagged: byPop((p) => of(p).filter((id) => run.flagged.includes(id)).length / (of(p).length || 1)),
+    upheld: byPop((p) => of(p).filter((id) => run.upheld.includes(id)).length / (of(p).length || 1)),
+    honestFlagged: honestIds.filter((id) => run.flagged.includes(id)).length / honestIds.length,
+    reviewsPer1000: (run.reviewCount * 1000) / ids.length,
+    colludersUpheld: (() => {
+      const xs = ids.filter((id) => run.popOf[id] === "colluder" || run.popOf[id] === "colluder_pair");
+      return xs.length ? xs.filter((id) => run.upheld.includes(id)).length / xs.length : 0;
+    })(),
+    ...(() => {
+      const groupPenalised: Record<string, number> = {};
+      const groupVsBaseline: Record<string, number> = {};
+      for (const [g, pops] of Object.entries(HONEST_GROUPS)) {
+        const xs = ids.filter((id) => pops.includes(run.popOf[id]!));
+        if (xs.length === 0) continue;
+        groupPenalised[g] = xs.filter(hit).length / xs.length;
+        const b = xs.reduce((a, id) => a + base.creditsByAccount[id]!, 0);
+        groupVsBaseline[g] = b > 0 ? xs.reduce((a, id) => a + run.creditsByAccount[id]!, 0) / b : 1;
+      }
+      return { groupPenalised, groupVsBaseline };
+    })(),
   };
 }
 
@@ -506,22 +650,33 @@ export interface RouteCaseResult {
   measures: RouteMeasures[];
 }
 
-export function runRouteFarmingStudy(opts: { seeds: number[]; regimes?: PoolRegime[]; cases?: RouteCase[]; days?: number; onRun?: (label: string, seed: number, regime: PoolRegime, ms: number) => void }): RouteCaseResult[] {
+export function runRouteFarmingStudy(opts: {
+  seeds: number[];
+  regimes?: PoolRegime[];
+  cases?: RouteCase[];
+  days?: number;
+  population?: Readonly<Record<RoutePopulation, number>>;
+  /** Run the holding ledger in the launch regime (default true). */
+  territory?: boolean;
+  onRun?: (label: string, seed: number, regime: PoolRegime, ms: number) => void;
+}): RouteCaseResult[] {
   const cases = opts.cases ?? routeFarmingPlan();
   const out: RouteCaseResult[] = [];
   for (const regime of opts.regimes ?? ["launch", "binding"]) {
     const bases = new Map<number, RouteStudyResult>();
     const runs = new Map<string, RouteMeasures[]>(cases.map((c) => [c.label, []]));
     for (const seed of opts.seeds) {
-      const territory = regime === "launch";
+      const territory = regime === "launch" && opts.territory !== false;
+      const population = opts.population;
       const t0 = Date.now();
-      const base = runRouteStudy({ seed, rule: ROUTE_BASELINE, regime, territory, days: opts.days });
+      const base = runRouteStudy({ seed, rule: ROUTE_BASELINE, regime, territory, days: opts.days, population });
       opts.onRun?.("baseline", seed, regime, Date.now() - t0);
       bases.set(seed, base);
       for (const c of cases) {
         const t = Date.now();
-        const r = c.rule === ROUTE_BASELINE ? base : runRouteStudy({ seed, rule: c.rule, regime, territory, days: opts.days });
-        if (c.rule !== ROUTE_BASELINE) opts.onRun?.(c.label, seed, regime, Date.now() - t);
+        const same = c.rule === ROUTE_BASELINE && !c.trust;
+        const r = same ? base : runRouteStudy({ seed, rule: c.rule, regime, territory, days: opts.days, population, trust: c.trust });
+        if (!same) opts.onRun?.(c.label, seed, regime, Date.now() - t);
         runs.get(c.label)!.push(measure(r, base));
       }
     }
@@ -539,13 +694,14 @@ const cell = (xs: number[], d: number, pct = false) => {
 };
 
 /** Credits per account, % of baseline (seed range), and share penalised, one row per comparator, one column per population. */
-export function populationTable(results: readonly RouteCaseResult[], regime: PoolRegime, what: "vsBaseline" | "penalised" | "credits" | "perHour" | "unscoredShare" | "reducedShare"): string {
+export function populationTable(results: readonly RouteCaseResult[], regime: PoolRegime, what: "vsBaseline" | "penalised" | "credits" | "perHour" | "unscoredShare" | "reducedShare" | "flagged" | "upheld"): string {
   const rows = results.filter((r) => r.regime === regime);
-  const head = ["#", "rule", ...ROUTE_POPULATIONS];
+  const pops = ROUTE_POPULATIONS.filter((p) => rows.some((r) => r.measures.some((m) => m.present.includes(p))));
+  const head = ["#", "rule", ...pops];
   const lines = [`| ${head.join(" | ")} |`, `|${head.map(() => "---").join("|")}|`];
   const pct = what !== "credits" && what !== "perHour";
   const digits = what === "credits" ? 0 : what === "perHour" ? 1 : 0;
-  for (const r of rows) lines.push(`| ${[r.comparator, r.label, ...ROUTE_POPULATIONS.map((p) => cell(r.measures.map((m) => m[what][p]), digits, pct))].join(" | ")} |`);
+  for (const r of rows) lines.push(`| ${[r.comparator, r.label, ...pops.map((p) => cell(r.measures.map((m) => m[what][p]), digits, pct))].join(" | ")} |`);
   return lines.join("\n");
 }
 
@@ -566,6 +722,87 @@ export function summaryTable(results: readonly RouteCaseResult[], regime: PoolRe
         t.every((x) => x === null) ? "n/a" : t.every((x) => x === true) ? "yes" : "NO",
         r.measures.every((m) => m.movementUnchanged) ? "yes" : "NO",
         r.measures.every((m) => m.booksOk) ? "ok" : "FAIL",
+      ].join(" | ")} |`,
+    );
+  }
+  return lines.join("\n");
+}
+
+/* ── second round: less punitive alternatives ─────────────────────────────── */
+
+/**
+ * The second-round comparison, run on `ROUTE_STUDY_POPULATION_2`. Every
+ * case changes credits only; the minimum session (SOURCE §2: 10 min,
+ * 750 m) is unchanged throughout.
+ */
+export function routeAlternativesPlan(): RouteCase[] {
+  return [
+    { comparator: "1", label: "baseline", rule: ROUTE_BASELINE },
+    { comparator: "3", label: "taper-10", rule: ROUTE_TAPER_10 },
+    { comparator: "3", label: "taper-12", rule: ROUTE_TAPER_12 },
+    { comparator: "3", label: "taper-14", rule: ROUTE_TAPER_14 },
+    { comparator: "A", label: "soft-ceiling-100w", rule: ROUTE_SOFT_CEILING },
+    { comparator: "5", label: "linked-identical-as-one", rule: ROUTE_LINKED_AS_ONE },
+    { comparator: "B", label: "cluster-together-k1", rule: ROUTE_CLUSTER_K1 },
+    { comparator: "B", label: "cluster-together-k2", rule: ROUTE_CLUSTER_K2 },
+    { comparator: "B", label: "cluster-together-k3", rule: ROUTE_CLUSTER_K3 },
+    { comparator: "C", label: "review-flag-2plus", rule: ROUTE_REVIEW_ALL },
+    { comparator: "C", label: "review-flag-3plus", rule: ROUTE_REVIEW_3PLUS },
+    { comparator: "T", label: "trust-after-ceiling", rule: ROUTE_TRUST_AFTER },
+    { comparator: "T", label: "spoofer-trust-0.25-before", rule: ROUTE_BASELINE, trust: { spoofer: 0.25 } },
+    { comparator: "T", label: "spoofer-trust-0.25-after", rule: ROUTE_TRUST_AFTER, trust: { spoofer: 0.25 } },
+    { comparator: "T", label: "spoofer-trust-0.75-after", rule: ROUTE_TRUST_AFTER, trust: { spoofer: 0.75 } },
+    { comparator: "★", label: "candidate-review2-trust-after", rule: ROUTE_CANDIDATE },
+    { comparator: "★", label: "candidate-review3-trust-after", rule: ROUTE_CANDIDATE_3 },
+    { comparator: "★", label: "k2-review3-trust-after", rule: ROUTE_CANDIDATE_K2 },
+  ];
+}
+
+/** Student t, two-sided 95%, by degrees of freedom (1–30); 1.96 beyond. */
+const T95 = [12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.16, 2.145, 2.131, 2.12, 2.11, 2.101, 2.093, 2.086, 2.08, 2.074, 2.069, 2.064, 2.06, 2.056, 2.052, 2.048, 2.045, 2.042];
+
+/** Mean, 95% confidence half-width across seeds (t distribution), min and max. Seeds are the unit of replication. */
+export function ci95(xs: readonly number[]): { mean: number; half: number; min: number; max: number; n: number } {
+  const n = xs.length;
+  const mean = xs.reduce((a, b) => a + b, 0) / (n || 1);
+  const sd = n > 1 ? Math.sqrt(xs.reduce((a, x) => a + (x - mean) ** 2, 0) / (n - 1)) : 0;
+  const t = n > 1 ? (T95[n - 2] ?? 1.96) : 0;
+  return { mean, half: (t * sd) / Math.sqrt(n || 1), min: Math.min(...xs), max: Math.max(...xs), n };
+}
+
+const ciCell = (xs: number[], d: number, pct = false) => {
+  const c = ci95(xs);
+  const f = (n: number) => (pct ? `${(n * 100).toFixed(d)}%` : n.toFixed(d));
+  return c.half === 0 && c.min === c.max ? f(c.mean) : `${f(c.mean)} ± ${pct ? (c.half * 100).toFixed(d) : c.half.toFixed(d)} [${f(c.min)}–${f(c.max)}]`;
+};
+
+/** One row per case: false positives by honest group, household loss, exploit multipliers, flags, checks. Mean ± 95% CI [seed range]. */
+export function alternativesTable(results: readonly RouteCaseResult[], regime: PoolRegime): string {
+  const rows = results.filter((r) => r.regime === regime);
+  const head = ["#", "rule", "honest penalised", "commuters", "loop walkers", "accessible loops", "households penalised", "household credits vs baseline", "colluder trio × (per walker)", "colluder pair × (per walker)", "spoofer ×", "farmer ×", "honest flagged", "colluders upheld", "reviews / 1,000 accounts", "movement unchanged", "books"];
+  const lines = [`| ${head.join(" | ")} |`, `|${head.map(() => "---").join("|")}|`];
+  for (const r of rows) {
+    const M = r.measures;
+    const honestFlag = M.map((m) => m.honestFlagged);
+    lines.push(
+      `| ${[
+        r.comparator,
+        r.label,
+        ciCell(M.map((m) => m.honestPenalised), 1, true),
+        ciCell(M.map((m) => m.groupPenalised.commuters ?? 0), 1, true),
+        ciCell(M.map((m) => m.groupPenalised["loop walkers"] ?? 0), 1, true),
+        ciCell(M.map((m) => m.groupPenalised["accessible loops"] ?? 0), 1, true),
+        ciCell(M.map((m) => m.groupPenalised.households ?? 0), 1, true),
+        ciCell(M.map((m) => m.groupVsBaseline.households ?? 1), 1, true),
+        ciCell(M.map((m) => m.advantage.colluder), 2),
+        ciCell(M.map((m) => m.advantage.colluder_pair), 2),
+        ciCell(M.map((m) => m.advantage.spoofer), 2),
+        ciCell(M.map((m) => m.advantage.route_farmer), 2),
+        ciCell(honestFlag, 1, true),
+        ciCell(M.map((m) => m.colludersUpheld), 0, true),
+        ciCell(M.map((m) => m.reviewsPer1000), 1),
+        M.every((m) => m.movementUnchanged && m.territoryUnchanged !== false) ? "yes" : "NO",
+        M.every((m) => m.booksOk) ? "exact" : "FAIL",
       ].join(" | ")} |`,
     );
   }

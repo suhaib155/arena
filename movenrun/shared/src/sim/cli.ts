@@ -5,6 +5,7 @@
  *   yarn workspace @movenrun/shared sim --pool [--seeds 1]   (the ~5,000-player pool context run)
  *   yarn workspace @movenrun/shared sim --churn [--seeds 1,2,3] [--only label,label]   (the churn study, docs/SIM_CHURN_STUDY.md)
  *   yarn workspace @movenrun/shared sim --route-farming [--seeds 1,2,3,4,5] [--only label,label]   (docs/SIM_ROUTE_FARMING_STUDY.md)
+ *   yarn workspace @movenrun/shared sim --route-alternatives [--seeds 1,...,10] [--only label,label]   (second round, same doc)
  *
  * SIMULATION ONLY: synthetic players on a synthetic grid.
  */
@@ -12,7 +13,7 @@
 import { writeFileSync } from "node:fs";
 import { CHURN_COLUMNS, CHURN_COLUMNS_2, CHURN_DETAIL, CHURN_RUN, churnPlan, continuityPlan } from "./churnStudy";
 import { SIM_PILOT_1 } from "./pilotRuleset";
-import { populationTable, routeFarmingPlan, runRouteFarmingStudy, summaryTable } from "./routeFarmingStudy";
+import { alternativesTable, populationTable, ROUTE_STUDY_POPULATION_2, routeAlternativesPlan, routeFarmingPlan, runRouteFarmingStudy, summaryTable } from "./routeFarmingStudy";
 import { agg, CONTROL_VARIANTS, DETAIL_COLUMNS, markdownTable, poolContextCase, runSweeps, sweepPlan, type CaseResult } from "./sweeps";
 import { PROFILES } from "./world";
 
@@ -63,6 +64,34 @@ if (process.argv.includes("--route-farming")) {
       ["perHour", "Credits per verified hour (per walker)"],
       ["unscoredShare", "Sessions settled unscored by the rule"],
       ["reducedShare", "Scoring sessions whose credits the rule reduced"],
+    ] as const) {
+      console.log(`\n### ${title}\n`);
+      console.log(populationTable(study, regime, what));
+    }
+    console.log();
+  }
+  const out = arg("json");
+  if (out) writeFileSync(out, JSON.stringify(study, null, 1));
+  process.exit(0);
+}
+if (process.argv.includes("--route-alternatives")) {
+  const rseeds = (arg("seeds") ?? "1,2,3,4,5,6,7,8,9,10").split(",").map(Number);
+  const plan = routeAlternativesPlan().filter((c) => c.label === "baseline" || !only || only.some((o) => c.label.includes(o)));
+  console.log(`# Route-farming study, second round (SIMULATION: synthetic populations, not real users; not final). Seeds ${rseeds.join(", ")}.\n`);
+  const study = runRouteFarmingStudy({
+    seeds: rseeds,
+    cases: plan,
+    population: ROUTE_STUDY_POPULATION_2,
+    territory: process.argv.includes("--territory"),
+    onRun: (l, s, g, ms) => console.error(`  ran ${l} seed ${s} (${g}) in ${ms} ms`),
+  });
+  for (const regime of ["launch", "binding"] as const) {
+    console.log(`## Pool regime: ${regime}\n`);
+    console.log(alternativesTable(study, regime));
+    for (const [what, title] of [
+      ["vsBaseline", "Credits per account, % of baseline"],
+      ["penalised", "Accounts earning at least 1% less than baseline"],
+      ["flagged", "Accounts ever flagged for review"],
     ] as const) {
       console.log(`\n### ${title}\n`);
       console.log(populationTable(study, regime, what));
