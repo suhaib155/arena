@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-10-18 | Execution packet: X-05 ready (not enabled), 0011 revision 2, 1002 fixes, route farming candidate, QA0 candidate, G5–G7 patches | b3a39cb | [MOVENRUN_2026-10-18_EXECUTION_PACKET_FINAL_REPORT_b3a39cb.md](MOVENRUN_2026-10-18_EXECUTION_PACKET_FINAL_REPORT_b3a39cb.md) |
 | 2026-10-18 | X-21 live and verified, X-05 ready for the owner, 0011 storage measurements, G3/G4, Android and G5 updates | 1541a01 | [MOVENRUN_2026-10-18_X21_LIVE_X05_READY_STORAGE_FINAL_REPORT_1541a01.md](MOVENRUN_2026-10-18_X21_LIVE_X05_READY_STORAGE_FINAL_REPORT_1541a01.md) |
 | 2026-10-17 | Continuous packet: X-21 preflight, G2 churn study, G3/G4 server draft, QA0, G5–G7 research | c6dc208 | [MOVENRUN_2026-10-17_CONTINUOUS_PACKET_FINAL_REPORT_c6dc208.md](MOVENRUN_2026-10-17_CONTINUOUS_PACKET_FINAL_REPORT_c6dc208.md) |
 | 2026-10-17 | X-05 reconfirmation, two-network check, website release candidate, G2–G4 simulation ruleset | a8586c9 | [MOVENRUN_2026-10-17_X05_G2G4_PACKET_FINAL_REPORT_a8586c9.md](MOVENRUN_2026-10-17_X05_G2G4_PACKET_FINAL_REPORT_a8586c9.md) |

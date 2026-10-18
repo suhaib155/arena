@@ -1,6 +1,6 @@
 # Execution status
 
-**Updated:** 2026-10-17 (X-27: #112 and migration 0010 LIVE VERIFIED on staging at 2192de6, E-62; X-24 LIVE VERIFIED at 7f4c0d4, E-55; X-26 closed 16 Oct; X-07 attached, X-07b waits on X-05; #112 fixed for the sign-in time finding at 2192de6, waits on the owner with migration 0010; frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at 2192de6930be18d7e4bc07a94b93828d46b0a7d5 (X-27, fast-forwarded from 7f4c0d4 on 17 Oct with the owner's grant; LIVE VERIFIED, E-62. Before that 7f4c0d4, X-24, fast-forwarded from dd83065 on 17 Oct with the owner's grant; LIVE VERIFIED, E-55. X-06 LIVE VERIFIED 14 Oct, E-41) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
+**Updated:** 2026-10-18 evening (X-05 ready, not enabled, E-86; 0011 revision 2 on #124 b3a39cb, E-90; 1002 fixes #126 fb7cd5b, E-91; QA0 candidate #125 15f7f87, E-87. Earlier, 2026-10-17: X-27: #112 and migration 0010 LIVE VERIFIED on staging at 2192de6, E-62; X-24 LIVE VERIFIED at 7f4c0d4, E-55; X-26 closed 16 Oct; X-07 attached, X-07b waits on X-05; #112 fixed for the sign-in time finding at 2192de6, waits on the owner with migration 0010; frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at 2192de6930be18d7e4bc07a94b93828d46b0a7d5 (X-27, fast-forwarded from 7f4c0d4 on 17 Oct with the owner's grant; LIVE VERIFIED, E-62. Before that 7f4c0d4, X-24, fast-forwarded from dd83065 on 17 Oct with the owner's grant; LIVE VERIFIED, E-55. X-06 LIVE VERIFIED 14 Oct, E-41) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
 **Security gate:** SECURITY REVIEWED LOCALLY (`AUTH_SECURITY_REVIEW.md`, rounds 1–3) · **Release gate:** STOP — LIVE AUTH AND ANDROID DEVICE GATES PENDING (Play account not created)
 **Frontend:** on owner hold (D-25). **Play developer account:** NOT CREATED (X-01). **Separate accounts:** accepted 2026-10-13 (X-20).
 
@@ -279,6 +279,22 @@ app CTAs (D-35). Done:
 - G5-G7: #122 at 76ecf4e (E-83).
 - Not done (owner only): migration 0011, the gameplay flag, backend redeploy,
   main merge, mobile UI, Play account, any chain action.
+
+## Checkpoint 2026-10-18 evening (execution packet)
+
+- X-05: READY, NOT ENABLED (E-86). Live state still 0 users at 19:35Z; caps
+  1000/50 unchanged. No live sign-in or 50/hour refusal proof exists yet.
+- G3/G4 storage: 0011 revision 2 on #124 at b3a39cb (E-90). 1,000 players for
+  14 days take 127.8 MiB instead of 317.4. REVIEWED, UNAPPLIED; recommendation:
+  NO-GO for a pilot until the retention decisions and an exact SHA are approved.
+- G2: 1002 fixes on #126 at fb7cd5b (E-91); 1001 unchanged. Route farming
+  candidate on #123 at c428aa0 (E-89).
+- QA0: integration candidate #125 at 15f7f87 (E-87). No build run.
+- G5-G7: #122 at 6eea3b4 (E-88), local only.
+- Vercel: each push builds 5 projects; ignored build step and noise projects
+  are owner item X-29. ops/two-network-check deletion stays X-28 (GitHub UI).
+- Not done (owner only): migration 0011, the gameplay flag, backend redeploy,
+  main merge, mobile UI, Play account, EAS build, any chain action.
 
 ## Open owner decisions
 
