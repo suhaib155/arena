@@ -8,6 +8,10 @@
  * one-push rule) stays in `@movenrun/shared/holding`; this file adds only
  * the budget, which the shared models do not have.
  *
+ * It also applies the server's per-walker daily unit budget (a capacity
+ * guard, not a game rule): a push the model would apply, past the walker's
+ * remaining units, is rejected as `unit_budget` and changes nothing.
+ *
  * Order: events are applied by day, then event id (the shared ledger's
  * order), so the same batch always gives the same result whatever order it
  * arrived in. Across batches the order is commit order.
@@ -29,10 +33,21 @@ export interface ServerLedgerEntry extends Omit<LedgerEntry, "outcome"> {
   shadeStrength: number | null;
 }
 
+/** The model's reasons, plus a push past the walker's daily unit budget. */
+export type ServerRejectReason = RejectReason | "unit_budget";
+
+/** Refused outcomes: recorded as counts, they change no ground. */
+export const REFUSED_OUTCOMES = ["refused_deeded", "refused_masked", "refused_daily_limit", "refused_take_budget"] as const;
+export type RefusedOutcome = (typeof REFUSED_OUTCOMES)[number];
+
+export function isRefused(outcome: ServerOutcome): outcome is RefusedOutcome {
+  return (REFUSED_OUTCOMES as readonly string[]).includes(outcome);
+}
+
 export type ServerEventResult =
   | { eventId: string; unitId: string; status: "applied"; outcome: ServerOutcome }
   | { eventId: string; unitId: string; status: "skipped"; reason: "already_applied" }
-  | { eventId: string; unitId: string; status: "rejected"; reason: RejectReason; detail?: string };
+  | { eventId: string; unitId: string; status: "rejected"; reason: ServerRejectReason; detail?: string };
 
 /** A take (`TakeBudget` "takes-v1"): an applied push on ground another walker held at that moment. */
 export function isTake(outcome: ServerOutcome): boolean {
@@ -48,6 +63,12 @@ export interface ServerLedgerInput {
   /** Takes already used, by walker, on the events' day (from the store, never the client). */
   takesUsed?: ReadonlyMap<string, number>;
   budget: TakeBudget | null;
+  /**
+   * Verified units each walker may still push on the events' day (from the
+   * store, never the client). Absent: no unit budget. A walker missing from
+   * the map has none left.
+   */
+  unitsRemaining?: ReadonlyMap<string, number>;
 }
 
 export interface ServerLedgerResult {
@@ -57,9 +78,12 @@ export interface ServerLedgerResult {
   entries: ServerLedgerEntry[];
   /** Takes used after the batch, by walker (every walker of the input and of the batch). */
   takesUsed: Map<string, number>;
+  /** Units this batch counted against each walker's unit budget: every applied push, refusals included. */
+  unitsUsed: Map<string, number>;
 }
 
-function compareEvents(a: PushEvent, b: PushEvent): number {
+/** The shared ledger's event order. */
+export function compareEvents(a: PushEvent, b: PushEvent): number {
   // The shared ledger's order (holdingLedger.ts).
   const da = Number.isFinite(a.day) ? a.day : -Infinity;
   const db = Number.isFinite(b.day) ? b.day : -Infinity;
@@ -79,6 +103,7 @@ export function applyServerLedger(input: ServerLedgerInput): ServerLedgerResult 
   const results: ServerEventResult[] = [];
   const entries: ServerLedgerEntry[] = [];
   const cap = input.budget?.perWalkerPerDay ?? null;
+  const unitsUsed = new Map<string, number>();
 
   for (const event of [...input.events].sort(compareEvents)) {
     const before = typeof event.unitId === "string" ? states.get(event.unitId) : undefined;
@@ -98,6 +123,15 @@ export function applyServerLedger(input: ServerLedgerInput): ServerLedgerResult 
       continue;
     }
     const entry = one.entries[0]!;
+    if (input.unitsRemaining) {
+      const spent = unitsUsed.get(event.walkerId) ?? 0;
+      if (spent >= (input.unitsRemaining.get(event.walkerId) ?? 0)) {
+        // Past the unit budget: not applied, not recorded, nothing changes.
+        results.push({ eventId: event.eventId, unitId: event.unitId, status: "rejected", reason: "unit_budget" });
+        continue;
+      }
+    }
+    unitsUsed.set(event.walkerId, (unitsUsed.get(event.walkerId) ?? 0) + 1);
     const shadeStrength = event.push.kind === "shade" ? Math.floor(event.push.strength) : null;
     const used = takesUsed.get(event.walkerId) ?? 0;
     applied.add(event.eventId);
@@ -115,5 +149,5 @@ export function applyServerLedger(input: ServerLedgerInput): ServerLedgerResult 
     results.push({ eventId: event.eventId, unitId: event.unitId, status: "applied", outcome: entry.outcome });
     entries.push({ ...entry, shadeStrength });
   }
-  return { states, results, entries, takesUsed };
+  return { states, results, entries, takesUsed, unitsUsed };
 }

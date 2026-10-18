@@ -59,7 +59,7 @@ test("0011 is proposed only: not in drizzle/, its journal or its checksums", () 
 
 test("0011 enables RLS on every table it creates, grants nothing to anon, and its rollback drops them all", () => {
   const created = [...up.matchAll(/CREATE TABLE IF NOT EXISTS "([a-z_]+)"/g)].map((m) => m[1]!);
-  assert.equal(created.length, 14);
+  assert.equal(created.length, 16);
   for (const t of created) {
     assert.match(up, new RegExp(`ALTER TABLE "${t}" ENABLE ROW LEVEL SECURITY`), t);
     assert.match(down, new RegExp(`DROP TABLE IF EXISTS "${t}"`), t);
@@ -69,7 +69,7 @@ test("0011 enables RLS on every table it creates, grants nothing to anon, and it
   assert.doesNotMatch(up, /\bGRANT\s+(ALL|INSERT|UPDATE|DELETE|TRUNCATE)/);
   assert.doesNotMatch(up, /\bFOR\s+(ALL|INSERT|UPDATE|DELETE)\b/, "no write policy for any role");
   // The rollback touches only what 0011 created.
-  for (const m of down.matchAll(/DROP (TABLE|INDEX|FUNCTION) IF EXISTS (?:public\.)?"?([a-z_]+)"?/g)) {
+  for (const m of down.matchAll(/DROP (TABLE|INDEX|FUNCTION|SEQUENCE|SCHEMA) IF EXISTS (?:public\.)?"?([a-z_]+)"?/g)) {
     assert.ok(m[2]!.startsWith("gameplay_") || m[2] === "movement_verifications_verified_end_time_idx", m[2]);
   }
 });
@@ -148,4 +148,40 @@ test("0011: the rule, counter and challenge tables are server only, and the roll
   assert.match(up, /REFERENCES "gameplay_day_rules" \("day", "holding_rules_version"\)/);
   assert.match(down, /NOT A HARMLESS ROLLBACK/);
   assert.match(down, /permanently destroys every gameplay/);
+  for (const what of [/every day partition/, /player day proof/, /refusal counts/, /sequences/]) assert.match(down, what);
+  const statements = down.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
+  assert.doesNotMatch(statements, /\bCASCADE\b/, "the rollback never cascades into anything 0011 did not make");
+});
+
+test("0011 revision 2 is the compact layout: partitioned ledger, derived event ids, bigint cells, integer players, refusals as counts", () => {
+  const table = (name: string) => {
+    const m = up.match(new RegExp(`CREATE TABLE IF NOT EXISTS "${name}" \\(([\\s\\S]*?)\\n\\)( PARTITION BY RANGE \\("day"\\))?;`));
+    assert.ok(m, name);
+    return { body: m[1]!, partitioned: m[2] !== undefined };
+  };
+  const ledger = table("gameplay_push_events");
+  assert.ok(ledger.partitioned);
+  assert.ok(table("gameplay_walker_days").partitioned);
+  assert.doesNotMatch(ledger.body, /"event_id"|"walker_id"|"unit_id"|"source_session_id"|text/, "no text column in the ledger");
+  assert.match(ledger.body, /"unit" bigint NOT NULL/);
+  assert.match(ledger.body, /PRIMARY KEY \("source_no", "unit", "day"\)/, "the derived event id, with the partition key");
+  assert.match(ledger.body, /"outcome" smallint NOT NULL CHECK \("outcome" BETWEEN 1 AND 4\)/, "accepted pushes only");
+  // The owner's one-push rule survives partitioning (a partitioned unique index must include the day).
+  assert.match(up, /CREATE UNIQUE INDEX IF NOT EXISTS "gameplay_push_events_one_push_per_walker_unit_day"\s+ON "gameplay_push_events" \("walker_no", "day", "unit"\)\s+WHERE "outcome" IN \(3, 4\)/);
+  assert.match(up, /"gameplay_push_events_takers_idx"\s+ON "gameplay_push_events" \("unit", "day"\)\s+WHERE "outcome" IN \(3, 4\)/);
+  for (const t of ["gameplay_units", "gameplay_unit_day_states", "gameplay_unit_challenges", "gameplay_unit_districts"]) {
+    assert.match(table(t).body, /"unit" bigint/, t);
+    assert.doesNotMatch(table(t).body, /"unit_id"/, t);
+  }
+  for (const c of ["refused_deeded", "refused_masked", "refused_daily_limit", "refused_take_budget", "units_used", "visit_units"]) {
+    assert.match(table("gameplay_walker_days").body, new RegExp(`"${c}"`), c);
+  }
+  assert.match(table("gameplay_player_day_proofs").body, /"events_sha256" bytea NOT NULL CHECK \(octet_length\("events_sha256"\) = 32\)/);
+  // Partitions are made only by a server-side function, in their own schema, each with RLS and no API privilege.
+  assert.match(up, /CREATE TABLE gameplay_partitions\.%I PARTITION OF public\.%I FOR VALUES FROM \(%s\) TO \(%s\)/);
+  assert.match(up, /ALTER TABLE gameplay_partitions\.%I ENABLE ROW LEVEL SECURITY/);
+  assert.match(up, /REVOKE ALL ON FUNCTION public\.gameplay_ensure_day_partitions\(integer, integer\) FROM PUBLIC/);
+  assert.doesNotMatch(up, /DEFAULT PARTITION/, "no catch-all partition: a day without one fails closed");
+  // No coordinates anywhere in 0011.
+  assert.doesNotMatch(up, /\b(lat|lng|latitude|longitude|coordinates?)\b/i);
 });

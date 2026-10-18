@@ -1,10 +1,12 @@
 /**
- * Gameplay storage capacity: a projection model and a capacity tripwire
- * (G3/G4 server preparation). PROPOSAL ONLY: nothing imports this from the
- * API, the maintenance loop or the router. Wiring it in is an owner decision
- * listed in docs/G34_STORAGE_CAPACITY.md.
+ * Gameplay storage capacity: a projection model, a capacity tripwire, the
+ * per-walker daily unit budget and the guard the push path can use (G3/G4
+ * server preparation). Everything here runs only when gameplay is enabled
+ * (MOVENRUN_GAMEPLAY_ENABLED), which needs the owner. Even then the guard is
+ * off unless MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB is set; the unit budget is
+ * on (300 a day unless MOVENRUN_GAMEPLAY_UNIT_BUDGET says otherwise).
  *
- * Both functions are pure. The per-row byte costs they take are measured by
+ * `projectStorage`, `capacityTripwire` and `remainingPushBudget` are pure. The per-row byte costs they take are measured by
  * scripts/gameplay-storage-bench.ts on a disposable local PostgreSQL 16 with
  * the proposed migration 0011 applied; the defaults below are those
  * measurements, not guesses, and the bench prints fresh ones whenever the
@@ -43,6 +45,12 @@ export interface RowCosts {
   walkerDay: number;
   /** gameplay_unit_challenges: one open challenge (current state, not history). */
   unitChallenge: number;
+  /**
+   * Fixed cost of one day's partitions (ledger and walker days) once used:
+   * empty indexes, free-space and visibility maps. 0 or absent for an
+   * unpartitioned layout.
+   */
+  partitionDay?: number;
 }
 
 /** What stays in the database for a push once its raw row is gone. */
@@ -73,6 +81,21 @@ export interface RetentionPolicy {
   /** The raw ledger lives in day partitions that are dropped whole: no slack. */
   ledgerPartitioned: boolean;
 }
+
+/**
+ * Revision 2 of 0011 with nothing deleted: the raw ledger in day partitions
+ * (never dropped) and a player-day proof written at every day close.
+ */
+export const KEEP_EVERYTHING_V2: RetentionPolicy = Object.freeze({
+  rawPushDays: null,
+  proof: "per_player_day",
+  proofDays: null,
+  snapshotDays: null,
+  sessionCellDays: null,
+  routineAuditDays: null,
+  deleteBloatFraction: 0,
+  ledgerPartitioned: true,
+});
 
 export const KEEP_EVERYTHING: RetentionPolicy = Object.freeze({
   rawPushDays: null,
@@ -158,6 +181,19 @@ export interface LoadProfile {
   /** Days of play (90 per season). */
   days: number;
   hostile?: Hostile;
+  /**
+   * Share of pushes that are ledger rows. 1 when refusals are rows too
+   * (revision 1); the accepted share when refusals are counters (revision 2).
+   */
+  acceptedShare?: number;
+  /** The same for hostile accounts (most of whose pushes are refused). Defaults to `acceptedShare`. */
+  hostileAcceptedShare?: number;
+  /**
+   * Per-walker daily unit budget: hostile pushes a day are capped at this.
+   * The movement sessions and their cell lists are not (the movement
+   * pipeline stores them before gameplay sees them).
+   */
+  unitBudget?: number;
 }
 
 export interface Projection {
@@ -190,14 +226,20 @@ export function projectStorage(
   const h = load.hostile;
   const hostileDays = h ? Math.min(h.days, days) : 0;
   const hostileSessions = h ? h.accounts * h.sessionsPerDay * hostileDays : 0;
-  const hostilePushes = h ? hostileSessions * h.unitsPerSession : 0;
+  // Cells the movement pipeline stores for hostile sessions: not bounded by the unit budget.
+  const hostileCells = h ? hostileSessions * h.unitsPerSession : 0;
+  // Pushes gameplay processes: at most the unit budget per account and day.
+  const hostilePushes = h ? h.accounts * hostileDays * Math.min(h.sessionsPerDay * h.unitsPerSession, load.unitBudget ?? Number.POSITIVE_INFINITY) : 0;
+  const acc = load.acceptedShare ?? 1;
+  const hostileAcc = load.hostileAcceptedShare ?? acc;
 
   const totalPushes = pushesPerDay * days + hostilePushes;
-  const rawPushRows = retained(pushesPerDay, days, policy.rawPushDays)
-    + (policy.rawPushDays === null || hostileDays <= policy.rawPushDays ? hostilePushes : 0);
+  const totalLedgerRows = pushesPerDay * acc * days + hostilePushes * hostileAcc;
+  const rawPushRows = retained(pushesPerDay * acc, days, policy.rawPushDays)
+    + (policy.rawPushDays === null || hostileDays <= policy.rawPushDays ? hostilePushes * hostileAcc : 0);
   const activePerDay = load.players * load.activeShare + (h && hostileDays > 0 ? h.accounts : 0);
   const proofRows = policy.proof === "per_push"
-    ? Math.max(0, Math.min(totalPushes, retained(pushesPerDay, days, policy.proofDays) + hostilePushes) - rawPushRows)
+    ? Math.max(0, Math.min(totalLedgerRows, retained(pushesPerDay * acc, days, policy.proofDays) + hostilePushes * hostileAcc) - rawPushRows)
     : 0;
   const playerDayProofRows = policy.proof === "per_player_day" ? retained(activePerDay, days, policy.proofDays) : 0;
   const appliedRows = retained(load.players * load.activeShare * load.sessionsPerActiveDay, days, policy.rawPushDays)
@@ -212,7 +254,7 @@ export function projectStorage(
 
   const sessionRows = sessionsPerDay * days + hostileSessions;
   const cellsKept = retained(pushesPerDay, days, policy.sessionCellDays)
-    + (policy.sessionCellDays === null || hostileDays <= policy.sessionCellDays ? hostilePushes : 0);
+    + (policy.sessionCellDays === null || hostileDays <= policy.sessionCellDays ? hostileCells : 0);
 
   const activePlayerDays = load.players * load.activeShare * days;
   // Take counters matter only for their own day; they follow the raw ledger's TTL.
@@ -227,17 +269,18 @@ export function projectStorage(
   // Slack left by rolling deletes: a share of the kept bytes, only for classes that delete.
   const slack = (stored: number, produced: number, cost: number) => (produced > stored ? policy.deleteBloatFraction * stored * cost : 0);
   const byClass: Record<string, number> = {
-    push_ledger: rawPushRows * costs.pushEvent + (policy.ledgerPartitioned ? 0 : slack(rawPushRows, totalPushes, costs.pushEvent)),
+    push_ledger: rawPushRows * costs.pushEvent + (policy.ledgerPartitioned ? 0 : slack(rawPushRows, totalLedgerRows, costs.pushEvent))
+      + (costs.partitionDay ?? 0) * (policy.rawPushDays === null ? days : Math.min(days, policy.rawPushDays + 1)),
     proofs: proofRows * costs.coarseProof + playerDayProofRows * costs.playerDayProof,
     unit_day_states: dayStateRows * costs.unitDayState
       + slack(dayStateRows, dayStatesPerDay * days + hostileDayStates, costs.unitDayState),
     units: load.distinctUnits * costs.unit,
     applied_sessions: appliedRows * costs.appliedSession + slack(appliedRows, sessionRows, costs.appliedSession),
     movement_sessions: sessionRows * costs.movementBase + cellsKept * costs.movementPerCell
-      + slack(cellsKept, totalPushes, costs.movementPerCell),
+      + slack(cellsKept, pushesPerDay * days + hostileCells, costs.movementPerCell),
     settlements: days * (costs.daySettlement + costs.dayRules) + activePlayerDays * costs.creditLine
       + days * (load.clubs * costs.clubDay + load.districts * costs.districtDay),
-    take_counters: walkerDayRows * costs.walkerDay + slack(walkerDayRows, walkerDaysProduced, costs.walkerDay),
+    take_counters: walkerDayRows * costs.walkerDay + (policy.ledgerPartitioned && costs.partitionDay ? 0 : slack(walkerDayRows, walkerDaysProduced, costs.walkerDay)),
     challenges: load.openChallenges * costs.unitChallenge,
     district_map: load.districtMapUnits * costs.unitDistrict,
     auth_audit: auditRows * costs.securityAuditEvent + slack(auditRows, refreshesPerDay * days, costs.securityAuditEvent)
@@ -370,11 +413,96 @@ export function capacityTripwire(input: CapacityInput): CapacityDecision {
 
 /**
  * Units a player may still push today: the base daily budget scaled by the
- * tripwire, minus what they already pushed. Never negative. PROPOSAL: no such
- * budget exists in 0011 or the service today.
+ * tripwire, minus what they already pushed. Never negative. The service
+ * applies it with the counter in gameplay_walker_days.units_used.
  */
 export function remainingPushBudget(baseUnitsPerDay: number, pushedToday: number, decision: Pick<CapacityDecision, "pushBudgetFactor" | "acceptPushes">): number {
   if (!decision.acceptPushes || !(baseUnitsPerDay > 0)) return 0;
   const budget = Math.floor(baseUnitsPerDay * decision.pushBudgetFactor);
   return Math.max(0, budget - Math.max(0, Math.floor(pushedToday)));
+}
+
+/* ── what the push path uses ───────────────────────────────────────────── */
+
+/**
+ * Verified units one walker may push a day, accepted or refused, when
+ * nothing else is configured. Heavy normal play measured about 93 (3 sessions
+ * of 31 at resolution 10) and the p95 session 45; the cap per session is 500.
+ * A capacity guard, not a game rule: it is not part of any rule set.
+ */
+export const DEFAULT_UNIT_BUDGET = 300;
+
+/** What the service asks before it writes a push: may it, and at what share of each walker's unit budget. */
+export type CapacityGuard = () => Promise<Pick<CapacityDecision, "level" | "acceptPushes" | "pushBudgetFactor" | "reasons">>;
+
+export interface CapacityGuardInput {
+  /** pg_database_size(current_database()). A throw or a non-number is a hard stop. */
+  readSizeBytes: () => Promise<number>;
+  thresholds?: CapacityThresholds;
+  now?: () => number;
+  /** Re-read the size at most this often (default one minute); the decision is reused in between. */
+  refreshMs?: number;
+}
+
+const GROWTH_WINDOW_MS = 86_400_000;
+
+/**
+ * A guard over `capacityTripwire`, fed by the real database size and the
+ * growth this process has seen over the last day. Fails closed: an
+ * unreadable size, or a bad threshold, stops pushes until the next read.
+ */
+export function createCapacityGuard(input: CapacityGuardInput): CapacityGuard {
+  const now = input.now ?? Date.now;
+  const refreshMs = input.refreshMs ?? 60_000;
+  const samples: { at: number; bytes: number }[] = [];
+  let cached: { at: number; decision: CapacityDecision } | null = null;
+  return async () => {
+    const t = now();
+    if (cached && t - cached.at < refreshMs) return cached.decision;
+    let used = Number.NaN;
+    try {
+      const v = await input.readSizeBytes();
+      if (typeof v === "number") used = v;
+    } catch {
+      used = Number.NaN;
+    }
+    let growth = Number.NaN;
+    if (Number.isFinite(used)) {
+      samples.push({ at: t, bytes: used });
+      while (samples.length > 1 && t - samples[0]!.at > GROWTH_WINDOW_MS) samples.shift();
+      const first = samples[0]!;
+      // At least an hour of history before growth is extrapolated to a day.
+      if (t - first.at >= 3_600_000) growth = (used - first.bytes) / ((t - first.at) / GROWTH_WINDOW_MS);
+    }
+    const decision = capacityTripwire({ usedBytes: used, dailyGrowthBytes: growth, thresholds: input.thresholds });
+    cached = { at: t, decision };
+    return decision;
+  };
+}
+
+export interface GameplayCapacityConfig {
+  /** Verified units per walker per day. */
+  unitBudget: number;
+  /** The confirmed database quota the guard measures against, or null: guard off. */
+  quotaBytes: number | null;
+}
+
+/**
+ * Capacity settings from the environment (read only when gameplay is
+ * enabled). A malformed value stops the API from starting rather than
+ * guessing.
+ */
+export function gameplayCapacityFromEnv(env: NodeJS.ProcessEnv = process.env): GameplayCapacityConfig {
+  const rawBudget = env.MOVENRUN_GAMEPLAY_UNIT_BUDGET;
+  if (rawBudget !== undefined && !(/^\d{1,5}$/.test(rawBudget) && Number(rawBudget) >= 1)) {
+    throw new Error("MOVENRUN_GAMEPLAY_UNIT_BUDGET must be a whole number of units, 1 or more");
+  }
+  const rawQuota = env.MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB;
+  if (rawQuota !== undefined && !(/^\d{1,7}$/.test(rawQuota) && Number(rawQuota) >= 50)) {
+    throw new Error("MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB must be the confirmed database quota in MiB, 50 or more");
+  }
+  return {
+    unitBudget: rawBudget === undefined ? DEFAULT_UNIT_BUDGET : Number(rawBudget),
+    quotaBytes: rawQuota === undefined ? null : Number(rawQuota) * MIB,
+  };
 }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  capacityTripwire, DEFAULT_THRESHOLDS, KEEP_EVERYTHING, MIB, projectStorage, PROPOSED_RETENTION, remainingPushBudget, TTL_45_PER_PUSH_PROOF,
+  capacityTripwire, createCapacityGuard, DEFAULT_THRESHOLDS, DEFAULT_UNIT_BUDGET, gameplayCapacityFromEnv, KEEP_EVERYTHING, KEEP_EVERYTHING_V2, MIB, projectStorage, PROPOSED_RETENTION, remainingPushBudget, TTL_45_PER_PUSH_PROOF,
   type LoadProfile, type RowCosts,
 } from "./capacity.js";
 
@@ -145,4 +145,93 @@ test("remaining push budget", () => {
   const half = { acceptPushes: true, pushBudgetFactor: 0.5 };
   assert.equal(remainingPushBudget(300, 100, half), 50);
   assert.equal(remainingPushBudget(0, 0, ok), 0);
+});
+
+/* ── revision 2: compact ledger, unit budget ───────────────────────────── */
+
+test("refusals as counters: only the accepted share of pushes is a ledger row", () => {
+  const all = projectStorage(LOAD, COSTS, KEEP_EVERYTHING_V2, 0);
+  const half = projectStorage({ ...LOAD, acceptedShare: 0.5 }, COSTS, KEEP_EVERYTHING_V2, 0);
+  assert.equal(all.byClass.push_ledger! - half.byClass.push_ledger!, 1000 * 0.6 * 1.5 * 40 * 90 * 0.5 * 600);
+});
+
+test("the unit budget caps hostile pushes but not the movement cells the pipeline stores", () => {
+  const hostile = { accounts: 10, sessionsPerDay: 20, unitsPerSession: 500, days: 14 };
+  const base = projectStorage(LOAD, COSTS, KEEP_EVERYTHING_V2, 0);
+  const capped = projectStorage({ ...LOAD, hostile, unitBudget: 300, hostileAcceptedShare: 1 }, COSTS, KEEP_EVERYTHING_V2, 0);
+  const open = projectStorage({ ...LOAD, hostile, hostileAcceptedShare: 1 }, COSTS, KEEP_EVERYTHING_V2, 0);
+  assert.equal(capped.byClass.push_ledger! - base.byClass.push_ledger!, 10 * 14 * 300 * 600);
+  assert.equal(open.byClass.push_ledger! - base.byClass.push_ledger!, 10 * 14 * 10_000 * 600);
+  assert.equal(capped.byClass.movement_sessions, open.byClass.movement_sessions);
+});
+
+test("partition overhead is paid per kept day", () => {
+  const costs = { ...COSTS, partitionDay: 64 * 1024 };
+  const keep = projectStorage(LOAD, costs, KEEP_EVERYTHING_V2, 0);
+  const keepNone = projectStorage(LOAD, COSTS, KEEP_EVERYTHING_V2, 0);
+  assert.equal(keep.byClass.push_ledger! - keepNone.byClass.push_ledger!, 90 * 64 * 1024);
+  const prop = projectStorage(LOAD, costs, PROPOSED_RETENTION, 0);
+  const propNone = projectStorage(LOAD, COSTS, PROPOSED_RETENTION, 0);
+  assert.equal(prop.byClass.push_ledger! - propNone.byClass.push_ledger!, 15 * 64 * 1024);
+});
+
+/* ── guard ─────────────────────────────────────────────────────────────── */
+
+test("the guard caches its read, fails closed on a throw and recovers on the next read", async () => {
+  let t = 0;
+  let reads = 0;
+  let size: () => number = () => 10 * MIB;
+  const guard = createCapacityGuard({ readSizeBytes: async () => { reads++; return size(); }, now: () => t, refreshMs: 1000 });
+  assert.equal((await guard()).acceptPushes, true);
+  t = 500;
+  await guard();
+  assert.equal(reads, 1, "reused inside the refresh window");
+  size = () => { throw new Error("down"); };
+  t = 1500;
+  const failed = await guard();
+  assert.deepEqual([failed.level, failed.acceptPushes, failed.pushBudgetFactor, failed.reasons], ["hard_stop", false, 0, ["size_unreadable"]]);
+  size = () => 10 * MIB;
+  t = 3000;
+  assert.equal((await guard()).level, "ok");
+});
+
+test("the guard treats a non-number size as unreadable", async () => {
+  const guard = createCapacityGuard({ readSizeBytes: async () => "12" as unknown as number });
+  assert.equal((await guard()).acceptPushes, false);
+});
+
+test("the guard extrapolates growth only after an hour of history", async () => {
+  let t = 0;
+  let bytes = 100 * MIB;
+  const guard = createCapacityGuard({ readSizeBytes: async () => bytes, now: () => t, refreshMs: 0 });
+  assert.equal((await guard()).level, "ok");
+  t = 30 * 60_000;
+  bytes = 110 * MIB;
+  assert.equal((await guard()).level, "ok", "half an hour of history: no extrapolation");
+  t = 2 * 3_600_000;
+  bytes = 160 * MIB; // 60 MiB in two hours: 720 MiB a day
+  const d = await guard();
+  assert.notEqual(d.level, "ok");
+  assert.ok(d.reasons.includes("warn_within_days"));
+});
+
+test("the guard uses its thresholds and stops at the hard line", async () => {
+  const thresholds = { ...DEFAULT_THRESHOLDS, quotaBytes: 100 * MIB };
+  const guard = createCapacityGuard({ readSizeBytes: async () => 99 * MIB, thresholds });
+  const d = await guard();
+  assert.deepEqual([d.level, d.acceptPushes], ["hard_stop", false]);
+});
+
+/* ── configuration ─────────────────────────────────────────────────────── */
+
+test("capacity configuration: defaults, overrides and refusals", () => {
+  assert.deepEqual(gameplayCapacityFromEnv({}), { unitBudget: DEFAULT_UNIT_BUDGET, quotaBytes: null });
+  assert.equal(DEFAULT_UNIT_BUDGET, 300);
+  assert.deepEqual(gameplayCapacityFromEnv({ MOVENRUN_GAMEPLAY_UNIT_BUDGET: "120", MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB: "500" }), { unitBudget: 120, quotaBytes: 500 * MIB });
+  for (const bad of ["0", "-1", "1.5", "", "abc", "300 "]) {
+    assert.throws(() => gameplayCapacityFromEnv({ MOVENRUN_GAMEPLAY_UNIT_BUDGET: bad }), /UNIT_BUDGET/);
+  }
+  for (const bad of ["49", "0", "x", "500MiB"]) {
+    assert.throws(() => gameplayCapacityFromEnv({ MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB: bad }), /QUOTA_MIB/);
+  }
 });

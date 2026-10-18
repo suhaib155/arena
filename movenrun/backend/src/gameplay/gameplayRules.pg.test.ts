@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, randomBytes } from "node:crypto";
-import { cellToChildren, gridDisk, latLngToCell } from "h3-js";
+import { cellToChildren, cellToParent, gridDisk, latLngToCell } from "h3-js";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { newUnit, type UnitState } from "@movenrun/shared/holding";
@@ -24,6 +24,8 @@ import { createDrizzleAccountDeletionStore } from "../identity/accountDeletion.j
 import { applyServerLedger } from "./policy.js";
 import { DAY_MS, PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, type GameplayRules } from "./rules.js";
 import { GameplayError, GameplayService } from "./service.js";
+import { cellToInt8, int8ToCell } from "./cells.js";
+import { createHash } from "node:crypto";
 
 const DATABASE_URL = process.env.MOVENRUN_TEST_DATABASE_URL;
 const BACKEND = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -37,6 +39,16 @@ const at = (day: number, hour: number) => day * DAY_MS + Math.round(hour * 3_600
 /** Resolution 10 units in resolution 9 zones (internal ids only). */
 const ZONES = gridDisk(latLngToCell(51.5007, -0.1246, 9), 2).sort();
 const U = ZONES.flatMap((z) => cellToChildren(z, 10).sort());
+/** Resolution 8 cells for rule set 1001, which stores the pipeline's cells as they are. */
+const R8 = gridDisk(latLngToCell(51.5007, -0.1246, 8), 1).sort();
+/** The ledger as the API sees it: user ids, cells and outcome names. */
+const LEDGER = `(SELECT e.seq, e.day, e.unit, e.source_no, e.walker_no, w.user_id AS walker_id, ph.user_id AS previous_holder_id, nh.user_id AS new_holder_id,
+    e.previous_holder_no, e.new_holder_no, e.outcome AS outcome_code, (ARRAY['claimed', 'reinforced', 'eroded', 'flipped'])[e.outcome] AS outcome,
+    e.strength_before, e.strength_after, e.shade_strength, e.holding_rules_version
+  FROM gameplay_push_events e JOIN gameplay_players w ON w.player_no = e.walker_no
+  LEFT JOIN gameplay_players ph ON ph.player_no = e.previous_holder_no LEFT JOIN gameplay_players nh ON nh.player_no = e.new_holder_no) ledger`;
+const DAYROWS = `(SELECT d.*, p.user_id AS walker_id FROM gameplay_walker_days d JOIN gameplay_players p ON p.player_no = d.walker_no) dayrows`;
+const playerNo = async (userId: string) => Number((await pool.query("SELECT player_no FROM gameplay_players WHERE user_id = $1", [userId])).rows[0]?.player_no);
 
 let admin: pg.Pool;
 let pool: pg.Pool;
@@ -95,8 +107,8 @@ async function code(p: Promise<unknown>): Promise<string | undefined> {
   }
 }
 
-const unitRow = async (u: string) => (await pool.query("SELECT holder_id, strength, as_of_day, holding_rules_version FROM gameplay_units WHERE unit_id = $1", [u])).rows[0];
-const challengers = async (u: string) => (await pool.query("SELECT walker_id, first_day FROM gameplay_unit_challenges WHERE unit_id = $1 ORDER BY walker_id", [u])).rows
+const unitRow = async (u: string) => (await pool.query("SELECT holder_id, strength, as_of_day, holding_rules_version FROM gameplay_units WHERE unit = $1", [cellToInt8(u)])).rows[0];
+const challengers = async (u: string) => (await pool.query("SELECT walker_id, first_day FROM gameplay_unit_challenges WHERE unit = $1 ORDER BY walker_id", [cellToInt8(u)])).rows
   .map((r) => [r.walker_id as string, Number(r.first_day)]);
 
 before(async () => {
@@ -168,7 +180,8 @@ test("more than 25 parallel submissions: one session 30 times, 30 challengers on
   const same = await Promise.all(Array.from({ length: 30 }, () => p2.applySession(ana, "ana-d1-many")));
   assert.equal(same.filter((r) => !r.replayed).length, 1);
   assert.equal(same[0]!.outcomes.claimed, 31);
-  assert.equal((await pool.query("SELECT count(*)::int AS n FROM gameplay_push_events WHERE source_session_id = (SELECT id FROM movement_verifications WHERE client_session_id = 'ana-d1-many')")).rows[0].n, 31);
+  assert.equal((await pool.query(`SELECT count(*)::int AS n FROM gameplay_push_events e JOIN gameplay_applied_sessions s ON s.source_no = e.source_no
+    JOIN movement_verifications m ON m.id = s.movement_verification_id WHERE m.client_session_id = 'ana-d1-many'`)).rows[0].n, 31);
 
   // Thirty challengers on U2 at once: each erodes once and holds their own challenge; one chain.
   const ws: string[] = [];
@@ -180,7 +193,7 @@ test("more than 25 parallel submissions: one session 30 times, 30 challengers on
   assert.equal(res.reduce((a, r) => a + r.outcomes.eroded, 0), 30);
   assert.equal((await unitRow(U[2]!)).holder_id, ana);
   assert.equal((await challengers(U[2]!)).length, 30);
-  const chain = (await pool.query("SELECT previous_holder_id, new_holder_id, strength_before, strength_after FROM gameplay_push_events WHERE unit_id = $1 ORDER BY seq", [U[2]!])).rows;
+  const chain = (await pool.query(`SELECT previous_holder_id, new_holder_id, strength_before, strength_after FROM ${LEDGER} WHERE unit = $1 ORDER BY seq`, [cellToInt8(U[2]!)])).rows;
   for (let i = 1; i < chain.length; i++) {
     assert.equal(chain[i].previous_holder_id, chain[i - 1].new_holder_id);
     assert.equal(chain[i].strength_before, chain[i - 1].strength_after);
@@ -192,12 +205,15 @@ test("more than 25 parallel submissions: one session 30 times, 30 challengers on
   const runs = await Promise.all(Array.from({ length: 30 }, (_, i) => p2.applySession(heavy, `heavy-d1-${String(i).padStart(2, "0")}`)));
   assert.equal(runs.reduce((a, r) => a + r.outcomes.eroded + r.outcomes.flipped, 0), 13);
   assert.equal(runs.reduce((a, r) => a + r.outcomes.refused_take_budget, 0), 17);
-  const counter = (await pool.query("SELECT takes_used FROM gameplay_walker_days WHERE walker_id = $1 AND day = $2", [heavy, D + 1])).rows[0];
-  assert.equal(counter.takes_used, 13);
-  const stored = (await pool.query("SELECT outcome, count(*)::int AS n FROM gameplay_push_events WHERE walker_id = $1 GROUP BY outcome ORDER BY outcome", [heavy])).rows;
-  assert.deepEqual(stored, [{ outcome: "eroded", n: 13 }, { outcome: "refused_take_budget", n: 17 }]);
+  const counter = (await pool.query(`SELECT takes_used, units_used, refused_take_budget FROM ${DAYROWS} WHERE walker_id = $1 AND day = $2`, [heavy, D + 1])).rows[0];
+  assert.deepEqual(counter, { takes_used: 13, units_used: 30, refused_take_budget: 17 });
+  // Only the 13 takes are ledger rows; the 17 refusals are the counter above.
+  const stored = (await pool.query(`SELECT outcome, count(*)::int AS n FROM ${LEDGER} WHERE walker_id = $1 GROUP BY outcome ORDER BY outcome`, [heavy])).rows;
+  assert.deepEqual(stored, [{ outcome: "eroded", n: 13 }]);
   // Refused takes changed nothing: the units are still Ana's at full strength.
-  const refusedUnits = (await pool.query("SELECT unit_id FROM gameplay_push_events WHERE walker_id = $1 AND outcome = 'refused_take_budget'", [heavy])).rows.map((r) => r.unit_id);
+  const taken = new Set((await pool.query(`SELECT unit::text AS unit FROM ${LEDGER} WHERE walker_id = $1`, [heavy])).rows.map((r) => int8ToCell(r.unit)));
+  const refusedUnits = U.slice(10, 40).filter((u) => !taken.has(u));
+  assert.equal(refusedUnits.length, 17);
   for (const u of refusedUnits) assert.deepEqual([(await unitRow(u)).holder_id, (await unitRow(u)).strength], [ana, 100]);
   // Replaying all thirty, and a server batch retried 30 times at once, spend nothing more.
   const again = await Promise.all(Array.from({ length: 30 }, (_, i) => p2.applySession(heavy, `heavy-d1-${String(i).padStart(2, "0")}`)));
@@ -206,38 +222,41 @@ test("more than 25 parallel submissions: one session 30 times, 30 challengers on
   const retried = await Promise.all(Array.from({ length: 30 }, () => p2.applyPushes(batch)));
   assert.equal(retried.reduce((a, r) => a + r.applied, 0), 3);
   assert.equal(retried.reduce((a, r) => a + r.skipped, 0), 87);
-  assert.equal((await pool.query("SELECT takes_used FROM gameplay_walker_days WHERE walker_id = $1 AND day = $2", [heavy, D + 1])).rows[0].takes_used, 13, "claims are free");
+  assert.equal((await pool.query(`SELECT takes_used FROM ${DAYROWS} WHERE walker_id = $1 AND day = $2`, [heavy, D + 1])).rows[0].takes_used, 13, "claims are free");
 });
 
 test("the database refuses a 14th take, a take the counter does not know, a push under another version, and a re-pinned day", { skip: SKIP }, async () => {
+  const heavyNo = await playerNo("heavy");
+  const anaNo = await playerNo("ana");
   const insertTake = (c: pg.PoolClient, unit: string) => c.query(
-    `INSERT INTO gameplay_push_events (event_id, unit_id, walker_id, day, push_kind, outcome, previous_holder_id, new_holder_id, strength_before, strength_after, holding_rules_version)
-     VALUES ($1, $2, 'heavy', $3, 'solid', 'eroded', 'ana', 'ana', 100, 50, 1002)`, [`forged:${unit}`, unit, D + 1]);
+    `INSERT INTO gameplay_push_events (unit, day, source_no, walker_no, previous_holder_no, new_holder_no, strength_before, strength_after, outcome, holding_rules_version)
+     VALUES ($1, $2, 999999, $3, $4, $4, 100, 50, 3, 1002)`, [cellToInt8(unit), D + 1, heavyNo, anaNo]);
   for (const bumpCounter of [false, true]) {
     const c = await pool.connect();
     try {
       await c.query("BEGIN");
       await insertTake(c, U[41]!);
-      if (bumpCounter) await c.query("UPDATE gameplay_walker_days SET takes_used = 14 WHERE walker_id = 'heavy' AND day = $1", [D + 1]);
+      if (bumpCounter) await c.query("UPDATE gameplay_walker_days SET takes_used = 14 WHERE walker_no = $2 AND day = $1", [D + 1, heavyNo]);
       assert.equal(await code(c.query("COMMIT")), "23514", bumpCounter ? "over the budget" : "counter mismatch");
     } finally {
       await c.query("ROLLBACK").catch(() => undefined);
       c.release();
     }
   }
-  assert.equal(await code(pool.query("UPDATE gameplay_walker_days SET takes_used = 14 WHERE walker_id = 'heavy' AND day = $1", [D + 1])), undefined,
+  assert.equal(await code(pool.query("UPDATE gameplay_walker_days SET takes_used = 14 WHERE walker_no = $2 AND day = $1", [D + 1, heavyNo])), undefined,
     "the counter alone may move; the takes it counts are checked when one is written");
-  await pool.query("UPDATE gameplay_walker_days SET takes_used = 13 WHERE walker_id = 'heavy' AND day = $1", [D + 1]);
+  await pool.query("UPDATE gameplay_walker_days SET takes_used = 13 WHERE walker_no = $2 AND day = $1", [D + 1, heavyNo]);
   // A row under a version the day is not pinned to cannot be stored.
+  const calNo = await playerNo("cal");
   assert.equal(await code(pool.query(
-    `INSERT INTO gameplay_push_events (event_id, unit_id, walker_id, day, push_kind, outcome, previous_holder_id, new_holder_id, strength_before, strength_after, holding_rules_version)
-     VALUES ('forged-version', $1, 'cal', $2, 'solid', 'claimed', NULL, 'cal', 0, 100, 1001)`, [U[2]!, D + 1])), "23503");
+    `INSERT INTO gameplay_push_events (unit, day, source_no, walker_no, previous_holder_no, new_holder_no, strength_before, strength_after, outcome, holding_rules_version)
+     VALUES ($1, $2, 999998, $3, NULL, $3, 0, 100, 1, 1001)`, [cellToInt8(U[2]!), D + 1, calNo])), "23503");
   assert.equal(await code(pool.query("UPDATE gameplay_day_rules SET take_budget = 99 WHERE day = $1", [D])), "23001");
   assert.equal(await code(pool.query("DELETE FROM gameplay_day_rules WHERE day = $1", [D])), "23001");
   // A challenge by the unit's own holder, or on unheld ground, is refused.
-  assert.equal(await code(pool.query("INSERT INTO gameplay_unit_challenges (unit_id, walker_id, first_day, holding_rules_version) VALUES ($1, 'ana', $2, 1002)", [U[1]!, D + 1])), "23514");
-  // No grant on the new tables for either Supabase role.
-  for (const t of ["gameplay_day_rules", "gameplay_walker_days", "gameplay_unit_challenges"]) {
+  assert.equal(await code(pool.query("INSERT INTO gameplay_unit_challenges (unit, walker_id, first_day, holding_rules_version) VALUES ($1, 'ana', $2, 1002)", [cellToInt8(U[1]!), D + 1])), "23514");
+  // No grant on the server-only tables for either Supabase role.
+  for (const t of ["gameplay_day_rules", "gameplay_walker_days", "gameplay_unit_challenges", "gameplay_players", "gameplay_push_events", "gameplay_player_day_proofs"]) {
     for (const role of ["anon", "authenticated"]) {
       const r = await pool.query("SELECT has_any_column_privilege($1, $2, 'SELECT') AS s, has_table_privilege($1, $2, 'INSERT') AS i", [role, `public.${t}`]);
       assert.deepEqual(r.rows[0], { s: false, i: false }, `${role} ${t}`);
@@ -292,7 +311,7 @@ test("split sessions: one walk in two uploads takes a unit once and spends one t
   const a = await walk(p2, gus, "gus-part-1", at(D + 3, 2.6), [U[12]!, U[13]!]);
   const b = await walk(p2, gus, "gus-part-2", at(D + 3, 2.8), [U[13]!, U[14]!]);
   assert.deepEqual([a.outcomes.eroded, b.outcomes.eroded, b.outcomes.refused_daily_limit], [2, 1, 1]);
-  assert.equal((await pool.query("SELECT takes_used FROM gameplay_walker_days WHERE walker_id = $1 AND day = $2", [gus, D + 3])).rows[0].takes_used, 3);
+  assert.equal((await pool.query(`SELECT takes_used FROM ${DAYROWS} WHERE walker_id = $1 AND day = $2`, [gus, D + 3])).rows[0].takes_used, 3);
   // The midnight straddle (open decision): a challenge at 23:50 and a push at 00:20 are two D1 days.
   clock = at(D + 4, 0.5);
   const hal = await user("hal");
@@ -305,15 +324,18 @@ test("split sessions: one walk in two uploads takes a unit once and spends one t
 
 test("masked units are never claimable and deeded units are immune through the service, and neither spends the budget", { skip: SKIP }, async () => {
   clock = at(D + 4, 10);
-  await pool.query("INSERT INTO gameplay_units (unit_id, as_of_day, holding_rules_version, masked) VALUES ($1, $2, 1002, true)", [U[80]!, D + 4]);
+  await pool.query("INSERT INTO gameplay_units (unit, as_of_day, holding_rules_version, masked) VALUES ($1, $2, 1002, true)", [cellToInt8(U[80]!), D + 4]);
   await walk(p2, "ana", "ana-d4", at(D + 4, 8), [U[81]!]);
-  await pool.query("UPDATE gameplay_units SET deeded = true WHERE unit_id = $1", [U[81]!]);
+  await pool.query("UPDATE gameplay_units SET deeded = true WHERE unit = $1", [cellToInt8(U[81]!)]);
   const r = await walk(p2, "dee", "dee-d4", at(D + 4, 9), [U[80]!, U[81]!]);
   assert.deepEqual([r.outcomes.refused_masked, r.outcomes.refused_deeded, r.outcomes.eroded], [1, 1, 0]);
   assert.equal((await unitRow(U[80]!)).holder_id, null);
   assert.equal((await unitRow(U[81]!)).holder_id, "ana");
-  assert.equal((await pool.query("SELECT takes_used FROM gameplay_walker_days WHERE walker_id = 'dee' AND day = $1", [D + 4])).rows[0].takes_used, 0);
-  await pool.query("UPDATE gameplay_units SET deeded = false WHERE unit_id = $1", [U[81]!]);
+  const deeDay = (await pool.query(`SELECT takes_used, units_used, refused_masked, refused_deeded, visit_units::text[] AS v FROM ${DAYROWS} WHERE walker_id = 'dee' AND day = $1`, [D + 4])).rows[0];
+  // Both refusals are counters. U80 and U81 are in one zone, so one kept unit records the visit.
+  assert.equal(cellToParent(U[80]!, 9), cellToParent(U[81]!, 9));
+  assert.deepEqual(deeDay, { takes_used: 0, units_used: 2, refused_masked: 1, refused_deeded: 1, v: [cellToInt8(U[80]!)] });
+  await pool.query("UPDATE gameplay_units SET deeded = false WHERE unit = $1", [cellToInt8(U[81]!)]);
 });
 
 /* ── day close under 1002, and replay ───────────────────────────────────── */
@@ -321,7 +343,7 @@ test("masked units are never claimable and deeded units are immune through the s
 test("day close under 1002: books balance, every holder of a mixed zone holds it, and replaying the ledger gives the stored record", { skip: SKIP }, async () => {
   clock = at(D + 4, 12);
   // D20 map for the held units: one district.
-  await pool.query("INSERT INTO gameplay_unit_districts (unit_id, district_id, districts_version) SELECT unit_id, 'district-a', 'test-v1' FROM gameplay_units");
+  await pool.query("INSERT INTO gameplay_unit_districts (unit, district_id, districts_version) SELECT unit, 'district-a', 'test-v1' FROM gameplay_units");
   assert.equal(await p2.settleDueDays(), 4);
   const headers = (await pool.query("SELECT day, status, holding_rules_version, ruleset, problems, pool_micro, minted_micro, credited_micro, toll_paid_micro, burned_micro, returned_micro FROM gameplay_day_settlements ORDER BY day")).rows;
   assert.equal(headers.length, 4);
@@ -339,26 +361,25 @@ test("day close under 1002: books balance, every holder of a mixed zone holds it
   assert.ok(lines.get("ana") >= 1);
 
   // Replay: every stored push, one at a time in commit order, from unheld ground, under the recorded version.
-  const events = (await pool.query("SELECT event_id, unit_id, walker_id, day, push_kind, shade_strength, outcome, new_holder_id, strength_after, holding_rules_version FROM gameplay_push_events ORDER BY seq")).rows;
-  const masked = new Set((await pool.query("SELECT unit_id FROM gameplay_units WHERE masked")).rows.map((r) => r.unit_id));
+  // Refusals are not rows: they changed no ground, so the accepted rows alone rebuild every unit.
+  const events = (await pool.query(`SELECT source_no, unit::text AS unit, walker_id, day, shade_strength, outcome, new_holder_id, strength_after, holding_rules_version FROM ${LEDGER} ORDER BY seq`)).rows
+    .map((e) => ({ ...e, unit_id: int8ToCell(e.unit), event_id: `${e.source_no}:${int8ToCell(e.unit)}` }));
+  const masked = new Set((await pool.query("SELECT unit::text AS unit FROM gameplay_units WHERE masked")).rows.map((r) => int8ToCell(r.unit)));
   let states = new Map<string, UnitState>();
   const used = new Map<string, number>();
   for (const e of events) {
     assert.equal(e.holding_rules_version, 1002);
     if (!states.has(e.unit_id)) states.set(e.unit_id, newUnit(e.unit_id, Number(e.day), masked.has(e.unit_id)));
-    // The deeded flag was set and cleared by hand above, between pushes on that unit.
-    if (e.unit_id === U[81] && e.walker_id === "dee") states.set(e.unit_id, { ...states.get(e.unit_id)!, deeded: true });
     const k = `${e.walker_id}:${e.day}`;
     const r = applyServerLedger({
       states, holding: P2.holding, budget: P2.takeBudget, takesUsed: new Map([[e.walker_id, used.get(k) ?? 0]]),
-      events: [{ eventId: e.event_id, unitId: e.unit_id, walkerId: e.walker_id, day: Number(e.day), push: e.push_kind === "shade" ? { kind: "shade", strength: e.shade_strength } : { kind: "solid" } }],
+      events: [{ eventId: e.event_id, unitId: e.unit_id, walkerId: e.walker_id, day: Number(e.day), push: Number(e.shade_strength) > 0 ? { kind: "shade", strength: Number(e.shade_strength) } : { kind: "solid" } }],
     });
     assert.equal(r.entries[0]?.outcome, e.outcome, e.event_id);
     assert.equal(r.entries[0]?.newHolderId, e.new_holder_id, e.event_id);
     assert.equal(r.entries[0]?.strengthAfter, e.strength_after, e.event_id);
     used.set(k, r.takesUsed.get(e.walker_id)!);
     states = r.states;
-    if (e.unit_id === U[81] && e.walker_id === "dee") states.set(e.unit_id, { ...states.get(e.unit_id)!, deeded: false });
   }
   for (const [u, s] of states) {
     const row = await unitRow(u);
@@ -366,8 +387,27 @@ test("day close under 1002: books balance, every holder of a mixed zone holds it
     assert.deepEqual(await challengers(u), (s.challenges ?? []).map((c) => [c.walkerId, c.day]), u);
   }
   // The counters equal the takes in the ledger, for every walker and day.
-  const counters = (await pool.query("SELECT walker_id, day, takes_used FROM gameplay_walker_days")).rows;
+  const counters = (await pool.query(`SELECT walker_id, day, takes_used FROM ${DAYROWS}`)).rows;
   for (const c of counters) assert.equal(c.takes_used, used.get(`${c.walker_id}:${c.day}`) ?? 0, `${c.walker_id}:${c.day}`);
+  // Every refusal any receipt reported is on a day row, and nothing else is.
+  const receipts = (await pool.query("SELECT coalesce(sum(outcome_counts[5] + outcome_counts[6] + outcome_counts[7] + outcome_counts[8]), 0)::int AS n FROM gameplay_applied_sessions")).rows[0].n;
+  const counted = (await pool.query("SELECT coalesce(sum(refused_deeded + refused_masked + refused_daily_limit + refused_take_budget), 0)::int AS n FROM gameplay_walker_days")).rows[0].n;
+  assert.ok(receipts > 0);
+  assert.equal(counted, receipts);
+
+  // Proofs: one per walker and settled day, and an independent reconciler gets the same digest from the raw rows.
+  const proofs = (await pool.query("SELECT player_no, day, accepted, takes, refused, units_used, encode(events_sha256, 'hex') AS sha FROM gameplay_player_day_proofs WHERE day BETWEEN $1 AND $2 ORDER BY day, player_no", [D, D + 3])).rows;
+  const ledgerDays = (await pool.query(`SELECT walker_no, day, count(*)::int AS n FROM ${LEDGER} WHERE day BETWEEN $1 AND $2 GROUP BY walker_no, day`, [D, D + 3])).rows;
+  for (const l of ledgerDays) assert.equal(proofs.find((p) => p.player_no === l.walker_no && p.day === l.day)?.accepted, l.n, `${l.walker_no}:${l.day}`);
+  const heavyNo = await playerNo("heavy");
+  const hp = proofs.find((p) => p.player_no === heavyNo && p.day === D + 1)!;
+  assert.deepEqual([hp.accepted, hp.takes, hp.refused, hp.units_used], [16, 13, 17, 33]);
+  const raw = (await pool.query(`SELECT source_no, unit::text AS unit, outcome_code, previous_holder_no, new_holder_no, strength_before, strength_after, shade_strength
+    FROM ${LEDGER} WHERE walker_no = $1 AND day = $2 ORDER BY seq`, [heavyNo, D + 1])).rows;
+  const dayRow = (await pool.query("SELECT refused_deeded, refused_masked, refused_daily_limit, refused_take_budget, visit_units::text[] AS v FROM gameplay_walker_days WHERE walker_no = $1 AND day = $2", [heavyNo, D + 1])).rows[0];
+  const proofLines = raw.map((e) => [e.source_no, e.unit, e.outcome_code, e.previous_holder_no ?? "", e.new_holder_no ?? "", `${e.strength_before}>${e.strength_after}`, e.shade_strength].join(":"));
+  proofLines.push(["refused", dayRow.refused_deeded, dayRow.refused_masked, dayRow.refused_daily_limit, dayRow.refused_take_budget, dayRow.v.join(",")].join(":"));
+  assert.equal(createHash("sha256").update(proofLines.join("\n")).digest("hex"), hp.sha);
 });
 
 /* ── rules versions fail closed ─────────────────────────────────────────── */
@@ -376,13 +416,13 @@ test("no silent migration: another version on a pinned day, on held ground or at
   clock = at(D + 4, 12);
   // D+4 is pinned to 1002: the 1001 service cannot push on it.
   const ivy = await user("ivy");
-  assert.equal(await code(walk(a9, ivy, "ivy-d4", at(D + 4, 11), ["u-a9-1"])), "rules_version_mismatch");
+  assert.equal(await code(walk(a9, ivy, "ivy-d4", at(D + 4, 11), [R8[0]!])), "rules_version_mismatch");
   // D+5 is unpinned, but the ground Ben holds under 1002 is never re-read under 1001.
   clock = at(D + 5, 12);
   assert.equal(await code(walk(a9, ivy, "ivy-d5-held", at(D + 5, 9), [U[0]!])), "unit_rules_version_mismatch");
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM gameplay_day_rules WHERE day = $1", [D + 5])).rows[0].n, 0, "the refused batch pinned nothing");
   // Unheld ground carries no rule state: 1001 may claim it, and that pins D+5 to 1001 …
-  assert.equal((await walk(a9, ivy, "ivy-d5-free", at(D + 5, 10), ["u-a9-2"])).outcomes.claimed, 1);
+  assert.equal((await walk(a9, ivy, "ivy-d5-free", at(D + 5, 10), [R8[1]!])).outcomes.claimed, 1);
   assert.equal(await code(walk(p2, ivy, "ivy-d5-p2", at(D + 5, 11), [U[90]!])), "rules_version_mismatch");
   // … and D+5 then settles under 1001 even when 1002 runs, refusing because ground held under 1002 is in it.
   clock = at(D + 6, 3);
@@ -410,14 +450,23 @@ test("no silent migration: another version on a pinned day, on held ground or at
 test("erasure removes a challenger's challenges and a holder's, leaving no gameplay row naming either", { skip: SKIP }, async () => {
   assert.deepEqual(await challengers(U[1]!), [["cal", D + 1], ["dee", D + 2]]);
   const store = createDrizzleAccountDeletionStore(db);
+  const calNo = await playerNo("cal");
+  const anaNo = await playerNo("ana");
+  assert.ok(calNo > 0 && anaNo > 0);
   await store.erase("cal");
   assert.deepEqual(await challengers(U[1]!), [["dee", D + 2]]);
   await store.erase("ana");
   assert.deepEqual(await challengers(U[1]!), [], "unheld ground has no challenges");
   assert.equal((await unitRow(U[1]!)).holder_id, null);
-  for (const [table, col] of [["gameplay_unit_challenges", "walker_id"], ["gameplay_walker_days", "walker_id"], ["gameplay_units", "holder_id"], ["gameplay_push_events", "walker_id"]] as const) {
+  for (const [table, col] of [["gameplay_unit_challenges", "walker_id"], ["gameplay_units", "holder_id"], ["gameplay_players", "user_id"]] as const) {
     for (const who of ["cal", "ana"]) {
       assert.equal((await pool.query(`SELECT count(*)::int AS n FROM ${table} WHERE ${col} = $1`, [who])).rows[0].n, 0, `${table}.${col} ${who}`);
+    }
+  }
+  for (const no of [calNo, anaNo]) {
+    for (const [table, col] of [["gameplay_walker_days", "walker_no"], ["gameplay_push_events", "walker_no"], ["gameplay_push_events", "new_holder_no"],
+      ["gameplay_push_events", "previous_holder_no"], ["gameplay_unit_day_states", "holder_no"], ["gameplay_player_day_proofs", "player_no"]] as const) {
+      assert.equal((await pool.query(`SELECT count(*)::int AS n FROM ${table} WHERE ${col} = $1`, [no])).rows[0].n, 0, `${table}.${col} ${no}`);
     }
   }
 });
