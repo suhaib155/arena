@@ -11,6 +11,11 @@
 -- What it adds: server-authoritative holding state, the append-only push
 -- ledger, end-of-day unit snapshots, day settlement headers and credit lines,
 -- clubs, memberships, club and district day aggregates, and a district map.
+-- For the versioned rule sets (backend/src/gameplay/rules.ts): the rule set
+-- each day is pinned to, per-walker daily take counters, and open two-day
+-- challenges. Every gameplay row of a day must carry that day's pinned
+-- holding rules version (foreign keys), so nothing is silently re-read
+-- under another rule set.
 -- Credits are off-chain game points: nothing here is a token, a balance or a
 -- transfer.
 --
@@ -23,6 +28,40 @@
 -- Erasure: every reference to a user either cascades or is set to NULL, so
 -- the existing account deletion (which deletes the user row) keeps working
 -- and leaves no gameplay row naming the person.
+
+-- ── day rules: the one rule set each day runs under ────────────────────────
+-- Pinned by the day's first push (or by its settlement, for a day without
+-- pushes) and never changed. Pushes, counters, day states and the
+-- settlement of a day all reference (day, holding_rules_version) here, so a
+-- row under any other version cannot be stored. The API refuses (fails
+-- closed) a day pinned to a version or config it does not know.
+CREATE TABLE IF NOT EXISTS "gameplay_day_rules" (
+  "day" integer PRIMARY KEY NOT NULL CHECK ("day" >= 0),
+  "season" integer NOT NULL CHECK ("season" >= 1),
+  "ruleset" text NOT NULL CHECK (length("ruleset") BETWEEN 1 AND 64),
+  "holding_rules_version" integer NOT NULL CHECK ("holding_rules_version" > 0),
+  "takeover_policy" text NOT NULL CHECK ("takeover_policy" IN ('immediate', 'two-day-challenge')),
+  -- Takes per walker per day (rules.ts TakeBudget, "takes-v1"); NULL: no budget.
+  "take_budget" integer CHECK ("take_budget" IS NULL OR "take_budget" >= 1),
+  "unit_zone_rule" text NOT NULL CHECK (length("unit_zone_rule") BETWEEN 1 AND 64),
+  "config" jsonb NOT NULL CHECK (jsonb_typeof("config") = 'object'),
+  "config_digest" text NOT NULL CHECK ("config_digest" ~ '^[0-9a-f]{64}$'),
+  "pinned_at" timestamp DEFAULT now() NOT NULL,
+  CONSTRAINT "gameplay_day_rules_day_version" UNIQUE ("day", "holding_rules_version")
+);--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION public.gameplay_day_rules_final()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  RAISE EXCEPTION 'a day''s rule set is pinned once and never changed' USING ERRCODE = 'restrict_violation';
+END
+$$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_day_rules_final" ON "gameplay_day_rules";--> statement-breakpoint
+CREATE TRIGGER "gameplay_day_rules_final" BEFORE UPDATE OR DELETE ON "gameplay_day_rules"
+  FOR EACH ROW EXECUTE FUNCTION public.gameplay_day_rules_final();--> statement-breakpoint
 
 -- ── units: the current state of each unit of ground ────────────────────────
 CREATE TABLE IF NOT EXISTS "gameplay_units" (
@@ -61,6 +100,7 @@ CREATE TABLE IF NOT EXISTS "gameplay_unit_day_states" (
   "fortified" boolean NOT NULL,
   "holding_rules_version" integer NOT NULL,
   PRIMARY KEY ("unit_id", "day"),
+  CONSTRAINT "gameplay_unit_day_states_day_rules" FOREIGN KEY ("day", "holding_rules_version") REFERENCES "gameplay_day_rules" ("day", "holding_rules_version"),
   CONSTRAINT "gameplay_unit_day_states_held_iff_strength" CHECK (("holder_id" IS NULL) = ("strength" = 0)),
   CONSTRAINT "gameplay_unit_day_states_masked_unheld" CHECK (NOT "masked" OR "holder_id" IS NULL),
   CONSTRAINT "gameplay_unit_day_states_deeded_solid_held" CHECK (NOT "deeded" OR ("ground" = 'solid' AND "holder_id" IS NOT NULL)),
@@ -84,6 +124,10 @@ BEGIN
     NEW.level := 1;
     NEW.fortified := false;
     NEW.deeded := false;
+    -- Unheld ground has no challenges (holding.ts unitProblems).
+    IF TG_TABLE_NAME = 'gameplay_units' THEN
+      DELETE FROM public.gameplay_unit_challenges WHERE unit_id = NEW.unit_id;
+    END IF;
   END IF;
   RETURN NEW;
 END
@@ -108,7 +152,8 @@ CREATE TABLE IF NOT EXISTS "gameplay_push_events" (
   "day" integer NOT NULL CHECK ("day" >= 0),
   "push_kind" text NOT NULL CHECK ("push_kind" IN ('solid', 'shade')),
   "shade_strength" smallint CHECK ("shade_strength" BETWEEN 1 AND 25),
-  "outcome" text NOT NULL CHECK ("outcome" IN ('claimed', 'reinforced', 'eroded', 'flipped', 'refused_deeded', 'refused_masked', 'refused_daily_limit')),
+  -- refused_take_budget: a take past the walker's daily budget; recorded, changes nothing.
+  "outcome" text NOT NULL CHECK ("outcome" IN ('claimed', 'reinforced', 'eroded', 'flipped', 'refused_deeded', 'refused_masked', 'refused_daily_limit', 'refused_take_budget')),
   "previous_holder_id" text REFERENCES "users"("id") ON DELETE SET NULL,
   "new_holder_id" text REFERENCES "users"("id") ON DELETE SET NULL,
   "strength_before" smallint NOT NULL CHECK ("strength_before" BETWEEN 0 AND 100),
@@ -116,7 +161,8 @@ CREATE TABLE IF NOT EXISTS "gameplay_push_events" (
   "holding_rules_version" integer NOT NULL,
   "source_session_id" text REFERENCES "movement_verifications"("id") ON DELETE CASCADE,
   "created_at" timestamp DEFAULT now() NOT NULL,
-  CONSTRAINT "gameplay_push_events_shade_has_strength" CHECK (("push_kind" = 'shade') = ("shade_strength" IS NOT NULL))
+  CONSTRAINT "gameplay_push_events_shade_has_strength" CHECK (("push_kind" = 'shade') = ("shade_strength" IS NOT NULL)),
+  CONSTRAINT "gameplay_push_events_day_rules" FOREIGN KEY ("day", "holding_rules_version") REFERENCES "gameplay_day_rules" ("day", "holding_rules_version")
 );--> statement-breakpoint
 -- Owner decision 17 Oct: a walker pushes a unit someone else holds at most
 -- once per day. Pushing someone else's ground always records "eroded" or
@@ -159,6 +205,86 @@ $$;--> statement-breakpoint
 DROP TRIGGER IF EXISTS "gameplay_push_events_append_only" ON "gameplay_push_events";--> statement-breakpoint
 CREATE TRIGGER "gameplay_push_events_append_only" BEFORE UPDATE OR DELETE ON "gameplay_push_events"
   FOR EACH ROW EXECUTE FUNCTION public.gameplay_push_events_append_only();--> statement-breakpoint
+
+-- ── walker days: each walker's take counter for a day ──────────────────────
+-- Row-locked by every batch of that walker's pushes for the day, so
+-- two sessions of one walker never both spend the last take. The budget
+-- itself is the day's pinned `take_budget`.
+CREATE TABLE IF NOT EXISTS "gameplay_walker_days" (
+  "walker_id" text NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "day" integer NOT NULL CHECK ("day" >= 0),
+  "holding_rules_version" integer NOT NULL,
+  "takes_used" integer DEFAULT 0 NOT NULL CHECK ("takes_used" >= 0),
+  "updated_at" timestamp DEFAULT now() NOT NULL,
+  PRIMARY KEY ("walker_id", "day"),
+  CONSTRAINT "gameplay_walker_days_day_rules" FOREIGN KEY ("day", "holding_rules_version") REFERENCES "gameplay_day_rules" ("day", "holding_rules_version")
+);--> statement-breakpoint
+
+-- At commit, for every take written: the walker's takes that day (eroded or
+-- flipped rows) equal their counter and do not exceed the day's budget.
+-- Deferred, so the counter can be updated after the rows in the same
+-- transaction. Whatever the application does, a 14th take under a budget of
+-- 13 cannot be committed.
+CREATE OR REPLACE FUNCTION public.gameplay_check_take_budget()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  n integer;
+  used integer;
+  budget integer;
+BEGIN
+  SELECT count(*) INTO n FROM public.gameplay_push_events
+   WHERE walker_id = NEW.walker_id AND day = NEW.day AND outcome IN ('eroded', 'flipped');
+  SELECT takes_used INTO used FROM public.gameplay_walker_days WHERE walker_id = NEW.walker_id AND day = NEW.day;
+  SELECT take_budget INTO budget FROM public.gameplay_day_rules WHERE day = NEW.day;
+  IF used IS NULL OR n <> used THEN
+    RAISE EXCEPTION 'takes of % on day % do not match the counter', NEW.walker_id, NEW.day USING ERRCODE = 'check_violation';
+  END IF;
+  IF budget IS NOT NULL AND n > budget THEN
+    RAISE EXCEPTION 'takes of % on day % exceed the budget', NEW.walker_id, NEW.day USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END
+$$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_push_events_take_budget" ON "gameplay_push_events";--> statement-breakpoint
+CREATE CONSTRAINT TRIGGER "gameplay_push_events_take_budget" AFTER INSERT ON "gameplay_push_events"
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+  WHEN (NEW.outcome IN ('eroded', 'flipped'))
+  EXECUTE FUNCTION public.gameplay_check_take_budget();--> statement-breakpoint
+
+-- ── open two-day challenges (rules.ts TakeoverPolicy "two-day-challenge") ───
+-- Part of a unit's current state, written under the unit's row lock. One row
+-- per challenger; the day the challenge opened. A challenger's erasure
+-- removes their challenges; a holder's erasure removes the unit's.
+CREATE TABLE IF NOT EXISTS "gameplay_unit_challenges" (
+  "unit_id" text NOT NULL REFERENCES "gameplay_units"("unit_id"),
+  "walker_id" text NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "first_day" integer NOT NULL CHECK ("first_day" >= 0),
+  "holding_rules_version" integer NOT NULL,
+  PRIMARY KEY ("unit_id", "walker_id")
+);--> statement-breakpoint
+
+-- holding.ts unitProblems: only held ground has challenges, never by its holder, never from a later day.
+CREATE OR REPLACE FUNCTION public.gameplay_check_challenge()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  u record;
+BEGIN
+  SELECT holder_id, as_of_day, holding_rules_version INTO u FROM public.gameplay_units WHERE unit_id = NEW.unit_id;
+  IF u.holder_id IS NULL OR u.holder_id = NEW.walker_id OR NEW.first_day > u.as_of_day OR u.holding_rules_version <> NEW.holding_rules_version THEN
+    RAISE EXCEPTION 'challenge on unit % is inconsistent with the unit', NEW.unit_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_unit_challenges_consistent" ON "gameplay_unit_challenges";--> statement-breakpoint
+CREATE TRIGGER "gameplay_unit_challenges_consistent" BEFORE INSERT OR UPDATE ON "gameplay_unit_challenges"
+  FOR EACH ROW EXECUTE FUNCTION public.gameplay_check_challenge();--> statement-breakpoint
 
 -- ── applied sessions: one row per verified movement session turned into pushes
 CREATE TABLE IF NOT EXISTS "gameplay_applied_sessions" (
@@ -205,7 +331,8 @@ CREATE TABLE IF NOT EXISTS "gameplay_day_settlements" (
       AND "minted_micro" + "returned_micro" = "pool_micro"
       AND "credited_micro" + "toll_paid_micro" + "burned_micro" = "minted_micro"
       AND "toll_paid_micro" = "toll_received_micro")),
-  CONSTRAINT "gameplay_day_settlements_refused_has_problems" CHECK ("status" <> 'refused' OR jsonb_array_length("problems") > 0)
+  CONSTRAINT "gameplay_day_settlements_refused_has_problems" CHECK ("status" <> 'refused' OR jsonb_array_length("problems") > 0),
+  CONSTRAINT "gameplay_day_settlements_day_rules" FOREIGN KEY ("day", "holding_rules_version") REFERENCES "gameplay_day_rules" ("day", "holding_rules_version")
 );--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "gameplay_day_settlements_season_idx" ON "gameplay_day_settlements" ("season", "day");--> statement-breakpoint
 
@@ -351,6 +478,9 @@ ALTER TABLE "gameplay_club_memberships" ENABLE ROW LEVEL SECURITY;--> statement-
 ALTER TABLE "gameplay_unit_districts" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_club_days" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_district_days" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "gameplay_day_rules" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "gameplay_walker_days" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "gameplay_unit_challenges" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 
 -- The MovenRun user behind the caller's Supabase JWT (claims as PostgREST
 -- sets them), or NULL. SECURITY DEFINER so policies can resolve it without
@@ -374,6 +504,9 @@ REVOKE ALL ON FUNCTION public.gameplay_reset_erased_holder() FROM PUBLIC;--> sta
 REVOKE ALL ON FUNCTION public.gameplay_push_events_append_only() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_check_day_lines() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_settlements_final() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_day_rules_final() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_check_take_budget() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_check_challenge() FROM PUBLIC;--> statement-breakpoint
 
 -- Read policies for the signed-in role. No INSERT, UPDATE or DELETE policy
 -- exists for anyone: with RLS on, only the owner (the API) can write.
@@ -395,7 +528,9 @@ DROP POLICY IF EXISTS "gameplay_club_days_public" ON "gameplay_club_days";--> st
 CREATE POLICY "gameplay_club_days_public" ON "gameplay_club_days" FOR SELECT USING (public.gameplay_current_player_id() IS NOT NULL);--> statement-breakpoint
 DROP POLICY IF EXISTS "gameplay_district_days_public" ON "gameplay_district_days";--> statement-breakpoint
 CREATE POLICY "gameplay_district_days_public" ON "gameplay_district_days" FOR SELECT USING (public.gameplay_current_player_id() IS NOT NULL);--> statement-breakpoint
--- gameplay_unit_day_states and gameplay_unit_districts: no policy, server only.
+-- gameplay_unit_day_states, gameplay_unit_districts, gameplay_day_rules,
+-- gameplay_walker_days and gameplay_unit_challenges: no policy and no grant
+-- for any role, server only.
 
 -- Privileges. Supabase grants every new public table to anon and
 -- authenticated by default; take that back, then give the signed-in role
@@ -405,7 +540,8 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['gameplay_units', 'gameplay_unit_day_states', 'gameplay_push_events', 'gameplay_applied_sessions',
     'gameplay_day_settlements', 'gameplay_credit_lines', 'gameplay_clubs', 'gameplay_club_memberships',
-    'gameplay_unit_districts', 'gameplay_club_days', 'gameplay_district_days'] LOOP
+    'gameplay_unit_districts', 'gameplay_club_days', 'gameplay_district_days',
+    'gameplay_day_rules', 'gameplay_walker_days', 'gameplay_unit_challenges'] LOOP
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', t);
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', t);

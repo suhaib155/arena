@@ -112,7 +112,9 @@ before(async () => {
   if (!DATABASE_URL) return;
   admin = new pg.Pool({ connectionString: DATABASE_URL });
   for (const role of ["anon", "authenticated"]) {
-    await admin.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN CREATE ROLE ${role} NOLOGIN; END IF; END $$`);
+    // gameplayRules.pg.test.ts may create the same role at the same moment.
+    await admin.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN CREATE ROLE ${role} NOLOGIN; END IF; END $$`)
+      .catch((err: { code?: string }) => { if (err.code !== "23505" && err.code !== "42710") throw err; });
   }
   dbName = `gameplay_test_${randomBytes(6).toString("hex")}`;
   await admin.query(`CREATE DATABASE "${dbName}"`);
@@ -145,7 +147,7 @@ test("0011 applies on the committed chain, rolls back cleanly, and applies again
   assert.ok(!before.some((t) => t.startsWith("gameplay_")));
   await migrateUp();
   const withGameplay = await tables();
-  assert.equal(withGameplay.filter((t) => t.startsWith("gameplay_")).length, 11);
+  assert.equal(withGameplay.filter((t) => t.startsWith("gameplay_")).length, 14);
   // Every public table, old and new, keeps row level security on.
   const open = await pool.query("SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity");
   assert.deepEqual(open.rows, []);
@@ -356,7 +358,10 @@ test("day close settles once, the books balance, and the day is then closed to p
   await session(late, "late-session-1", at(D, 20), ["u-late-1"]);
   await assert.rejects(service.applySession(late, "late-session-1"), (e: unknown) => e instanceof GameplayError && e.code === "day_closed");
 
-  // The database refuses books that do not close, and lines that do not add up.
+  // The database refuses books that do not close, and lines that do not add up
+  // (days 1 and 2 pinned to a rule set first, as every header must be).
+  await pool.query(`INSERT INTO gameplay_day_rules (day, season, ruleset, holding_rules_version, takeover_policy, unit_zone_rule, config, config_digest)
+    VALUES (1, 1, 'x', 1, 'immediate', 'unit', '{}', $1), (2, 1, 'x', 1, 'immediate', 'unit', '{}', $1)`, ["0".repeat(64)]);
   assert.equal(await errorCode(pool.query(
     `INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, pool_micro, minted_micro, credited_micro, returned_micro, clubs_status, input_digest)
      VALUES (1, 1, 'settled', 'x', 1, 1, 100, 60, 50, 40, 'skipped', $1)`, ["0".repeat(64)])), "23514");
