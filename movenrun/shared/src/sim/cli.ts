@@ -4,6 +4,7 @@
  *   yarn workspace @movenrun/shared sim [--seeds 1,2,3] [--json out.json] [--only D4,D5]
  *   yarn workspace @movenrun/shared sim --pool [--seeds 1]   (the ~5,000-player pool context run)
  *   yarn workspace @movenrun/shared sim --churn [--seeds 1,2,3] [--only label,label]   (the churn study, docs/SIM_CHURN_STUDY.md)
+ *   yarn workspace @movenrun/shared sim --route-farming [--seeds 1,2,3,4,5] [--only label,label]   (docs/SIM_ROUTE_FARMING_STUDY.md)
  *
  * SIMULATION ONLY: synthetic players on a synthetic grid.
  */
@@ -11,6 +12,7 @@
 import { writeFileSync } from "node:fs";
 import { CHURN_COLUMNS, CHURN_COLUMNS_2, CHURN_DETAIL, CHURN_RUN, churnPlan, continuityPlan } from "./churnStudy";
 import { SIM_PILOT_1 } from "./pilotRuleset";
+import { populationTable, routeFarmingPlan, runRouteFarmingStudy, summaryTable } from "./routeFarmingStudy";
 import { agg, CONTROL_VARIANTS, DETAIL_COLUMNS, markdownTable, poolContextCase, runSweeps, sweepPlan, type CaseResult } from "./sweeps";
 import { PROFILES } from "./world";
 
@@ -44,6 +46,31 @@ if (process.argv.includes("--churn")) {
   }
   const out = arg("json");
   if (out) writeFileSync(out, JSON.stringify([...study, ...cont], null, 1));
+  process.exit(0);
+}
+if (process.argv.includes("--route-farming")) {
+  const rseeds = (arg("seeds") ?? "1,2,3,4,5").split(",").map(Number);
+  const plan = routeFarmingPlan().filter((c) => c.label === "baseline" || !only || only.some((o) => c.label.includes(o)));
+  console.log(`# Route-farming study (SIMULATION: synthetic populations, not real users; not final). Seeds ${rseeds.join(", ")}.\n`);
+  const study = runRouteFarmingStudy({ seeds: rseeds, cases: plan, onRun: (l, s, g, ms) => console.error(`  ran ${l} seed ${s} (${g}) in ${ms} ms`) });
+  for (const regime of ["launch", "binding"] as const) {
+    console.log(`## Pool regime: ${regime}\n`);
+    console.log(summaryTable(study, regime));
+    for (const [what, title] of [
+      ["vsBaseline", "Credits per account, % of baseline"],
+      ["penalised", "Accounts earning at least 1% less than baseline"],
+      ["credits", "Season credits per account"],
+      ["perHour", "Credits per verified hour (per walker)"],
+      ["unscoredShare", "Sessions settled unscored by the rule"],
+      ["reducedShare", "Scoring sessions whose credits the rule reduced"],
+    ] as const) {
+      console.log(`\n### ${title}\n`);
+      console.log(populationTable(study, regime, what));
+    }
+    console.log();
+  }
+  const out = arg("json");
+  if (out) writeFileSync(out, JSON.stringify(study, null, 1));
   process.exit(0);
 }
 const cases = pool ? [poolContextCase()] : sweepPlan().filter((c) => !only || c.decision === "pilot" || only.includes(c.decision));

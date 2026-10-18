@@ -141,7 +141,7 @@ Credits in this table are whole credits.
 1. **Takeover pace (A9, SOURCE §5 wording):** approve the two-day challenge (window 3, floor 50, immediate below 30) for the pilot, or keep the immediate flip.
 2. **Daily take cap:** approve a per-walker cap on pushes against other people's ground, and its value (13 units a day at 76 m). The cost: about 1.0 million pushes a season by heavy walkers and griefers are refused. The game must show this clearly, for example "you can contest 13 rivals' units a day".
 3. **D5:** approve 76 m units (resolution 10 scale) grouped into 201 m zones (resolution 9 scale), with one level per holder and zone. That needs a later G3 change: a per-zone level in the settlement input, instead of the simulator's normalisation.
-4. **Route farming (credits):** choose between recalibrating SOURCE §2's minimum session (HYPOTHESIS), a repeat-route rule (works on synthetic farmers; false positives unknown until real routes exist), or accepting the farmers' 3–4× credit share while the pool does not bind.
+4. **Route farming (credits):** choose between recalibrating SOURCE §2's minimum session (HYPOTHESIS), a repeat-route rule (works on synthetic farmers; false positives unknown until real routes exist), or accepting the farmers' 3–4× credit share while the pool does not bind. Follow-up: `SIM_ROUTE_FARMING_STUDY.md` compares route credit rules against honest repeat walkers; the owner has ruled out raising the minimum session.
 5. **D9 fortify:** keep it as a contest mechanic (§13) only, without a churn role. The study found none.
 
 Not decisions: the griefer behaviour and the attrition rate are synthetic assumptions. They only scale the comparison.
