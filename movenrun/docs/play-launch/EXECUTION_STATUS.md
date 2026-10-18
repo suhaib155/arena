@@ -266,6 +266,20 @@ app CTAs (D-35). Done:
 - QA0: #115 at 3c8d2f8 (E-75). No build run.
 - G5–G7: research #122 (E-78).
 
+## Checkpoint 2026-10-18 (X-21 live, X-05 ready, storage)
+
+- X-21: LIVE VERIFIED (E-79). The owner promoted it in the dashboard; production
+  dpl_ABCfgjsFiJ4DHtRnrLPCc8npLAuD (61d30bb), rollback dpl_1pNg2cyGZ4MLWuqfsSHBtU9P1KBf.
+- X-05: automated preflight passes (E-85); the dashboard steps are the owner's.
+  Nothing enabled, no limit changed.
+- G3/G4: #121 at 685852b (E-80); storage #124 at 1541a01 (E-84): 0011 as written
+  does not fit Supabase Free past about 200 res10 players for one season.
+- G2: route-farming study on #123 at 8ed1054 (E-81).
+- QA0: #115 at 1c3caab (E-82). No build run.
+- G5-G7: #122 at 76ecf4e (E-83).
+- Not done (owner only): migration 0011, the gameplay flag, backend redeploy,
+  main merge, mobile UI, Play account, any chain action.
+
 ## Open owner decisions
 
 - X-01a: Play account type, chosen truthfully (Personal unless MovenRun is a
