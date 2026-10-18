@@ -10,7 +10,11 @@
  * Options: --profile quick|full (default quick), --proposed <file> (default
  * drizzle-proposed/0011_gameplay_holdings.sql), --only <scenario name>,
  * --out <json>, --markdown <md>, --keep (do not drop the bench databases),
- * --from <json> (re-project a saved run without touching any database).
+ * --from <json> (re-project a saved run without touching any database),
+ * --service-root <backend dir> (run another checkout's GameplayService, rule
+ * sets, migration chain and 0011 instead of this one's: how the old shape is
+ * measured with the same harness), --baseline <json> (a saved run of the old
+ * shape, for the old-versus-new tables).
  *
  * Safety: the URL must point at this machine (localhost, 127.0.0.1, ::1 or a
  * Unix socket). Anything else is refused before a connection is made. Each
@@ -23,8 +27,11 @@
  * script. Rows are written by GameplayService itself (applySession,
  * settleDueDays, createClub, joinClub), so the bytes measured are the bytes
  * the service writes. The "alternative" measurements at the end copy the
- * c6dc208 column layout into scratch tables and are skipped, with a note, if
- * those columns are gone.
+ * c6dc208 column layout into scratch tables; on revision 2 (where those
+ * columns are gone) only the movement cell-list cost is measured there, and
+ * revision 2's own measurements run instead: empty day partitions, the
+ * takers lookup, erasure through the real store, DELETE+VACUUM against a
+ * partition drop, and each settlement's temp-file spill.
  *
  * Query plans come from auto_explain (ANALYZE, BUFFERS) on a connection the
  * service uses, so they are the statements the service actually sends, with
@@ -32,20 +39,22 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { randomBytes } from "node:crypto";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { latLngToCell, cellToParent, polygonToCells, gridDisk, cellArea, getResolution } from "h3-js";
 import type { Db } from "../src/db/client.js";
-import { DAY_MS, rulesetFor, type GameplayRules } from "../src/gameplay/rules.js";
-import { GameplayService, GameplayError } from "../src/gameplay/service.js";
+import { DAY_MS, rulesetFor as localRulesetFor, type GameplayRules } from "../src/gameplay/rules.js";
+import type { GameplayService as GameplayServiceT } from "../src/gameplay/service.js";
+import { cellToInt8 } from "../src/gameplay/cells.js";
+import { createDrizzleAccountDeletionStore } from "../src/identity/accountDeletion.js";
 import {
-  DEFAULT_THRESHOLDS, KEEP_EVERYTHING, MIB, PROPOSED_RETENTION, projectStorage, TTL_45_PER_PUSH_PROOF,
+  DEFAULT_THRESHOLDS, KEEP_EVERYTHING, KEEP_EVERYTHING_V2, MIB, PROPOSED_RETENTION, projectStorage, TTL_45_PER_PUSH_PROOF,
   type LoadProfile, type RetentionPolicy, type RowCosts,
 } from "../src/gameplay/capacity.js";
 
-const BACKEND = join(dirname(fileURLToPath(import.meta.url)), "..");
+const HERE = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /* ── arguments and safety ──────────────────────────────────────────────── */
 
@@ -68,6 +77,19 @@ if (!arg("from")) {
     console.error(`Refusing ${baseUrl.hostname || "(empty host)"}: the bench only runs against a local, disposable PostgreSQL.`);
     process.exit(2);
   }
+}
+/** The backend whose service, rules, journal and 0011 are measured (default: this one). */
+const BACKEND = arg("service-root") ?? HERE;
+type ServiceCtor = new (deps: { db: Db; rules: GameplayRules; now?: () => number; unitBudget?: number | null }) => GameplayServiceT;
+let GameplayService: ServiceCtor;
+let GameplayError: new (...a: never[]) => Error & { code: string };
+let rulesetFor: typeof localRulesetFor = localRulesetFor;
+async function loadService(): Promise<void> {
+  const svc = await import(pathToFileURL(join(BACKEND, "src/gameplay/service.ts")).href);
+  const rules = await import(pathToFileURL(join(BACKEND, "src/gameplay/rules.ts")).href);
+  GameplayService = svc.GameplayService;
+  GameplayError = svc.GameplayError;
+  rulesetFor = rules.rulesetFor;
 }
 const PROFILE = arg("profile") ?? "quick";
 const PROPOSED = arg("proposed") ?? "drizzle-proposed/0011_gameplay_holdings.sql";
@@ -172,6 +194,8 @@ interface Scenario {
   explain?: boolean;
   /** Measure the scratch-table alternatives at the end of this scenario. */
   alternatives?: boolean;
+  /** Per-walker daily unit budget passed to the service: undefined = its default (300), null = off. Ignored by a service without one. */
+  unitBudget?: number | null;
 }
 
 const AREA_RADIUS_M = { dense: 2_000, sparse: 12_000 } as const;
@@ -190,6 +214,18 @@ const PROFILES: Record<string, Scenario[]> = {
     { name: "res10-dense-1000", rulesVersion: 1002, res: 10, density: "dense", players: 1000, days: 20, activeShare: 0.6, sessionsPerActiveDay: 1.5, walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [5, 10, 20], explain: true, alternatives: true },
     { name: "res10-hostile", rulesVersion: 1002, res: 10, density: "dense", players: 100, days: 7, activeShare: 0.6, sessionsPerActiveDay: 1.5, walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7], alternatives: true,
       hostile: { accounts: 5, sessionsPerDay: 20, units: 500 } },
+  ],
+  // Revision 2 sizing: rule set 1002 at resolution 10, 100 to 1000 players for 14 days, and
+  // twice the earlier hostile load (10 accounts x 20 sessions x 500 units for 7 days) with and without the unit budget.
+  capacity: [
+    ...[100, 200, 500, 1000].map((players): Scenario => ({
+      name: `cap-res10-${players}`, rulesVersion: 1002, res: 10, density: "dense", players, days: 14, activeShare: 0.6, sessionsPerActiveDay: 1.5,
+      walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7, 14], alternatives: true, explain: players === 1000,
+    })),
+    { name: "cap-res10-hostile2x", rulesVersion: 1002, res: 10, density: "dense", players: 100, days: 7, activeShare: 0.6, sessionsPerActiveDay: 1.5, walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7], alternatives: true,
+      hostile: { accounts: 10, sessionsPerDay: 20, units: 500 } },
+    { name: "cap-res10-hostile2x-nobudget", rulesVersion: 1002, res: 10, density: "dense", players: 100, days: 7, activeShare: 0.6, sessionsPerActiveDay: 1.5, walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7], alternatives: true,
+      hostile: { accounts: 10, sessionsPerDay: 20, units: 500 }, unitBudget: null },
   ],
 };
 
@@ -282,6 +318,19 @@ interface Checkpoint {
 
 interface ScenarioResult {
   scenario: Scenario;
+  /** v1: 0011 as at 1541a01 (text ids, a row per push); v2: revision 2 (partitioned, compact, refusals as counters). */
+  shape?: "v1" | "v2";
+  /** Pushes the service processed (accepted and refused outcomes), normal and hostile. */
+  pushes?: { normal: number; hostile: number; ledgerRows: number };
+  hostileOutcomes?: Record<string, number>;
+  /** Temp files written by each day's settlement (pg_stat_database), the sort spill. */
+  settleSpill?: { day: number; tempFiles: number; tempBytes: number; ms: number }[];
+  /** Revision 2 only: bytes of one empty day partition, per partitioned table. */
+  emptyPartition?: Record<string, number>;
+  partitions?: number;
+  takers?: Record<string, unknown>;
+  reclaim?: Record<string, unknown>;
+  erasure?: { ms: number; rowsBefore: number; rowsAfter: number };
   proposedFile: string;
   proposedTables: string[];
   proposedIndexes: string[];
@@ -355,7 +404,8 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
     let clock = at(SEASON_START - 1, 12);
     const base = rulesetFor(s.rulesVersion);
     const rules: GameplayRules = { ...base, holding: { ...base.holding }, seasonOneStartDay: SEASON_START, maxDaysPerRun: 31 };
-    const service = new GameplayService({ db, rules, now: () => clock });
+    const service = new GameplayService({ db, rules, now: () => clock, ...(s.unitBudget !== undefined ? { unitBudget: s.unitBudget } : {}) });
+    const shape: "v1" | "v2" = proposedTables.includes("gameplay_player_day_proofs") ? "v2" : "v1";
 
     // Players, each with a Supabase identity as the live path creates.
     const radius = AREA_RADIUS_M[s.density];
@@ -370,8 +420,13 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
     const mapCells = areaCells(s.res, radius + 1_000);
     for (let i = 0; i < mapCells.length; i += 20_000) {
       const chunk = mapCells.slice(i, i + 20_000);
-      await pool.query(`INSERT INTO gameplay_unit_districts (unit_id, district_id, districts_version)
-        SELECT u, d, 'bench-1' FROM unnest($1::text[], $2::text[]) AS t(u, d)`, [chunk, chunk.map((c) => cellToParent(c, 6))]);
+      if (shape === "v2") {
+        await pool.query(`INSERT INTO gameplay_unit_districts (unit, district_id, districts_version)
+          SELECT u, d, 'bench-1' FROM unnest($1::bigint[], $2::text[]) AS t(u, d)`, [chunk.map(cellToInt8), chunk.map((c) => cellToParent(c, 6))]);
+      } else {
+        await pool.query(`INSERT INTO gameplay_unit_districts (unit_id, district_id, districts_version)
+          SELECT u, d, 'bench-1' FROM unnest($1::text[], $2::text[]) AS t(u, d)`, [chunk, chunk.map((c) => cellToParent(c, 6))]);
+      }
     }
     const districts = new Set(mapCells.map((c) => cellToParent(c, 6))).size;
 
@@ -387,6 +442,8 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
 
     const unitsPerSession: number[] = [];
     const outcomes: Record<string, number> = {};
+    const hostileOutcomes: Record<string, number> = {};
+    const settleSpill: NonNullable<ScenarioResult["settleSpill"]> = [];
     let sessions = 0;
     let hostileSessions = 0;
     let retries: ScenarioResult["retries"] = null;
@@ -396,7 +453,7 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
     const lastDay = SEASON_START + s.days - 1;
 
     for (let day = SEASON_START; day <= lastDay; day++) {
-      const todays: { userId: string; clientSessionId: string; id: string; cells: string[]; meters: number; seconds: number; end: number }[] = [];
+      const todays: { userId: string; clientSessionId: string; id: string; cells: string[]; meters: number; seconds: number; end: number; hostile?: boolean }[] = [];
       for (const p of players) {
         if (rng() >= s.activeShare) continue;
         const n = Math.floor(s.sessionsPerActiveDay) + (rng() < s.sessionsPerActiveDay % 1 ? 1 : 0);
@@ -412,7 +469,7 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       for (const a of abusers) {
         for (let k = 0; k < s.hostile!.sessionsPerDay; k++) {
           const end = at(day, 1 + (k * 20) / s.hostile!.sessionsPerDay);
-          todays.push({ userId: a.id, clientSessionId: uuid(rng), id: uuid(rng), cells: hostileBlock, meters: 40_000, seconds: 28_000, end });
+          todays.push({ userId: a.id, clientSessionId: uuid(rng), id: uuid(rng), cells: hostileBlock, meters: 40_000, seconds: 28_000, end, hostile: true });
           hostileSessions += 1;
         }
       }
@@ -431,9 +488,10 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
         for (let attempt = 0; ; attempt++) {
           try {
             const r = await service.applySession(x.userId, x.clientSessionId);
-            for (const [o, n] of Object.entries(r.outcomes)) outcomes[o] = (outcomes[o] ?? 0) + n;
-            outcomes.skipped = (outcomes.skipped ?? 0) + r.skipped;
-            outcomes.rejected = (outcomes.rejected ?? 0) + r.rejected;
+            const into = x.hostile ? hostileOutcomes : outcomes;
+            for (const [o, n] of Object.entries(r.outcomes)) into[o] = (into[o] ?? 0) + n;
+            into.skipped = (into.skipped ?? 0) + r.skipped;
+            into.rejected = (into.rejected ?? 0) + r.rejected;
             sessions += 1;
             return;
           } catch (err) {
@@ -461,7 +519,18 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
         explain = await probes(url.toString(), rules, todays[todays.length - 1]!, players, clubIds[0]!, day, (c) => { clock = c; });
       }
       clock = at(day + 1, 3);
+      const temp = async () => {
+        await new Promise((r) => setTimeout(r, 1100)); // cumulative stats are flushed when a backend goes idle
+        await pool.query("SELECT pg_stat_clear_snapshot()");
+        const t = (await pool.query("SELECT temp_files, temp_bytes FROM pg_stat_database WHERE datname = current_database()")).rows[0];
+        return { files: Number(t.temp_files), bytes: Number(t.temp_bytes) };
+      };
+      const t1 = await temp();
+      const ts = Date.now();
       await service.settleDueDays();
+      const ms = Date.now() - ts;
+      const t2 = await temp();
+      settleSpill.push({ day: day - SEASON_START + 1, tempFiles: t2.files - t1.files, tempBytes: t2.bytes - t1.bytes, ms });
       const n = day - SEASON_START + 1;
       if (s.checkpoints.includes(n)) {
         await pool.query("VACUUM ANALYZE");
@@ -483,16 +552,22 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
     const pushEventIndexes = await indexSizes(pool, "gameplay_push_events");
     const authFootprint = await measureAuth(pool, everyone.map((p) => p.id), rng);
     const alternatives = s.alternatives ? await measureAlternatives(pool) : null;
+    const counted = (o: Record<string, number>) => Object.entries(o).filter(([k]) => k !== "skipped" && k !== "rejected").reduce((a, [, v]) => a + v, 0);
+    const pushes = { normal: counted(outcomes), hostile: counted(hostileOutcomes), ledgerRows: rowsOf("gameplay_push_events") };
+    const v2 = shape === "v2" ? await measureV2(pool) : {};
+    const takers = await measureTakers(pool, shape, SEASON_START + s.days - 1);
+    const erasure = await measureErasure(pool, db, players.map((p) => p.id));
+    const reclaim = await measureReclaim(pool, shape, SEASON_START);
     const sorted = [...unitsPerSession].sort((a, b) => a - b);
     return {
-      scenario: s, proposedFile: PROPOSED, proposedTables, proposedIndexes, publicTablesBefore, publicTablesAfter, emptySchema,
+      scenario: s, shape, pushes, hostileOutcomes, settleSpill, ...v2, takers, erasure, reclaim, proposedFile: PROPOSED, proposedTables, proposedIndexes, publicTablesBefore, publicTablesAfter, emptySchema,
       emptyTables, sessions, hostileSessions,
       unitsPerSession: {
         mean: unitsPerSession.reduce((a, b) => a + b, 0) / Math.max(1, unitsPerSession.length),
         p50: sorted[Math.floor(sorted.length * 0.5)] ?? 0, p95: sorted[Math.floor(sorted.length * 0.95)] ?? 0, max: sorted[sorted.length - 1] ?? 0,
       },
       outcomes, retries, checkpoints, pushEventIndexes,
-      dayStatesPerPush: rowsOf("gameplay_unit_day_states") / Math.max(1, rowsOf("gameplay_push_events")),
+      dayStatesPerPush: rowsOf("gameplay_unit_day_states") / Math.max(1, pushes.normal + pushes.hostile),
       distinctUnits: rowsOf("gameplay_units"), districtMapUnits: mapCells.length, clubs: nClubs, districts,
       authFootprint, alternatives, explain, seconds: (Date.now() - t0) / 1000,
     };
@@ -540,7 +615,12 @@ async function measureAlternatives(pool: pg.Pool): Promise<Record<string, unknow
   const pe = ["event_id", "seq", "unit_id", "walker_id", "day", "push_kind", "shade_strength", "outcome", "previous_holder_id", "new_holder_id",
     "strength_before", "strength_after", "holding_rules_version", "source_session_id"];
   if (!(await hasColumns(pool, "gameplay_push_events", pe))) {
-    return { skipped: "gameplay_push_events no longer has the c6dc208 columns; alternatives not measured" };
+    // Revision 2: the ledger is already compact; only the movement cell-list cost is measured here.
+    await pool.query("DROP SCHEMA IF EXISTS bench_alt CASCADE");
+    await pool.query("CREATE SCHEMA bench_alt");
+    out.sessionCells = await measureSessionCells(pool);
+    await pool.query("DROP SCHEMA bench_alt CASCADE");
+    return out;
   }
   await pool.query("DROP SCHEMA IF EXISTS bench_alt CASCADE");
   await pool.query("CREATE SCHEMA bench_alt");
@@ -653,7 +733,14 @@ async function measureAlternatives(pool: pg.Pool): Promise<Record<string, unknow
   const empty = await size("empty_part");
   out.partitioning = { partitions: parts.length, rows: parted.rows, bytesPerRow: parted.bytesPerRow, droppedOldestFreedBytes: dbBefore - dbAfter, emptyPartitionBytes: empty.total };
 
-  // F. Session cell lists nulled after their TTL: what a movement_verifications row costs without them.
+  out.sessionCells = await measureSessionCells(pool);
+  await pool.query("DROP SCHEMA bench_alt CASCADE");
+  return out;
+}
+
+/** F. Session cell lists nulled after their TTL: what a movement_verifications row costs without them (in bench_alt). */
+async function measureSessionCells(pool: pg.Pool) {
+  const size = async (t: string) => (await tableSizes(pool, "bench_alt")).find((x) => x.table === t)!;
   await pool.query(`
     CREATE TABLE bench_alt.mv_full AS SELECT * FROM movement_verifications;
     CREATE TABLE bench_alt.mv_nocells AS SELECT * FROM movement_verifications;
@@ -667,9 +754,144 @@ async function measureAlternatives(pool: pg.Pool): Promise<Record<string, unknow
   const mvFull = await size("mv_full");
   const mvNo = await size("mv_nocells");
   const cells = Number((await pool.query("SELECT coalesce(sum(cardinality(traversed_hex_ids)), 0) AS n FROM movement_verifications")).rows[0].n);
-  out.sessionCells = { rows: mvFull.rows, bytesPerRowWithCells: mvFull.bytesPerRow, bytesPerRowWithoutCells: mvNo.bytesPerRow,
+  return { rows: mvFull.rows, bytesPerRowWithCells: mvFull.bytesPerRow, bytesPerRowWithoutCells: mvNo.bytesPerRow,
     cells, bytesPerCell: cells > 0 ? (mvFull.total - mvNo.total) / cells : null, toastBytes: mvFull.toast };
-  await pool.query("DROP SCHEMA bench_alt CASCADE");
+}
+
+/* ── revision 2: partitions, the takers lookup, erasure and reclaim ────── */
+
+async function partitionsOf(pool: pg.Pool, parent: string): Promise<string[]> {
+  const r = await pool.query(`SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid JOIN pg_class p ON p.oid = i.inhparent
+    WHERE p.relname = $1 ORDER BY c.relname`, [parent]);
+  return r.rows.map((x) => x.relname as string);
+}
+
+/** Bytes of one empty day partition of each partitioned table, with its indexes (far-future day, dropped afterwards). */
+async function measureV2(pool: pg.Pool): Promise<Pick<ScenarioResult, "emptyPartition" | "partitions">> {
+  const far = 90_000;
+  await pool.query("SELECT gameplay_ensure_day_partitions($1, $1)", [far]);
+  const emptyPartition: Record<string, number> = {};
+  for (const t of ["gameplay_push_events", "gameplay_walker_days"]) {
+    const name = `${t}_d${far}`;
+    emptyPartition[t] = Number((await pool.query(`SELECT pg_total_relation_size('gameplay_partitions.${name}'::regclass) AS b`)).rows[0].b);
+    await pool.query(`DROP TABLE gameplay_partitions.${name}`);
+  }
+  return { emptyPartition, partitions: (await partitionsOf(pool, "gameplay_push_events")).length };
+}
+
+async function explainJson(c: pg.PoolClient, query: string, params: unknown[]) {
+  const r = await c.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`, params);
+  const top = r.rows[0]["QUERY PLAN"][0];
+  const nodes: string[] = [];
+  const walk = (n: Record<string, unknown>) => {
+    nodes.push(`${n["Node Type"]}${n["Index Name"] ? ` ${n["Index Name"]}` : ""}${n["Relation Name"] ? ` on ${n["Relation Name"]}` : ""}`);
+    for (const k of (n.Plans as Record<string, unknown>[] | undefined) ?? []) walk(k);
+  };
+  walk(top.Plan);
+  return { executionMs: top["Execution Time"] as number, sharedHit: top.Plan["Shared Hit Blocks"], sharedRead: top.Plan["Shared Read Blocks"], nodes };
+}
+
+/**
+ * "Who took this unit today": the lookup applySession makes for each batch
+ * (one-push rule and challenges), and the dispute lookup for one unit. On v1
+ * the full (unit_id, day) index is compared with a partial one on takes only.
+ */
+async function measureTakers(pool: pg.Pool, shape: "v1" | "v2", day: number): Promise<Record<string, unknown>> {
+  const c = await pool.connect();
+  const out: Record<string, unknown> = { day };
+  try {
+    await c.query("ANALYZE gameplay_push_events");
+    if (shape === "v2") {
+      const units = (await c.query(`SELECT unit::text AS u FROM gameplay_push_events WHERE day = $1 GROUP BY unit ORDER BY count(*) DESC LIMIT 500`, [day])).rows.map((x) => x.u);
+      out.units = units.length;
+      out.batchTakes = await explainJson(c, `SELECT e.unit, p.user_id FROM gameplay_push_events e JOIN gameplay_players p ON p.player_no = e.walker_no
+        WHERE e.day = $1 AND e.unit = ANY($2::bigint[]) AND e.outcome IN (3, 4)`, [day, units]);
+      out.oneUnitTakes = await explainJson(c, `SELECT walker_no, outcome FROM gameplay_push_events WHERE day = $1 AND unit = $2 AND outcome IN (3, 4)`, [day, units[0]]);
+      out.oneUnitAllPushes = await explainJson(c, `SELECT walker_no, outcome FROM gameplay_push_events WHERE day = $1 AND unit = $2`, [day, units[0]]);
+      out.indexes = (await c.query(`SELECT i.relname AS index, pg_relation_size(i.oid) AS bytes FROM pg_inherits h JOIN pg_class i ON i.oid = h.inhrelid
+        JOIN pg_class pi ON pi.oid = h.inhparent WHERE pi.relname IN ('gameplay_push_events_takers_idx', 'gameplay_push_events_one_push_per_walker_unit_day', 'gameplay_push_events_pkey')
+          AND i.relname LIKE '%_d' || $1 || '_%'`, [day])).rows.map((x) => ({ index: x.index, bytes: Number(x.bytes) }));
+    } else {
+      const units = (await c.query(`SELECT unit_id AS u FROM gameplay_push_events WHERE day = $1 GROUP BY unit_id ORDER BY count(*) DESC LIMIT 500`, [day])).rows.map((x) => x.u);
+      out.units = units.length;
+      const q = `SELECT unit_id, walker_id FROM gameplay_push_events WHERE day = $1 AND unit_id = ANY($2::text[]) AND outcome IN ('eroded', 'flipped')`;
+      out.batchTakesFullIndex = await explainJson(c, q, [day, units]);
+      out.fullIndexBytes = Number((await c.query(`SELECT pg_relation_size('gameplay_push_events_unit_day_idx'::regclass) AS b`)).rows[0].b);
+      await c.query("BEGIN");
+      await c.query(`DROP INDEX gameplay_push_events_unit_day_idx`);
+      await c.query(`CREATE INDEX bench_takers_partial ON gameplay_push_events (unit_id, day) WHERE outcome IN ('eroded', 'flipped')`);
+      await c.query("ANALYZE gameplay_push_events");
+      out.batchTakesPartialIndex = await explainJson(c, q, [day, units]);
+      out.oneUnitAllPushesPartialIndex = await explainJson(c, `SELECT walker_id, outcome FROM gameplay_push_events WHERE day = $1 AND unit_id = $2`, [day, units[0]]);
+      out.partialIndexBytes = Number((await c.query(`SELECT pg_relation_size('bench_takers_partial'::regclass) AS b`)).rows[0].b);
+      await c.query("ROLLBACK");
+    }
+  } catch (err) {
+    await c.query("ROLLBACK").catch(() => undefined);
+    out.error = String(err);
+  } finally {
+    c.release();
+  }
+  return out;
+}
+
+/** Account deletion through the real erasure store (accountDeletion.ts), for the player with most sessions. */
+async function measureErasure(pool: pg.Pool, db: Db, ids: string[]): Promise<ScenarioResult["erasure"]> {
+  const count = async () => Number((await pool.query("SELECT count(*) AS n FROM gameplay_push_events")).rows[0].n);
+  const heavy = (await pool.query(`SELECT user_id FROM movement_verifications WHERE user_id = ANY($1::text[]) GROUP BY user_id ORDER BY count(*) DESC LIMIT 1`, [ids])).rows[0]?.user_id;
+  if (!heavy) return undefined;
+  const rowsBefore = await count();
+  const t = Date.now();
+  try {
+    await createDrizzleAccountDeletionStore(db).erase(heavy);
+  } catch (err) {
+    return { ms: -1, rowsBefore, rowsAfter: rowsBefore, error: String(err) } as ScenarioResult["erasure"];
+  }
+  return { ms: Date.now() - t, rowsBefore, rowsAfter: await count() };
+}
+
+/**
+ * Retiring a day of raw ledger: DELETE plus VACUUM on an unpartitioned copy
+ * (what a non-partitioned table must do) against dropping the day partition
+ * (revision 2). Read-only for v1's real tables; the copy is scratch.
+ */
+async function measureReclaim(pool: pg.Pool, shape: "v1" | "v2", firstDay: number): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = {};
+  const day = firstDay + 1;
+  await pool.query("DROP TABLE IF EXISTS public.bench_flat");
+  await pool.query("CREATE TABLE public.bench_flat (LIKE public.gameplay_push_events INCLUDING DEFAULTS INCLUDING IDENTITY INCLUDING INDEXES)");
+  await pool.query("INSERT INTO public.bench_flat OVERRIDING SYSTEM VALUE SELECT * FROM public.gameplay_push_events");
+  await pool.query("VACUUM ANALYZE public.bench_flat");
+  const flatSize = async () => Number((await pool.query("SELECT pg_total_relation_size('public.bench_flat'::regclass) AS b")).rows[0].b);
+  const flatBefore = await flatSize();
+  const dayRows = Number((await pool.query("SELECT count(*) AS n FROM public.bench_flat WHERE day = $1", [day])).rows[0].n);
+  let t = Date.now();
+  await pool.query("DELETE FROM public.bench_flat WHERE day = $1", [day]);
+  const deleteMs = Date.now() - t;
+  t = Date.now();
+  await pool.query("VACUUM public.bench_flat");
+  const vacuumMs = Date.now() - t;
+  const afterVacuum = await flatSize();
+  t = Date.now();
+  await pool.query("VACUUM FULL public.bench_flat");
+  const vacuumFullMs = Date.now() - t;
+  const afterFull = await flatSize();
+  await pool.query("DROP TABLE public.bench_flat");
+  out.deleteRoute = { day, dayRows, tableBytes: flatBefore, deleteMs, vacuumMs, freedByVacuum: flatBefore - afterVacuum, vacuumFullMs, freedByVacuumFull: flatBefore - afterFull,
+    note: "VACUUM leaves the space to the table (reused, not returned); VACUUM FULL returns it but rewrites the table under an exclusive lock" };
+  if (shape === "v2") {
+    let freed = 0;
+    let ms = 0;
+    for (const t2 of ["gameplay_push_events", "gameplay_walker_days"]) {
+      const name = `gameplay_partitions.${t2}_d${day}`;
+      const bytes = Number((await pool.query(`SELECT pg_total_relation_size('${name}'::regclass) AS b`)).rows[0].b);
+      const s = Date.now();
+      await pool.query(`DROP TABLE ${name}`);
+      ms += Date.now() - s;
+      freed += bytes;
+    }
+    out.dropRoute = { day, freedBytes: freed, ms, note: "push ledger and walker-day partitions of that day; files unlinked at once, no dead tuples, no VACUUM" };
+  }
   return out;
 }
 
@@ -748,8 +970,26 @@ function perRow(r: ScenarioResult, table: string, fallback = 0): number {
   return marginal(r, t) ?? fallback;
 }
 
+/** Bytes per row of a partitioned table with the fixed cost of its day partitions taken out (that is `partitionDay`). */
+function partitionedPerRow(r: ScenarioResult, table: string): number {
+  const t = r.checkpoints[r.checkpoints.length - 1]!.tables.find((x) => x.table === table);
+  if (!t || t.rows === 0) return 0;
+  return Math.max(0, t.total - (r.partitions ?? 0) * (r.emptyPartition?.[table] ?? 0)) / t.rows;
+}
+
 function costsFrom(r: ScenarioResult): RowCosts {
   const alt = r.alternatives as { sessionCells?: { bytesPerRowWithoutCells: number; bytesPerCell: number | null }; coarseProof?: { bytesPerRow: number }; playerDayProof?: { bytesPerRow: number } } | null;
+  if (r.shape === "v2") {
+    const v1 = costsFrom({ ...r, shape: "v1" });
+    return {
+      ...v1,
+      pushEvent: partitionedPerRow(r, "gameplay_push_events"),
+      walkerDay: partitionedPerRow(r, "gameplay_walker_days"),
+      partitionDay: (r.emptyPartition?.gameplay_push_events ?? 0) + (r.emptyPartition?.gameplay_walker_days ?? 0),
+      playerDayProof: perRow(r, "gameplay_player_day_proofs"),
+      coarseProof: 0,
+    };
+  }
   return {
     pushEvent: perRow(r, "gameplay_push_events"),
     unitDayState: perRow(r, "gameplay_unit_day_states"),
@@ -880,6 +1120,120 @@ function projections(results: ScenarioResult[]) {
   return { rows, capacity, markdown: table.join("\n") + "\n\n" + fits.join("\n") };
 }
 
+/* ── revision 2 projections: old shape against new ─────────────────────── */
+
+const ACCEPTED = ["claimed", "reinforced", "eroded", "flipped"];
+const acceptedShareOf = (o: Record<string, number>) => {
+  const all = Object.entries(o).filter(([k]) => k !== "skipped" && k !== "rejected").reduce((a, [, v]) => a + v, 0);
+  return all > 0 ? ACCEPTED.reduce((a, k) => a + (o[k] ?? 0), 0) / all : 1;
+};
+const QUOTA_85 = 0.85 * DEFAULT_THRESHOLDS.quotaBytes;
+
+/**
+ * The capacity table for the revision 2 decision: rule set 1002 at
+ * resolution 10, everything the database holds (gameplay, movement sessions
+ * and their cell lists, auth sessions, security audit, the live baseline).
+ * (a) keep everything, (b) 14-day raw partitions + 120-day player-day proofs,
+ * (c) (b) with the compact ledger: for the old shape the scratch-copy
+ * estimate, for the new shape what it measures.
+ */
+function capacityProjections(current: ScenarioResult[], baseline: ScenarioResult[] | null) {
+  const shapes: { shape: "v1" | "v2"; results: ScenarioResult[] }[] = [];
+  for (const set of [baseline, current]) {
+    if (!set || set.length === 0) continue;
+    shapes.push({ shape: set[0]!.shape ?? "v1", results: set });
+  }
+  const md: string[] = [];
+  const rows: Record<string, unknown>[] = [];
+  const pct = (b: number) => (100 * b) / DEFAULT_THRESHOLDS.quotaBytes;
+  for (const { shape, results } of shapes) {
+    const normal = results.filter((r) => !r.scenario.hostile && r.scenario.res === 10);
+    if (normal.length === 0) continue;
+    const ref = normal.reduce((a, b) => (b.scenario.players > a.scenario.players ? b : a));
+    const hostileRun = results.find((r) => r.scenario.hostile && r.scenario.unitBudget !== null);
+    const costs = costsFrom(ref);
+    const alt = ref.alternatives as { compactLedger?: { bytesPerRow: number } } | null;
+    const compact: RowCosts = shape === "v1" ? { ...costs, pushEvent: alt?.compactLedger?.bytesPerRow ?? costs.pushEvent } : costs;
+    const unitsPerPlayer = Math.max(...normal.map((r) => r.distinctUnits / r.scenario.players));
+    const challengesPerPlayer = Math.max(...normal.map((r) => lastRows(r, "gameplay_unit_challenges") / r.scenario.players));
+    const accepted = shape === "v2" ? acceptedShareOf(ref.outcomes) : 1;
+    const hostileAccepted = shape === "v2" && hostileRun?.hostileOutcomes ? acceptedShareOf(hostileRun.hostileOutcomes) : 1;
+    const cellKm2 = cellArea(latLngToCell(CENTER.lat, CENTER.lng, 10), "km2");
+    const areaUnits = Math.round(PLAY_AREA_KM2 / cellKm2);
+    const load = (players: number, seasons: number, hostile: boolean): LoadProfile => ({
+      players, activeShare: 0.6, sessionsPerActiveDay: 1.5, unitsPerSession: ref.unitsPerSession.mean,
+      dayStatesPerPush: Math.max(...normal.map((r) => r.dayStatesPerPush)),
+      distinctUnits: Math.min(areaUnits, Math.round(players * unitsPerPlayer)), districtMapUnits: areaUnits,
+      openChallenges: Math.min(areaUnits, Math.round(players * challengesPerPlayer)),
+      walkerDaysPerActiveDay: lastRows(ref, "gameplay_walker_days") / Math.max(1, lastRows(ref, "gameplay_credit_lines")),
+      clubs: Math.round(players / 10), districts: Math.round(PLAY_AREA_KM2 / 36), auditRowsPerActiveDay: 6, days: 90 * seasons,
+      acceptedShare: accepted, hostileAcceptedShare: hostileAccepted,
+      // The old shape has no unit budget: hostile pushes are bounded only by sessions x 500.
+      unitBudget: shape === "v2" ? 300 : undefined,
+      // Twice the 1% of the first study: 2% of accounts at 20 sessions x 500 units a day for 14 days.
+      ...(hostile ? { hostile: { accounts: Math.max(1, Math.round(players / 50)), sessionsPerDay: 20, unitsPerSession: 500, days: 14 } } : {}),
+    });
+    const policies: { key: string; name: string; policy: RetentionPolicy; costs: RowCosts }[] = shape === "v1"
+      ? [
+        { key: "a", name: "old shape, keep everything", policy: KEEP_EVERYTHING, costs },
+        { key: "b", name: "old shape, 14 d partitions + 120 d player-day proofs", policy: PROPOSED_RETENTION, costs },
+        { key: "c", name: "old shape, (b) + compact ledger (scratch-copy estimate)", policy: PROPOSED_RETENTION, costs: compact },
+      ]
+      : [
+        { key: "a", name: "revision 2, keep everything", policy: KEEP_EVERYTHING_V2, costs },
+        { key: "c", name: "revision 2, 14 d partitions + 120 d player-day proofs (= (c), measured)", policy: PROPOSED_RETENTION, costs },
+      ];
+    md.push(`### ${shape === "v1" ? "Old shape (0011 at 1541a01)" : "Revision 2"}`, "",
+      `Reference run ${ref.scenario.name}: ${ref.unitsPerSession.mean.toFixed(1)} units/session, ledger ${costs.pushEvent.toFixed(0)} B/row, accepted share ${(accepted * 100).toFixed(1)}%` +
+      `${shape === "v2" ? `, hostile accepted share ${(hostileAccepted * 100).toFixed(1)}%, day partition pair ${costs.partitionDay ?? 0} B, player-day proof ${costs.playerDayProof.toFixed(0)} B/row` : ""}.`, "",
+      "| Policy | Players | 1 season MiB (% of 500) | 4 seasons | 1 season + 2% hostile | 4 seasons + 2% hostile |", "|---|---|---|---|---|---|");
+    for (const pol of policies) {
+      for (const players of [100, 200, 500, 1000]) {
+        const cells: string[] = [];
+        for (const [seasons, hostile] of [[1, false], [4, false], [1, true], [4, true]] as const) {
+          const p = projectStorage(load(players, seasons, hostile), pol.costs, pol.policy, LIVE_BASELINE_BYTES);
+          rows.push({ shape, policy: pol.key, players, seasons, hostile, mib: p.totalBytes / MIB, pct: pct(p.totalBytes), byClassMiB: Object.fromEntries(Object.entries(p.byClass).map(([k, v]) => [k, +(v / MIB).toFixed(2)])) });
+          cells.push(`${(p.totalBytes / MIB).toFixed(0)} (${pct(p.totalBytes).toFixed(0)}%)`);
+        }
+        md.push(`| (${pol.key}) ${pol.name} | ${players} | ${cells.join(" | ")} |`);
+      }
+    }
+    md.push("", "| Policy | Players under 85%, 1 season | 4 seasons | 1 season + 2% hostile | 4 seasons + 2% hostile |", "|---|---|---|---|---|");
+    for (const pol of policies) {
+      const fit = (seasons: number, hostile: boolean) => {
+        let lo = 0;
+        let hi = 200_000;
+        while (lo < hi) {
+          const mid = Math.ceil((lo + hi) / 2);
+          if (projectStorage(load(mid, seasons, hostile), pol.costs, pol.policy, LIVE_BASELINE_BYTES).totalBytes <= QUOTA_85) lo = mid;
+          else hi = mid - 1;
+        }
+        return lo;
+      };
+      const f = [fit(1, false), fit(4, false), fit(1, true), fit(4, true)];
+      rows.push({ shape, policy: pol.key, under85: f });
+      md.push(`| (${pol.key}) ${pol.name} | ${f.map((x) => x.toLocaleString("en")).join(" | ")} |`);
+    }
+    // Where the bytes go at 1000 players, 4 seasons, for the most compact policy of this shape.
+    const last = policies[policies.length - 1]!;
+    const b = projectStorage(load(1000, 4, false), last.costs, last.policy, LIVE_BASELINE_BYTES);
+    md.push("", `By class at 1000 players, 4 seasons, (${last.key}): ${Object.entries(b.byClass).map(([k, v]) => `${k} ${(v / MIB).toFixed(1)}`).join(", ")} MiB; baseline ${(LIVE_BASELINE_BYTES / MIB).toFixed(1)} MiB.`, "");
+  }
+  return { rows, markdown: md.join("\n") };
+}
+
+/** Old-versus-new measured table, scenario by scenario (same seeds, same synthetic players). */
+function comparison(current: ScenarioResult[], baseline: ScenarioResult[]): string {
+  const md = ["| Scenario | Shape | Pushes (normal / hostile) | Ledger rows | Ledger MiB | All 0011 tables MiB | movement_verifications MiB | Database MiB | Settle temp MiB (max day) | Settle ms (max day) |", "|---|---|---|---|---|---|---|---|---|---|"];
+  for (const r of [...baseline, ...current].sort((a, b) => a.scenario.name.localeCompare(b.scenario.name) || (a.shape ?? "v1").localeCompare(b.shape ?? "v1"))) {
+    const cp = r.checkpoints[r.checkpoints.length - 1]!;
+    const tot = (pred: (t: TableSize) => boolean) => cp.tables.filter(pred).reduce((a, t) => a + t.total, 0) / MIB;
+    const spill = r.settleSpill ?? [];
+    md.push(`| ${r.scenario.name} | ${r.shape ?? "v1"} | ${r.pushes ? `${r.pushes.normal} / ${r.pushes.hostile}` : "–"} | ${lastRows(r, "gameplay_push_events")} | ${tot((t) => t.table === "gameplay_push_events").toFixed(1)} | ${tot((t) => r.proposedTables.includes(t.table)).toFixed(1)} | ${tot((t) => t.table === "movement_verifications").toFixed(1)} | ${(cp.databaseBytes / MIB).toFixed(1)} | ${(Math.max(0, ...spill.map((x) => x.tempBytes)) / MIB).toFixed(1)} | ${Math.max(0, ...spill.map((x) => x.ms))} |`);
+  }
+  return md.join("\n");
+}
+
 /* ── report ────────────────────────────────────────────────────────────── */
 
 const fmt = (b: number | null | undefined) => (b === null || b === undefined ? "–" : b.toFixed(0));
@@ -911,6 +1265,12 @@ function markdown(results: ScenarioResult[], proj: ReturnType<typeof projections
     md.push("", `Push event indexes: ${r.pushEventIndexes.map((i) => `${i.index} ${i.bytes}`).join(", ")}.`, "");
     if (r.authFootprint) md.push(`Auth footprint: audit ${r.authFootprint.auditBytesPerRow.toFixed(0)} B/row, auth session ${r.authFootprint.authSessionBytesPerRow.toFixed(0)} B/row (${r.authFootprint.rows} rows each).`, "");
     if (r.alternatives) md.push("Alternatives:", "", "```json", JSON.stringify(r.alternatives, null, 2), "```", "");
+    if (r.shape) {
+      md.push(`Shape ${r.shape}. Pushes ${JSON.stringify(r.pushes)}. Hostile outcomes ${JSON.stringify(r.hostileOutcomes ?? {})}.`, "");
+      if (r.emptyPartition) md.push(`Partitions ${r.partitions}; empty day partition ${JSON.stringify(r.emptyPartition)} bytes.`, "");
+      md.push("Takers lookup:", "", "```json", JSON.stringify(r.takers, null, 2), "```", "", "Reclaim:", "", "```json", JSON.stringify(r.reclaim, null, 2), "```", "");
+      md.push(`Erasure: ${JSON.stringify(r.erasure)}. Settlement spill by day: ${(r.settleSpill ?? []).map((x) => `d${x.day} ${x.tempFiles} files ${x.tempBytes} B ${x.ms} ms`).join("; ")}.`, "");
+    }
     if (r.explain) {
       md.push("Query plans (auto_explain, ANALYZE):", "");
       for (const [name, qs] of Object.entries(r.explain)) {
@@ -924,22 +1284,34 @@ function markdown(results: ScenarioResult[], proj: ReturnType<typeof projections
   return md.join("\n");
 }
 
+function extraSections(results: ScenarioResult[]): string {
+  const b = arg("baseline");
+  const baseline = b ? (JSON.parse(readFileSync(b, "utf8")) as { results: ScenarioResult[] }).results : null;
+  if (!baseline && !results.some((r) => r.shape === "v2")) return "";
+  const cap = capacityProjections(results, baseline);
+  capacityRows = cap.rows;
+  return ["## Capacity (revision 2 decision)", "", "MiB and % of a 500 MiB quota, everything included (gameplay, movement sessions and cell lists, auth sessions, security audit, 11.8 MiB live baseline). Rule set 1002, resolution 10, 60% active, 1.5 sessions per active day, 6 token refreshes per active day, 1,000 km² play area.", "",
+    cap.markdown, "", ...(baseline ? ["## Old versus new, measured", "", comparison(results, baseline), ""] : [])].join("\n");
+}
+let capacityRows: Record<string, unknown>[] = [];
+
 async function main() {
   const from = arg("from");
   if (from) {
     // Re-project and re-render saved measurements (after a model change) without re-running the scenarios.
     const saved = JSON.parse(readFileSync(from, "utf8")) as { results: ScenarioResult[] };
     const proj = projections(saved.results);
-    const md = markdown(saved.results, proj);
+    const md = markdown(saved.results, proj) + "\n" + extraSections(saved.results);
     const mdOut = arg("markdown");
     if (mdOut) writeFileSync(mdOut, md);
     else console.log(md);
     const out = arg("out");
-    if (out) writeFileSync(out, JSON.stringify({ ...saved, costs: Object.fromEntries(saved.results.map((r) => [r.scenario.name, costsFrom(r)])), projection: proj.rows, capacity: proj.capacity }, null, 2));
+    if (out) writeFileSync(out, JSON.stringify({ ...saved, costs: Object.fromEntries(saved.results.map((r) => [r.scenario.name, costsFrom(r)])), projection: proj.rows, capacity: proj.capacity, capacityV2: capacityRows }, null, 2));
     return;
   }
   const scenarios = (PROFILES[PROFILE] ?? []).filter((s) => !ONLY || s.name === ONLY);
   if (scenarios.length === 0) throw new Error(`no scenario for profile ${PROFILE}${ONLY ? ` and --only ${ONLY}` : ""}`);
+  await loadService();
   const admin = new pg.Pool({ connectionString: URL_ENV });
   const version = (await admin.query("SELECT version() AS v, current_setting('block_size') AS b")).rows[0];
   await admin.end();
@@ -950,11 +1322,12 @@ async function main() {
     results.push(await runScenario(s));
   }
   const proj = projections(results);
+  const extra = extraSections(results);
   const report = { ranAt: new Date().toISOString(), postgres: version.v, blockSize: Number(version.b), profile: PROFILE, proposed: PROPOSED,
-    liveBaselineBytes: LIVE_BASELINE_BYTES, results, costs: Object.fromEntries(results.map((r) => [r.scenario.name, costsFrom(r)])), projection: proj.rows, capacity: proj.capacity };
+    liveBaselineBytes: LIVE_BASELINE_BYTES, results, costs: Object.fromEntries(results.map((r) => [r.scenario.name, costsFrom(r)])), projection: proj.rows, capacity: proj.capacity, capacityV2: capacityRows, serviceRoot: BACKEND };
   const out = arg("out");
   if (out) writeFileSync(out, JSON.stringify(report, null, 2));
-  const md = markdown(results, proj);
+  const md = markdown(results, proj) + "\n" + extra;
   const mdOut = arg("markdown");
   if (mdOut) writeFileSync(mdOut, md);
   else console.log(md);
