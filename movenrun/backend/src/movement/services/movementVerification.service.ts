@@ -99,7 +99,9 @@ export class MovementVerificationService {
         endTime: input.observation.endTime,
         ...sessionColumns(input.observation.session),
         ...sealColumns(result),
-      }, { since, max: MAX_NEW_VERIFICATIONS_PER_DAY });
+      }, { since, max: MAX_NEW_VERIFICATIONS_PER_DAY },
+      // Gameplay rule set 1002's path: written with the row or not at all.
+      result.status === "verified" && result.sessionPath ? { sessionPath: result.sessionPath } : undefined);
       return { record, created: true };
     } catch (err) {
       if (!(err instanceof MovementSessionConflictError)) throw err;

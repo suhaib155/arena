@@ -47,10 +47,17 @@ import {
   dayOf, dayStartMs, isUnitUnder, lastClosedDay, rulesetConfig, rulesetDigest, rulesetFor, seasonOf, UnknownRulesVersionError, zoneOfUnder,
   type GameplayRules,
 } from "./rules.js";
-import { applyServerLedger, SERVER_OUTCOMES, type ServerOutcome } from "./policy.js";
+import { applyServerLedger, challengeKey, SERVER_OUTCOMES, type SecondPushInput, type ServerOutcome } from "./policy.js";
+import { bitsToFlags, int8ToCell, pushUnitsOf, steppedUnitsOf } from "./path.js";
+import { partitionProblems, withPartitionLevels, zonePartitions } from "./zones.js";
 
 /** Advisory lock namespace ("MRGP"); the second key is the day index. */
 export const GAMEPLAY_LOCK_NAMESPACE = 0x4d524750;
+/** Advisory lock namespace ("MRGS"); the second key is the season. Taken only to pin a new day. */
+export const GAMEPLAY_SEASON_LOCK_NAMESPACE = 0x4d524753;
+
+/** Server receipt time of a movement row, epoch ms, whatever the session time zone. */
+const RECEIVED_MS = sql.raw(`(extract(epoch FROM (created_at AT TIME ZONE current_setting('TimeZone'))) * 1000)::float8`);
 
 export class GameplayError extends Error {
   constructor(readonly status: number, readonly code: string) {
@@ -188,8 +195,8 @@ export class GameplayService {
     const now = this.now();
     try {
       return await this.db.transaction(async (tx) => {
-        const [mv] = await rows<{ id: string; status: string; end_time: string; traversed_hex_ids: string[] | null }>(tx, sql`
-          SELECT id, status, end_time, traversed_hex_ids FROM movement_verifications
+        const [mv] = await rows<{ id: string; status: string; end_time: string; traversed_hex_ids: string[] | null; received_ms: number }>(tx, sql`
+          SELECT id, status, end_time, traversed_hex_ids, ${RECEIVED_MS} AS received_ms FROM movement_verifications
            WHERE user_id = ${userId} AND client_session_id = ${clientSessionId}
            FOR UPDATE`);
         if (!mv) throw new GameplayError(404, "session_not_found");
@@ -206,7 +213,10 @@ export class GameplayService {
         const day = dayOf(this.rules, Number(mv.end_time));
         if (day > dayOf(this.rules, now)) throw new GameplayError(409, "session_in_future");
         if (seasonOf(this.rules, day) === null) throw new GameplayError(409, "season_not_started");
-        const unitIds = [...new Set(mv.traversed_hex_ids ?? [])].sort(byString);
+        // 1001: the stored cells, in unit id order. 1002: the canonical path the
+        // server derived from the verified fixes, in walk order.
+        const source = this.rules.units.source;
+        const unitIds = source ? await this.sessionPathUnits(tx, mv.id) : [...new Set(mv.traversed_hex_ids ?? [])].sort(byString);
         if (unitIds.length > this.rules.maxUnitsPerSession) throw new GameplayError(422, "too_many_units");
         // D5: a session whose cells are not units under the running rule set
         // (for example resolution 8 cells under resolution 10 units) is refused whole.
@@ -214,7 +224,8 @@ export class GameplayService {
         const events: PushEvent[] = unitIds.map((unitId) => ({
           eventId: `mv:${mv.id}:${unitId}`, unitId, walkerId: userId, push: { kind: "solid" }, day,
         }));
-        const result = await this.applyBatch(tx, events, day, mv.id, now);
+        const walkOrder = source ? new Map(events.map((e, i) => [e.eventId, i])) : undefined;
+        const result = await this.applyBatch(tx, events, day, mv.id, now, { walkOrder, receivedMs: Number(mv.received_ms) });
         await tx.execute(sql`
           INSERT INTO gameplay_applied_sessions (movement_verification_id, user_id, day, applied, skipped, rejected, outcomes, holding_rules_version)
           VALUES (${mv.id}, ${userId}, ${day}, ${result.applied}, ${result.skipped}, ${result.rejected},
@@ -232,6 +243,7 @@ export class GameplayService {
    * (for example shade, once D2 exists). Not reachable over HTTP.
    */
   async applyPushes(events: readonly PushEvent[]): Promise<BatchResult> {
+    // Server batches have no session: their receipt time is now.
     const days = [...new Set(events.map((e) => e.day))];
     if (days.length !== 1) throw new GameplayError(400, "one_day_per_batch");
     const now = this.now();
@@ -242,6 +254,22 @@ export class GameplayService {
     }
   }
 
+  /**
+   * The units of a session's stored path (1002), in walk order. Fails closed:
+   * a session verified without a path (before the path existed, or while
+   * gameplay was off) or under another path rule is never guessed at.
+   */
+  private async sessionPathUnits(tx: Tx, movementId: string): Promise<string[]> {
+    const rule = this.rules.units.source!.rule;
+    const [path] = await rows<{ path_version: number; resolution: number; unit_ids: string[]; interpolated: string }>(tx, sql`
+      SELECT path_version, resolution, unit_ids::text[] AS unit_ids, interpolated::text AS interpolated
+        FROM gameplay_session_paths WHERE movement_verification_id = ${movementId}`);
+    if (!path) throw new GameplayError(409, "session_path_unavailable");
+    if (Number(path.path_version) !== rule.version || Number(path.resolution) !== rule.resolution) throw new GameplayError(409, "session_path_version_mismatch");
+    const units = path.unit_ids.map(int8ToCell);
+    return pushUnitsOf({ units, interpolated: bitsToFlags(path.interpolated, units.length) }, rule);
+  }
+
   private mapPushError(err: unknown): unknown {
     if (err instanceof GameplayError) return err;
     // The one-push index, or a concurrent writer of the same event id: the
@@ -250,7 +278,10 @@ export class GameplayService {
     return err;
   }
 
-  private async applyBatch(tx: Tx, events: readonly PushEvent[], day: number, sourceSessionId: string | null, now: number): Promise<BatchResult> {
+  private async applyBatch(
+    tx: Tx, events: readonly PushEvent[], day: number, sourceSessionId: string | null, now: number,
+    opts: { walkOrder?: ReadonlyMap<string, number>; receivedMs?: number } = {},
+  ): Promise<BatchResult> {
     const rules = this.rules;
     const hv = rules.holding.rulesVersion;
     // Pushes share the day; its settlement takes the exclusive lock, so a day
@@ -316,6 +347,26 @@ export class GameplayService {
     const already = await rows<{ event_id: string }>(tx, sql`
       SELECT event_id FROM gameplay_push_events WHERE event_id = ANY(${arr(eventIds)}::text[])`);
 
+    // 1002's day-boundary guard: when the server received the session that opened each open challenge.
+    const takeover = rules.takeover;
+    let secondPush: SecondPushInput | undefined;
+    if (takeover.name === "two-day-challenge" && takeover.policyVersion === 2) {
+      const openedRows = challengeRows.length === 0 ? [] : await rows<{ unit_id: string; walker_id: string; opened_ms: number | null }>(tx, sql`
+        SELECT c.unit_id, c.walker_id,
+               (SELECT (extract(epoch FROM (COALESCE(mv.created_at, pe.created_at) AT TIME ZONE current_setting('TimeZone'))) * 1000)::float8
+                  FROM gameplay_push_events pe LEFT JOIN movement_verifications mv ON mv.id = pe.source_session_id
+                 WHERE pe.unit_id = c.unit_id AND pe.walker_id = c.walker_id AND pe.day = c.first_day AND pe.outcome IN ('eroded', 'flipped')
+                 ORDER BY pe.seq LIMIT 1) AS opened_ms
+          FROM gameplay_unit_challenges c WHERE c.unit_id = ANY(${arr(unitIds)}::text[]) ORDER BY c.unit_id, c.walker_id`);
+      const at = opts.receivedMs ?? now;
+      secondPush = {
+        minElapsedMs: takeover.secondPush.minElapsedMs,
+        windowDays: takeover.windowDays,
+        eventReceivedMs: new Map(events.map((e) => [e.eventId, at])),
+        challengeOpenedMs: new Map(openedRows.filter((r) => r.opened_ms !== null).map((r) => [challengeKey(r.unit_id, r.walker_id), Number(r.opened_ms)])),
+      };
+    }
+
     const pushers = new Map<string, string[]>();
     for (const p of pushedToday) pushers.set(p.unit_id, [...(pushers.get(p.unit_id) ?? []), p.walker_id]);
     const challenges = new Map<string, { walkerId: string; day: number }[]>();
@@ -332,6 +383,7 @@ export class GameplayService {
 
     const ledger = applyServerLedger({
       states, events, holding: rules.holding, appliedEventIds: already.map((a) => a.event_id), takesUsed, budget: rules.takeBudget,
+      walkOrder: opts.walkOrder, secondPush,
     });
     for (const r of ledger.results) {
       if (r.status === "applied") {
@@ -428,6 +480,22 @@ export class GameplayService {
     const digest = rulesetDigest(rules);
     const season = seasonOf(rules, day);
     if (season === null) throw new GameplayError(409, "season_not_started");
+    const [already] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+      SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    if (already) {
+      if (Number(already.holding_rules_version) !== rules.holding.rulesVersion || already.config_digest !== digest) throw new GameplayError(409, "rules_version_mismatch");
+      return;
+    }
+    // A new day: the season keeps one rule set. Serialised per season, so two
+    // instances running different rule sets cannot pin two days of one season
+    // at once. Taken after the day's lock and before any counter or unit lock,
+    // and nothing waits on a day lock while holding it, so it adds no cycle.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_SEASON_LOCK_NAMESPACE}::int, ${season}::int)`);
+    const [other] = await rows<{ day: number }>(tx, sql`
+      SELECT day FROM gameplay_day_rules
+       WHERE season = ${season} AND day <> ${day} AND (holding_rules_version <> ${rules.holding.rulesVersion} OR config_digest <> ${digest})
+       ORDER BY day LIMIT 1`);
+    if (other) throw new GameplayError(409, "season_rules_changed");
     await tx.execute(sql`
       INSERT INTO gameplay_day_rules (day, season, ruleset, holding_rules_version, takeover_policy, take_budget, unit_zone_rule, config, config_digest)
       VALUES (${day}, ${season}, ${rules.ruleset}, ${rules.holding.rulesVersion}, ${rules.takeover.name}, ${rules.takeBudget?.perWalkerPerDay ?? null},
@@ -533,10 +601,26 @@ export class GameplayService {
 
     // Players who moved: verified sessions whose last fix falls on the day (D1),
     // and the week before it for consistency (section 17).
-    const sessionRows = await rows<{ user_id: string; end_time: string; duration_seconds: number | null; distance_meters: number | null; traversed_hex_ids: string[] | null }>(tx, sql`
-      SELECT user_id, end_time, duration_seconds, distance_meters, traversed_hex_ids FROM movement_verifications
+    const sessionRows = await rows<{ id: string; user_id: string; end_time: string; duration_seconds: number | null; distance_meters: number | null; traversed_hex_ids: string[] | null }>(tx, sql`
+      SELECT id, user_id, end_time, duration_seconds, distance_meters, traversed_hex_ids FROM movement_verifications
        WHERE status = 'verified' AND end_time >= ${dayStartMs(rules, day - 6)} AND end_time < ${dayStartMs(rules, day + 1)}
        ORDER BY user_id, end_time, id`);
+    // 1002: a session's crossed cells (the toll's input, economy V3 §20) are the
+    // stepped units of its stored path, never interpolated ones and never the
+    // resolution 8 cells. A session without a path crosses nothing here.
+    const steppedBySession = new Map<string, string[]>();
+    if (rules.units.source) {
+      const ids = sessionRows.filter((s) => dayOf(rules, Number(s.end_time)) === day).map((s) => s.id);
+      const paths = ids.length === 0 ? [] : await rows<{ movement_verification_id: string; unit_ids: string[]; interpolated: string }>(tx, sql`
+        SELECT movement_verification_id, unit_ids::text[] AS unit_ids, interpolated::text AS interpolated
+          FROM gameplay_session_paths WHERE movement_verification_id = ANY(${arr(ids)}::text[])
+           AND path_version = ${rules.units.source.rule.version} AND resolution = ${rules.units.source.rule.resolution}
+         ORDER BY movement_verification_id`);
+      for (const p of paths) {
+        const units = p.unit_ids.map(int8ToCell);
+        steppedBySession.set(p.movement_verification_id, steppedUnitsOf({ units, interpolated: bitsToFlags(p.interpolated, units.length) }));
+      }
+    }
     const activeDays = new Map<string, Set<number>>();
     const sessions = new Map<string, CreditsPlayerInput["sessions"][number][]>();
     for (const s of sessionRows) {
@@ -546,7 +630,8 @@ export class GameplayService {
       if (d !== day) continue;
       const list = sessions.get(s.user_id) ?? [];
       sessions.set(s.user_id, list);
-      list.push({ minutes: s.duration_seconds / 60, meters: s.distance_meters, crossedCells: [...new Set(s.traversed_hex_ids ?? [])].sort(byString) });
+      const crossed = rules.units.source ? steppedBySession.get(s.id) ?? [] : s.traversed_hex_ids ?? [];
+      list.push({ minutes: s.duration_seconds / 60, meters: s.distance_meters, crossedCells: [...new Set(crossed)].sort(byString) });
     }
     const players: CreditsPlayerInput[] = [...sessions.keys()].sort(byString).map((playerId) => ({
       playerId,
@@ -557,15 +642,29 @@ export class GameplayService {
       kitLevel: rules.kitLevel,
     }));
 
+    // D5: 1001 makes a unit its own zone; 1002 maps resolution 10 units to
+    // their resolution 9 parent, split into one partition per holder (zones.ts).
+    const zoneOf = zoneOfUnder(rules.units);
+    let partitions: ReturnType<typeof zonePartitions> | null = null;
+    const partitionErrors: string[] = [];
+    if (rules.units.partition) {
+      try {
+        partitions = zonePartitions({ day, states, holding: rules.holding, zoneOf, shadeCountsAsHeld: rules.shadeCountsAsHeld });
+      } catch (err) {
+        partitionErrors.push(`zone partitions: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     const holdings = holdingsAtDayClose({
-      day, states, entries, holdingRules: rules.holding,
-      // D5: 1001 makes a unit its own zone; 1002 maps resolution 10 units to
-      // their resolution 9 parent, every holder of a mixed zone holding it.
-      zoneOf: zoneOfUnder(rules.units),
+      day, states: partitions ? withPartitionLevels(states, partitions) : states, entries, holdingRules: rules.holding, zoneOf,
       shadeCountsAsHeld: rules.shadeCountsAsHeld,
     });
-    holdings.problems.push(...versionProblems);
-    const credits = settleCreditsDay({ rulesVersion: rules.economyRulesVersion, season, day, players, holdings });
+    holdings.problems.push(...versionProblems, ...partitionErrors);
+    if (partitions && holdings.problems.length === 0) holdings.problems.push(...partitionProblems({ partitions, holdings }));
+    let credits = settleCreditsDay({ rulesVersion: rules.economyRulesVersion, season, day, players, holdings });
+    if (partitions && credits.status === "settled") {
+      const lineProblems = partitionProblems({ partitions, holdings, lines: credits.lines });
+      if (lineProblems.length > 0) credits = { status: "refused", rulesVersion: credits.rulesVersion, season, day, problems: lineProblems };
+    }
 
     const membershipRows = await rows<{ walker_id: string; club_id: string; from_day: number; to_day: number | null }>(tx, sql`
       SELECT walker_id, club_id, from_day, to_day FROM gameplay_club_memberships

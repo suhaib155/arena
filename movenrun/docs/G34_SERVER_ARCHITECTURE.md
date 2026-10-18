@@ -13,12 +13,16 @@
 | Piece | Path |
 |---|---|
 | Proposed migration and rollback | `backend/drizzle-proposed/0011_gameplay_holdings.sql`, `0011_gameplay_holdings.down.sql` |
+| Proposed 1002 addendum (session paths), to fold into 0011 | `backend/drizzle-proposed/1002_session_paths.sql`, `1002_session_paths.down.sql` (section 15.9) |
+| 1002 session path: resolution 10 units from verified fixes | `backend/src/gameplay/path.ts`, written by the movement pipeline (`movement/http/productionRouter.ts`, `movement/repositories/drizzle/store.ts`) only when 1002 runs |
+| 1002 zone partitions | `backend/src/gameplay/zones.ts` |
+| Same-seed comparison of 1001 and 1002 (SIMULATION ONLY) | `backend/src/gameplay/compare.ts`, `backend/scripts/compare-rulesets.ts` |
 | Pilot rules (every open value, named by decision), the rule set registry (1001, 1002), takeover policy, take budget and unit/zone rule | `backend/src/gameplay/rules.ts` |
 | Server ledger step: the shared ledger one event at a time, plus the take budget | `backend/src/gameplay/policy.ts` |
 | Service: apply, settle, clubs, reads | `backend/src/gameplay/service.ts` |
 | HTTP routes | `backend/src/gameplay/router.ts` |
 | Production wiring (flag, maintenance task) | `backend/src/gameplay/wiring.ts`, called from `backend/src/api/app.ts` |
-| Tests | `rules.test.ts` and `policy.test.ts` (no database: scenarios and seeded property tests), `gameplay.pg.test.ts` and `gameplayRules.pg.test.ts` (real PostgreSQL 16, each in its own throwaway database) |
+| Tests | `rules.test.ts`, `policy.test.ts`, `rules1002.test.ts`, `path.test.ts`, `compare.test.ts` and `regression1001.test.ts` (no database), `gameplay.pg.test.ts`, `gameplayRules.pg.test.ts`, `gameplay1002.pg.test.ts` and `regression1001.pg.test.ts` (real PostgreSQL 16, each in its own throwaway database) |
 
 **Shared rule types.** `origin/feat/sim-churn-study` (#123, ba7519f) is merged into this branch with a normal merge commit. It adds the optional `HoldingRules.takeover` (`TakeoverRule`) to `shared/src/domain/holding.ts`, plus the churn simulator. The server reuses `TakeoverRule` and the shared `applyPush` for the two-day challenge. It imports nothing from `shared/src/sim/`. The only conflict was one row of the status table in `GAME_ECONOMY_V3.md`, and both rows were kept.
 
@@ -27,7 +31,7 @@
 ## 2. Authority boundary
 
 - The phone never names a unit, a push, an outcome, a strength or a credit. `POST /gameplay/sessions/:sessionId/apply` takes an empty body (strict: any field is a 400). The server finds the caller's own verified movement session by `(user from the bearer token, client session id)` and derives one stepped-on push per traversed unit.
-- Traversed units are the cells that contain a verified fix (`HexService.getHexIdsForPoints`), never cells inferred between fixes (assumption A1). Shade (enclosed ground) needs D2 and is not derived. The model and the store support it, through the server-only `applyPushes`, which has no route.
+- Under 1001, traversed units are the cells that contain a verified fix (`HexService.getHexIdsForPoints`), never cells inferred between fixes (assumption A1). Under 1002 they are the session path derived from the verified fixes (section 15.7), which adds units on walked segments between accepted fixes; that departs from A1 and is listed as an owner decision. Shade (enclosed ground) needs D2 and is not derived. The model and the store support it, through the server-only `applyPushes`, which has no route.
 - Settlement has no route. It runs in the API's maintenance loop.
 - The user always comes from `SessionService.verifyAccess`, the same check `/movement` uses, never from a body or a path.
 
@@ -66,11 +70,13 @@ One index is added to an existing table, `movement_verifications (end_time) WHER
 
 ## 5. Concurrency
 
-- **Lock order.** Every batch takes the same locks in the same order: the day's shared advisory lock, the walker-day counters by walker id, then the units by unit id. No two batches can deadlock.
+- **Lock order.** Every batch takes the same locks in the same order: (1) the movement row `FOR UPDATE` (apply only), (2) the day's shared advisory lock `(MRGP, day)`, (3) only when the day has no pinned rule set yet, the season's advisory lock `(MRGS, season)`, (4) the walker-day counters by walker id, (5) the units by unit id. Settlement takes the day's exclusive lock, then (only to pin an unpinned day) the season lock. Nobody waits for a day lock while holding the season lock, and nobody takes the season lock while holding counter or unit locks, so no two transactions can deadlock.
 - **The budget.** The walker-day row is locked `FOR UPDATE` before the walker's units. Two sessions of one walker therefore never both spend the last take, whichever units they cross. Tested: 30 sessions of one walker, each on a different unit someone else holds, applied at once give exactly 13 takes and 17 `refused_take_budget`. The counter reads 13.
 - **Pushes on a unit.** A batch inserts any missing unit rows (`ON CONFLICT DO NOTHING`) and then locks all its units with `SELECT … ORDER BY unit_id FOR UPDATE`. Every batch locks in the same order, so two batches cannot deadlock. The day's existing pushers and the already-applied event ids are read after the locks are held, so a batch that waited sees everything the batch before it committed. The model then runs on exactly the state that will be written. Tested: ten walkers push one unit at once. The stored ledger is a single chain, each push starting where the previous one left the unit (by `seq`), and the unit row equals the last event.
 - **Pushes against day close.** A push takes `pg_advisory_xact_lock_shared(MRGP, day)`. Settlement takes the exclusive `pg_advisory_xact_lock(MRGP, day)` and runs `SERIALIZABLE`, retrying serialization failures up to four times. A day is never settled while a push for it is in flight. After its close, any push for it gets 409 `day_closed`.
-- **Fail-safe.** If the application ever disagreed with the database, the one-push index or the event primary key would raise `23505`. The whole batch then rolls back and the client gets 409 `concurrent_push_retry`.
+- **Fail-safe.** If the application ever disagreed with the database, the one-push index or the event primary key would raise `23505`. The whole batch then rolls back and the client gets 409 `concurrent_push_retry`. A retry is always safe: every write is keyed (section 4).
+- **One season, one rule set.** A new day is pinned only after checking, under the season lock, that no other day of the season is pinned to another version or config. Otherwise the push or settlement fails with 409 `season_rules_changed`. Tested: 1001 pushing into a 1002 season, and 20 pushes under each rule set racing to pin the first two days of a new season (one version wins the season; every push of the other gets `season_rules_changed` or `rules_version_mismatch`).
+- **Tested under load (1002, section 15).** One walker on three devices: 30 overlapping sessions each applied twice at once, then retried: 13 takes, every unit pushed once, 30 applied sessions. Thirty challengers on one unit at once, then all thirty again 22 hours later at once: one ledger chain, exactly one flip, 29 new challenges.
 
 ## 6. Day close on Render Free (no paid cron)
 
@@ -127,7 +133,7 @@ Tested: erasing a player who holds ground, has pushes and credit lines, and appe
 | `GET /gameplay/districts/days/:day` | Bearer | — | District standings for a settled day |
 | `GET /gameplay/leaderboards/:season?metric=` | Bearer | — | `seasonLeaderboard` over settled days. Metric defaults to the D22 pilot value |
 
-Errors are `{ "error": "<code>" }`: `session_not_found`, `session_not_verified`, `session_in_future`, `season_not_started`, `day_closed`, `too_many_units`, `unit_resolution_mismatch`, `rules_version_mismatch`, `unit_rules_version_mismatch`, `concurrent_push_retry`, `club_id_taken`, `club_name_taken`, `already_in_club`, `club_not_found`, `invalid_request`, `not_found`. Day close can also stop with `unknown_rules_version` or `rules_config_mismatch` (no route; the maintenance run logs it and settles nothing from that day on).
+Errors are `{ "error": "<code>" }`: `session_not_found`, `session_not_verified`, `session_in_future`, `season_not_started`, `day_closed`, `too_many_units`, `unit_resolution_mismatch`, `session_path_unavailable`, `session_path_version_mismatch`, `rules_version_mismatch`, `season_rules_changed`, `unit_rules_version_mismatch`, `concurrent_push_retry`, `club_id_taken`, `club_name_taken`, `already_in_club`, `club_not_found`, `invalid_request`, `not_found`. Day close can also stop with `unknown_rules_version` or `rules_config_mismatch` (no route; the maintenance run logs it and settles nothing from that day on).
 
 The apply result counts outcomes, including `refused_take_budget`. The gameplay routes are unchanged, and no new route exists.
 
@@ -137,7 +143,7 @@ The apply result counts outcomes, including `refused_take_budget`. The gameplay 
 |---|---|
 | Code only (flag on, problem found) | Unset `MOVENRUN_GAMEPLAY_ENABLED` and restart. Routes and the task disappear and data stays. |
 | Bad settled day | Settled days are final by design. Fix forward in a new rules version; never edit a header. A refused header may be deleted (the trigger allows it), and the next maintenance run settles that day again. |
-| Remove the schema | Run `0011_gameplay_holdings.down.sql` in one transaction (and, if 0011 was promoted into `drizzle/`, delete its row from `drizzle.__drizzle_migrations` in the same transaction). **This is not a harmless rollback.** It permanently destroys every gameplay record: holdings, the append-only ledger, settled days and credit lines, the rule set pinned to each day, take counters, open challenges and clubs. Settled days are final by design, and after this they cannot be replayed or reconciled. Running it is its own owner decision, after a `pg_dump`. It leaves 0000–0010 untouched. Tested: up → down gives exactly the 0000–0010 tables and no gameplay functions, and up again works. |
+| Remove the schema | If the 1002 addendum was applied, run `1002_session_paths.down.sql` first. Run `0011_gameplay_holdings.down.sql` in one transaction (and, if 0011 was promoted into `drizzle/`, delete its row from `drizzle.__drizzle_migrations` in the same transaction). **This is not a harmless rollback.** It permanently destroys every gameplay record: holdings, the append-only ledger, settled days and credit lines, the rule set pinned to each day, take counters, open challenges and clubs. Settled days are final by design, and after this they cannot be replayed or reconciled. Running it is its own owner decision, after a `pg_dump`. It leaves 0000–0010 untouched. Tested: up → down gives exactly the 0000–0010 tables and no gameplay functions, and up again works. |
 | Restore | Supabase Free has no point-in-time restore. Take a `pg_dump` of the `gameplay_*` tables before any rollback that matters. |
 
 ## 12. Open decisions D1–D23
@@ -150,7 +156,7 @@ The apply result counts outcomes, including `refused_take_budget`. The gameplay 
 | D2 | Shade shape and sprawl | §4: 25 × shape × sprawl; sprawl thins past 12 enclosed per stepped cell | Shape below 0.35 claims nothing; sprawl 12 | Not derived. The store accepts shade pushes (1–25) from server code only | Yes: the shape metric, before any shade is derived |
 | D3 | Masked areas | §4: military, schools, hospitals, shelters, private land, hazards are never held | Not set | `masked` column, enforced (masked ⇒ unheld). No data source | Yes: data source and update process |
 | D4 | Decay rate, stage floors | §5 names the stages, no numbers; shade decays 3× (HYPOTHESIS) | 3/day, floors 60/30/10 | Same, holding rules version 1001 | Yes |
-| D5 | Unit and zone | §3: tolls and deeds per cell, upkeep per zone; zone undefined | sim-pilot-1: 201 m unit, zone = unit. sim-pilot-2: 76 m units (resolution 10 scale) in 201 m zones (resolution 9 scale) | 1001: unit = the stored cell (resolution 8 today), zone = unit. 1002: unit must be an H3 resolution 10 cell, zone = its resolution 9 parent; mixed-holder zones under the named candidate rule `each-holder-holds-zone` (section 15.3). 1002 refuses resolution 8 sessions, so it cannot run on real sessions until the movement pipeline stores resolution 10 cells | Yes: resolution, zone grouping, and the mixed-holder rule (section 15.3) |
+| D5 | Unit and zone | §3: tolls and deeds per cell, upkeep per zone; zone undefined | sim-pilot-1: 201 m unit, zone = unit. sim-pilot-2: 76 m units (resolution 10 scale) in 201 m zones (resolution 9 scale) | 1001: unit = the stored cell (resolution 8 today), zone = unit. 1002: unit = an H3 resolution 10 cell from the session path derived from verified fixes (section 15.7), zone = its resolution 9 parent split into one partition per holder (`per-holder-min-level-v1`, section 15.3) | Yes: resolution, zone grouping, the partition rule, and whether interpolated units push (section 15.7) |
 | D6 | Deed cap, claim fee, related accounts | §12 | Not set | Not built (`deeded` column only; no deed can be created) | Later, with deeds |
 | D7 | Contest score, support curve, home advantage | §13 | Not set | Not built | Later, with contests |
 | D8 | Trail kit carry-over vs two sessions | §10, §17 | Not set | Kit level 1 for everyone, no carry-over | Later, with kit purchases |
@@ -185,11 +191,15 @@ Supabase Free allows 500 MB of database. A rough sizing: each push row is about 
 2. Decide the retention rule for settled ledger rows and day states (section 13), and whether to keep the `authenticated` Data API read grants (section 7) or serve reads through the API only.
 3. Promote the migration. Move `0011_gameplay_holdings.sql` into `backend/drizzle/`, add its journal entry and checksum, update `runtime.test.ts`'s migration count to 12, review, merge, and move `deploy/render-free-staging` to the approved commit. Taking a backup first is part of the same approval.
 4. Load the D20 district map for the pilot area.
-5. Set `MOVENRUN_GAMEPLAY_SEASON_START_DAY`, choose the rule set (`MOVENRUN_GAMEPLAY_RULES_VERSION`: unset is 1001; 1002 is the sim-pilot-2 proposal and needs resolution 10 cells from the movement pipeline first), and then set `MOVENRUN_GAMEPLAY_ENABLED=true` on staging. This step activates multiplayer gameplay and is its own approval.
+5. Set `MOVENRUN_GAMEPLAY_SEASON_START_DAY`, choose the rule set (`MOVENRUN_GAMEPLAY_RULES_VERSION`: unset is 1001; 1002 is the sim-pilot-2 proposal; it also needs the session-path addendum applied with 0011, and only sessions verified while it runs can be applied under it), and then set `MOVENRUN_GAMEPLAY_ENABLED=true` on staging. This step activates multiplayer gameplay and is its own approval.
 6. Wire the app. The mobile UI is frozen; the app keeps showing territory as an on-device preview until this is approved.
 7. Run an independent reconciliation of the first settled days. Recompute each day from the stored inputs and compare it with `input_digest` and the header.
 
 ## 15. Versioned rule sets and the sim-pilot-2 churn levers
+
+**V3 §5 deviation (needs owner ratification).** SOURCE §5 says "at 0 the cell flips to the walker". 1002's two-day challenge does not flip at 0 on a first push, and its 20-hour gap delays the flip further. That is a deviation from the V3 source, approved only for pilot development and comparison. 1002 is not the default and is not enabled anywhere; 1001 (A9 immediate flip) stays the default. Ratifying, changing or dropping 1002 is the owner's decision, and the final V3 economy is not changed by any of this.
+
+**1002 is still a draft.** No day has ever been pinned to 1002 anywhere (0011 is unapplied), so its config was extended in place with the parameters below (its digest changed). 1001's config and digest are unchanged and are checked against values recorded before this work (`regression1001.test.ts`, `regression1001.pg.test.ts`). Once any day is pinned to 1002, it can only change by a new version.
 
 Each rule below has one of three labels:
 
@@ -202,13 +212,15 @@ Each rule below has one of three labels:
 | Push 100, fresh strength 100 | SOURCE §4, §5 | yes | yes |
 | One push per walker per unit per calendar day on someone else's ground; own and empty ground exempt | SOURCE (owner decision A9, 17 Oct) | model + unique index | model + unique index |
 | A push reaching 0 flips at once, at the overflow, at least 1 | HYPOTHESIS (ASSUMPTION A9 reading of §5) | yes | only below 30, on shade, or on the challenger's second day |
-| Two-day challenge, window 3 days, floor 50, immediate below 30 | SIMULATION-PILOT PROPOSAL | no | yes |
-| 13 takes per walker per day | SIMULATION-PILOT PROPOSAL | no | yes |
-| Resolution 10 units in resolution 9 zones; mixed zone `each-holder-holds-zone` | SIMULATION-PILOT PROPOSAL (D5 is open) | no (stored cell, zone = unit) | yes |
+| Two-day challenge, window 3 days, floor 50, immediate below 30 | SIMULATION-PILOT PROPOSAL | no | yes (policy version 2) |
+| The second push at least 20 hours after the first, by server receipt (`min-elapsed-server-receipt`) | SIMULATION-PILOT PROPOSAL | no | yes (section 15.5) |
+| 13 takes per walker per day, met in walk order (`walk-order-v1`) | SIMULATION-PILOT PROPOSAL | no | yes (section 15.2) |
+| Resolution 10 units in resolution 9 zones; mixed zone `each-holder-holds-zone`, split per holder (`per-holder-min-level-v1`) | SIMULATION-PILOT PROPOSAL (D5 is open) | no (stored cell, zone = unit) | yes (section 15.3) |
+| Units from the session path derived from verified fixes (`verified-steps` v1), stepped and interpolated | SIMULATION-PILOT PROPOSAL (departs from A1) | no (stored cells) | yes (section 15.7) |
 | Stepped-on shade falls at once | SOURCE §4 | yes | yes |
 | Masked units never held; deeded units immune | SOURCE §4, §12 | yes | yes |
 | Decay 3 a day, floors 60/30/10 | SIMULATION-PILOT PROPOSAL (D4); shade ×3 HYPOTHESIS §4 | yes | yes |
-| Day = UTC day of the last verified fix, close at midnight + 2 h | SIMULATION-PILOT PROPOSAL (D1, section 6) | yes | yes, unchanged |
+| Day = UTC day of the last verified fix, close at midnight + 2 h | SIMULATION-PILOT PROPOSAL (D1, section 6) | yes (unnamed, so its recorded config is unchanged) | yes, unchanged, named `d1-last-verified-fix` v1 |
 | Economy rules version 1 (every credit number) | SOURCE §17–22 | yes | yes, unchanged |
 
 ### 15.1 Takeover policy
@@ -232,7 +244,7 @@ Each rule below has one of three labels:
 - **What never counts:** claiming empty ground (including ground that has decayed to 0), reinforcing or refreshing your own ground (stepped on or shade), refusals (`refused_masked`, `refused_deeded`, `refused_daily_limit`, `refused_take_budget`), skipped duplicates and rejected events.
 - **Ownership is judged at the push, not at the start of the day.** Once a walker flips a unit it is theirs. Their later pushes on it that day reinforce and are free.
 - **Past the budget.** A take is stored as `refused_take_budget`: no strength, holder or challenge changes. It does not use the one-push slot. A stepped-on refusal still counts as a visit to that zone for the walker's own upkeep, as the model's other refusals do. Club contributions leave these rows out.
-- **Which pushes win.** Within one session, events are applied in event id order, which is unit id order, not walk order. Across sessions, the first committed session wins.
+- **Which pushes win (`order: "walk-order-v1"`).** Within one session, events meet the budget in walk order: the session path's first-touch order, which has no ties within one path. Events without a walk position (server batches from `applyPushes`) come after, in event id order. Pushes are also stored in that order (`seq`), so the ledger replays the same way. Across sessions, the first committed session wins. Tested: of 20 units walked in the reverse of their id order, the first 13 walked are taken (pure and on PostgreSQL); under the previous unit-id order the first 13 ids were taken.
 - **Server authority.** The day is the server's D1 day of the session. The count comes from the ledger and the `gameplay_walker_days` counter, in the same transaction as the pushes. The budget is the day's pinned `take_budget`. The client sends neither a day nor a count. The routes still take an empty body.
 - **The database guarantee.** A deferred constraint trigger checks at commit that a walker's take rows that day equal the counter and do not exceed the budget. Tested: a forged 14th take is refused (`23514`) with and without a forged counter.
 
@@ -244,6 +256,15 @@ Under 1002 a unit must be an H3 resolution 10 cell (about 76 m edge) and its zon
 
 - **`each-holder-holds-zone`** (1002's candidate, SIMULATION-PILOT PROPOSAL): every walker holding at least one unit of the zone holds the zone. Each pays its upkeep once at their level, and visits it by stepping on any of its units. This is what the shared `holdingsAtDayClose` already does with a `zoneOf`. Tested: one holder with 5 units and another with 1 both hold the zone.
 - **`unit-is-zone`** (the switch): per-unit upkeep, as 1001.
+
+**Partitions (`partition: "per-holder-min-level-v1"`, `zones.ts`).** A mixed zone is split into one partition per holder: the units of the zone that walker holds at day close (decayed first; shade left out while D15 says it does not count).
+
+- **Upkeep:** each partition is one held zone of its holder and pays that zone's upkeep once. A unit is in exactly one partition.
+- **Level:** the partition's level is the lowest level among its units. Today every unit is level 1 (no level purchase exists), so no number changes. The shared model alone refuses the whole day when one holder's units in a zone have two levels; the partition level replaces that refusal.
+- **Visits and away days:** a partition is visited when its holder stepped on any unit of the zone that day (the shared model's rule). Away-day protection (D17, not built) would cover a holder's own partitions only.
+- **Upgrades** (level purchase, fortify; not built) would act on the buyer's partition only.
+- **Invariants at day close** (`partitionProblems`): every counted unit is in exactly one partition and its holder is the partition's; the model's held zones are exactly the partitions (no zone without a unit, none counted twice); each credit line's `zones_held` equals its partitions and the lines' total equals the partition count. Any breach refuses the day.
+- **Nothing leaks:** partitions, zones and units are internal. Tested on PostgreSQL: a zone held by two walkers with one unit at level 2 settles, each holder holds it once, and the holdings, credits and board responses of one holder contain no other walker's id and no H3 index.
 
 **Open decision D5. Alternatives, none built:**
 
@@ -257,36 +278,115 @@ Under 1002 a unit must be an H3 resolution 10 cell (about 76 m edge) and its zon
 - `RULESETS` lists the versions this build knows: 1001 and 1002. The simulator's 9001 and 9002 are refused as server versions. An unknown or malformed `MOVENRUN_GAMEPLAY_RULES_VERSION` stops the API from starting.
 - The first push of a day pins that day's rule set in `gameplay_day_rules`: the version and the full config with its sha256. A day without pushes is pinned by its settlement. Push events, unit day states, walker counters and the settlement header carry the version and have a foreign key to the pin. A row under any other version cannot be stored.
 - **Fails closed:**
+  - a push or settlement that would pin a new day of a season whose other days are pinned to another version or config (`season_rules_changed`, section 5);
   - a push on a day pinned to another version, or to the same number with another config (`rules_version_mismatch`);
   - a push on held ground last written under another version (`unit_rules_version_mismatch`). Unheld ground carries no rule state and is adopted;
   - a day pinned to a version this build does not know (`unknown_rules_version`) or whose config differs (`rules_config_mismatch`). It is not settled, and the day-close run stops there;
   - a day whose held ground was recorded under another version. The day is stored as refused, naming the units.
-- Switching rule sets therefore needs a new season or an explicit, recorded migration of held ground. Neither is built, and either would be an owner decision.
+- Switching rule sets therefore needs a new season or an explicit, recorded migration of held ground. The season guard enforces the first; the second is not built, and either is an owner decision.
 - Tested on PostgreSQL: each of these cases, plus a full replay of the stored ledger in commit order through the same code. The replay gives every stored outcome, every unit row, every open challenge and every counter.
 
-### 15.5 Day attribution, clocks and uploads (unchanged D1)
+### 15.5 Day attribution, clocks and uploads, and the day-boundary guard
 
-The day is D1's: the UTC day of the session's last verified fix, and day `d` takes uploads until midnight plus 2 hours. Server time is authoritative:
+The day is D1's, unchanged and now named in 1002 (`dayAttribution: d1-last-verified-fix` v1): the UTC day of the session's last verified fix, and day `d` takes uploads until midnight plus 2 hours. Server time is authoritative:
 
-- A session dated after the server's current day is refused (`session_in_future`).
+- A session dated after the server's current day is refused (`session_in_future`). This covers a device clock that is ahead.
 - A session for a closed day is refused (`day_closed`). This covers a device clock far behind and long offline sessions uploaded days later.
 - A late upload inside the grace counts for its own day, but cannot rewrite a unit already pushed on the next day (`stale_day`, rejected).
 - Within a day, the order is commit order, not walk time.
-- Tested for each case, and for split sessions: two uploads of one walk take a unit once and spend one take.
 
-**Residual risks (open decisions):**
+**The exploit.** Under D1 alone a challenge completes in about 30 minutes: a push at 23:50 and another at 00:20 are two calendar days (tested before this change: it flipped). A session backdated inside the 2-hour grace does the same between 00:00 and 02:00. For players far from UTC the boundary falls in the middle of their day (16:00 or 17:00 in California), so the straddle needs no late night at all.
 
-- **Midnight straddle.** Calendar days let a challenger push at 23:50 and 00:20 and complete a challenge in 30 minutes (tested). A backdated session inside the 2-hour grace can do the same between 00:00 and 02:00 without walking at 23:50. An option would be a minimum time between the two pushes (HYPOTHESIS, not built).
-- **Push order within a session.** The budget applies in unit id order. Walk order would need fix timestamps per cell, which the pipeline does not store.
+**Options compared.**
+
+| Option | Closes the straddle? | Honest player cost | Trust needed | Verdict |
+|---|---|---|---|---|
+| UTC day (D1 alone) | No: 30 minutes across midnight | None | Server clock | The current rule; kept for day attribution |
+| Local city day | No: the straddle moves to local midnight | None | A trusted time zone: the device's is the client's word, and one derived from the unit needs time-zone polygons the server does not have | Rejected |
+| Session end day / grace changes | No: they move the boundary, not remove it; a shorter grace hurts offline uploads | Late uploads refused | Server clock | Rejected |
+| Minimum elapsed time by device timestamps | Only for honest clients: fix times are the device's word and can be backdated or forged forward | None | The device | Rejected |
+| **Minimum elapsed time by server receipt (recommended, built)** | Yes, as a real-time guarantee: the flip cannot land until 20 hours after the server first received the challenge, whatever the device says | A walker whose first walk was uploaded late (offline) may need one more day inside the window | Server clock only | **1002** |
+
+**The rule (`takeover.secondPush`, `min-elapsed-server-receipt` v1, 20 hours).** The push that would complete a challenge flips only if the server received its session at least 20 hours after it received the session that opened the challenge. Received means `movement_verifications.created_at`, the server's clock when it verified the upload. The opening time is read from the ledger: the challenger's `eroded` push on the unit on the challenge's first day (unique under the one-push index) and its source session. A server batch (`applyPushes`) uses its own time, and an opening time that cannot be found is treated as too recent (fail closed). A push that is too early erodes, no lower than the floor, and keeps the original challenge and its first day; it does not restart it. Both pushes must still be on two distinct D1 days within the 3-day window, and ground below 30 and stepped-on shade still fall at once. 20 hours means a walker who comes back at the same time the next day is never caught by it, and a defender always has 20 real hours to answer.
+
+What it guarantees and what it does not: a modified client can still forge fix times, and could even record the second walk early and upload it later; what it cannot do is make the flip land sooner than 20 hours of server time after the challenge became visible. That window, in which the holder's visit clears the challenge, is the point of the challenge.
+
+**Tested** (pure, `rules1002.test.ts`, and PostgreSQL, `gameplay1002.pg.test.ts` and `gameplayRules.pg.test.ts`):
+
+- midnight straddle (23:50 then 00:20): erodes, the challenge keeps its first day; back 20 hours or more after the first upload, it flips;
+- the boundary: 19 h 59 min erodes, 20 h exactly flips; too early on day 2, then day 3 inside the window flips; day 4 opens a new challenge;
+- DST and time-zone changes: the guard reads only server receipt deltas, so a European DST night (25 Oct 2026) and any device time zone change nothing;
+- clock skew: a device clock ahead is refused by server time (`session_in_future`); device timestamps never enter the gap;
+- long offline uploads: the gap runs from when the server received the first walk, so a walk uploaded at 01:30 the next morning shortens the following day's chance, and a second walk held back and uploaded later flips only 20 hours after the first upload;
+- out-of-order uploads: unchanged `stale_day` behaviour, and a replay of the stored ledger with the stored receipt times gives every stored outcome.
+
+**Residual risks (open decisions):** the 20-hour value itself; whether to show players when their challenge can complete (the app is frozen); and that a walker with honest but delayed uploads can lose a day.
 
 ### 15.6 Open decisions added here
 
 | Id | Decision | Server today |
 |---|---|---|
 | A9 / takeover | Two-day challenge for the pilot, or the immediate flip | 1001 immediate (default); 1002 challenge |
-| Budget | Whether there is a daily take budget, its value (13 at 76 m) and how the app explains it | 1002 only, `takes-v1` as defined above |
-| D5 | Unit resolution, zone resolution, mixed-holder rule (alternatives above) | 1002: res 10 in res 9, `each-holder-holds-zone` |
-| D5 / pipeline | The movement pipeline stores resolution 8 cells; 1002 needs resolution 10 | 1002 refuses resolution 8 sessions |
-| Midnight straddle | A minimum time between a challenge's two pushes | Not built |
-| Rule changes | A new season or an explicit migration of held ground when the rule set changes | Fails closed; neither is built |
+| Budget | Whether there is a daily take budget, its value (13 at 76 m) and how the app explains it | 1002 only, `takes-v1` as defined above, met in walk order |
+| D5 | Unit resolution, zone resolution, mixed-holder rule (alternatives above) | 1002: res 10 in res 9, `each-holder-holds-zone`, split `per-holder-min-level-v1` |
+| D5 / pipeline | Whether 1002's units come from the stored session path, and whether interpolated units push (A1) | 1002: `verified-steps` v1, interpolated units push; the toll reads stepped units only (section 15.7) |
+| Session path retention | Prune a session's stored path once its day is settled (the ledger then holds its pushes) | Not built (section 15.9) |
+| Midnight straddle | The second-push gap and its value | 1002: 20 hours by server receipt (section 15.5) |
+| Rule changes | A new season or an explicit migration of held ground when the rule set changes | Mid-season change fails closed (`season_rules_changed`); a recorded migration is not built |
+| V3 §5 | Ratify, change or drop 1002's deviation from "at 0 the cell flips" | 1002 optional, not the default, not enabled |
 
+
+### 15.7 The session path: resolution 10 units from verified fixes (D5 / pipeline)
+
+**The mismatch.** The movement pipeline stores the resolution 8 cells that contain a fix (`traversed_hex_ids`), and raw fixes are never stored. A resolution 10 unit cannot be recovered from a resolution 8 cell, so 1002 refused every real session (`unit_resolution_mismatch`). The pipeline's own column, its response and 1001 are unchanged.
+
+**The fix (`units.source: session-path`, `verified-steps` v1, `path.ts`).** When gameplay is enabled with a rule set that needs it (1002), the movement verification derives the session's path in the same request, from the very fixes it has just accepted, and stores it in the same transaction as the verification row (`gameplay_session_paths`, section 15.9). A verification and its path are written together or not at all; a retry of a stored session never rewrites it, whatever points it carries. The client never sends a cell. With gameplay off, or under 1001, nothing is derived and no gameplay table is touched (tested on a database without 0011).
+
+- **Stepped units:** contain an accepted fix (A1). **Interpolated units:** lie on the straight segment between two consecutive accepted fixes, sampled every 8 m. A segment is walked only when the pipeline's own continuity holds: no break or pause between the fixes, at most 200 m (the sealing continuity break, sealing rules version 1), at most 12 m/s (the on-foot policy) and at most 120 s (PILOT PROPOSAL). Anything else adds only its two ends. A unit first interpolated and later stepped on is stepped.
+- **Walk order:** first touch, which the budget uses (section 15.2).
+- **Bounded:** at most 500 units (`maxUnitsPerSession`), the rest dropped in walk order and the row marked truncated.
+- **Pushes:** 1002 pushes stepped and interpolated units (`pushInterpolated: true`). That departs from A1, and is the owner's decision; `false` pushes stepped units only. The toll's crossed cells (economy V3 §20, "never interpolated") are the stepped units only (tested with a deeded unit: crossing it interpolated costs no toll, stepped costs one).
+- **Apply fails closed:** a session with no stored path (verified while gameplay was off, or before this existed) gets 409 `session_path_unavailable`; a path under another path version or resolution gets 409 `session_path_version_mismatch`.
+- **Privacy:** the path is resolution 10 cells in first-touch order. That is the granularity the 1002 push ledger already stores per push, and the same ordering `traversed_hex_ids` keeps at resolution 8. No coordinate, timestamp or per-unit time is stored. The row cascades with its verification, which account deletion removes (tested).
+
+**Measured on the route fixtures** (CODE TESTED LOCALLY, `path.test.ts`; the shapes of the canonical-evidence fixtures and the verification fixture, with accepted fixes every 5.3, 25 and 40 m; truth = the drawn route walked every metre):
+
+| Fixture | Res 8 cells (pipeline) | Res 10 units on the route | Recall, stepped only @5.3 / 25 / 40 m | Recall, stepped + interpolated @5.3 / 25 / 40 m | Units off the route | Res 10 units whose res 8 parent is not a stored cell | Fixes whose res 10 cell's res 8 parent is not their res 8 cell |
+|---|---|---|---|---|---|---|---|
+| urban corners | 3 | 28 | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 0 | 0 | 1.7–2.7% |
+| square | 4 | 33 | 1.000 / 0.970 / 0.970 | 1.000 / 1.000 / 1.000 | 0 | 0 | 0% |
+| figure eight | 5 | 31 | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 0 | 0 | 8.0% |
+| multiple loops | 4 | 38 | 1.000 / 1.000 / 0.974 | 1.000 / 1.000 / 1.000 | 0 | 0 | 2.4–3.1% |
+| out and back | 4 | 26 | 0.962 / 0.962 / 0.885 | 0.962 / 1.000 / 1.000 | 0 | 1 | 7.0–8.0% |
+| verification fixture | 2 | 3 | 1.000 | 1.000 | 0 | 0 | 0% |
+
+Every resolution 8 cell the pipeline stored lies under some unit of the path. The drift columns come from H3 itself: a resolution 10 cell's resolution 8 parent is not always the resolution 8 cell of the same point (children do not nest exactly), for up to 8% of fixes here. 1002 never mixes the two: its units and zones are resolution 10 cells and their `cellToParent(…, 9)`, deterministically.
+
+**Storage** (local PostgreSQL 16): a 27-unit path's `unit_ids` is 240 bytes as `bigint[]` against 564 as `text[]`; a 45-unit row with its primary key is about 525 bytes. At 1,000 players and 1.5 sessions a day that is about 0.8 MB a day, or about 71 MB over a 90-day season if never pruned, and about 2.4 MB if each path were pruned once its day settles (a retention decision, not built).
+
+### 15.8 Same-seed comparison of 1001 and 1002 (SIMULATION ONLY)
+
+`compare.ts` feeds both rule sets the same synthetic verified walks: 40 casual walkers (a loop near home on about 60% of days, half the time the same route) and 4 attackers (a long daytime tour through six casual homes plus the midnight straddle round one home), 14 days, 3 seeds. 1001 gets the resolution 8 cells the pipeline stores; 1002 gets the session path. Both run through `applyServerLedger` with their own rules. Synthetic behaviour assumptions only: nothing here is evidence about real players, real retention or real fairness. Areas use the H3 average cell area (0.737 km² at resolution 8, 0.0150 km² at resolution 10), so a resolution 8 cell counts whole however little of it was walked; compare directions, not exact areas.
+
+| Mean of 3 seeds | 1001 | 1002 without the gap | 1002 |
+|---|---|---|---|
+| Area attackers flipped from others (km², summed) | 529.6 | 0.54 | 0.48 |
+| Casual area lost to attackers' flips (km², summed) | 266.4 | 0.35 | 0.31 |
+| Attacker flips completed within 20 h of their challenge | 0 (no challenge) | 4.7 | 0 |
+| Area attackers hold at the end (km²) | 2.9 | 4.4 | 4.6 |
+| Casual walkers holding any ground at the end (of 40) | 16.7 | 40 | 40 |
+| Casual sessions that claimed or reinforced something | 119 of 343 | 332 of 343 | 333 of 343 |
+| Pushes refused by the budget: casual / attacker | 0 / 0 | 1,165 / 5,558 | 1,179 / 5,530 |
+
+Reading it: under 1001 the attackers' long routes flip whole resolution 8 cells, and casual walkers keep losing them. Under 1002 attackers take almost nothing from others, the gap removes the straddle flips, and every casual walker keeps some ground. Two costs show: attackers still hold more empty ground at the end (claims are free, so a long walk claims a lot of unheld resolution 10 units), and casual walkers also meet the budget (about 3.4 refused takes per casual session in this dense synthetic town, where homes overlap). Both are owner questions (claim limits, the budget's value), not settled by synthetic players. Reproduce: `node --import tsx scripts/compare-rulesets.ts 3` in `backend/`.
+
+### 15.9 Schema notes for 0011
+
+The 0011 SQL is being reworked separately for storage. Nothing in it was edited here. The code above works with the current 0011 columns, plus one new table in a separate proposed addendum:
+
+- **New table `gameplay_session_paths`** (`drizzle-proposed/1002_session_paths.sql`, with its rollback): `movement_verification_id` (primary key, references `movement_verifications` on delete cascade), `path_version smallint`, `resolution smallint`, `unit_ids bigint[]` (H3 as 8-byte integers, walk order, at most 500), `interpolated varbit` (one bit a unit), `skipped_segments`, `truncated`, `created_at`. RLS on; nothing granted to `anon`, `authenticated` or `PUBLIC`. Needs 0011 only for ordering; fold it into 0011 when 0011 is final. It is applied by the local tests only.
+- **Challenge opening time.** The 20-hour gap reads the opening time by joining `gameplay_unit_challenges` to the challenger's `eroded` row in `gameplay_push_events` on the challenge's first day and its `source_session_id` → `movement_verifications.created_at` (or the event's own `created_at` for a server batch). If the storage rework drops `gameplay_push_events.created_at` or `source_session_id`, or partitions the ledger so that join gets expensive, add `opened_received_at timestamptz NOT NULL` (or an epoch-seconds `integer`) to `gameplay_unit_challenges` instead, written when the challenge opens; `policy.ts` already takes the value as an input.
+- **Walk order** needs no column: it is the order of `unit_ids`, and pushes are stored in it (`seq`).
+- **Season guard** uses the existing `gameplay_day_rules.season`; an index on `(season)` would help if a season ever had many pinned days (at most 90 rows, so not needed now).
+- **Partitions** need no column: they are computed at day close from the unit day states.
+- **Compact identifiers.** If 0011 moves unit ids to `bigint`, `path.ts`'s `cellToInt8` / `int8ToCell` are the conversion the session path already uses.

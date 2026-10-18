@@ -136,7 +136,7 @@ test("masked ground is never claimable and deeded ground is immune, under both p
 /* ── take budget ────────────────────────────────────────────────────────── */
 
 test("the budget: 13 takes a day of other people's ground; claims, own ground and refusals are free; a 14th is refused and changes nothing", () => {
-  assert.deepEqual(P2.takeBudget, { perWalkerPerDay: 13, counting: "takes-v1" });
+  assert.deepEqual(P2.takeBudget, { perWalkerPerDay: 13, counting: "takes-v1", order: "walk-order-v1" });
   const others = UNITS.slice(0, 20);
   const empty = UNITS.slice(20, 25);
   const own = UNITS.slice(25, 28);

@@ -359,9 +359,10 @@ test("day close settles once, the books balance, and the day is then closed to p
   await assert.rejects(service.applySession(late, "late-session-1"), (e: unknown) => e instanceof GameplayError && e.code === "day_closed");
 
   // The database refuses books that do not close, and lines that do not add up
-  // (days 1 and 2 pinned to a rule set first, as every header must be).
+  // (days 1 and 2 pinned to a rule set first, as every header must be; in a
+  // season of their own, since a season keeps one rule set).
   await pool.query(`INSERT INTO gameplay_day_rules (day, season, ruleset, holding_rules_version, takeover_policy, unit_zone_rule, config, config_digest)
-    VALUES (1, 1, 'x', 1, 'immediate', 'unit', '{}', $1), (2, 1, 'x', 1, 'immediate', 'unit', '{}', $1)`, ["0".repeat(64)]);
+    VALUES (1, 99, 'x', 1, 'immediate', 'unit', '{}', $1), (2, 99, 'x', 1, 'immediate', 'unit', '{}', $1)`, ["0".repeat(64)]);
   assert.equal(await errorCode(pool.query(
     `INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, pool_micro, minted_micro, credited_micro, returned_micro, clubs_status, input_digest)
      VALUES (1, 1, 'settled', 'x', 1, 1, 100, 60, 50, 40, 'skipped', $1)`, ["0".repeat(64)])), "23514");

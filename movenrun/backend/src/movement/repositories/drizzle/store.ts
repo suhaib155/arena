@@ -23,7 +23,32 @@ import {
   type DailyAdmission,
   type MovementVerificationRecord,
   type MovementVerificationRepository,
+  type VerificationExtras,
 } from "../interfaces.js";
+import type { SessionPath } from "../../domain/types.js";
+
+/** H3 index as a decimal bigint (8 bytes per unit in a bigint[] column). */
+function cellToInt8(cell: string): string {
+  if (!/^[0-9a-f]{15,16}$/.test(cell)) throw new RangeError("not an H3 index");
+  return BigInt(`0x${cell}`).toString(10);
+}
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/**
+ * Rule set 1002's session path, written in the verification's transaction
+ * (table `gameplay_session_paths`, proposed with migration 0011, see
+ * drizzle-proposed/1002_session_paths.sql). Only reached when gameplay asked
+ * for a path, so with gameplay off no gameplay table is touched.
+ */
+async function insertSessionPath(tx: Tx, movementVerificationId: string, path: SessionPath): Promise<void> {
+  const ids = path.units.map(cellToInt8);
+  const bits = path.interpolated.map((f) => (f ? "1" : "0")).join("");
+  await tx.execute(sql`
+    INSERT INTO gameplay_session_paths (movement_verification_id, path_version, resolution, unit_ids, interpolated, skipped_segments, truncated)
+    VALUES (${movementVerificationId}, ${path.pathVersion}, ${path.resolution}, ${sql.param(ids)}::bigint[], ${bits}::varbit,
+            ${path.skippedSegments}, ${path.truncated})`);
+}
 
 const UNIQUE_INDEX = "movement_verifications_user_session_unique";
 
@@ -96,11 +121,20 @@ export class DrizzleMovementVerificationRepository
   async create(
     input: CreateMovementVerificationInput,
     admission?: DailyAdmission,
+    extras?: VerificationExtras,
   ): Promise<MovementVerificationRecord> {
+    const path = extras?.sessionPath;
     try {
       if (!admission) {
-        const [row] = await this.db.insert(movementVerifications).values(input).returning();
-        return toRecord(row);
+        if (!path) {
+          const [row] = await this.db.insert(movementVerifications).values(input).returning();
+          return toRecord(row);
+        }
+        return await this.db.transaction(async (tx) => {
+          const [row] = await tx.insert(movementVerifications).values(input).returning();
+          await insertSessionPath(tx, row.id, path);
+          return toRecord(row);
+        });
       }
       return await this.db.transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"movement_admission:" + input.userId}, 0))`);
@@ -116,6 +150,7 @@ export class DrizzleMovementVerificationRepository
           .where(and(eq(movementVerifications.userId, input.userId), gte(movementVerifications.createdAt, admission.since)));
         if ((counted?.n ?? 0) >= admission.max) throw new MovementDailyLimitError();
         const [row] = await tx.insert(movementVerifications).values(input).returning();
+        if (path) await insertSessionPath(tx, row.id, path);
         return toRecord(row);
       });
     } catch (err) {
