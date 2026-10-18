@@ -37,6 +37,12 @@ export interface RowCosts {
   coarseProof: number;
   /** A per-player, per-day proof row (event count, digest of event ids and transitions). */
   playerDayProof: number;
+  /** gameplay_day_rules: one row per day. */
+  dayRules: number;
+  /** gameplay_walker_days: one take counter per walker and day pushed. */
+  walkerDay: number;
+  /** gameplay_unit_challenges: one open challenge (current state, not history). */
+  unitChallenge: number;
 }
 
 /** What stays in the database for a push once its raw row is gone. */
@@ -141,6 +147,10 @@ export interface LoadProfile {
   distinctUnits: number;
   /** Rows in the district map (every unit of the play area). */
   districtMapUnits: number;
+  /** Open challenges at any time (two-day-challenge rule sets; 0 otherwise): current state, not history. */
+  openChallenges: number;
+  /** Take-counter rows per active player-day (1 when every active walker pushes). */
+  walkerDaysPerActiveDay: number;
   clubs: number;
   districts: number;
   /** Routine audit rows per active player-day (one per token refresh). */
@@ -205,6 +215,10 @@ export function projectStorage(
     + (policy.sessionCellDays === null || hostileDays <= policy.sessionCellDays ? hostilePushes : 0);
 
   const activePlayerDays = load.players * load.activeShare * days;
+  // Take counters matter only for their own day; they follow the raw ledger's TTL.
+  const walkerDaysProduced = activePlayerDays * load.walkerDaysPerActiveDay + (h ? h.accounts * hostileDays : 0);
+  const walkerDayRows = policy.rawPushDays === null ? walkerDaysProduced
+    : Math.min(walkerDaysProduced, retained(load.players * load.activeShare * load.walkerDaysPerActiveDay, days, policy.rawPushDays) + (h && hostileDays <= policy.rawPushDays ? h.accounts * hostileDays : 0));
   const refreshesPerDay = load.players * load.activeShare * load.auditRowsPerActiveDay;
   const auditRows = retained(refreshesPerDay, days, policy.routineAuditDays);
   // Rotated auth sessions are already pruned 7 days after their 30-day expiry (0000-0010 behaviour).
@@ -221,8 +235,10 @@ export function projectStorage(
     applied_sessions: appliedRows * costs.appliedSession + slack(appliedRows, sessionRows, costs.appliedSession),
     movement_sessions: sessionRows * costs.movementBase + cellsKept * costs.movementPerCell
       + slack(cellsKept, totalPushes, costs.movementPerCell),
-    settlements: days * costs.daySettlement + activePlayerDays * costs.creditLine
+    settlements: days * (costs.daySettlement + costs.dayRules) + activePlayerDays * costs.creditLine
       + days * (load.clubs * costs.clubDay + load.districts * costs.districtDay),
+    take_counters: walkerDayRows * costs.walkerDay + slack(walkerDayRows, walkerDaysProduced, costs.walkerDay),
+    challenges: load.openChallenges * costs.unitChallenge,
     district_map: load.districtMapUnits * costs.unitDistrict,
     auth_audit: auditRows * costs.securityAuditEvent + slack(auditRows, refreshesPerDay * days, costs.securityAuditEvent)
       + authSessionRows * costs.authSession * (1 + (days > AUTH_SESSION_LIFETIME_DAYS ? policy.deleteBloatFraction : 0)),

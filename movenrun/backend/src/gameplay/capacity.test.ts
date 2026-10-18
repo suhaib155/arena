@@ -9,11 +9,12 @@ const COSTS: RowCosts = {
   pushEvent: 600, unitDayState: 300, unit: 550, appliedSession: 500, creditLine: 300, daySettlement: 900,
   clubDay: 250, districtDay: 300, unitDistrict: 110, movementBase: 450, movementPerCell: 19,
   securityAuditEvent: 270, authSession: 630, coarseProof: 70, playerDayProof: 90,
+  dayRules: 2000, walkerDay: 150, unitChallenge: 120,
 };
 
 const LOAD: LoadProfile = {
   players: 1000, activeShare: 0.6, sessionsPerActiveDay: 1.5, unitsPerSession: 40, dayStatesPerPush: 0.5,
-  distinctUnits: 60_000, districtMapUnits: 60_000, clubs: 100, districts: 28, auditRowsPerActiveDay: 6, days: 90,
+  distinctUnits: 60_000, districtMapUnits: 60_000, openChallenges: 6_000, walkerDaysPerActiveDay: 1, clubs: 100, districts: 28, auditRowsPerActiveDay: 6, days: 90,
 };
 
 /* ── projection ─────────────────────────────────────────────────────────── */
@@ -25,6 +26,8 @@ test("keep-everything projection is rows times measured bytes, class by class", 
   assert.equal(p.byClass.unit_day_states, pushes * 0.5 * 300);
   assert.equal(p.byClass.units, 60_000 * 550);
   assert.equal(p.byClass.proofs, 0);
+  assert.equal(p.byClass.take_counters, 1000 * 0.6 * 90 * 150);
+  assert.equal(p.byClass.challenges, 6_000 * 120);
   assert.equal(p.byClass.movement_sessions, 1000 * 0.6 * 1.5 * 90 * 450 + pushes * 19);
   // Audit rows are kept (X-25 undecided); rotated auth sessions are already pruned after 37 days.
   assert.equal(p.byClass.auth_audit, 1000 * 0.6 * 6 * (90 * 270 + 37 * 630));
@@ -37,7 +40,7 @@ test("projection grows linearly with seasons when nothing is deleted", () => {
   const one = projectStorage(LOAD, COSTS, KEEP_EVERYTHING, 0);
   const four = projectStorage({ ...LOAD, days: 360 }, COSTS, KEEP_EVERYTHING, 0);
   // Units and the district map are fixed by the area; everything else scales.
-  const fixed = one.byClass.units! + one.byClass.district_map!;
+  const fixed = one.byClass.units! + one.byClass.district_map! + one.byClass.challenges!;
   assert.ok(Math.abs(four.gameplayBytes - fixed - 4 * (one.gameplayBytes - fixed)) < 1e-3);
 });
 
