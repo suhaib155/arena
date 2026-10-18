@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "io.movenrun.app",
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-monochrome.png",
@@ -45,6 +46,8 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withNoBackupTransfer",
+      "./plugins/withAndroidHardening",
       [
         "expo-location",
         {
