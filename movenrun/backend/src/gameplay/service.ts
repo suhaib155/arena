@@ -24,6 +24,13 @@
  * SERIALIZABLE. The one-push-per-walker-per-unit-per-day rule is also a
  * unique index, so the database refuses a second push even if this code
  * were wrong.
+ *
+ * Rule sets (rules.ts): each day is pinned to one holding rules version in
+ * `gameplay_day_rules`; pushes, counters and the settlement of that day
+ * carry it. A batch locks the day, then the walkers' take counters, then
+ * the units, always in that order. The take budget and the two-day
+ * challenge are applied in the same transaction as the pushes, and
+ * anything recorded under another or an unknown version fails closed.
  */
 import { createHash, randomUUID } from "node:crypto";
 import { sql, type SQL } from "drizzle-orm";
@@ -36,7 +43,11 @@ import {
   type DistrictControlResult, type DistrictStanding, type LeaderboardMetric, type Membership, type SeasonDay,
 } from "@movenrun/shared/clubsDistricts";
 import type { DaySettlement } from "@movenrun/shared/economy-v3";
-import { dayOf, dayStartMs, lastClosedDay, seasonOf, type GameplayRules } from "./rules.js";
+import {
+  dayOf, dayStartMs, isUnitUnder, lastClosedDay, rulesetConfig, rulesetDigest, rulesetFor, seasonOf, UnknownRulesVersionError, zoneOfUnder,
+  type GameplayRules,
+} from "./rules.js";
+import { applyServerLedger, SERVER_OUTCOMES, type ServerOutcome } from "./policy.js";
 
 /** Advisory lock namespace ("MRGP"); the second key is the day index. */
 export const GAMEPLAY_LOCK_NAMESPACE = 0x4d524750;
@@ -70,7 +81,7 @@ function pgConstraint(err: unknown): string | undefined {
   return typeof c === "string" ? c : undefined;
 }
 
-const OUTCOMES: readonly PushOutcome[] = ["claimed", "reinforced", "eroded", "flipped", "refused_deeded", "refused_masked", "refused_daily_limit"];
+const OUTCOMES: readonly ServerOutcome[] = SERVER_OUTCOMES;
 const byString = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export interface ApplySummary {
@@ -81,7 +92,7 @@ export interface ApplySummary {
   applied: number;
   skipped: number;
   rejected: number;
-  outcomes: Record<PushOutcome, number>;
+  outcomes: Record<ServerOutcome, number>;
   rejectedByReason: Partial<Record<RejectReason, number>>;
 }
 
@@ -89,7 +100,7 @@ export interface BatchResult {
   applied: number;
   skipped: number;
   rejected: number;
-  outcomes: Record<PushOutcome, number>;
+  outcomes: Record<ServerOutcome, number>;
   rejectedByReason: Partial<Record<RejectReason, number>>;
 }
 
@@ -134,8 +145,8 @@ function toState(r: UnitRow, asOfDay = Number(r.as_of_day)): UnitState {
   };
 }
 
-function emptyOutcomes(): Record<PushOutcome, number> {
-  return Object.fromEntries(OUTCOMES.map((o) => [o, 0])) as Record<PushOutcome, number>;
+function emptyOutcomes(): Record<ServerOutcome, number> {
+  return Object.fromEntries(OUTCOMES.map((o) => [o, 0])) as Record<ServerOutcome, number>;
 }
 
 function digest(value: unknown): string {
@@ -182,7 +193,7 @@ export class GameplayService {
            WHERE user_id = ${userId} AND client_session_id = ${clientSessionId}
            FOR UPDATE`);
         if (!mv) throw new GameplayError(404, "session_not_found");
-        const [done] = await rows<{ day: number; applied: number; skipped: number; rejected: number; outcomes: { byOutcome: Record<PushOutcome, number>; rejectedByReason: Partial<Record<RejectReason, number>> } }>(tx, sql`
+        const [done] = await rows<{ day: number; applied: number; skipped: number; rejected: number; outcomes: { byOutcome: Record<ServerOutcome, number>; rejectedByReason: Partial<Record<RejectReason, number>> } }>(tx, sql`
           SELECT day, applied, skipped, rejected, outcomes FROM gameplay_applied_sessions WHERE movement_verification_id = ${mv.id}`);
         if (done) {
           return {
@@ -197,6 +208,9 @@ export class GameplayService {
         if (seasonOf(this.rules, day) === null) throw new GameplayError(409, "season_not_started");
         const unitIds = [...new Set(mv.traversed_hex_ids ?? [])].sort(byString);
         if (unitIds.length > this.rules.maxUnitsPerSession) throw new GameplayError(422, "too_many_units");
+        // D5: a session whose cells are not units under the running rule set
+        // (for example resolution 8 cells under resolution 10 units) is refused whole.
+        if (unitIds.some((u) => !isUnitUnder(this.rules.units, u))) throw new GameplayError(422, "unit_resolution_mismatch");
         const events: PushEvent[] = unitIds.map((unitId) => ({
           eventId: `mv:${mv.id}:${unitId}`, unitId, walkerId: userId, push: { kind: "solid" }, day,
         }));
@@ -237,12 +251,15 @@ export class GameplayService {
   }
 
   private async applyBatch(tx: Tx, events: readonly PushEvent[], day: number, sourceSessionId: string | null, now: number): Promise<BatchResult> {
-    const hv = this.rules.holding.rulesVersion;
+    const rules = this.rules;
+    const hv = rules.holding.rulesVersion;
     // Pushes share the day; its settlement takes the exclusive lock, so a day
     // is never settled while a push for it is in flight.
     await tx.execute(sql`SELECT pg_advisory_xact_lock_shared(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
     const [closed] = await rows(tx, sql`SELECT 1 FROM gameplay_day_settlements WHERE day = ${day}`);
     if (closed || day <= lastClosedDay(this.rules, now)) throw new GameplayError(409, "day_closed");
+    // The day runs under exactly one rule set, pinned by its first write.
+    await this.pinDayRules(tx, day);
 
     const result: BatchResult = { applied: 0, skipped: 0, rejected: 0, outcomes: emptyOutcomes(), rejectedByReason: {} };
     const unitIds = [...new Set(events.map((e) => e.unitId).filter((u) => typeof u === "string" && u.length > 0 && u.length <= 64))].sort(byString);
@@ -255,6 +272,23 @@ export class GameplayService {
       }
       return result;
     }
+    if (unitIds.some((u) => !isUnitUnder(rules.units, u))) throw new GameplayError(422, "unit_resolution_mismatch");
+
+    // Lock order, the same for every batch so none can deadlock: the day
+    // (shared), then walker-day counters by walker id, then units by unit id.
+    const walkers = [...new Set(events.map((e) => e.walkerId).filter((w) => typeof w === "string" && w.length > 0))].sort(byString);
+    if (walkers.length > 0) {
+      await tx.execute(sql`
+        INSERT INTO gameplay_walker_days (walker_id, day, holding_rules_version)
+        SELECT w, ${day}::int, ${hv}::int FROM unnest(${arr(walkers)}::text[]) WITH ORDINALITY AS t(w, n) ORDER BY n
+        ON CONFLICT (walker_id, day) DO NOTHING`);
+    }
+    // The day's budget is the pinned rule set's (gameplay_day_rules.take_budget);
+    // the database checks the counters against it at commit.
+    const counters = walkers.length === 0 ? [] : await rows<{ walker_id: string; takes_used: number }>(tx, sql`
+      SELECT walker_id, takes_used FROM gameplay_walker_days
+       WHERE day = ${day} AND walker_id = ANY(${arr(walkers)}::text[]) ORDER BY walker_id FOR UPDATE`);
+    const takesUsed = new Map(counters.map((c) => [c.walker_id, Number(c.takes_used)]));
 
     // A unit row must exist to be locked: create the missing ones unheld, as
     // the model's newUnit() would. Sorted, so concurrent batches insert and
@@ -263,29 +297,42 @@ export class GameplayService {
       INSERT INTO gameplay_units (unit_id, as_of_day, holding_rules_version)
       SELECT u, ${day}::int, ${hv}::int FROM unnest(${arr(unitIds)}::text[]) WITH ORDINALITY AS t(u, n) ORDER BY n
       ON CONFLICT (unit_id) DO NOTHING`);
-    const locked = await rows<UnitRow>(tx, sql`
-      SELECT unit_id, holder_id, strength, ground, deeded, masked, level, fortified, as_of_day
+    const locked = await rows<UnitRow & { holding_rules_version: number }>(tx, sql`
+      SELECT unit_id, holder_id, strength, ground, deeded, masked, level, fortified, as_of_day, holding_rules_version
         FROM gameplay_units WHERE unit_id = ANY(${arr(unitIds)}::text[]) ORDER BY unit_id FOR UPDATE`);
+    // No silent migration: held ground written under another rule set is
+    // never re-read under this one. Unheld ground carries no rule-dependent
+    // state and is adopted.
+    if (locked.some((r) => r.holder_id !== null && Number(r.holding_rules_version) !== hv)) throw new GameplayError(409, "unit_rules_version_mismatch");
     // Read after the locks, so pushes committed by a batch we waited for are seen.
     const pushedToday = await rows<{ unit_id: string; walker_id: string }>(tx, sql`
       SELECT unit_id, walker_id FROM gameplay_push_events
        WHERE unit_id = ANY(${arr(unitIds)}::text[]) AND day = ${day} AND outcome IN ('eroded', 'flipped')
        ORDER BY unit_id, walker_id`);
+    const challengeRows = await rows<{ unit_id: string; walker_id: string; first_day: number }>(tx, sql`
+      SELECT unit_id, walker_id, first_day FROM gameplay_unit_challenges
+       WHERE unit_id = ANY(${arr(unitIds)}::text[]) ORDER BY unit_id, walker_id`);
     const eventIds = events.map((e) => e.eventId).filter((id): id is string => typeof id === "string");
     const already = await rows<{ event_id: string }>(tx, sql`
       SELECT event_id FROM gameplay_push_events WHERE event_id = ANY(${arr(eventIds)}::text[])`);
 
     const pushers = new Map<string, string[]>();
     for (const p of pushedToday) pushers.set(p.unit_id, [...(pushers.get(p.unit_id) ?? []), p.walker_id]);
+    const challenges = new Map<string, { walkerId: string; day: number }[]>();
+    for (const c of challengeRows) challenges.set(c.unit_id, [...(challenges.get(c.unit_id) ?? []), { walkerId: c.walker_id, day: Number(c.first_day) }]);
     const states = new Map<string, UnitState>();
     for (const r of locked) {
       const state = toState(r);
-      const walkers = pushers.get(r.unit_id);
-      if (walkers && state.asOfDay === day) state.pushedBy = { day, walkerIds: walkers };
+      const walkersToday = pushers.get(r.unit_id);
+      if (walkersToday && state.asOfDay === day) state.pushedBy = { day, walkerIds: walkersToday };
+      const open = challenges.get(r.unit_id);
+      if (open) state.challenges = open;
       states.set(r.unit_id, state);
     }
 
-    const ledger = applyLedger({ states, events, rules: this.rules.holding, appliedEventIds: already.map((a) => a.event_id) });
+    const ledger = applyServerLedger({
+      states, events, holding: rules.holding, appliedEventIds: already.map((a) => a.event_id), takesUsed, budget: rules.takeBudget,
+    });
     for (const r of ledger.results) {
       if (r.status === "applied") {
         result.applied += 1;
@@ -299,56 +346,98 @@ export class GameplayService {
     }
     if (ledger.entries.length === 0) return result;
 
-    const touched = [...new Set(ledger.entries.map((e) => e.unitId))].sort(byString);
+    const changed = ledger.entries.filter((e) => e.outcome !== "refused_take_budget");
+    const touched = [...new Set(changed.map((e) => e.unitId))].sort(byString);
     const next = touched.map((u) => ledger.states.get(u)!);
-    const cols = {
-      unitId: next.map((s) => s.unitId),
-      holder: next.map((s) => s.holderId),
-      strength: next.map((s) => s.strength),
-      ground: next.map((s) => s.ground),
-      deeded: next.map((s) => s.deeded),
-      masked: next.map((s) => s.masked),
-      level: next.map((s) => s.level),
-      fortified: next.map((s) => s.fortified),
-      asOf: next.map((s) => s.asOfDay),
-    };
-    await tx.execute(sql`
-      UPDATE gameplay_units u SET
-        holder_id = v.holder_id, strength = v.strength, ground = v.ground, deeded = v.deeded, masked = v.masked,
-        level = v.level, fortified = v.fortified, as_of_day = v.as_of_day, holding_rules_version = ${hv}::int,
-        version = u.version + 1, updated_at = now()
-      FROM unnest(${arr(cols.unitId)}::text[], ${arr(cols.holder)}::text[], ${arr(cols.strength)}::int[], ${arr(cols.ground)}::text[],
-                  ${arr(cols.deeded)}::boolean[], ${arr(cols.masked)}::boolean[], ${arr(cols.level)}::int[], ${arr(cols.fortified)}::boolean[], ${arr(cols.asOf)}::int[])
-        AS v(unit_id, holder_id, strength, ground, deeded, masked, level, fortified, as_of_day)
-      WHERE u.unit_id = v.unit_id`);
-    await tx.execute(sql`
-      INSERT INTO gameplay_unit_day_states (unit_id, day, holder_id, strength, ground, deeded, masked, level, fortified, holding_rules_version)
-      SELECT v.unit_id, v.as_of_day, v.holder_id, v.strength, v.ground, v.deeded, v.masked, v.level, v.fortified, ${hv}::int
+    if (next.length > 0) {
+      const cols = {
+        unitId: next.map((s) => s.unitId),
+        holder: next.map((s) => s.holderId),
+        strength: next.map((s) => s.strength),
+        ground: next.map((s) => s.ground),
+        deeded: next.map((s) => s.deeded),
+        masked: next.map((s) => s.masked),
+        level: next.map((s) => s.level),
+        fortified: next.map((s) => s.fortified),
+        asOf: next.map((s) => s.asOfDay),
+      };
+      await tx.execute(sql`
+        UPDATE gameplay_units u SET
+          holder_id = v.holder_id, strength = v.strength, ground = v.ground, deeded = v.deeded, masked = v.masked,
+          level = v.level, fortified = v.fortified, as_of_day = v.as_of_day, holding_rules_version = ${hv}::int,
+          version = u.version + 1, updated_at = now()
         FROM unnest(${arr(cols.unitId)}::text[], ${arr(cols.holder)}::text[], ${arr(cols.strength)}::int[], ${arr(cols.ground)}::text[],
                     ${arr(cols.deeded)}::boolean[], ${arr(cols.masked)}::boolean[], ${arr(cols.level)}::int[], ${arr(cols.fortified)}::boolean[], ${arr(cols.asOf)}::int[])
           AS v(unit_id, holder_id, strength, ground, deeded, masked, level, fortified, as_of_day)
-      ON CONFLICT (unit_id, day) DO UPDATE SET
-        holder_id = EXCLUDED.holder_id, strength = EXCLUDED.strength, ground = EXCLUDED.ground, deeded = EXCLUDED.deeded,
-        masked = EXCLUDED.masked, level = EXCLUDED.level, fortified = EXCLUDED.fortified, holding_rules_version = EXCLUDED.holding_rules_version`);
+        WHERE u.unit_id = v.unit_id`);
+      await tx.execute(sql`
+        INSERT INTO gameplay_unit_day_states (unit_id, day, holder_id, strength, ground, deeded, masked, level, fortified, holding_rules_version)
+        SELECT v.unit_id, v.as_of_day, v.holder_id, v.strength, v.ground, v.deeded, v.masked, v.level, v.fortified, ${hv}::int
+          FROM unnest(${arr(cols.unitId)}::text[], ${arr(cols.holder)}::text[], ${arr(cols.strength)}::int[], ${arr(cols.ground)}::text[],
+                      ${arr(cols.deeded)}::boolean[], ${arr(cols.masked)}::boolean[], ${arr(cols.level)}::int[], ${arr(cols.fortified)}::boolean[], ${arr(cols.asOf)}::int[])
+            AS v(unit_id, holder_id, strength, ground, deeded, masked, level, fortified, as_of_day)
+        ON CONFLICT (unit_id, day) DO UPDATE SET
+          holder_id = EXCLUDED.holder_id, strength = EXCLUDED.strength, ground = EXCLUDED.ground, deeded = EXCLUDED.deeded,
+          masked = EXCLUDED.masked, level = EXCLUDED.level, fortified = EXCLUDED.fortified, holding_rules_version = EXCLUDED.holding_rules_version`);
+      // The touched units' open challenges, replaced as the model left them.
+      await tx.execute(sql`DELETE FROM gameplay_unit_challenges WHERE unit_id = ANY(${arr(touched)}::text[])`);
+      const open = next.flatMap((s) => (s.challenges ?? []).map((c) => ({ unitId: s.unitId, walkerId: c.walkerId, day: c.day })));
+      if (open.length > 0) {
+        await tx.execute(sql`
+          INSERT INTO gameplay_unit_challenges (unit_id, walker_id, first_day, holding_rules_version)
+          SELECT v.unit_id, v.walker_id, v.first_day, ${hv}::int
+            FROM unnest(${arr(open.map((c) => c.unitId))}::text[], ${arr(open.map((c) => c.walkerId))}::text[], ${arr(open.map((c) => c.day))}::int[])
+              AS v(unit_id, walker_id, first_day)`);
+      }
+    }
 
-    const byId = new Map(events.map((e) => [e.eventId, e]));
-    const shade = ledger.entries.map((e) => {
-      const push = byId.get(e.eventId)?.push;
-      return push?.kind === "shade" ? Math.floor(push.strength) : null;
-    });
     const en = ledger.entries;
+    // WITH ORDINALITY … ORDER BY: seq follows the order the pushes were applied.
     await tx.execute(sql`
       INSERT INTO gameplay_push_events (event_id, unit_id, walker_id, day, push_kind, shade_strength, outcome,
         previous_holder_id, new_holder_id, strength_before, strength_after, holding_rules_version, source_session_id)
       SELECT v.event_id, v.unit_id, v.walker_id, v.day, v.push_kind, v.shade_strength, v.outcome,
              v.previous_holder_id, v.new_holder_id, v.strength_before, v.strength_after, v.rules_version, ${sourceSessionId}::text
         FROM unnest(${arr(en.map((e) => e.eventId))}::text[], ${arr(en.map((e) => e.unitId))}::text[], ${arr(en.map((e) => e.walkerId))}::text[],
-                    ${arr(en.map((e) => e.day))}::int[], ${arr(en.map((e) => e.pushKind))}::text[], ${arr(shade)}::int[], ${arr(en.map((e) => e.outcome))}::text[],
+                    ${arr(en.map((e) => e.day))}::int[], ${arr(en.map((e) => e.pushKind))}::text[], ${arr(en.map((e) => e.shadeStrength))}::int[], ${arr(en.map((e) => e.outcome))}::text[],
                     ${arr(en.map((e) => e.previousHolderId))}::text[], ${arr(en.map((e) => e.newHolderId))}::text[],
                     ${arr(en.map((e) => e.strengthBefore))}::int[], ${arr(en.map((e) => e.strengthAfter))}::int[], ${arr(en.map((e) => e.rulesVersion))}::int[])
-          AS v(event_id, unit_id, walker_id, day, push_kind, shade_strength, outcome, previous_holder_id, new_holder_id,
-               strength_before, strength_after, rules_version)`);
+          WITH ORDINALITY AS v(event_id, unit_id, walker_id, day, push_kind, shade_strength, outcome, previous_holder_id, new_holder_id,
+               strength_before, strength_after, rules_version, n)
+       ORDER BY v.n`);
+
+    // Budget counters, in the same transaction as the pushes they count.
+    const usedNow = walkers.filter((w) => (ledger.takesUsed.get(w) ?? 0) !== (takesUsed.get(w) ?? 0));
+    if (usedNow.length > 0) {
+      await tx.execute(sql`
+        UPDATE gameplay_walker_days d SET takes_used = v.used, updated_at = now()
+          FROM unnest(${arr(usedNow)}::text[], ${arr(usedNow.map((w) => ledger.takesUsed.get(w)!))}::int[]) AS v(walker_id, used)
+         WHERE d.walker_id = v.walker_id AND d.day = ${day}`);
+    }
     return result;
+  }
+
+  /**
+   * Pin the rule set a day runs under, once, by its first write (a push or
+   * its settlement). A day already pinned to another version or config
+   * fails closed: no push is applied and nothing is settled under a rule set
+   * other than the one recorded.
+   */
+  private async pinDayRules(tx: Tx, day: number): Promise<void> {
+    const rules = this.rules;
+    const digest = rulesetDigest(rules);
+    const season = seasonOf(rules, day);
+    if (season === null) throw new GameplayError(409, "season_not_started");
+    await tx.execute(sql`
+      INSERT INTO gameplay_day_rules (day, season, ruleset, holding_rules_version, takeover_policy, take_budget, unit_zone_rule, config, config_digest)
+      VALUES (${day}, ${season}, ${rules.ruleset}, ${rules.holding.rulesVersion}, ${rules.takeover.name}, ${rules.takeBudget?.perWalkerPerDay ?? null},
+              ${`${rules.units.zone.kind}/${rules.units.mixedHolderZone}`}, ${JSON.stringify(rulesetConfig(rules))}::jsonb, ${digest})
+      ON CONFLICT (day) DO NOTHING`);
+    const [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+      SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    if (!pinned || Number(pinned.holding_rules_version) !== rules.holding.rulesVersion || pinned.config_digest !== digest) {
+      throw new GameplayError(409, "rules_version_mismatch");
+    }
   }
 
   /* ── day close ───────────────────────────────────────────────────────── */
@@ -389,29 +478,58 @@ export class GameplayService {
   }
 
   private async settleInTx(tx: Tx, day: number, season: number): Promise<DaySummary> {
-    const rules = this.rules;
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
     const existing = await this.daySummary(tx, day);
     if (existing) return { ...existing, created: false };
 
+    // The day settles under the rule set it was pinned to, whatever this
+    // instance runs now. A version this build does not know, or whose config
+    // differs from the one recorded, fails closed: nothing is written and the
+    // day stays unsettled.
+    let [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+      SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    if (!pinned) {
+      await this.pinDayRules(tx, day);
+      [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+        SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    }
+    let dayRules;
+    try {
+      dayRules = rulesetFor(Number(pinned!.holding_rules_version));
+    } catch (err) {
+      if (err instanceof UnknownRulesVersionError) throw new GameplayError(409, "unknown_rules_version");
+      throw err;
+    }
+    if (rulesetDigest(dayRules) !== pinned!.config_digest) throw new GameplayError(409, "rules_config_mismatch");
+    const rules: GameplayRules = { ...dayRules, seasonOneStartDay: this.rules.seasonOneStartDay };
+
     // Each unit as it stood at the end of its last change on or before the day.
-    const stateRows = await rows<UnitRow & { day: number }>(tx, sql`
+    const stateRows = await rows<UnitRow & { day: number; holding_rules_version: number }>(tx, sql`
       SELECT * FROM (
-        SELECT DISTINCT ON (unit_id) unit_id, day, holder_id, strength, ground, deeded, masked, level, fortified
+        SELECT DISTINCT ON (unit_id) unit_id, day, holder_id, strength, ground, deeded, masked, level, fortified, holding_rules_version
           FROM gameplay_unit_day_states WHERE day <= ${day} ORDER BY unit_id, day DESC
       ) latest WHERE holder_id IS NOT NULL ORDER BY unit_id`);
     const states = new Map(stateRows.map((r) => [r.unit_id, toState(r, Number(r.day))]));
+    // No silent migration: held ground recorded under another rule set refuses the day.
+    const versionProblems = stateRows
+      .filter((r) => Number(r.holding_rules_version) !== rules.holding.rulesVersion)
+      .map((r) => `unit ${r.unit_id}: held under holding rules version ${r.holding_rules_version}, settling under ${rules.holding.rulesVersion}`);
     const entryRows = await rows<{
-      event_id: string; unit_id: string; walker_id: string; day: number; push_kind: "solid" | "shade"; outcome: PushOutcome;
+      event_id: string; unit_id: string; walker_id: string; day: number; push_kind: "solid" | "shade"; outcome: ServerOutcome;
       previous_holder_id: string | null; new_holder_id: string | null; strength_before: number; strength_after: number; holding_rules_version: number;
     }>(tx, sql`
       SELECT event_id, unit_id, walker_id, day, push_kind, outcome, previous_holder_id, new_holder_id, strength_before, strength_after, holding_rules_version
         FROM gameplay_push_events WHERE day = ${day} ORDER BY event_id`);
-    const entries: LedgerEntry[] = entryRows.map((e) => ({
+    // Budget refusals are in the ledger (a stepped-on refusal is still a visit,
+    // as the model's own refusals are) but are not model outcomes, so the
+    // club count leaves them out.
+    const allEntries = entryRows.map((e) => ({
       eventId: e.event_id, unitId: e.unit_id, walkerId: e.walker_id, day: Number(e.day), pushKind: e.push_kind, outcome: e.outcome,
       previousHolderId: e.previous_holder_id, newHolderId: e.new_holder_id, strengthBefore: Number(e.strength_before),
       strengthAfter: Number(e.strength_after), rulesVersion: Number(e.holding_rules_version),
     }));
+    const entries = allEntries as unknown as LedgerEntry[];
+    const modelEntries = allEntries.filter((e) => e.outcome !== "refused_take_budget") as LedgerEntry[];
 
     // Players who moved: verified sessions whose last fix falls on the day (D1),
     // and the week before it for consistency (section 17).
@@ -441,10 +559,12 @@ export class GameplayService {
 
     const holdings = holdingsAtDayClose({
       day, states, entries, holdingRules: rules.holding,
-      // D5 PILOT PROPOSAL: a unit is its own zone.
-      zoneOf: (unitId) => unitId,
+      // D5: 1001 makes a unit its own zone; 1002 maps resolution 10 units to
+      // their resolution 9 parent, every holder of a mixed zone holding it.
+      zoneOf: zoneOfUnder(rules.units),
       shadeCountsAsHeld: rules.shadeCountsAsHeld,
     });
+    holdings.problems.push(...versionProblems);
     const credits = settleCreditsDay({ rulesVersion: rules.economyRulesVersion, season, day, players, holdings });
 
     const membershipRows = await rows<{ walker_id: string; club_id: string; from_day: number; to_day: number | null }>(tx, sql`
@@ -462,7 +582,7 @@ export class GameplayService {
     let control: DistrictControlResult | null = null;
     const snapshot = clubSnapshot(memberships, day);
     if (credits.status === "settled") {
-      contributions = clubContributions({ day, entries, snapshot, holdingRulesVersion: rules.holding.rulesVersion });
+      contributions = clubContributions({ day, entries: modelEntries, snapshot, holdingRulesVersion: rules.holding.rulesVersion });
       control = districtControl({
         holdings, snapshot, rule: rules.districtControl,
         districtOf: (unitId) => {
@@ -476,7 +596,7 @@ export class GameplayService {
     }
 
     const inputDigest = digest({
-      ruleset: rules.ruleset, economy: rules.economyRulesVersion, holding: rules.holding, day, season,
+      ruleset: rules.ruleset, economy: rules.economyRulesVersion, holding: rules.holding, config: rulesetDigest(rules), day, season,
       states: stateRows.map((r) => [r.unit_id, Number(r.day), r.holder_id, Number(r.strength), r.ground, r.deeded, r.masked, Number(r.level), r.fortified]),
       entries: entries.map((e) => [e.eventId, e.outcome, e.walkerId, e.previousHolderId, e.newHolderId]),
       players, memberships, districts: districtRows.map((d) => [d.unit_id, d.district_id, d.districts_version]),
