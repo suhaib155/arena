@@ -19,6 +19,7 @@
    - The settlement day is not bound to time, and the daily pool absorbs unused budget. Publishing the last day of a season can therefore mint that season's whole unissued budget at once.
    - Contests rest on a single signer for both declarations and every score.
    - Deed eligibility rests on a single signer, with only a per-wallet cap.
+   - Each of these is confirmed by a proof in [G5_CONTRACT_ISSUE_LEDGER.md](G5_CONTRACT_ISSUE_LEDGER.md), which also downgrades M2 and M3 to Low.
 
 ## 1. What the V3 source says
 
@@ -260,6 +261,14 @@ What this means:
 
 ## 8. Contract review: `feat/v3-onchain-core` (c8262ec)
 
+> **Verified in [G5_CONTRACT_ISSUE_LEDGER.md](G5_CONTRACT_ISSUE_LEDGER.md).** The ledger gives each finding a proof that runs on an in-process Hardhat network, plus remediation options, an invariant and a test to add. It corrects four rows:
+> - M2 and M3 are downgraded to Low.
+> - The "defender not bound" part of H2 is split out as H2b (Low).
+> - M5's impact is narrowed: bucket totals are bounded on chain.
+> - L4's impact is widened: a cap of 0 freezes every deed already in the city.
+>
+> It also adds N1 (deeds cannot be revoked; no challenge window, Medium). The table below is the preliminary reading, kept for the record.
+
 Read-only review of `movenrun/contracts/src/v3/` and the deploy script. Nothing was compiled against a network, deployed or changed on that branch. "Severity" is the research reading for a future audit scope, not an audit result.
 
 | # | Severity | Where | Issue |
@@ -286,7 +295,7 @@ None of these were fixed. The branch is a prototype, and the spec (§31) says th
 
 ## 9. Owner decisions this research raises (not decided)
 
-These are numbered G5-1… so they do not collide with the D register. Each one is a question only.
+These are numbered G5-1… so they do not collide with the D register. Each one is a question only. The consolidated matrix in [G5_CONTRACT_ISSUE_LEDGER.md §4](G5_CONTRACT_ISSUE_LEDGER.md#4-owner-decision-matrix-g5-1--g5-12) gives each one options, a research direction, and an irreversibility and Sybil-exposure ranking. All of them are still not decided.
 
 | Id | Question | Why it comes up |
 |---|---|---|
