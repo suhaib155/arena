@@ -6,6 +6,7 @@
     "src/lib/__tests__/android16kPageSize.test.ts",
     "src/lib/__tests__/androidBackupPolicy.test.ts",
     "src/lib/__tests__/androidManifestHardening.test.ts",
+    "src/lib/__tests__/androidPrebuildManifest.test.ts",
     "src/lib/__tests__/androidRuntimePolicy.test.ts",
     "src/lib/__tests__/androidTargetSdk.test.ts",
     "src/lib/__tests__/clubsView.test.ts",

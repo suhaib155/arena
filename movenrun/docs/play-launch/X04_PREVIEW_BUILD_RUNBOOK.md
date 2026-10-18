@@ -16,7 +16,7 @@ readiness".
 | JS engine | Hermes (no `jsEngine` override; prebuild writes `hermesEnabled=true`) | `android16kPageSize.test.ts` |
 | Architecture | Old architecture (`newArchEnabled: false`) | `androidRuntimePolicy.test.ts` |
 | Target / compile SDK | 36 / 36, min 24 | `androidTargetSdk.test.ts` |
-| Manifest | Fine and coarse location only (plus `INTERNET`, `VIBRATE`); backup and transfer off; cleartext off; no background location service | `androidBackupPolicy.test.ts`, `androidManifestHardening.test.ts` |
+| Manifest | Fine and coarse location only (plus `INTERNET`, `VIBRATE`); backup and transfer off; cleartext off; no background location service | `androidBackupPolicy.test.ts`, `androidManifestHardening.test.ts`, `androidPrebuildManifest.test.ts` |
 | CLI | `eas-cli@24.8.0`, pinned in `.github/workflows/eas-apk-build.yml` | |
 
 **Variable names** (Expo → project → Environment variables → **preview**).
@@ -33,6 +33,91 @@ Values are the owner's; none go in the repository.
 Without the Supabase pair the Google button is hidden; without the API URL
 sign-in cannot finish. Q0-3 to Q0-5 need all of them. Q0-1, Q0-2 and Q0-6 do
 not.
+
+## Versions, read from the repository (18 Oct)
+
+`yarn.lock` and the installed packages agree: Expo SDK `expo@54.0.36`,
+React Native `0.81.5`, `expo-location@19.0.8`, `react-native-maps@1.20.1`,
+`expo-router@6.0.24`. There is no `expo-build-properties`, so the Android
+levels come from React Native's version catalog
+(`node_modules/react-native/gradle/libs.versions.toml`, used through
+`expoAutolinking.useExpoVersionCatalog()` in the prebuild
+`settings.gradle`): **minSdk 24, targetSdk 36, compileSdk 36**, build tools
+36.0.0, NDK 27.1.12297006, AGP 8.11.0, Kotlin 2.1.20, Gradle wrapper 8.14.3.
+Play's target API page (support.google.com/googleplay/android-developer/answer/11926878,
+read 18 Oct) requires API 36 for new apps and updates from 31 Aug 2026;
+target 36 meets it.
+
+## Prebuild manifest (18 Oct)
+
+`npx expo prebuild --platform android --no-install --clean` in a scratch
+copy (none of its output is committed; the repo has no `android/`).
+`app/src/main/AndroidManifest.xml`:
+
+- `<application>`: `allowBackup="false"`,
+  `dataExtractionRules="@xml/data_extraction_rules"` (all nine domains
+  excluded from `cloud-backup` and `device-transfer`),
+  `usesCleartextTraffic="false"`; no `fullBackupContent`, no
+  `networkSecurityConfig`, no `debuggable`.
+- Permissions kept: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`,
+  `INTERNET`, `VIBRATE`. Removed (`tools:node="remove"`): background
+  location, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`,
+  `SYSTEM_ALERT_WINDOW`, external storage read and write, `READ_MEDIA_IMAGES`,
+  `RECORD_AUDIO`.
+- Components: `.MainActivity` only (`exported="true"`, `singleTask`);
+  expo-location's `LocationTaskService` carries `tools:node="remove"`. No
+  receiver or provider of the app's own.
+- Intent filters: `MAIN`/`LAUNCHER`, and `VIEW` + `DEFAULT` + `BROWSABLE`
+  with `scheme="movenrun"` (no host, no `autoVerify`, no http or https).
+  This is the sign-in return and the **F-06** surface: any installed app may
+  declare `movenrun://` too and can receive a return the browser hands off.
+  Unchanged here; the fix is X-23 (verified App Link), an owner decision.
+- `<queries>`: one intent, `VIEW` + `BROWSABLE` + `https`.
+- The debug manifest sets `usesCleartextTraffic="true"` with
+  `tools:replace` for Metro; release builds do not use it.
+
+`androidPrebuildManifest.test.ts` runs the same plugin chain offline (as
+`expo config --type introspect` does) and pins all of the above.
+
+Library manifests in `node_modules` add, at merge time: expo-file-system's
+`FileSystemFileProvider` and expo-sharing's `SharingFileProvider` (both
+`exported="false"`), `<queries>` for `OPEN_DOCUMENT_TREE`, `SEND */*` and
+Custom Tabs, and expo-file-system's storage permissions, which the removals
+above strip. `androidManifestHardening.test.ts` fails if any of them gains an
+exported component or a cleartext switch.
+
+**Only the real Gradle build can prove** (no Android SDK here, so no
+`processReleaseManifest`): the merged manifest including Maven AARs (Google
+Play services for Maps, AndroidX startup and profile installer, which brings
+`ProfileInstallReceiver`, exported but guarded by `DUMP`); that the
+`tools:node="remove"` entries took effect; the final permission list,
+including AndroidX's signature-level
+`DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`; `targetSdkVersion` in the APK;
+the Maps `API_KEY` meta-data; 16 KB alignment of the native libraries. The
+`aapt2` lines below and Q0-7 on the phone cover these.
+
+## The single Free-tier preview build (plan, not started)
+
+| Item | Value |
+|---|---|
+| Commit | The head of `privacy/a2-android-backup-off` that PR #115 shows with a green `mobile-checks` run, or, if #115 merges first, the release branch head that contains it. One commit, recorded before the run |
+| Profile | `preview` (`apk`, `internal`, EAS environment `preview`), through GitHub Actions **EAS APK Build** (`eas-cli@24.8.0 build -p android --profile preview --non-interactive`) |
+| Variables (names only, EAS `preview` environment) | `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_WEB_URL` (optional), `GOOGLE_MAPS_ANDROID_API_KEY` |
+| GitHub secret | `EXPO_TOKEN`, owner-created; never used outside that workflow |
+| Prerequisite X-08 | The Maps key is restricted to Android apps, package `io.movenrun.app` with the SHA-1 of the EAS preview keystore (step 4), and to the Maps SDK for Android API. Without the SHA-1 the APK shows grey tiles and step 7 of the handset script fails |
+| Also before the run | X-05, X-06, X-07, X-21 done (`ANDROID_DEVICE_GATE_PLAN.md` preconditions); expo.dev → Usage shows quota left; no other build queued |
+| Quota | One build. A failed build also counts; fix in a commit before any second run |
+| After the build | The static `aapt2`/`zipalign` checks below, then the handset operator runs `HANDSET_TEST_SCRIPT.md` steps 1–20 and the QA0 checks Q0-1 to Q0-5, Q0-7, then Q0-6 last, on that APK |
+
+What the handset operator proves on this APK: Hermes cold start (Q0-1);
+foreground-only location, no "Allow all the time", tracking stops in the
+background (Q0-2, steps 3–8); Google sign-in and repeat (Q0-3, 15a–15b);
+wallet sign-in by return or code (Q0-4, 15c–15f); deletion (Q0-5, 15e, 16);
+the F-06 warning on a sign-in the app did not start (15h) and which apps
+answer `movenrun://` (Q0-7c, QA-04 input for X-23); forged callback links do
+nothing (Q0-7d, e); no cleartext, no background service, no clipboard
+provider on the installed app (Q0-7a, b); backup and transfer excluded
+(Q0-6). Evidence rules from the device gate plan apply.
 
 ## Steps
 
