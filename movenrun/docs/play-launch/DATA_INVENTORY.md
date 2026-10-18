@@ -28,6 +28,7 @@ table changes.
 | `wallet_sign_in_challenges` | Public wallet address, the sign-in message, times | Single-use wallet sign-in | Expire in 5 min; deleted a day after expiry |
 | `wallet_sign_in_handoffs` | SHA-256 of the one-time code, PKCE challenge, Supabase user id | Carry a wallet sign-in to the app | Expire in 5 min; uncollected ones release their provider user; spent ones deleted after a day |
 | `pending_auth_user_deletions` | Supabase user id | Retry removing a provider user after deletion or refusal | Until Supabase confirms |
+| `google_sign_in_exchanges` | None (Supabase session id and an expiry; no email, no account id) | Each Google sign-in becomes one MovenRun session only (#112, migration 0010, live on staging 2192de6) | Kept 30 days, then deleted by the API's clean-up |
 | `account_capacity` | None (the cap and the hourly new-account quota) | 1,000-account limit, at most 50 new accounts an hour | — |
 | `auth_user_creations` | None (a timestamp only, no user id) | Hourly new-account quota in the Supabase hook | Deleted after a day |
 | `movement_verifications` | Distance, duration, pause total, mode, rules version, times, H3 res-8 cells crossed (~0.74 km² each), confidence, rejection reasons, seal summary | Verified progress, dedupe | Until deletion |

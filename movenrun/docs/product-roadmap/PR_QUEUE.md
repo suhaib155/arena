@@ -68,7 +68,7 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | **S1** | Security audit fixes and X-24 candidate | `security/deep-audit-hardening`, draft #111 (on #110) | IN_REVIEW | CODE TESTED LOCALLY: backend and API on PostgreSQL 16, mobile 910/910 (E-46–E-48); live client-address check FAILS on dd83065 as expected (E-47) | X-24 approval (`docs/play-launch/X24_DEPLOY_CANDIDATE.md`) |
 | **S2** | Single-use Google exchange (A-10) | `security/a10-single-use-google-exchange`, draft #112 | IN_REVIEW | CODE TESTED LOCALLY: 424/424, API 21/21 after the owner's review (E-53) | ON HOLD: owner approves `A10_GOOGLE_EXCHANGE_PLAN.md` and migration 0010, after X-24 and before X-05 |
 | **W1a** | Strict website CSP (A-09) | `web/a09-strict-csp`, draft #113 (on W1) | IN_REVIEW | e2e 24/24 under the policy (E-50) | Ships with W1 at X-21 |
-| **QA0** | Release build, phone, Play prerequisites | — | BLOCKED_OWNER | Plans: `ANDROID_DEVICE_GATE_PLAN.md` (Q0-1 to Q0-7), `X04_PREVIEW_BUILD_RUNBOOK.md`, `ANDROID_16KB_PAGE_SIZE.md`, `PLAY_INTERNAL_RELEASE_WORKFLOW.md`, `PLAY_REGISTRATION_CHECKLIST.md`; manifest hardening in #115 | X-08, X-04, X-10; Play account X-01 |
+| **QA0** | Release build, phone, Play prerequisites | — | BLOCKED_OWNER | Plans: `ANDROID_DEVICE_GATE_PLAN.md` (Q0-1 to Q0-7), `X04_PREVIEW_BUILD_RUNBOOK.md`, `ANDROID_16KB_PAGE_SIZE.md`, `PLAY_INTERNAL_RELEASE_WORKFLOW.md`, `PLAY_REGISTRATION_CHECKLIST.md`; manifest hardening in #115; build candidate `preview/android-qa0-candidate` (2192de6 + #115, E-QA0-4), no build run | X-08, X-04, X-10; Play account X-01 |
 
 **Dependencies:**
 - G0 and G1 come before G2.

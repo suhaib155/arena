@@ -6,6 +6,110 @@ Nothing here needs a payment method, a paid plan or a Google Play account.
 Background and account details: `LIVE_SETUP_OPERATOR_GUIDE.md` "Free EAS
 readiness".
 
+## The QA0 candidate (18 Oct 2026)
+
+**No build has run.** Nothing below was checked on an APK or a phone.
+
+Branch `preview/android-qa0-candidate`, opened against
+`release/android-v1-cxfdbd` (991ac6a). It is one merge commit, **57f268d**,
+plus docs-only commits after it:
+
+| Input | Commit | What it brings | In the candidate |
+|---|---|---|---|
+| `deploy/render-free-staging` (base of the branch) | 2192de6 | The backend Render staging serves now: single-use Google exchange (#112, migration 0010), `amr`-only sign-in time, X-24 security fixes (#111), and everything on the release branch | Yes, as the base. `backend/`, `shared/` and `render.yaml` are byte-identical to 2192de6 |
+| PR #115 `privacy/a2-android-backup-off` | 1c3caab | `allowBackup=false`, data extraction rules, cleartext off, `LocationTaskService` removed, `expo-clipboard` dropped, manifest and 16 KB tests, QA0 docs | Yes, merged (`--no-ff`). `mobile/` and `shared/` are byte-identical to 1c3caab |
+| `feat/android-hermes-h3-runtime-fix` (#94) | 83a7e8a | h3-js startup fix on Hermes | Already an ancestor of the release branch; nothing to merge |
+| `release/android-v1-cxfdbd` | 991ac6a | Google and wallet sign-in in the app | Ancestor of both inputs |
+
+Excluded: every G2 to G7 branch (gameplay stays off; no migration 0011 in
+the tree, the journal ends at 0010), website branches (`web/a5`, `web/a09`).
+The `website/` folder in this branch is the staging copy, **not** the live
+site (61d30bb); nothing here deploys it. The only conflict was
+`EVIDENCE_REGISTER.md` (both sides added rows; both kept). `yarn.lock` merged
+without conflict and `yarn install --immutable` accepts it, so no lockfile
+was regenerated.
+
+**API contract, app against 2192de6** (read from code): the app calls
+`POST /identity/auth/google/complete {accessToken, deviceLabel?}`,
+`POST /identity/auth/wallet/exchange {code, codeVerifier, deviceLabel?}`,
+`POST /identity/account/delete {confirm: "DELETE"}`, `/identity/auth/refresh`,
+`/identity/me`, `/identity/sessions`, `/identity/session/revoke*`. Each route
+and schema exists in `backend/src/identity/http/router.ts` and
+`validation.ts` on 2192de6 (`.strict()` schemas; the app sends no extra
+field). The single-use exchange needs a fresh Supabase session: the app runs
+a new PKCE sign-in on every tap and forwards the token at once
+(`mobile/src/services/signInProviders.ts`), so a retry never reuses a spent
+session. The wallet page on the live site (61d30bb `website/js/sign-in-page.js`)
+accepts `?app=android&challenge=<43 chars>` and returns
+`movenrun://auth/wallet?code=…`, which is what the app builds and parses
+(`mobile/src/lib/signInMethods.ts`).
+
+**Local results on 57f268d (CODE TESTED LOCALLY, not a build):**
+
+| Check | Result |
+|---|---|
+| `yarn install --immutable` | Pass (lockfile unchanged) |
+| Mobile `yarn test` / `tsc --noEmit` | 931/931 / pass |
+| Shared `yarn test` / `tsc` | 156/156 / pass |
+| Backend `typecheck`, `build`, `test:api`, `test` (local PostgreSQL 16, own cluster) | pass, pass, 21/21, 427/427 |
+| `expo prebuild -p android --no-install --clean`, offline, scratch copy, no Maps key in the shell | Manifest as listed under "Prebuild manifest" below: `allowBackup="false"`, rules exclude all nine domains from cloud backup and device transfer, `usesCleartextTraffic="false"`, `LocationTaskService` removed, only `.MainActivity` exported, `applicationId`/`namespace` `io.movenrun.app`, minSdk 24 / target 36 / compile 36, `hermesEnabled=true`, `newArchEnabled=false` |
+| Library manifests of the 21 autolinked native modules | Only expo-file-system's and expo-sharing's file providers (`exported="false"`), expo-location's service (removed), and permissions the app manifest strips. No clipboard provider (expo-clipboard is not installed) |
+| 16 KB, package inspection (not build proof) | Re-read from Maven Central: fbjni 0.7.0 (`libfbjni`, `libc++_shared`), Fresco 3.6.0 (`libimagepipeline`, `libnative-filters`, `libnative-imagetranscoder`, `libgifimage`, `libstatic-webp`), arm64-v8a and x86_64: every LOAD `0x4000`. The 12 Expo local-maven AARs contain no `.so`. `react-android` and `hermes-android` 0.81.5 redirect to `repo.reactnative.dev`, which this workspace cannot reach: still "expected yes", not read. No 4 KB-aligned 64-bit library found |
+| `yarn npm audit --environment production --recursive` (mobile) | 78 advisories in 21 packages (1 critical, 47 high, 26 moderate, 4 low). All but one are build-time tools (Expo CLI, Metro, Babel, plist/xmldom, node-gyp, undici, postcss, js-yaml, brace-expansion, react-devtools-core's shell-quote). The one that ships in the JS bundle: `decode-uri-component` 0.2.2 via `query-string` 7.1.3 (expo-router / React Navigation link parsing), moderate DoS on malformed percent-encoding (advisory: `<=0.4.2`). Not changed here (no dependency changes in QA0); owner decision R-QA0-A |
+
+### Gates before the one free build
+
+| Gate | State |
+|---|---|
+| G-A: PR for this branch shows a green `mobile-checks` run on the head commit | Pending (after the push) |
+| G-B: X-05 done (Google provider and Web3 wallet enabled in Supabase, live sign-in verified on the website) | NOT DONE |
+| G-C: X-08 Maps key restricted (steps below) | NOT DONE (owner) |
+| G-D: EAS `preview` environment has the five variable names set | NOT CHECKED (owner; values never read here) |
+| G-E: `EXPO_TOKEN` GitHub secret present; expo.dev Usage shows quota; nothing queued | NOT CHECKED (owner) |
+| G-F: Owner's written approval for one build from this exact commit | NOT GIVEN |
+
+### Maps key restriction (X-08), owner steps
+
+1. From `movenrun/mobile`: `npx eas-cli@24.8.0 credentials -p android` →
+   profile `preview` → Keystore → set up a new one (EAS keeps it; no quota).
+   Copy the **SHA-1** fingerprint it shows.
+2. Google Cloud Console → the MovenRun project → APIs & Services →
+   Credentials → the Android Maps key → Edit.
+3. Application restrictions: **Android apps** → Add → package name
+   `io.movenrun.app`, SHA-1 from step 1 → Done.
+4. API restrictions: **Restrict key** → tick only **Maps SDK for Android** →
+   Save. (Changes can take a few minutes.)
+5. Put the key value in Expo → project → Environment variables → `preview`
+   as `GOOGLE_MAPS_ANDROID_API_KEY`, visibility Sensitive. Never in the repo
+   or a chat.
+6. Later, for Play: add the **Play app signing** SHA-1 (Play Console → Test
+   and release → App integrity) to the same restriction.
+
+### The one-build request (text for the owner to approve)
+
+> Approve one EAS Free preview build: GitHub Actions → **EAS APK Build** →
+> branch `preview/android-qa0-candidate` at commit `<head SHA from the PR,
+> green mobile-checks>`, profile `preview` (APK, internal distribution, EAS
+> environment `preview`). Uses one build of the monthly Free allowance;
+> a failed build also counts and is not re-run without a fix and a new
+> approval. Preconditions G-A to G-E above are met. No Play upload, no
+> production profile, no merge.
+
+### Handset checklist for that APK (all NOT RUN)
+
+| # | Check | Script reference | State |
+|---|---|---|---|
+| H-1 | Cold start: Hermes bytecode in the bundle, three cold starts reach the first screen | Q0-1a–d, f; script step 1 | NOT RUN |
+| H-2 | Hermes/H3: the Territory tab builds H3 cells with no `RangeError`/`TextDecoder` fatal in logcat (#94 fix) | Q0-1e | NOT RUN |
+| H-3 | GPS route: foreground session records on real map tiles, tracking stops in the background, no "Allow all the time" | Q0-2; script steps 3–8 | NOT RUN |
+| H-4 | Continue with Google (PKCE) against staging, then a second sign-in; after a 20-minute idle API | Q0-3; steps 15a, 15b, 15g | NOT RUN |
+| H-5 | Continue with Wallet: return by `movenrun://auth/wallet`, by typed code, and after the app was killed; foreign challenge warning | Q0-4; steps 15c, 15d, 15f, 15h | NOT RUN |
+| H-6 | Account deletion in the app (wallet and Google accounts) and on the web | Q0-5; steps 15e, 16 | NOT RUN |
+| H-7 | Backup exclusion: a backup and restore brings back no app data | Q0-6 | NOT RUN |
+| H-8 | Device transfer exclusion | Q0-6 (transfer part) | NOT RUN |
+| H-9 | Offline session: save in airplane mode shows pending, verified once when the network returns; kill and relaunch resurrects no route | Steps 13, 14 | NOT RUN |
+| H-10 | Permissions on the installed app: location fine/coarse only, no background, no cleartext, no clipboard provider, forged `movenrun://` links do nothing; deny and approximate-only paths | Q0-7a–e; steps 3, 4 | NOT RUN |
+
 ## What the build is (checked 17 Oct 2026 on `privacy/a2-android-backup-off`)
 
 | Item | Value | Where |
@@ -100,7 +204,7 @@ the Maps `API_KEY` meta-data; 16 KB alignment of the native libraries. The
 
 | Item | Value |
 |---|---|
-| Commit | The head of `privacy/a2-android-backup-off` that PR #115 shows with a green `mobile-checks` run, or, if #115 merges first, the release branch head that contains it. One commit, recorded before the run |
+| Commit | The head of `preview/android-qa0-candidate` (app code = 57f268d) that its PR shows with a green `mobile-checks` run. `privacy/a2-android-backup-off` has the same `mobile/` tree, but its backend predates the live #112 exchange, so only the candidate's CI tests the app and the served API together. One commit, recorded before the run |
 | Profile | `preview` (`apk`, `internal`, EAS environment `preview`), through GitHub Actions **EAS APK Build** (`eas-cli@24.8.0 build -p android --profile preview --non-interactive`) |
 | Variables (names only, EAS `preview` environment) | `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_WEB_URL` (optional), `GOOGLE_MAPS_ANDROID_API_KEY` |
 | GitHub secret | `EXPO_TOKEN`, owner-created; never used outside that workflow |

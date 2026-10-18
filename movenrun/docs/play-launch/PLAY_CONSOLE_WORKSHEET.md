@@ -139,6 +139,33 @@ with four points for the owner to see before submitting:
 - *Website-only providers.* Vercel and Google Fonts serve the website, not
   the app; they do not enter the app's Data safety form.
 
+**18 Oct, QA0 candidate (`preview/android-qa0-candidate`, app code
+57f268d; no build has run).** Re-traced on the candidate, which is the app of
+#115 on the backend staging serves (2192de6). The form above stands; what the
+candidate adds or confirms:
+
+- *SDKs in the binary.* Autolinked native modules: Expo SDK 54 modules
+  (`expo`, `expo-asset`, `-constants`, `-crypto`, `-file-system`, `-font`,
+  `-haptics`, `-keep-awake`, `-linking`, `-location`, `-modules-core`,
+  `-secure-store`, `-sharing`, `-system-ui`, `-web-browser`), AsyncStorage,
+  `react-native-maps` (Google Maps SDK / Play services), safe-area-context,
+  screens, view-shot. No wallet SDK (WalletConnect, wagmi, ethers, viem): the
+  wallet flow is a link into the wallet's own browser. No analytics, crash,
+  ads or attribution SDK, no `console.*` in app code. Supabase is called with
+  plain `fetch` (no Supabase client library in the app).
+- *Used Google sign-ins.* Migration 0010 is live: `google_sign_in_exchanges`
+  holds the Supabase session id and an expiry, no email or account id
+  (`backend/drizzle/0010_google_sign_in_exchanges.sql`). No Play data type;
+  no declaration. Row added to `DATA_INVENTORY.md`.
+- *Avatar.* Still a provider URL kept by Supabase, never image bytes; the app
+  and API read no `avatar_url`, `picture` or `user_metadata` (search on the
+  candidate). Not Photos.
+- *Unresolved, for the owner and legal reviewer* (unchanged, see
+  `DATA_INVENTORY.md` "Open questions"): Maps SDK crash logs, diagnostics,
+  device or other IDs and app interactions; Name and the picture URL; wallet
+  address as User IDs; Fitness info plus the Health apps choice (draft:
+  **Activity and Fitness**); whether fraud prevention is a purpose.
+
 **Store listing facts (check against `STORE_LISTING.md` before pasting).**
 App name MovenRun; package `io.movenrun.app`; version 1.0.0; Game →
 Adventure (or Sports); Free, no in-app purchases; contains ads: No; contact
