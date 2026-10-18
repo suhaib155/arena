@@ -4,6 +4,7 @@
 
 - **Reviewed commit:** `origin/feat/v3-onchain-core` at `c8262ecda89d9a2a11f045074ddf2be5d652af56` (c8262ec). Source was read with `git show`; the branch was not checked out and not changed. Line numbers below are for that commit.
 - **EVM proofs:** `shared/contract-proofs/g5-ledger/ledger.proof.ts` (18 tests, all pass). Run them with `yarn workspace @movenrun/shared proofs:g5`. The script extracts `movenrun/contracts` at the pinned commit into a temporary directory with `git archive`, then runs the branch's own fixture (`test/v3/helpers.ts`, which deploys the suite the way the deploy script does). It compiles with the solcjs 0.8.26 build already in `node_modules`, so nothing is downloaded. To allow that, it relaxes `pragma solidity 0.8.24` to `^0.8.24` in the scratch copy and changes no other contract text. Hardhat config: in-process network only (chain id 31337), no accounts, no URLs.
+- **Draft patches and regressions (added 18 Oct):** `shared/contract-proofs/g5-ledger/patched/` and `patches/` (H1, H2, H3 / M1, N1), `regression.proof.ts` (17 scenarios, each asserting the issue on the original and the fix on the patched build) and `valve.proof.ts` (8 valve, fallback and emission tests). Run `yarn workspace @movenrun/shared proofs:g5` (original: 43 passing) and `proofs:g5:patched` (17 passing). See §7–§12.
 - **Arithmetic model:** `shared/src/sim/contractLedger.ts` with `shared/src/sim/__tests__/contractLedger.test.ts`. It mirrors the settlement schedule and pool, sizes H1, and compares remediations. It is part of the shared suite.
 
 ## 1. Summary after verification
@@ -428,7 +429,7 @@ This section sets requirements for any future design. It decides nothing, and it
 
 ## 4. Owner decision matrix (G5-1 … G5-12)
 
-Status for every row: **not yet decided**. The rankings are research readings that help with sequencing. They are not recommendations to decide one way.
+Status for every row: **not yet decided**. The rankings are research readings that help with sequencing. The last column (added 18 Oct, after the draft patches, the ring study and the valve tests) is a research recommendation for the owner to accept or reject; it decides nothing.
 
 - **Irreversibility:**
   - 5 = it cannot be undone once anything ships on chain
@@ -436,20 +437,20 @@ Status for every row: **not yet decided**. The rankings are research readings th
 - **Sybil exposure:** how much the wrong choice enlarges the ring, wash or toll channels.
   - 5 = it enlarges them most
 
-| Id | Question | Options | Recommended research direction | Irreversibility | Sybil exposure | Status |
-|---|---|---|---|---|---|---|
-| G5-1 | How deed traffic is counted, given that a crossing pushes undefended ground | (a) a candidacy period in which crossings count but do not flip; (b) count only refused or defended crossings; (c) count neighbour traffic; (d) recalibrate 30 / 10 | Simulate (a)–(c) **with cluster detection on** and measure honest deeds against ring deeds. Never loosen without detection | 3 | 5 | not yet decided |
-| G5-2 | Keep §21's "liquid after first deed", or make the legal fallback (all locked, staking only) the research default | keep §21; fallback default; defer | Make the fallback the research default until G5-11 and cluster detection exist. Finding 3 (liquid Gini 0.99) and the ring break-even argue for it | 4 | 5 | not yet decided |
-| G5-3 | Tolls received: liquid, locked, or inside the valve | liquid (§21); locked; inside the allowance; liquid only to the day's verified holders | Model all three against the toll channel. If tolls stay liquid, require on-chain holder binding (M4 option 3) | 3 | 4 | not yet decided |
-| G5-4 | Per-city cap: city-wide share or per-holder count, and its value (D6) | city-wide; per-holder; both | Both, with the city bound to the cell on chain. Measure the cluster share at the chosen value | 3 | 4 | not yet decided |
-| G5-5 | Is a deed a transferable token, or a non-transferable game record that collects tolls | transferable ERC-721; non-transferable (soulbound) with contest movement only; transferable after a long lock | Research non-transferable first. Transferability is the root of M7 and of wash trading, and it is hard to withdraw once holders exist | **5** | 5 | not yet decided |
-| G5-6 | Deed privacy: public cell, opaque id or coarser area | public H3; salted commitment; coarser parent; delayed publication | Opaque id or a coarser area. A public cell id cannot be recalled once minted | **5** | 2 | not yet decided |
-| G5-7 | Contract trust model before any testnet rework | two signers everywhere; time-bound days with a per-publication cap; timelock floor; challenge window; expiry ceiling | Adopt as the research baseline. Write the invariants in §2 as tests before any contract work | 4 | 4 | not yet decided |
-| G5-8 | Size of the §22 season-end burn and any target burn-to-mint ratio | none; a fixed share; a target ratio | Simulate with the trace. Note that a burn never frees issuance room | 2 | 1 | not yet decided |
-| G5-9 | Plan for the 600M outside the player allocation | stays unissued (stated publicly); a published schedule | A public statement in either case. An unstated reserve is a treasury and regulatory question | 4 | 1 | not yet decided |
-| G5-10 | Recalibrate the session minimum and effort floor before deed or liquidity work | recalibrate; keep | Recalibrate first. Route farmers top both credits and deeds | 2 | 4 | not yet decided |
-| G5-11 | Scope and markets of the legal review required before liquid design | per market; per feature; both | Per market and per feature, using §5's questions, before any liquid or transferable design proceeds | 3 | 2 | not yet decided |
-| G5-12 | Research capped or vested conversion further, or rule it out as breaking rule 11 | research; rule out | Owner call on rule 11 first. If researched, model the cap as a per-cluster bound, not per account | 4 | 3 | not yet decided |
+| Id | Question | Options | Recommended research direction | Irreversibility | Sybil exposure | Status | Recommendation after §7–§9 (**owner decision**) |
+|---|---|---|---|---|---|---|---|
+| G5-1 | How deed traffic is counted, given that a crossing pushes undefended ground | (a) a candidacy period in which crossings count but do not flip; (b) count only refused or defended crossings; (c) count neighbour traffic; (d) recalibrate 30 / 10 | Simulate (a)–(c) **with cluster detection on** and measure honest deeds against ring deeds. Never loosen without detection | 3 | 5 | not yet decided | Keep 21 / 30 / 10 until detection is measured. Research (a), a candidacy period, with §8's ring model; §8 shows 7 / 5 / 3 lets a 6-account ring take 6 deeds |
+| G5-2 | Keep §21's "liquid after first deed", or make the legal fallback (all locked, staking only) the research default | keep §21; fallback default; defer | Make the fallback the research default until G5-11 and cluster detection exist. Finding 3 (liquid Gini 0.99) and the ring break-even argue for it | 4 | 5 | not yet decided | Fallback (all locked) as the default. The prototype cannot enforce it while tolls are liquid (§9 V3), so it needs the D2 switch first |
+| G5-3 | Tolls received: liquid, locked, or inside the valve | liquid (§21); locked; inside the allowance; liquid only to the day's verified holders | Model all three against the toll channel. If tolls stay liquid, require on-chain holder binding (M4 option 3) | 3 | 4 | not yet decided | Locked, or inside a revenue-linked valve (§9 D1). Not liquid while V3 stands |
+| G5-4 | Per-city cap: city-wide share or per-holder count, and its value (D6) | city-wide; per-holder; both | Both, with the city bound to the cell on chain. Measure the cluster share at the chosen value | 3 | 4 | not yet decided | Both, plus a per-cluster cap and the city bound to the cell, as in the §7 H3 patch. City-wide 50 is a research value only |
+| G5-5 | Is a deed a transferable token, or a non-transferable game record that collects tolls | transferable ERC-721; non-transferable (soulbound) with contest movement only; transferable after a long lock | Research non-transferable first. Transferability is the root of M7 and of wash trading, and it is hard to withdraw once holders exist | **5** | 5 | not yet decided | Non-transferable for any first release. The §7 cluster cap counts claims, so transferability lets a ring regroup deeds after the window |
+| G5-6 | Deed privacy: public cell, opaque id or coarser area | public H3; salted commitment; coarser parent; delayed publication | Opaque id or a coarser area. A public cell id cannot be recalled once minted | **5** | 2 | not yet decided | Opaque id, publishing at most the resolution-5 region the §7 patch already uses to bind the city |
+| G5-7 | Contract trust model before any testnet rework | two signers everywhere; time-bound days with a per-publication cap; timelock floor; challenge window; expiry ceiling | Adopt as the research baseline. Write the invariants in §2 as tests before any contract work | 4 | 4 | not yet decided | Adopt the §7 model as the baseline: two keys for settlement, scores and eligibility (threshold ≥ 2), time-bound days with a 2× ceiling, 7-day expiry ceiling, 7-day pending window with a multisig voider and no post-window revoke. Add a timelock floor (L2) |
+| G5-8 | Size of the §22 season-end burn and any target burn-to-mint ratio | none; a fixed share; a target ratio | Simulate with the trace. Note that a burn never frees issuance room | 2 | 1 | not yet decided | None until a real pilot measures sinks. Low priority |
+| G5-9 | Plan for the 600M outside the player allocation | stays unissued (stated publicly); a published schedule | A public statement in either case. An unstated reserve is a treasury and regulatory question | 4 | 1 | not yet decided | Publicly state that the 600M stays unissued, with no schedule |
+| G5-10 | Recalibrate the session minimum and effort floor before deed or liquidity work | recalibrate; keep | Recalibrate first. Route farmers top both credits and deeds | 2 | 4 | not yet decided | Recalibrate first, using the less punitive route-farming options (protecting commutes and repeat loops) |
+| G5-11 | Scope and markets of the legal review required before liquid design | per market; per feature; both | Per market and per feature, using §5's questions, before any liquid or transferable design proceeds | 3 | 2 | not yet decided | Per market and per feature, as gate 6 of §12, before any liquid or transferable design |
+| G5-12 | Research capped or vested conversion further, or rule it out as breaking rule 11 | research; rule out | Owner call on rule 11 first. If researched, model the cap as a per-cluster bound, not per account | 4 | 3 | not yet decided | Rule out for the pilot. Revisit only after §12 gates 1–6 |
 
 **Top three by irreversibility:**
 
@@ -495,4 +496,114 @@ The following are questions only. This document draws no legal conclusion. The s
 
 - This is a ledger for audit scope, not an audit. Passing proofs show that the listed behaviour exists. They show nothing about behaviour not tested.
 - The proofs compile with solcjs 0.8.26 instead of the pinned 0.8.24, using the branch's own fixture. No behavioural difference between the two is expected for this code, but an audit must use the pinned compiler.
-- Remediation options are directions, not designs. None was implemented or tested against the contracts.
+- Remediation options in §2 are directions. Draft patches exist only for H1, H2, H3 / M1, N1 and L5 (§7); they are tested locally and unaudited. Every other row is still a direction only.
+- The Sybil numbers in §8 are synthetic and rest on assumptions R1 and R2.
+
+## 7. Draft patches and regression proofs (H1, H2, H3 / M1, N1)
+
+> **DRAFT PATCHES — CODE TESTED LOCALLY on Hardhat's in-process network only. Not deployed, not audited, not committed to `feat/v3-onchain-core`.** They exist to show that each High finding and N1 has a concrete fix that compiles and holds under test, and to give the external audit (§10) something precise to review. Every design choice in them is an owner decision (§4).
+
+- **Where:** full patched copies in `shared/contract-proofs/g5-ledger/patched/*.sol`, and unified diffs against c8262ec in `shared/contract-proofs/g5-ledger/patches/*.patch` (they apply cleanly to an extract of c8262ec with `patch -p1`).
+- **Constructor ABIs are unchanged**, so the branch's own fixture (`test/v3/helpers.ts`) deploys the patched suite exactly as the deploy script would. Every new control is fail-closed until the timelock configures it.
+- **Proofs:** `shared/contract-proofs/g5-ledger/regression.proof.ts` runs the same 17 scenarios against both builds. On the original it asserts that the issue reproduces; on the patched build (`G5_MODE=patched`) it asserts that the fix holds.
+
+| Id | Patch (contract) | What it enforces on chain | Regression scenarios (original → patched) |
+|---|---|---|---|
+| H1 | `MovenRunSettlement` | An immutable `genesis`; day *d* is publishable only once `now ≥ genesis + d days`. One publication issues at most `2 × seasonBudget ÷ 90`. Skipped days are forfeited on the record (`DaysForfeited`). Authorization lifetime ≤ 7 days (L5) | Day 90 straight after day 1: mints the season → `DayNotYetClosed`. After a real 90-day gap, the backlog in one call: accepted → `PublicationAboveDailyCeiling`, and only 2 × nominal issues. Property test, 25 seeded steps by an attacker holding both keys: the bound `issued ≤ 2 × nominal × closed days` is violated → holds. Expiry in 2100: accepted → refused |
+| H2 | `MovenRunContests` | Single-sided `submitScore` is disabled. `submitDayScores` posts **both sides of one day together** under two signatures from two distinct keys (`contestSigner` and a new `contestCoSigner`, unset until the timelock sets it, so scoring fails closed). Day *n* is accepted only after it closes, until a 1-day grace after the window; settlement waits for the grace. Per-day score ceiling `maxDailyScore` | One key moves the deed → refused (`SingleSidedScoresDisabled`, `InvalidCoSignature`, `InvalidScoreSignature`). Seven days relayed in the first minute, one side only → `ScoringDayNotClosed`, both sides recorded each day, tie stays with the defender. Score 2¹²⁰ accepted → `ScoreOutOfRange`; no co-signer → `CoSignerNotConfigured` |
+| H3 / M1 | `MovenRunDeedClaims` | **Threshold attestation**: `attestationThreshold` (compiled floor 2) signatures from distinct registered signers, in ascending signer order; the single-signer `claim` is disabled. **City derived from the cell**: the contract computes the resolution-5 parent and verifies `(parent, cityId)` against a committed Merkle root. The attestation names a `clusterId` and an `evidenceHash` (§3.2 commitment); at most `maxDeedsPerCluster` claims per cluster per city. **Issuance caps**: city-wide cap (0 = closed), claims per city per day (default 5), lifetime claim ceiling (default 1,000). Guardian pause unchanged; unpause still needs the timelock | One key mints → `SingleSignerClaimsDisabled` / `ThresholdNotMet` / duplicate or unknown signer refused. Threshold cannot be set below 2. Second city label for a neighbouring cell → `CellNotInCity`. On-chain parent equals h3-js for 12 cells. A 3-wallet ring under one cluster id: 3 deeds → 1. Sixth claim in a day: accepted → deferred to the next day; city-wide cap and lifetime ceiling bind. Pause blocks claims only |
+| N1 | `MovenRunDeed` | Every new deed is **pending** for 7 days: no transfer, no sale, no contest escrow; `isFinal()` is what an off-chain toll pipeline must read before paying any toll. While pending, `VOIDER_ROLE` (granted by the timelock; intended for a multisig distinct from every signer) can void with a reason code; the cell is freed and every counter stays exact. **After the window there is no administrative revoke** (seizure risk, G5-7); only the holder can `relinquish()` | Immediate transfer: works → `DeedPending`; immediate contest → `DeedPending`. Wrong attestation: permanent (`DeedAlreadyExists` on re-claim) → voided, counters back to zero, cell re-claimed. After the window: void → `DeedAlreadyFinal`; only the holder can relinquish |
+
+**What the patches do not fix, or introduce** (each one goes to the audit, §10):
+
+- **Cluster quality is still off chain.** `clusterId` is attested, not computed. Two independent signers make a false cluster id harder, not impossible. §8 shows the per-cluster cap is only as good as the detection rate behind it.
+- **The cluster cap counts claims, not holdings.** If deeds stay transferable (G5-5), a ring can concentrate deeds after the window. Non-transferability, or a holding-based cluster cap, closes this.
+- **Declarations stay single-signed** (H2b is still open), and the rules version is still not snapshotted per contest (M3).
+- **N1 and M6 interact.** A voided cell can be claimed again; if it returns to the holder who listed it, the stale listing revives. Fix M6 (listing nonce or owner snapshot) together with N1.
+- **The voider is a new privileged role.** It can only act inside the window, but it is a censorship lever there. It needs its own custody, public log and appeal path.
+- **The EIP-712 domain version stays `"3"`** in the draft so that the branch fixture signs unchanged. The claim type hash changed, so a release must bump the domain version (§11).
+- **Branch-suite compatibility (measured):** with the patches applied, the branch's own `test/v3` suite runs 29 passing and 76 failing (`G5_MODE=patched G5_BRANCH_SUITE=1`). The failures are by design: 75 of the 76 revert with `DayNotYetClosed` because the fixtures publish day 1 at deploy time, and the rest use the single-signer ABIs. Porting that suite to the time-bound and threshold ABIs is a follow-up task, not done here.
+
+## 8. Sybil study: deeds a ring of k linked accounts can obtain
+
+> **SIMULATION ONLY.** `shared/src/sim/deedRing.ts`, tests in `shared/src/sim/__tests__/deedRing.test.ts`, table with `yarn workspace @movenrun/shared sim:ring`. Synthetic accounts on synthetic cells. Not real-world evidence.
+
+**Model.** One operator runs k accounts in one city. Each holds 3 cells and keeps them solid every day; the other members cross each cell on a rotation (10 crossers per cell per day). The off-chain gate is `deedEligibility` from the season studies, unchanged: own and linked traffic never counts, and no cluster may exceed 20% of a unit's counted crossers. Each member is linked to the operator's cluster with probability *d* before the claim (R2), and with a further 20% during the patched challenge window. "Current" is the prototype's only on-chain control, a per-holder cap of 1. "Proposed" is the draft patch: per-holder 1, per-cluster 1, city-wide 50, 5 claims per city per day, 7-day void window. 30 seeded detection draws per row; the range is min–max.
+
+**Assumption R1 is decisive.** A ring coordinates, so a crossing never costs a member the cell (the holder retakes it before day close). Honest walkers cannot coordinate, which is why honest ground never gathered more than 12 counted crossers in any season context (G5_G7_ECONOMY_RESEARCH.md §2.2, finding 1).
+
+| Deed rule | k | d | Off-chain eligible cells | Current deeds | Proposed deeds |
+|---|---|---|---|---|---|
+| source §12 (21 d / 30 / 10 d) | 6–20 | any | 0 | 0 | 0 |
+| source §12 | 31 | 0 | 93 | 31 | 25.0 (21–29) |
+| source §12 | 31 | 0.3 | 5.1 | 1.7 (0–26) | 1.4 (0–21) |
+| source §12 | 60 | 0.3 | 62.5 | 20.8 (12–60) | 2.4 (1–43) |
+| source §12 | 100 | 0 | 300 | 100 | 50 (city-wide cap) |
+| source §12 | 100 | 0.6 | 177 | 59 (49–68) | 1 |
+| 7 d / 5 / 3 d (comparator) | 6 | 0 | 18 | 6 | 4.8 (2–6) |
+| 7 d / 5 / 3 d | 10 | 0.3 | 12.4 | 4.1 (2–10) | 1.8 (1–10) |
+| 7 d / 5 / 3 d | 31 | 0.6 | 56.9 | 19.0 (13–25) | 1 |
+| 7 d / 5 / 3 d | 100 | 0.3 | 99.9 | 34.0 (26–74) | 3.4 (1–36) |
+
+What this means:
+
+- **Under the source rule, only rings reach a deed.** Honest players reached 0 deeds in every simulated context (§2.2 of the research doc). A coordinated ring needs `distinctCrossers + 1 = 31` accounts and then takes one deed per wallet under the prototype. So the owner's V3 criteria are unreachable for honest players under the current churn, while staying reachable for farmers.
+- **Loosening favours farmers.** At 7 / 5 / 3 a ring of only **6** accounts takes 6 deeds. In the pilot context the same rule gave honest play 7.3 deeds in total, 6.0 of them to route farmers. Loosening without cluster detection hands the gate to rings first (§3.10).
+- **On-chain controls cannot replace detection.** At *d* = 0 the patch removes only what late detection voids and what the city-wide cap clips: 31 → 25, 100 → 50. The per-cluster cap does its work only once accounts are linked: at *d* = 0.3 and k = 60, 20.8 → 2.4; at *d* = 0.6 and k = 100, 59 → 1.
+- **Partial detection can backfire under the 20% rule.** A detected member's cell is crossed by undetected ring-mates, who look like unrelated singletons, so it passes. An undetected member's cell is crossed by the detected cluster, which can exceed the 20% share, so it fails. At k = 100 the rule therefore admits *more* cells at *d* = 0.6 (177) than at *d* = 0.3 (92). Only a per-cluster cap on the holder side turns detection into fewer deeds.
+- **Cost.** The ring break-even in the research doc's §7 (about 0.015 cost units per token, the same as "all liquid" direct farming) assumed one deed per member. Under the proposed controls with *d* ≥ 0.3, a ring of 60 obtains about 2 deeds instead of about 21, which raises its cost per deed about ninefold. It does not change the conclusion that liquidity after a first deed (§21) must wait for measured detection.
+
+## 9. Revenue valve, liquidity fallback and emission: failure modes and invariants
+
+> **CODE TESTED LOCALLY** where the prototype has code: `shared/contract-proofs/g5-ledger/valve.proof.ts` (8 tests, original build). The prototype has no revenue oracle and no liquidity-pool code. Rows marked "no code" are design requirements only.
+
+| # | Kind | Statement | Evidence |
+|---|---|---|---|
+| V1 | Failure mode | The "valve" is a timelock-raised allowance with **no link to revenue** and no per-period ceiling. One action can open it to the whole 400M allocation, and day 1's pool can then issue fully liquid | test V1 |
+| V2 | Failure mode | Unused allowance **never expires**. A raise made for one season can still be spent a year later | test V2 |
+| V3 | Failure mode (= M4) | With the valve shut, toll credits are still liquid. **The all-locked legal fallback (§21) cannot be set by configuration.** The only lever is pausing publication, which stops locked rewards too | test V3 |
+| V4 | Failure mode (= M7) | Locked balances cannot be transferred, but can be burned for a deed fee; the deed is transferable. That is the locked-to-liquid leak | test V4 + ledger M7 |
+| V5 | Failure mode (= H1) | Emission is not bound to time, so the budget schedule is not a time schedule | ledger H1; fixed by the H1 patch (§7) |
+| I1 | Invariant (holds) | The guardian can shut the valve at once (saturating at 0) and can never open it; signers cannot touch it | test |
+| I2 | Invariant (holds) | Liquid movement issued ≤ allowance raised; a second draw on a spent valve is refused | test |
+| I3 | Invariant (holds) | Burning never frees lifetime mint capacity; `cumulativeMinted` is monotonic | test |
+| I4 | Invariant (holds) | Automatic day-close burn ≤ 60% of gross | test |
+| D1 | Design requirement, no code | A real revenue valve needs: an attested revenue figure per period (two signers, like settlement), allowance per period = published share × attested revenue, allowance that **expires** at period end, and a compiled ceiling per period | — |
+| D2 | Design requirement, no code | The legal fallback needs an explicit on-chain switch that makes tolls locked (or routes them through the valve), off by default for liquidity, with its own timelock and test | — |
+| D3 | Design requirement, no code | Liquidity fallback (any pool or market) must not be seeded from the player allocation or the unissued 600M without a public schedule (G5-9), and must not be the operator's market making. No such code exists; none should be written before §12's gates | — |
+
+## 10. Independent review plan: what an external audit must cover
+
+The auditor must be independent of the authors of the contracts, the signing services and this ledger. Scope is the suite **plus** everything that can create a signature it trusts.
+
+1. **On-chain scope:** all nine V3 contracts, the library, the deploy and post-deploy check scripts, and any patch adopted from §7. Pinned compiler 0.8.24 (the proofs here used 0.8.26), optimizer settings as deployed, bytecode matched to source.
+2. **Off-chain signing scope (the real trust boundary):** the settlement, reconciliation, eligibility and contest-score pipelines; proof that "two signers" means two code paths, two operators, two hosts and two key custodians; the risk-graph job that produces `clusterId` and `evidenceHash`; rate limits on the signing side.
+3. **Key management:** HSM or KMS custody, per-purpose keys, rotation drill, compromise playbook, timelock floor delay (L2), role separation checked on the deployed state.
+4. **Methods:** line-by-line manual review; property and invariant fuzzing (the invariants in §2 and §9 as Foundry or Echidna properties); static analysis; differential tests against the arithmetic model in `contractLedger.ts`; a dedicated review of every EIP-712 struct, domain and nonce space.
+5. **Economic review:** a Sybil and wash-trading review using §8's ring model with the measured detection rate from a real pilot, toll-channel and valve sizing, and the issuance schedule.
+6. **Privacy review:** what each event and storage slot discloses (M8, G5-6), with a data-protection impact assessment.
+7. **Deliverables:** findings with severity, fixes reviewed by the auditor, a re-audit of any change after the report, and a public report before any deployment that holds value.
+8. **After the audit:** a bug bounty before any mainnet deployment; a re-audit for every contract version (§11).
+
+## 11. Contract versioning scheme (proposal, owner decision)
+
+- **Suite version** `movenrun-v<major>.<minor>.<patch>` recorded in `MovenRunRegistry` with every contract address and its runtime code hash. The prototype is `movenrun-v3.0.0`; the §7 drafts would be `movenrun-v3.1.0-draft` and are never deployed under that label.
+- **EIP-712 domain version** per contract equals the suite's `<major>.<minor>`. Any change to a type hash, a struct or the meaning of a signed field bumps it, so an old signature can never verify against new semantics. The §7 draft changes the claim type hash and must bump to `"3.1"` before any deployment.
+- **Rules version** stays separate (off-chain rule sets), and is snapshotted per contest and per settlement day (M3).
+- **No upgradeable proxies.** A new version is a new deployment. The old one is paused for new issuance only; claims, contest settlement and exits keep working (§3.8). Migration of deeds or balances, if ever needed, is an explicit, audited, opt-in contract.
+- **Every version** carries its own audit report, its registry entry and a changelog entry naming the findings it closes.
+
+## 12. Legal and launch gate checklist (nothing financial before every gate)
+
+Status for every row today: **not met**. Each gate needs recorded evidence, not a claim. Until gates 1–6 are met there is **no** transferable token, liquid balance, deed NFT, marketplace or conversion, on any chain, including testnets meant for users.
+
+| # | Gate | Evidence required | Status |
+|---|---|---|---|
+| 1 | Activity verification works on real movement | Sealed sessions, route evidence and device integrity measured on a real credits-only pilot, with false-accept and false-reject rates | not met |
+| 2 | Credits-only pilot completed | A season with off-chain credits only (no token), with retention and fairness measured on real players, not synthetic ones | not met |
+| 3 | Anti-Sybil controls measured | Cluster detection precision and recall on pilot data; §8 rerun with the measured *d*; route-farming mitigations in place (G5-10) | not met |
+| 4 | Contracts remediated | H1–H3 and N1 fixed (for example as in §7), Medium rows decided, branch suite ported, invariant tests green | not met |
+| 5 | External audit passed | §10 report with every High and Medium closed and re-audited | not met |
+| 6 | Legal approval | Per market and per feature (G5-11), using §5's questions; app-store policy review for Android | not met |
+| 7 | Owner decisions recorded | At least G5-2, G5-5, G5-6 and G5-7 decided in writing | not met |
+| 8 | Operations ready | Signer independence and key custody in place; incident and appeal process for voids and contests; public disclosures (supply, unissued 600M, admin powers) | not met |

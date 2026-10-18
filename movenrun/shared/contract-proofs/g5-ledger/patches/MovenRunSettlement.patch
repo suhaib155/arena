@@ -1,0 +1,111 @@
+--- a/movenrun/contracts/src/v3/MovenRunSettlement.sol
++++ b/movenrun/contracts/src/v3/MovenRunSettlement.sol
+@@ -20,6 +20,14 @@
+ ///      signer. Both are chain-bound and contract-bound through the EIP-712 domain, expire,
+ ///      and are single-use through the authorization nonce. Anyone may relay a fully
+ ///      authorized settlement.
++///
++///      G5 DRAFT PATCH (H1, L5). Research copy, not deployed, not audited:
++///      - a day can be published only after it has closed on the wall clock, measured from an
++///        immutable genesis fixed at construction, so day ids cannot be spent ahead of time;
++///      - one publication may issue at most MAX_POOL_MULTIPLE x (season budget / 90), so a
++///        backlog of unissued budget can never be released in a single call;
++///      - skipped days are forfeited on the record (DaysForfeited) instead of silently;
++///      - an authorization may not be valid for longer than MAX_AUTHORIZATION_LIFETIME.
+ contract MovenRunSettlement is AccessControl, EIP712 {
+     /// @notice Role permitted to pause new settlement publication and nothing else.
+     bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
+@@ -40,6 +48,12 @@
+     uint256 public constant MAX_AUTOMATIC_BURN_BPS = 6_000;
+     /// @notice Basis-point denominator.
+     uint256 public constant BPS_DENOMINATOR = 10_000;
++    /// @notice G5 patch: ceiling on one publication, in multiples of the nominal daily budget.
++    uint256 public constant MAX_POOL_MULTIPLE = 2;
++    /// @notice G5 patch: longest validity an authorization may carry.
++    uint64 public constant MAX_AUTHORIZATION_LIFETIME = 7 days;
++    /// @notice G5 patch: length of one settlement day.
++    uint64 public constant SETTLEMENT_DAY = 1 days;
+ 
+     /// @notice EIP-712 type of a daily settlement authorization.
+     bytes32 public constant SETTLEMENT_AUTHORIZATION_TYPEHASH =
+@@ -84,6 +98,8 @@
+     IMovenRunToken public immutable moveToken;
+     /// @notice The reward distribution contract funded by each settlement.
+     IMovenRunRewards public immutable rewards;
++    /// @notice G5 patch: start of settlement day one. Day d closes at genesis + d days.
++    uint64 public immutable genesis;
+ 
+     /// @notice Lifetime MOVE issued through the movement settlement path.
+     uint256 public lifetimeMovementIssued;
+@@ -132,6 +148,7 @@
+     event LiquidIssuanceAllowanceReduced(uint256 removedAmount, uint256 newAllowance);
+     event RulesVersionUpdated(uint16 previousVersion, uint16 newVersion);
+     event PublicationPauseUpdated(bool paused, address indexed actor);
++    event DaysForfeited(uint32 firstDay, uint32 lastDay);
+ 
+     error ZeroAddress();
+     error SignerReuse();
+@@ -152,6 +169,9 @@
+     error DailyPoolExceeded(uint256 grossIssuance, uint256 dailyPool);
+     error PlayerAllocationExceeded(uint256 requested, uint256 remaining);
+     error LiquidIssuanceAllowanceExceeded(uint256 requested, uint256 available);
++    error DayNotYetClosed(uint32 dayId, uint64 closesAt);
++    error PublicationAboveDailyCeiling(uint256 grossIssuance, uint256 ceiling);
++    error AuthorizationLifetimeTooLong(uint64 expiry, uint64 maximum);
+ 
+     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
+     /// @param guardian Emergency address permitted to pause new publication only.
+@@ -184,6 +204,7 @@
+         settlementSigner = settlementSigner_;
+         reconciliationSigner = reconciliationSigner_;
+         rulesVersion = initialRulesVersion;
++        genesis = uint64(block.timestamp);
+ 
+         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+         _grantRole(GUARDIAN_ROLE, guardian);
+@@ -203,12 +224,22 @@
+     ) external {
+         if (publicationPaused) revert PublicationIsPaused();
+         if (block.timestamp > authorization.expiry) revert AuthorizationExpired(authorization.expiry);
++        if (authorization.expiry > block.timestamp + MAX_AUTHORIZATION_LIFETIME) {
++            revert AuthorizationLifetimeTooLong(
++                authorization.expiry,
++                uint64(block.timestamp) + MAX_AUTHORIZATION_LIFETIME
++            );
++        }
+         if (authorization.rulesVersion != rulesVersion) {
+             revert UnexpectedRulesVersion(authorization.rulesVersion, rulesVersion);
+         }
+         if (authorization.dayId == 0 || authorization.dayId <= lastSettledDay) {
+             revert DayNotAdvancing(authorization.dayId, lastSettledDay);
+         }
++        {
++            uint64 closesAt = genesis + uint64(authorization.dayId) * SETTLEMENT_DAY;
++            if (block.timestamp < closesAt) revert DayNotYetClosed(authorization.dayId, closesAt);
++        }
+         if (_settlements[authorization.dayId].published) revert DayAlreadySettled(authorization.dayId);
+         if (authorizationNonceUsed[authorization.nonce]) {
+             revert AuthorizationAlreadyUsed(authorization.nonce);
+@@ -236,6 +267,12 @@
+         if (authorization.grossIssuance > pool) {
+             revert DailyPoolExceeded(authorization.grossIssuance, pool);
+         }
++        {
++            uint256 ceiling = (seasonBudget[derivedSeason] * MAX_POOL_MULTIPLE) / SEASON_LENGTH_DAYS;
++            if (authorization.grossIssuance > ceiling) {
++                revert PublicationAboveDailyCeiling(authorization.grossIssuance, ceiling);
++            }
++        }
+ 
+         if (authorization.liquidMovementClaims > liquidIssuanceAllowance) {
+             revert LiquidIssuanceAllowanceExceeded(
+@@ -254,6 +291,9 @@
+             lifetimeMovementIssued += authorization.grossIssuance;
+             seasonIssued[derivedSeason] += authorization.grossIssuance;
+         }
++        if (authorization.dayId > lastSettledDay + 1) {
++            emit DaysForfeited(lastSettledDay + 1, authorization.dayId - 1);
++        }
+         lastSettledDay = authorization.dayId;
+ 
+         _settlements[authorization.dayId] = SettlementRecord({

@@ -20,6 +20,8 @@
    - Contests rest on a single signer for both declarations and every score.
    - Deed eligibility rests on a single signer, with only a per-wallet cap.
    - Each of these is confirmed by a proof in [G5_CONTRACT_ISSUE_LEDGER.md](G5_CONTRACT_ISSUE_LEDGER.md), which also downgrades M2 and M3 to Low.
+   - Draft patches for H1, H2, H3 / M1 and N1, with regression proofs that pass on the patched build and reproduce the issue on the original, are in the ledger's §7 (CODE TESTED LOCALLY, unaudited, not on the branch). The ledger's §8 ring study, §9 valve tests, §10 audit plan, §11 versioning scheme and §12 launch gates follow from them.
+8. **Only coordinated rings reach a deed under the source rule** (ledger §8, SIMULATION ONLY). Honest play reached 0 deeds in every context, while a ring of 31 accounts takes one deed per wallet under the prototype. Loosening to 7 / 5 / 3 lets a ring of 6 take 6. The draft per-cluster cap cuts a 60-account ring from 20.8 to 2.4 deeds at 30% detection, and does almost nothing at zero detection.
 
 ## 1. What the V3 source says
 
