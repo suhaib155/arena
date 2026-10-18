@@ -27,7 +27,7 @@ import {
   type SeasonDay,
 } from "../domain/clubsDistricts";
 import { economyRulesFor, type SessionInput } from "../domain/economyV3";
-import { decayResist, newUnit, stageOf, unitProblems, type HoldingRules, type LandLevel, type Push, type UnitState } from "../domain/holding";
+import { decayResist, newUnit, stageOf, unitProblems, withoutTakeoverMarks, type HoldingRules, type LandLevel, type Push, type UnitState } from "../domain/holding";
 import { applyLedger, type LedgerEntry, type PushEvent } from "../domain/holdingLedger";
 import {
   holdingsAtDayClose,
@@ -39,6 +39,7 @@ import {
 } from "../domain/holdingSettlement";
 import { rulesetProblems, shadeStrength, type SimRuleset } from "./pilotRuleset";
 import {
+  axialFromMeters,
   buildPopulation,
   buildWorld,
   COLLUDING_CLUB,
@@ -83,7 +84,22 @@ export const BEHAVIOUR: Readonly<Record<Profile, Behaviour>> = {
   switcher: { pActive: 0.85, sessions: () => 2, minutes: [35, 60], pace: 120, loopP: 0.5, start: "attack", rememberAway: 0.9 },
   route_farmer: { pActive: 1, sessions: () => 3, minutes: [11, 11], pace: 80, loopP: 0, start: "fixed", rememberAway: 0.9 },
   shade_farmer: { pActive: 0.85, sessions: () => 1, minutes: [50, 70], pace: 140, loopP: 1, start: "home", rememberAway: 0.9 },
+  // Churn study only (none in the default population): straight walks onto other people's ground, never loops.
+  griefer: { pActive: 0.9, sessions: () => 2, minutes: [30, 50], pace: 120, loopP: 0, start: "attack", rememberAway: 0 },
 };
+
+/**
+ * Churn study behaviour assumption, off by default: a player who has held
+ * ground, holds none at day close and lost ground to another walker within
+ * `lookbackDays` stops playing for the rest of the season with this chance
+ * per day. Not a measurement; it makes "retention" mean still playing.
+ */
+export interface Attrition {
+  quitChance: Partial<Record<Profile, number>>;
+  lookbackDays: number;
+}
+
+export const STUDY_ATTRITION: Readonly<Attrition> = Object.freeze({ quitChance: { casual: 0.05, regular: 0.03, heavy: 0.01 }, lookbackDays: 7 });
 
 /** Assumed shape scores (D2 inputs; the simulator does not compute geometry). */
 export const SHAPE = { ring: 0.9, sliver: 0.15 } as const;
@@ -102,6 +118,8 @@ export interface SimOptions {
   controlVariants?: { label: string; rule: DistrictControlRule }[];
   /** Share of the previous day's events resent as retries (idempotency check). Default 0.02. */
   retryShare?: number;
+  /** Churn study: players stop playing after losing all their ground. Default: nobody stops. */
+  attrition?: Attrition;
 }
 
 export interface ControlVariantResult {
@@ -188,8 +206,43 @@ export interface SimResult {
   d22: Record<LeaderboardMetric | "club_contributions", { status: string; top: { id: string; rank: number; score: number }[]; ties: number; colludeRank: number | null; shadeRank: number | null }>;
   d23: { immuneDropped: number; shieldUnitsLostPerShielder: number; shieldSwitches: number; colluderFlipsPerDay: number };
   shade: { shadePushes: number; shadeRejectedLoops: number; shadeUnitsHeldAtEnd: number; shadeFarmerShadeUnitsAtEnd: number; shadeFarmerUpkeepPaidMicro: number };
+  /** Churn study measures (`docs/SIM_CHURN_STUDY.md`). */
+  churn: ChurnMetrics;
   /** Hash of the final unit states and season credits: equal for equal inputs. */
   fingerprint: string;
+}
+
+export interface ChurnMetrics {
+  /** Share of held units that end a day with a different holder, or none, than they started it with, per 100. */
+  dailyTurnoverPer100Held: number;
+  /** Share of each profile's players still playing at the close of day 30, 60, 90 (1 without attrition). */
+  playing: Record<Profile, [number, number, number]>;
+  /** Units griefers flipped per griefer per active day (0 with no griefers). */
+  grieferFlipsPerActiveDay: number;
+  /** Casual and regular units griefers flipped, per casual or regular player per season. */
+  honestUnitsLostToGriefersPerPlayer: number;
+  /** The same two measures in km², so unit sizes compare (a hex unit is 3√3/2 × edge²). */
+  grieferKm2PerActiveDay: number;
+  honestKm2LostToGriefersPerPlayer: number;
+  /** Share of held units at season end held by heavy players and griefers. */
+  heavyShareOfHeldAtEnd: number;
+  /** Colluders' mean units held at season end ÷ regular players'. */
+  colluderHoldRatio: number;
+  /** Route farmers' share of all net season credits, and their share of players. */
+  routeFarmerCreditShare: number;
+  routeFarmerPlayerShare: number;
+  /** Season credits issued ÷ season pool. */
+  issuedShareOfPool: number;
+  /** Pushes refused by the walker take cap before the ledger. */
+  walkerCapRefusals: number;
+  fortifyPurchases: number;
+  /** Fortify spend applied by the simulator, outside the models' books. */
+  fortifySpendMicro: number;
+  /** Share of route farmers' sessions, and of casual, regular and heavy players' sessions, settled as unscored by the repeat-route lever. */
+  routeFarmerSessionsUnscored: number;
+  honestSessionsUnscored: number;
+  /** Units (and zones) in the grid. */
+  zones: number;
 }
 
 /* ── helpers ──────────────────────────────────────────────────────────────── */
@@ -270,6 +323,40 @@ export function simulate(opts: SimOptions): SimResult {
   };
   const controlVariants = [{ label: "ruleset", rule: R.control }, ...(opts.controlVariants ?? [])];
 
+  // Churn study levers. With no `churn` section every branch below is skipped.
+  const C = R.churn;
+  const zoned = C !== undefined && C.zoneEdgeMeters !== null;
+  const zoneMap = new Map<string, string>();
+  if (zoned) {
+    // D5 zones: each unit belongs to the coarse hex its centre falls in (about 7 units per zone at 76 m in 201 m).
+    const coarseSpacing = Math.sqrt(3) * C.zoneEdgeMeters!;
+    for (const u of world.units) {
+      const [zq, zr] = axialFromMeters(u.x, u.y, coarseSpacing);
+      zoneMap.set(u.id, `z${zq}_${zr}`);
+    }
+  }
+  const zoneOf = zoned ? (id: string) => zoneMap.get(id)! : (id: string) => id; // D5 pilot: a unit is a zone.
+  const zoneCount = zoned ? new Set(zoneMap.values()).size : world.units.length;
+  const hk = (holder: string, zone: string) => `${holder}\u0000${zone}`;
+  const zoneMeta = new Map<string, { since: number; visits: number[]; level: LandLevel }>();
+  const zoneSnapshot = new Map<string, { level: LandLevel; day: number }>();
+  const lastZoneVisit = new Map<string, number>();
+  const zoneVisitDays = new Map<string, number[]>();
+  const fortifiedUntil = new Map<string, number>();
+  const steppedHistory = new Map<string, Set<string>[]>();
+  const attrition = opts.attrition;
+  const quit = new Set<string>();
+  const everHeld = new Set<string>();
+  const lastLostToOther = new Map<string, number>();
+  let walkerCapRefusals = 0;
+  let fortifyPurchases = 0;
+  let fortifySpend = 0;
+  let turnover = 0;
+  let grieferLostHonest = 0;
+  const sessionsTotal = { farmer: 0, honest: 0 };
+  const sessionsUnscored = { farmer: 0, honest: 0 };
+  const playing = emptyByProfile<[number, number, number]>(() => [0, 0, 0]);
+
   // Store: the ledger's states, never the decayed copies (decay stays lazy).
   let store = new Map<string, UnitState>(world.units.map((u) => [u.id, newUnit(u.id, 0)]));
   const memberships: Membership[] = players.filter((p) => p.initialClub !== null).map((p) => ({ walkerId: p.id, clubId: p.initialClub!, fromDay: 0, toDay: null }));
@@ -347,7 +434,7 @@ export function simulate(opts: SimOptions): SimResult {
       const b = BEHAVIOUR[p.profile];
       const g = keyed(seed, "day", day, p.id);
       const onVacation = p.vacationStart !== null && day >= p.vacationStart && day < p.vacationStart + 7;
-      const active = !onVacation && g() < b.pActive;
+      const active = !quit.has(p.id) && !onVacation && g() < b.pActive;
       activeHistory.get(p.id)!.push(active);
       if (!active) continue;
       activeDays.set(p.id, activeDays.get(p.id)! + 1);
@@ -369,10 +456,38 @@ export function simulate(opts: SimOptions): SimResult {
         if (targets.length > 0) list.push({ minutes: 12, meters: 960, stepped: targets, enclosed: [], shade: null, loopRejected: false });
       }
       list.forEach((s, sIdx) => planned.push({ pid: p.id, sIdx, s }));
+      let unscored: boolean[] | null = null;
+      if (C !== undefined && C.repeatRouteUnscoredDays !== null) {
+        // Repeat-route lever: unscored when every stepped unit was stepped on by this walker on each of the previous N days.
+        const n = C.repeatRouteUnscoredDays;
+        const hist = steppedHistory.get(p.id) ?? [];
+        const last = hist.slice(-n);
+        unscored = list.map((s) => last.length === n && s.stepped.length > 0 && s.stepped.every((u) => last.every((d) => d.has(u))));
+        const kind = p.profile === "route_farmer" ? "farmer" : p.profile === "casual" || p.profile === "regular" || p.profile === "heavy" ? "honest" : null;
+        if (kind) {
+          sessionsTotal[kind] += list.length;
+          sessionsUnscored[kind] += unscored.filter(Boolean).length;
+        }
+      }
       sessionsByPlayer.set(
         p.id,
-        list.map((s) => ({ minutes: s.minutes, meters: s.meters, crossedCells: s.stepped })),
+        list.map((s, i) => (unscored?.[i] ? { minutes: s.minutes, meters: s.meters, crossedCells: s.stepped, unscored: true } : { minutes: s.minutes, meters: s.meters, crossedCells: s.stepped })),
       );
+    }
+
+    if (C !== undefined && C.repeatRouteUnscoredDays !== null) {
+      const today = new Map<string, Set<string>>();
+      for (const x of planned) {
+        const set = today.get(x.pid) ?? new Set<string>();
+        for (const u of x.s.stepped) set.add(u);
+        today.set(x.pid, set);
+      }
+      for (const p of players) {
+        const hist = steppedHistory.get(p.id) ?? [];
+        hist.push(today.get(p.id) ?? new Set());
+        if (hist.length > C.repeatRouteUnscoredDays) hist.shift();
+        steppedHistory.set(p.id, hist);
+      }
     }
 
     /* events, in a seeded session order */
@@ -380,6 +495,7 @@ export function simulate(opts: SimOptions): SimResult {
       .map((x) => ({ ...x, key: hash32(`${seed}:order:${day}:${x.pid}:${x.sIdx}`) }))
       .sort((a, b) => a.key - b.key || byString(a.pid, b.pid) || a.sIdx - b.sIdx);
     const events: PushEvent[] = [];
+    const takenToday = new Map<string, Set<string>>();
     order.forEach((x, rank) => {
       const base = `d${pad(day, 3)}:${pad(rank, 5)}:${x.pid}:${pad(x.sIdx, 2)}`;
       if (x.s.loopRejected) shadeRejected += 1;
@@ -391,6 +507,21 @@ export function simulate(opts: SimOptions): SimResult {
           if (h !== null && h !== x.pid && mine !== undefined && snapshot.clubOf.get(h) === mine) {
             immuneDropped += 1;
             return;
+          }
+        }
+        if (C !== undefined && C.walkerTakeCap !== null) {
+          // Walker take cap, applied before the ledger on the day's opening holder.
+          const h = holderAtStart(unit);
+          if (h !== null && h !== x.pid) {
+            const set = takenToday.get(x.pid) ?? new Set<string>();
+            takenToday.set(x.pid, set);
+            if (!set.has(unit)) {
+              if (set.size >= C.walkerTakeCap) {
+                walkerCapRefusals += 1;
+                return;
+              }
+              set.add(unit);
+            }
           }
         }
         events.push({ eventId: `${base}:${pad(k, 3)}`, unitId: unit, walkerId: x.pid, push: p, day });
@@ -436,6 +567,8 @@ export function simulate(opts: SimOptions): SimResult {
         const prevP = playerById.get(e.previousHolderId);
         if (prevP?.profile === "switcher" && prevP.strategy === "shield") shieldLost += 1;
         if (playerById.get(e.walkerId)?.profile === "colluder") colluderFlips += 1;
+        lastLostToOther.set(e.previousHolderId, day);
+        if (playerById.get(e.walkerId)?.profile === "griefer" && (prevP?.profile === "casual" || prevP?.profile === "regular")) grieferLostHonest += 1;
       }
       if ((e.outcome === "flipped" || e.outcome === "eroded") && e.previousHolderId !== null && e.previousHolderId !== e.walkerId) {
         const club = snapshot.clubOf.get(e.walkerId);
@@ -448,7 +581,6 @@ export function simulate(opts: SimOptions): SimResult {
     }
 
     /* levels and D16, between the ledger and day close */
-    const zoneOf = (id: string) => id; // D5 pilot: a unit is a zone.
     const pre = holdingsAtDayClose({ day, states: store, entries, holdingRules: H, zoneOf, shadeCountsAsHeld: R.shadeCountsAsHeld });
     const visitedToday = new Set<string>();
     for (const e of entries) if (e.pushKind === "solid" && e.newHolderId === e.walkerId) visitedToday.add(`${e.walkerId}\u0000${e.unitId}`);
@@ -457,12 +589,13 @@ export function simulate(opts: SimOptions): SimResult {
       const s = pre.states.get(u.id)!;
       const y = s.holderId;
       if (y !== m.holder) {
+        if (m.holder !== null) turnover += 1;
         const old = m.snapshot;
         if (m.holder !== null) {
           if (y === null && playerById.get(m.holder)?.profile === "casual") casualLostDecay += 1;
           m.snapshot = { former: m.holder, level: m.lastLevel, day };
         }
-        if (y !== null) {
+        if (y !== null && !zoned) {
           let level: LandLevel = 1;
           if (R.levelOnLoss.reclaimRestoreDays > 0 && old && old.former === y && day - old.day <= R.levelOnLoss.reclaimRestoreDays) {
             level = old.level;
@@ -481,7 +614,7 @@ export function simulate(opts: SimOptions): SimResult {
         m.visits = [];
       }
       if (y !== null && visitedToday.has(`${y}\u0000${u.id}`)) m.visits.push(day);
-      if (R.levels.enabled && y !== null && prevDayShare > 0) {
+      if (!zoned && R.levels.enabled && y !== null && prevDayShare > 0) {
         const raw = store.get(u.id)!;
         if (raw.holderId === y) {
           const recent = m.visits.filter((d) => day - d < R.levels.camp.windowDays).length;
@@ -502,6 +635,65 @@ export function simulate(opts: SimOptions): SimResult {
         }
       }
       m.lastLevel = (store.get(u.id)!.holderId === y && y !== null ? store.get(u.id)!.level : 1) as LandLevel;
+    }
+
+    // Zone visits: a stepped-on push by a walker on any unit of a zone (as settlement counts them).
+    const zoneVisitedToday = new Set<string>();
+    if (C !== undefined) for (const e of entries) if (e.pushKind === "solid") zoneVisitedToday.add(hk(e.walkerId, zoneOf(e.unitId)));
+    if (zoned) {
+      // D5 zones: one level per holder and zone (section 9 prices are per zone), so a
+      // holder's units in a zone never disagree, which the G3 model would refuse.
+      const groups = new Map<string, string[]>();
+      for (const [id, st] of pre.states) {
+        if (st.holderId === null) continue;
+        const key = hk(st.holderId, zoneOf(id));
+        const list = groups.get(key) ?? [];
+        list.push(id);
+        groups.set(key, list);
+      }
+      for (const [key, zm] of zoneMeta) {
+        if (groups.has(key)) continue;
+        if (zm.level > 1) zoneSnapshot.set(key, { level: zm.level, day });
+        zoneMeta.delete(key);
+      }
+      for (const key of [...groups.keys()].sort(byString)) {
+        let zm = zoneMeta.get(key);
+        if (!zm) {
+          // D16 per zone: the former holder's level comes back on a reclaim within the restore window.
+          const snap = zoneSnapshot.get(key);
+          let level: LandLevel = 1;
+          if (snap && R.levelOnLoss.reclaimRestoreDays > 0 && day - snap.day <= R.levelOnLoss.reclaimRestoreDays) {
+            level = snap.level;
+            restores += 1;
+          }
+          zoneSnapshot.delete(key);
+          zm = { since: day, visits: [], level };
+          zoneMeta.set(key, zm);
+        }
+        if (zoneVisitedToday.has(key)) zm.visits.push(day);
+        zm.visits = zm.visits.filter((d) => day - d < R.levels.camp.windowDays);
+        const holder = key.slice(0, key.indexOf("\u0000"));
+        if (R.levels.enabled && prevDayShare > 0) {
+          const cash = wallet.get(holder)!;
+          if (zm.level === 1 && zm.visits.length >= R.levels.camp.visits && cash >= R.levels.camp.costDayShares * prevDayShare) {
+            const cost = Math.floor(R.levels.camp.costDayShares * prevDayShare);
+            wallet.set(holder, cash - cost);
+            simLevelSpend += cost;
+            levelUps += 1;
+            zm.level = 2;
+          } else if (zm.level === 2 && day - zm.since >= R.levels.holding.heldDays && cash >= R.levels.holding.costDayShares * prevDayShare) {
+            const cost = Math.floor(R.levels.holding.costDayShares * prevDayShare);
+            wallet.set(holder, cash - cost);
+            simLevelSpend += cost;
+            levelUps += 1;
+            zm.level = 3;
+          }
+        }
+        for (const id of groups.get(key)!) {
+          const raw = store.get(id)!;
+          if (raw.holderId === holder && raw.level !== zm.level) store.set(id, { ...raw, level: zm.level });
+        }
+      }
     }
 
     /* day close and credits */
@@ -550,16 +742,21 @@ export function simulate(opts: SimOptions): SimResult {
       }
       /* D14: unpaid upkeep acts on the charged unvisited ground, after settlement, for tomorrow. */
       if (R.upkeepCondition !== "none") {
+        // With D5 zones, a charged zone stands for the holder's units in it; its strength is its strongest unit's.
+        const unitsOfZone = new Map<string, string[]>();
+        if (zoned) for (const h of close.holders) for (const z of h.zones) unitsOfZone.set(hk(h.playerId, z.zoneId), z.unitIds);
         for (const l of credits.lines) {
           if (l.upkeepPaidInConditionMicro <= 0 || l.unvisitedZoneIds.length === 0) continue;
           const owed = l.upkeepTakenMicro + l.upkeepPaidInConditionMicro;
           const n = l.unvisitedZoneIds.length;
           const k = R.upkeepCondition === "all_unvisited" ? n : Math.min(n, Math.ceil((l.upkeepPaidInConditionMicro * n) / owed));
           const dir = R.upkeepCondition === "proportional_weakest_first" ? 1 : -1;
+          const unitsOf = (zone: string) => (zoned ? unitsOfZone.get(hk(l.playerId, zone)) ?? [] : [zone]);
+          const zoneStrength = (zone: string) => Math.max(0, ...unitsOf(zone).map((id) => close.states.get(id)!.strength));
           const chosen = [...l.unvisitedZoneIds]
-            .sort((a, c) => dir * (close.states.get(a)!.strength - close.states.get(c)!.strength) || byString(a, c))
+            .sort((a, c) => dir * (zoneStrength(a) - zoneStrength(c)) || byString(a, c))
             .slice(0, k);
-          for (const id of chosen) {
+          for (const id of chosen.flatMap(unitsOf)) {
             const s = close.states.get(id)!;
             if (s.holderId !== l.playerId || s.deeded) continue;
             const perDay = H.solidDecayPerDay * (s.ground === "shade" ? H.shadeDecayMultiplier : 1) * (1 - decayResist(s.level, s.fortified));
@@ -568,11 +765,49 @@ export function simulate(opts: SimOptions): SimResult {
             conditionDecays += 1;
             const strength = s.strength - extra;
             const next: UnitState =
-              strength <= 0 ? { ...s, holderId: null, strength: 0, ground: "solid", level: 1, fortified: false } : { ...s, strength };
+              strength <= 0 ? { ...withoutTakeoverMarks(s), holderId: null, strength: 0, ground: "solid", level: 1, fortified: false } : { ...s, strength };
             if (strength <= 0) conditionLosses += 1;
             if (unitProblems(next).length === 0) store.set(id, next);
           }
         }
+      }
+    }
+
+    /* churn study: fortify purchases (D9) and owner defence set tomorrow's fortified flags */
+    if (C !== undefined && (C.fortify !== null || C.homeDefenceDays !== null)) {
+      for (const key of zoneVisitedToday) {
+        lastZoneVisit.set(key, day);
+        if (C.fortify !== null) {
+          const list = (zoneVisitDays.get(key) ?? []).filter((d) => day - d < C.fortify!.windowDays);
+          list.push(day);
+          zoneVisitDays.set(key, list);
+        }
+      }
+      const heldKeys = new Set<string>();
+      for (const [id, st] of close.states) if (st.holderId !== null) heldKeys.add(hk(st.holderId, zoneOf(id)));
+      if (C.fortify !== null && prevDayShare > 0) {
+        const f = C.fortify;
+        for (const key of [...zoneVisitedToday].sort(byString)) {
+          if (!heldKeys.has(key) || (fortifiedUntil.get(key) ?? -1) > day) continue;
+          if ((zoneVisitDays.get(key)?.length ?? 0) < f.minVisits) continue;
+          const holder = key.slice(0, key.indexOf("\u0000"));
+          const cost = Math.floor(f.costDayShares * prevDayShare);
+          const cash = wallet.get(holder) ?? 0;
+          if (cash < cost) continue;
+          wallet.set(holder, cash - cost);
+          fortifySpend += cost;
+          fortifyPurchases += 1;
+          fortifiedUntil.set(key, day + f.durationDays);
+        }
+      }
+      for (const [id, raw] of store) {
+        if (raw.holderId === null) continue;
+        const key = hk(raw.holderId, zoneOf(id));
+        const bought = (fortifiedUntil.get(key) ?? -1) > day;
+        const seen = lastZoneVisit.get(key);
+        const home = C.homeDefenceDays !== null && seen !== undefined && day + 1 - seen <= C.homeDefenceDays;
+        const want = bought || home;
+        if (raw.fortified !== want) store.set(id, { ...raw, fortified: want });
       }
     }
 
@@ -641,10 +876,24 @@ export function simulate(opts: SimOptions): SimResult {
       for (const s of close.states.values()) if (s.holderId !== null) holders.add(s.holderId);
       for (const p of players) if (holders.has(p.id)) retention[p.profile][checkpoint] += 1;
     }
+    if (attrition !== undefined) {
+      const holders = new Set<string>();
+      for (const s of close.states.values()) if (s.holderId !== null) holders.add(s.holderId);
+      for (const p of players) {
+        if (holders.has(p.id)) everHeld.add(p.id);
+        else if (!quit.has(p.id) && everHeld.has(p.id)) {
+          const lost = lastLostToOther.get(p.id);
+          const chance = attrition.quitChance[p.profile] ?? 0;
+          if (lost !== undefined && day - lost < attrition.lookbackDays && chance > 0 && keyed(seed, "quit", day, p.id)() < chance) quit.add(p.id);
+        }
+      }
+    }
+    if (checkpoint >= 0) for (const p of players) if (!quit.has(p.id)) playing[p.profile][checkpoint] += 1;
     prevClose = holdingsAtDayClose({ day, states: store, entries, holdingRules: H, zoneOf, shadeCountsAsHeld: R.shadeCountsAsHeld });
   }
 
   for (const p of PROFILES) retention[p] = retention[p].map((v) => (profileCount[p] ? v / profileCount[p] : 0)) as [number, number, number];
+  for (const p of PROFILES) playing[p] = playing[p].map((v) => (profileCount[p] ? v / profileCount[p] : 0)) as [number, number, number];
 
   /* season */
   const season = settleCreditsSeason(R.economyRulesVersion, R.season, creditDays);
@@ -722,6 +971,30 @@ export function simulate(opts: SimOptions): SimResult {
   });
 
   const casualN = profileCount.casual || 1;
+  const totalNet = [...net.values()].reduce((a, b) => a + Math.max(0, b), 0);
+  const farmerNet = players.filter((p) => p.profile === "route_farmer").reduce((a, p) => a + Math.max(0, net.get(p.id)!), 0);
+  const grieferActive = players.filter((p) => p.profile === "griefer").reduce((a, p) => a + activeDays.get(p.id)!, 0);
+  const unitKm2 = ((3 * Math.sqrt(3)) / 2) * (R.unitEdgeMeters / 1000) ** 2;
+  const heldAtEnd = PROFILES.reduce((a, p) => a + unitsHeldAtEnd[p] * profileCount[p], 0);
+  const churn: ChurnMetrics = {
+    dailyTurnoverPer100Held: heldUnitDays > 0 ? (turnover * 100) / heldUnitDays : 0,
+    playing,
+    grieferFlipsPerActiveDay: grieferActive > 0 ? flipsByProfile.griefer / grieferActive : 0,
+    honestUnitsLostToGriefersPerPlayer: grieferLostHonest / ((profileCount.casual + profileCount.regular) || 1),
+    grieferKm2PerActiveDay: (grieferActive > 0 ? flipsByProfile.griefer / grieferActive : 0) * unitKm2,
+    honestKm2LostToGriefersPerPlayer: (grieferLostHonest / ((profileCount.casual + profileCount.regular) || 1)) * unitKm2,
+    heavyShareOfHeldAtEnd: heldAtEnd > 0 ? (unitsHeldAtEnd.heavy * profileCount.heavy + unitsHeldAtEnd.griefer * profileCount.griefer) / heldAtEnd : 0,
+    colluderHoldRatio: unitsHeldAtEnd.regular > 0 ? unitsHeldAtEnd.colluder / unitsHeldAtEnd.regular : 0,
+    routeFarmerCreditShare: totalNet > 0 ? farmerNet / totalNet : 0,
+    routeFarmerPlayerShare: profileCount.route_farmer / players.length,
+    issuedShareOfPool: season.status === "settled" && season.poolMicro > 0 ? season.issuedMicro / season.poolMicro : 0,
+    walkerCapRefusals,
+    fortifyPurchases,
+    fortifySpendMicro: fortifySpend,
+    routeFarmerSessionsUnscored: sessionsTotal.farmer > 0 ? sessionsUnscored.farmer / sessionsTotal.farmer : 0,
+    honestSessionsUnscored: sessionsTotal.honest > 0 ? sessionsUnscored.honest / sessionsTotal.honest : 0,
+    zones: zoneCount,
+  };
   const shielders = players.filter((p) => p.strategy === "shield").length || 1;
   const fp = hash32(
     JSON.stringify([
@@ -775,6 +1048,7 @@ export function simulate(opts: SimOptions): SimResult {
     d22: boards,
     d23: { immuneDropped, shieldUnitsLostPerShielder: shieldLost / shielders, shieldSwitches, colluderFlipsPerDay: colluderFlips / days },
     shade: { shadePushes, shadeRejectedLoops: shadeRejected, shadeUnitsHeldAtEnd: shadeHeldEnd, shadeFarmerShadeUnitsAtEnd: shadeFarmerShade, shadeFarmerUpkeepPaidMicro: shadeFarmerUpkeep },
+    churn,
     fingerprint: fp,
   };
 }
