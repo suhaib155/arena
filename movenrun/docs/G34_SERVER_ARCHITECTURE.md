@@ -35,12 +35,22 @@
 
 All tables are new and prefixed `gameplay_`. Every reference to a user either cascades or is set to NULL (section 9).
 
+**Revision 2 (compact layout).** The 0011 header changelog lists every old and new column; G34_STORAGE_CAPACITY.md §11 has the measurements.
+- Units are H3 cells stored as `bigint` (the `unit` column), in canonical lowercase only.
+- Players in the ledger and the snapshots are `gameplay_players.player_no` integers. `gameplay_players` cascades from `users`.
+- `gameplay_push_events` and `gameplay_walker_days` are range-partitioned by day. The day partitions live in the `gameplay_partitions` schema: no USAGE grant, RLS enabled on each partition, privileges revoked from PUBLIC, `anon` and `authenticated`.
+- The ledger holds accepted pushes only (outcome `smallint` 1–4). Refusals are counters on the walker's day row, plus at most 1,000 refused units (one per zone) for upkeep.
+- `gameplay_player_day_proofs` stores a sha256 per player and settled day.
+- The table below names the columns as in revision 1, where they map one-to-one.
+
 | Table | Key | Holds | Notable constraints |
 |---|---|---|---|
 | `gameplay_units` | `unit_id` | Current state of each unit: holder, strength, ground, deeded, masked, level, fortified, `as_of_day`, `version` | `unitProblems()` as CHECKs: held ⇔ strength > 0, masked ⇒ unheld, deeded ⇒ solid and held, shade ≤ 25 |
 | `gameplay_unit_day_states` | `(unit_id, day)` | Each unit as it stood at the end of each day it changed | Same CHECKs. Day close reads the latest row on or before the day being settled, so a late settlement is never confused by later pushes |
-| `gameplay_push_events` | `event_id`, plus `seq` identity | The append-only ledger: one row per applied push, refusals included, with previous and new holder, strengths, push kind, rules version and source session | **Partial unique index `(walker_id, unit_id, day) WHERE outcome IN ('eroded','flipped')`**. Append-only trigger |
-| `gameplay_applied_sessions` | `movement_verification_id` | One row per movement session turned into pushes, with its result counts | Idempotency record for the apply route |
+| `gameplay_push_events` | `(source_no, unit, day)`; `seq` from a sequence | The append-only ledger, partitioned by day: one row per accepted push, with previous and new holder numbers, strengths, shade strength, rules version and source number. Refusals are counters in `gameplay_walker_days` | **Partial unique index `(walker_no, day, unit) WHERE outcome IN (3, 4)`** (eroded, flipped; it includes the partition key). Partial `(unit, day)` takers index. Append-only trigger |
+| `gameplay_players` | `player_no` | user id ↔ integer number | Cascades from `users` |
+| `gameplay_player_day_proofs` | `(player_no, day)` | Accepted, takes, refused, units used, and the sha256 of the walker's accepted rows in `seq` order plus a refusal line | Written at settlement |
+| `gameplay_applied_sessions` | `source_no` (unique `movement_verification_id` or `batch_key`) | One row per movement session or server batch turned into pushes, with its result counts (`outcome_counts int[8]`, `rejected_by_reason`) | Idempotency record for the apply route |
 | `gameplay_day_settlements` | `day` | One header per closed day: season, status (settled or refused), rules versions, the books, `players`, problems, club status, `input_digest` (sha256 of the canonical inputs) | Books CHECK (section 6.1 invariants 1 to 4). Deferred constraint trigger: the lines add up to the header at commit. Final once settled |
 | `gameplay_credit_lines` | `(day, player_id)` | Per-player credits for a settled day | `net = earned − toll paid − recharge − upkeep taken + toll received`, all ≥ 0. Final, except erasure |
 | `gameplay_clubs` | `club_id` (client-chosen) | Name, creator | Name unique (case-insensitive) |
@@ -49,7 +59,7 @@ All tables are new and prefixed `gameplay_`. Every reference to a user either ca
 | `gameplay_club_days` | `(day, club_id)` | Member count, contribution totals by outcome and kind, club credits | No per-member data |
 | `gameplay_district_days` | `(day, district_id)` | Status, controller, held weight, club tallies | Controller only when status is `controlled` |
 | `gameplay_day_rules` | `day` | The rule set the day runs under: version, ruleset name, takeover policy, take budget, unit/zone rule, the full config and its sha256 | Pinned by the day's first push (or its settlement) and immutable (trigger). Push events, unit day states, walker days and the settlement header all have a foreign key to `(day, holding_rules_version)` here |
-| `gameplay_walker_days` | `(walker_id, day)` | Takes used by a walker on a day | Locked by every batch of that walker for that day. Deferred constraint trigger on `gameplay_push_events`: at commit a walker's take rows that day equal the counter and do not exceed the day's `take_budget` |
+| `gameplay_walker_days` | `(walker_no, day)`, partitioned by day | Takes and verified units used by a walker on a day, refusal counters and the refused-visit sample | Locked by every batch of that walker for that day. Deferred constraint trigger on `gameplay_push_events`: at commit a walker's take rows that day equal the counter and do not exceed the day's `take_budget` |
 | `gameplay_unit_challenges` | `(unit_id, walker_id)` | Open two-day challenges: challenger and the day the challenge opened | Written under the unit's row lock. Trigger: only on held ground, never by its holder, never from a later day than the unit |
 
 One index is added to an existing table, `movement_verifications (end_time) WHERE status = 'verified'`, for day attribution at close. It is dropped by the rollback.
@@ -59,7 +69,7 @@ One index is added to an existing table, `movement_verifications (end_time) WHER
 | Write | Key | Replay behaviour |
 |---|---|---|
 | Apply a session | `(user_id, client_session_id)` finds the movement row, and `gameplay_applied_sessions` is keyed by its id. The movement row is locked `FOR UPDATE` first, so concurrent applies of one session serialise | 201 the first time, then 200 with the stored result and `replayed: true`. Tested: five concurrent applies → one applied, four replays, events counted once |
-| Each push | `event_id = mv:<movement id>:<unit id>`, the primary key: one immutable id per source session and unit. Ids already stored are passed to the ledger as applied, so the model skips them. Budget refusals are stored too (`refused_take_budget`), so a retry skips them as well | Skipped, never counted twice, never spends the budget twice. Tested: one session applied 30 times at once (applied once), a server batch retried 30 times at once (3 applied, 87 skipped) |
+| Each push | `event_id = mv:<movement id>:<unit id>` at the API and in the model. In the database it is derived as `(source_no, unit, day)`, the primary key, and nothing is stored as text. A source is applied once: its receipt row is written in the same transaction, so a retry of the whole source is a replay, and refusals never need a row | Skipped, never counted twice, never spends the budget twice. Tested: one session applied 30 times at once (applied once), a server batch retried 30 times at once (3 applied, 87 skipped) |
 | Settle a day | `day`, the primary key, under an exclusive advisory lock | Returns the stored summary with `created: false`. Tested: three concurrent settlements → one created |
 | Create a club | Client-chosen `club_id` | Same creator and name → 200, no change; anyone else → 409 `club_id_taken` |
 | Join or leave | The open-membership row, locked | Joining your own club again or leaving with no club changes nothing |
@@ -97,7 +107,11 @@ Opening the Data API read path at all (the `authenticated` grants) is a change f
 The owner's 17 Oct rule says a walker may push a unit that someone else holds at most once per day. Claiming and reinforcing are not limited, and a flip does not reset the day.
 
 - In the model, `applyPush` refuses a second push from a walker already in `pushedBy` for that day (`refused_daily_limit`). The server rebuilds `pushedBy` from the ledger (eroded or flipped rows for the unit and day) after locking the unit.
-- In the database, a push that acts on someone else's ground always records `eroded` or `flipped`. A push past the take budget (1002) records `refused_take_budget`, which changes nothing and does not use the day's push. The partial unique index `gameplay_push_events_one_push_per_walker_unit_day` on `(walker_id, unit_id, day) WHERE outcome IN ('eroded','flipped')` makes a second such row impossible, whatever the application does. Tested: a forged second `eroded` row fails on that index (`23505`), and the same scenario through the service ends in `refused_daily_limit`.
+- In the database, a push that acts on someone else's ground always records `eroded` or `flipped`. A push past the take budget (1002) is `refused_take_budget`. It changes nothing, does not use the day's push, and in revision 2 is a counter, not a row. The partial unique index `gameplay_push_events_one_push_per_walker_unit_day` on `(walker_no, day, unit) WHERE outcome IN (3, 4)` makes a second such row impossible, whatever the application does. The index is created on the partitioned parent and so exists on every day partition.
+- **Capacity guards (revision 2).**
+  - Each walker has a daily budget of verified units: 300 unless `MOVENRUN_GAMEPLAY_UNIT_BUDGET` sets it, counted on the server in `gameplay_walker_days.units_used`. The budget is separate from the 13-take budget. A push past it is rejected as `unit_budget` and writes nothing, and a retry is a replay.
+  - The capacity guard (`createCapacityGuard`) is off unless `MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB` is set. When on, it fails closed: a hard stop, an unreadable size or a guard error makes `applySession` answer 503 `capacity_hard_stop`. Reads and replays still work.
+  - Neither guard exists while the gameplay flag is off. Tested: a forged second `eroded` row fails on that index (`23505`), and the same scenario through the service ends in `refused_daily_limit`.
 - The ledger is append-only (trigger). An update or delete fails with `23001` unless it is erasure (section 9).
 
 ## 9. Account deletion

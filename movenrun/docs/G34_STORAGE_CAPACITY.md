@@ -1,12 +1,33 @@
 # G3/G4 storage capacity: what 0011 costs, and how to keep it inside Supabase Free
 
-**Status:** PROPOSAL. Nothing in this document is applied, scheduled or wired. Migration 0011 is still only a file in `backend/drizzle-proposed/`. No retention job, partition, tripwire or budget exists in the API. Every TTL below is a proposal for the owner to accept, change or reject.
+**Status: REVIEWED, UNAPPLIED (schema); CODE TESTED LOCALLY (service); SIMULATION ONLY (bench and projections).**
+- Migration 0011 is still only a file in `backend/drizzle-proposed/`. It is applied nowhere hosted, and the drizzle journal (0000–0010) does not list it.
+- Revision 2 of 0011 now uses day partitions, a compact ledger, refusal counters and player-day proofs (§11).
+- The push path enforces a per-walker daily unit budget and can take a capacity guard that fails closed. Both run only with `MOVENRUN_GAMEPLAY_ENABLED=true`, which stays off, and the guard is also off unless a quota is configured.
+- **No retention job, archive, export or partition drop exists.** Retention (§12) is an owner decision and is not enforced.
 
-**Measured against:** `drizzle-proposed/0011_gameplay_holdings.sql` as of `feat/g34-server-holdings` 685852b (14 tables, rule sets 1001 and 1002). An earlier pass measured c6dc208 (11 tables). The push ledger's cost per row was within 2% of the figures below for rule set 1001, so the earlier numbers are not repeated here.
+**Measured against:**
+- §§1–9: 0011 revision 1 as of `feat/g34-server-holdings` 685852b (14 tables, rule sets 1001 and 1002). These sections are kept as the record of why the layout changed.
+- §11: revision 2 against revision 1 at 1541a01, same harness, seeds and synthetic players.
 
 **Quota:** this document assumes 500 MiB, which is Supabase Free's published database allowance. **The owner must confirm the real quota for this project in the Supabase dashboard** (Settings → Usage, database size). No upgrade is assumed or proposed. The live database was measured read-only on 18 Oct: about 11.8 MB used, 20 public tables, 11 migrations applied, 0 auth users. That 11.8 MB is the baseline in every projection.
 
 ## 1. Summary
+
+**Revision 2 (§11), rule set 1002, res 10, everything in the database counted:**
+- 1,000 players, 14 days, measured:
+  - database 127.8 MiB, against 317.4 MiB for revision 1;
+  - ledger 19.5 MiB, against 196.1 MiB;
+  - 112,134 ledger rows against 389,395, because refusals are counters now;
+  - 179 B per ledger row, against 528.
+- Hostile, twice the earlier load (10 accounts × 20 sessions × 500 units for 7 days): 23.8 MiB with the unit budget, 30.2 MiB without it, against 384 MiB for revision 1.
+- Players under 85% of 500 MiB, for 1 season / 4 seasons:
+  - (a) keep everything: 746 / 195 (revision 1: 232 / 57);
+  - (b) 14-day raw partitions and 120-day proofs on revision 1: 916 / 623;
+  - (c) the same retention with the compact ledger, measured on revision 2: **1,611 / 904**, and 1,224 / 765 with 2% hostile accounts.
+- **Go/no-go for a capped staging pilot: NO-GO** until the owner decisions in §13 are made and an exact SHA is authorized.
+
+The points below are the revision 1 findings that motivated revision 2.
 
 - **The old estimate was too low.** G34_SERVER_ARCHITECTURE.md §13 assumed about 250 bytes per push row with its indexes. Measured on PostgreSQL 16, a push row costs **526–611 bytes**: about 320 bytes of heap and 200–290 bytes of indexes. The cost per row stays flat from 11,000 to 558,000 rows. Rule set 1002 rows are cheaper (526–555 bytes) than 1001 rows (600–611 bytes), because its refused pushes stay out of the partial one-push index.
 - **0011 as written does not fit at the proposed granularity.** Rule set 1002 (res 10 units, res 9 zones), 1,000 players, one 90-day season, everything kept: about **1.9 GiB, 384% of 500 MiB**. With everything kept, the hard-stop line (85%) is reached at about 206 players for one season and 51 players over four seasons. At res 8 (what the movement pipeline stores today) the line is about 620 players for one season.
@@ -116,7 +137,7 @@ In every scenario, 50 applies of already-applied sessions returned `replayed: tr
 | `myHoldings`, `myCredits`, `clubDay`, `districtsDay` | under 1 ms each | index scans |
 | `leaderboard` (player credits) | 24 ms | reads every credit line of the season (grows with players × days; fine at pilot scale) |
 
-None of this blocks a pilot. The day-index choice for the takers query and the settlement sort spill are worth fixing before scale. A partial index on `(unit_id, day) WHERE outcome IN ('eroded','flipped')` would serve the takers query, and a raised `work_mem` for the settlement transaction would stop the spills. These are suggestions for the 0011 author, not changes made here.
+None of this blocks a pilot. Revision 2 addresses both (§11.3): the partial takers index on day partitions, and `SET LOCAL work_mem` (16 MiB) for the settlement transaction.
 
 ## 4. Alternatives, measured on the same rows
 
@@ -234,14 +255,14 @@ All figures include the 11.8 MiB live baseline. Percentages are of 500 MiB. The 
    - Store H3 cells as `bigint` and players as integer surrogates.
    - Optionally, record refusals as counts.
 
-   Measured together: 187 bytes per row in place of about 528, and dropped partitions return space immediately. These are suggestions for the 0011 author, who is changing that file now. This branch does not edit it.
+   Measured together: 187 bytes per row in place of about 528, and dropped partitions return space immediately. **Done in revision 2** (§11): 179 bytes per row measured.
 3. **Retention jobs** (owner-approved, not built): export and drop raw partitions older than 14 days, compact superseded snapshots, null cell lists, and prune routine audit rows after 30 days (X-25). All run in the existing maintenance loop and in bounded batches, like `pruneExpiredSessions`.
 4. **Capacity tripwire and per-walker unit budget** (§8), before `MOVENRUN_GAMEPLAY_ENABLED` is ever set.
 5. **Pilot size on Free:** at res 10 with rule set 1002 and everything above, about 1,000 players for one season or 670 over four seasons. Without changes, about 200 players for one season.
 
 ## 8. Capacity tripwire, backpressure and shutdown (design; pure functions only)
 
-The pure function is `capacityTripwire()` in `backend/src/gameplay/capacity.ts`. Unit tests are in `capacity.test.ts`. **Nothing calls it.** Wiring it is an owner decision.
+The pure function is `capacityTripwire()` in `backend/src/gameplay/capacity.ts`. Unit tests are in `capacity.test.ts`. **Revision 2 wires it** as an injectable `CapacityGuard` (`createCapacityGuard`). It is off unless `MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB` is set, and it runs only with the gameplay flag on (§11.6). The quota value is an owner decision.
 
 **Input:** `pg_database_size(current_database())` (one cheap catalog read; the server would take it in the maintenance loop every 15 minutes) and the trailing daily growth.
 
@@ -314,5 +335,282 @@ With the flag unset no gameplay query runs, so 0011's tables neither grow nor ar
   - `--profile quick` runs one small scenario in about 5 seconds; `--profile full` runs all seven in about 12 minutes.
   - `--out` writes JSON and `--markdown` writes the full report with every plan.
   - `--from <json>` re-projects saved measurements without touching a database.
-- `backend/src/gameplay/capacity.ts`: the projection model, retention policies, tripwire and unit budget. Pure; imported by nothing in the API.
+- `backend/src/gameplay/capacity.ts`: the projection model, retention policies, tripwire, unit budget, the guard and its environment parsing. The service and `wiring.ts` use the guard and the budget only with the gameplay flag on.
+- `--profile capacity` runs the revision 2 study. `--service-root <old checkout>/movenrun/backend` measures another checkout's service and 0011 with the same harness, and `--baseline <json>` adds the old-versus-new tables (§11).
 - `backend/src/gameplay/capacity.test.ts`: the tests for them.
+
+## 11. Revision 2: compact, day-partitioned 0011 (measured against revision 1)
+
+**SIMULATION ONLY:** local PostgreSQL 16.15, synthetic players. Both shapes ran with one harness: `--profile capacity`. Revision 1 was measured with `--service-root` pointing at a checkout of 1541a01. Rule set 1002, res 10, dense 2 km area, 60% active, 1.5 sessions per active day, 30.7 units per session (p95 45). The 14-day runs are 100, 200, 500 and 1,000 players. The hostile runs use 100 players plus 10 accounts × 20 sessions × 500 units a day for 7 days, which is twice the first study's 5 accounts. They ran with the 300-unit budget and with no budget.
+
+### 11.1 What changed (the full column changelog is in the 0011 header)
+
+| | Revision 1 (1541a01) | Revision 2 |
+|---|---|---|
+| Ledger key | `event_id text` PK (`mv:<uuid>:<cell>`), `seq` identity unique | `(source_no, unit, day)` PK, derived; `seq` from a sequence (no index) |
+| Unit | `unit_id text` (15 chars) | `unit bigint` (H3 index; canonical lowercase only; CHECK cell mode) |
+| Players in ledger and snapshots | `walker_id`, `previous_holder_id`, `new_holder_id` text | `walker_no`, `previous_holder_no`, `new_holder_no` integer (`gameplay_players`, cascades from `users`) |
+| Outcome, push kind | text, text | `outcome smallint` 1–4; `shade_strength smallint` (0 = stepped on) |
+| Refusals | one row each (70% of 1002 rows) | counters on `gameplay_walker_days` plus at most 1,000 refused units (one per zone) for upkeep |
+| Partitioning | none | `push_events`, `walker_days` by day, in schema `gameplay_partitions`, created ahead by `gameplay_ensure_day_partitions` |
+| Proof | none | `gameplay_player_day_proofs`: sha256 of the walker's accepted rows in `seq` order plus a refusal line, written at settlement |
+| Receipts | `outcomes jsonb` | `outcome_counts int[8]`, `rejected_by_reason jsonb` (NULL when empty) |
+| Unit budget, guard | none | 300 verified units per walker per day (configurable), guard fails closed (§11.6) |
+| Tables, indexes (empty) | 14, 31, 352 KiB | 16, 34, 336 KiB; plus 40 KiB per day for the two partitions |
+
+The API is unchanged for 1001 and 1002: the same outcomes, counts, replay results, holdings, credits and boards. The local tests check this. One storage tightening: a unit that is not a canonical H3 cell now gets 422 `unit_resolution_mismatch`. The movement pipeline only ever produces H3 cells.
+
+### 11.2 Measured, scenario by scenario (database after VACUUM ANALYZE, every table counted)
+
+| Scenario | Shape | Pushes (normal / hostile) | Ledger rows | Ledger MiB | All 0011 MiB | movement_verifications MiB | Database MiB | Settle temp MiB (worst day) | Settle ms (worst day) |
+|---|---|---|---|---|---|---|---|---|---|
+| 100 players, 14 d | rev 1 | 39,928 / 0 | 39,928 | 20.8 | 27.5 | 1.5 | 38.4 | 0 | 57 |
+| | rev 2 | 39,928 / 0 | 13,150 | 4.1 | 11.4 | 1.5 | 23.6 | 0 | 63 |
+| 200 players, 14 d | rev 1 | 78,591 / 0 | 78,591 | 40.2 | 52.7 | 2.9 | 65.2 | 0 | 91 |
+| | rev 2 | 78,591 / 0 | 24,040 | 5.7 | 18.7 | 2.9 | 32.7 | 0 | 96 |
+| 500 players, 14 d | rev 1 | 193,710 / 0 | 193,710 | 98.1 | 137.0 | 7.3 | 154.0 | 0 | 206 |
+| | rev 2 | 193,710 / 0 | 57,376 | 11.0 | 50.0 | 7.3 | 68.7 | 0 | 184 |
+| 1,000 players, 14 d | rev 1 | 389,354 / 0 | 389,395 | 196.1 | 293.0 | 14.4 | 317.4 | **11.0** | 461 |
+| | rev 2 | 389,354 / 0 | 112,134 | 19.5 | 101.8 | 14.4 | 127.8 | 0 | 252 |
+| 100 + 10 hostile, 7 d | rev 1 | 19,973 / 700,000 | 719,973 | 361.0 | 369.7 | 5.2 | 384.3 | **23.1** | 1,104 |
+| | rev 2, budget 300 | 19,973 / 21,000 (679,000 rejected `unit_budget`) | 8,202 | 2.3 | 8.5 | 5.3 | 23.8 | 0 | 388 |
+| | rev 2, no budget | 19,973 / 700,000 | 20,256 | 3.8 | 14.8 | 5.2 | 30.2 | 0 | 376 |
+
+- **Bytes per row at 1,000 players.** These have the 40 KiB per day of empty partitions taken out.
+  - Ledger: 179, against 528 in revision 1 (same as the 187 estimate from the scratch copy).
+  - Walker day: 355, against 186; the refused-visit sample is most of the difference.
+  - Player-day proof: 138.
+  - Applied session: 396, against 585.
+  - Unit day state: 143, against 226.
+- **After VACUUM FULL**, at 1,000 players: 57 MiB against 216 MiB.
+- **Accepted share.** 28.8% of normal pushes (the rest are refusals, now counters). For hostile accounts it is 6.5%.
+- **Unit budget.** The hostile accounts were held to exactly 300 processed units a day each: 10 × 300 × 7 = 21,000. The movement pipeline still stored their sessions and cell lists (5.3 MiB), because the budget sits in gameplay, after movement.
+- **Retries.** 50 replays changed no rows or bytes in either shape.
+- **Churn, still open.** In both shapes `gameplay_unit_challenges` reached 66–80 MiB for about 12,000 live rows, against 1.9 MiB after VACUUM FULL. The bench pushes far faster than people walk, so autovacuum lags. The projection prices the table compact × 1.5. Per-table autovacuum settings for this table belong in the owner-approved runbook (§8, §13).
+
+### 11.3 Hot paths, takers lookup, settlement spill (1,000 players, last day)
+
+auto_explain totals, revision 1 → revision 2:
+- `applySession` (new session): 60.5 → 12.5 ms.
+- `settleDay`: 164.7 → 74.3 ms.
+- Replays, `myHoldings`, `myCredits`, `clubDay` and `districtsDay`: under 0.2 ms in both.
+- Leaderboards: about 5 ms in both.
+
+**"Who took this unit today"** (`EXPLAIN ANALYZE`, 500 of the day's most-pushed units):
+
+| Query | Revision 1 | Revision 2 |
+|---|---|---|
+| Batch takers lookup (the one `applySession` sends) | Index scan on `push_events_day_idx`, 1,145 buffers, 4.07 ms. With the full `(unit_id, day)` index replaced by a partial one on takes (in a rolled-back transaction), the planner still picks the day index: 1,145 buffers, 3.90 ms | Only the day's partition is scanned (seq scan of `…_d<day>`, 86 buffers, 2.0 ms). Pruning does the work the day index did |
+| One unit, takes only | — | Bitmap scan on the partition's partial `(unit, day) WHERE outcome IN (3,4)` index, 26 buffers, 0.06 ms |
+| One unit, all accepted pushes (a dispute) | day index, 2.8 ms | seq scan of one day partition, 75 buffers, 0.33 ms |
+| Index size | full `(unit_id, day)` 3.1 MiB over the ledger; partial on takes 1.3 MiB | partial takers index 104 KiB per day partition; PK 336 KiB; one-push unique 256 KiB |
+
+**Settlement sort spill.**
+- Revision 1 at the default `work_mem` (4 MiB) wrote temp files on its worst days: 11.0 MiB at 1,000 players and 23.1 MiB under hostile load. Two settlement statements spilled to disk (external merge).
+- Revision 2 sets `SET LOCAL work_mem = 16 MiB` for the settlement transaction. Its rows are also smaller, because refusals are not rows. It wrote **0 bytes** of temp files on every day of every scenario (`pg_stat_database.temp_bytes` before and after each settlement).
+- The two changes were not measured separately.
+
+### 11.4 Reclaiming a day: partition drop against DELETE, and erasure
+
+| 1,000 players, one day of ledger | Revision 1 (no partitions; scratch copy) | Revision 2 |
+|---|---|---|
+| Rows in the day | 26,490 | 7,653 |
+| DELETE + VACUUM | 26 ms + 42 ms; **0 bytes returned** (space stays with the table for reuse) | 7 ms + 10 ms; 0 bytes returned (same test on an unpartitioned copy) |
+| VACUUM FULL (exclusive lock, whole table rewritten) | 2.46 s, 32.8 MiB returned | 0.20 s, 5.0 MiB returned |
+| `DROP` the day's partitions (ledger and walker days) | n/a | **23 ms, 1.4 MiB returned at once**, no dead tuples, no VACUUM, no lock on other days |
+
+**Erasure** used the real account-deletion store, on the player with most sessions:
+- 1,000 players: 180 ms (revision 1) against 47 ms (revision 2).
+- Hostile run: 1.5 s against 19 ms.
+- In both shapes it removed the player's ledger rows, in every partition in revision 2.
+
+### 11.5 Projections (SIMULATION ONLY)
+
+The model is `capacity.ts` `projectStorage`, priced from the 1,000-player runs above. It counts everything:
+- the 0011 tables;
+- `movement_verifications` rows, with the cell lists separately;
+- `auth_sessions` (37-day life);
+- `security_audit_events`;
+- the 11.8 MiB live baseline.
+
+Inputs:
+- distinct units and open challenges grow with players at the highest measured per-player rate;
+- 6 token refreshes per active day;
+- a 1,000 km² area;
+- 2% hostile: 2% of accounts × 20 sessions × 500 units a day for 14 days, which is twice the first study's 1%;
+- revision 2 applies the 300-unit budget; revision 1 has none.
+
+Policies:
+- (a) keeps everything.
+- (b) is the proposed retention: raw ledger and walker days 14 days in dropped partitions, player-day proofs 120 days, receipts 14 days, superseded snapshots compacted after 14 days, cell lists nulled after 14 days, routine audit 30 days (X-25).
+- (c) is (b) with the compact ledger. For revision 1 this is the scratch-copy estimate. For revision 2 it is what was measured, so revision 2's (b) and (c) are the same row.
+
+MiB (% of 500 MiB):
+
+| Policy | Players | 1 season | 4 seasons | 1 season + 2% hostile | 4 seasons + 2% hostile |
+|---|---|---|---|---|---|
+| (a) rev 1, keep everything | 100 / 200 / 500 / 1,000 | 201 (40%) / 370 (74%) / 879 (176%) / 1,726 (345%) | 705 (141%) / 1,356 / 3,310 / 6,566 (1313%) | 360 (72%) / 690 / 1,677 / 3,323 (665%) | 864 / 1,675 / 4,108 / 8,163 (1633%) |
+| (b) rev 1, proposed retention | 100 / 200 / 500 / 1,000 | 74 (15%) / 117 (23%) / 246 (49%) / 461 (92%) | 113 (23%) / 173 (35%) / 351 (70%) / 649 (130%) | 223 (45%) / 414 (83%) / 989 / 1,947 (389%) | 262 / 470 (94%) / 1,094 / 2,135 (427%) |
+| (c) rev 1 + compact ledger (estimate) | 100 / 200 / 500 / 1,000 | 62 (12%) / 92 (18%) / 183 (37%) / 335 (67%) | 100 (20%) / 147 (29%) / 288 (58%) / 523 (105%) | 119 (24%) / 207 (41%) / 471 (94%) / 911 (182%) | 158 / 263 / 577 (115%) / 1,100 (220%) |
+| (a) rev 2, keep everything | 100 / 200 / 500 / 1,000 | 86 (17%) / 138 (28%) / 296 (59%) / 558 (112%) | 249 (50%) / 433 (87%) / 983 (197%) / 1,901 (380%) | 92 (18%) / 152 (30%) / 330 (66%) / 627 (125%) | 256 / 447 (89%) / 1,018 / 1,971 (394%) |
+| **(b) = (c) rev 2, proposed retention (measured)** | 100 / 200 / 500 / 1,000 | **55 (11%) / 79 (16%) / 153 (31%) / 275 (55%)** | **93 (19%) / 135 (27%) / 258 (52%) / 464 (93%)** | 62 (12%) / 94 (19%) / 191 (38%) / 352 (70%) | 101 (20%) / 150 (30%) / 297 (59%) / 541 (108%) |
+
+**Most players under 85% of 500 MiB:**
+
+| Policy | 1 season | 4 seasons | 1 season + 2% hostile | 4 seasons + 2% hostile |
+|---|---|---|---|---|
+| (a) rev 1, keep everything | 232 | 57 | 124 | 44 |
+| (b) rev 1, proposed retention | 916 | 623 | 224 | 174 |
+| (c) rev 1 + compact ledger (estimate) | 1,296 | 790 | 442 | 361 |
+| (a) rev 2, keep everything | 746 | 195 | 660 | 188 |
+| **(b) = (c) rev 2, proposed retention** | **1,611** | **904** | **1,224** | **765** |
+
+**Where the bytes go**, revision 2, (b), at 1,000 players over 4 seasons (464 MiB):
+
+| Class | MiB |
+|---|---|
+| Movement session rows, kept in the model | 151 |
+| Auth sessions and audit | 125 |
+| Settled credit lines and day aggregates | 108 |
+| Ledger | 20 |
+| Snapshots | 14 |
+| District map | 10 |
+| Proofs | 9.5 |
+
+So the next lever is not the ledger. It is the movement-summary TTL and X-25. Both are owner decisions.
+
+**Archive size (estimate, not measured).** About 8,000 accepted ledger rows a day at 1,000 players. As CSV with integers that is about 0.5 MB, and roughly 0.15 MB after gzip. 120 days of archives is about 20 MB.
+
+### 11.6 Unit budget and capacity guard (CODE TESTED LOCALLY)
+
+- **Unit budget.**
+  - The budget is 300 verified units per walker per day (`MOVENRUN_GAMEPLAY_UNIT_BUDGET`, at least 1; a malformed value stops the API from starting).
+  - It is counted on the server in `gameplay_walker_days.units_used`, under the walker-day row lock, and is spent per processed push, accepted or refused.
+  - It is separate from the 13-take budget.
+  - A push past it is rejected as `unit_budget` and nothing is written. A retry of the source is a replay, so nothing is double-counted.
+  - Tested: with a budget of 5, ten parallel sessions of one walker spend exactly 5.
+- **Capacity guard.**
+  - `createCapacityGuard` reads `pg_database_size` at most once a minute and keeps 24 h of samples, extrapolating growth only after an hour of history. It feeds `capacityTripwire`.
+  - It is on only when `MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB` is set (at least 50). Under backpressure the unit budget is scaled by the tripwire factor.
+  - It fails closed. A hard stop, an unreadable size, a guard that throws or an invalid factor makes `applySession` answer **503 `capacity_hard_stop`** and write nothing.
+  - Reads, replays and settlement continue.
+  - Tested with a mock guard and with the real guard.
+- **Flag off.** Nothing above runs, and no 0011 SQL is sent. Tested against a database without 0011: every gameplay route is 404, no gameplay relation exists, and `xact_rollback` is unchanged.
+## 12. Retention design (OWNER DECISION; nothing here is enforced)
+
+**Status: PROPOSAL.** No retention job, archive, export, drop or delete exists. Revision 2 only makes retention *possible* without bloat: the ledger and the walker-day counters are day partitions, and a day can be dropped whole. Every TTL below needs the owner's decision. Until then, everything is kept, and the capacity guard and the unit budget are the only limits.
+
+### 12.1 Per-table purpose and proposed TTL
+
+"Day" means the game day the row belongs to. "Raw window" means 14 days after the day: disputes are checked against raw rows during it.
+
+| Table | Purpose | Proposed TTL | How it goes |
+|---|---|---|---|
+| `gameplay_push_events` (day partitions) | Raw accepted pushes: holder before and after, strengths, source | 14 days, then archive (12.2) and drop the partition | `DROP TABLE gameplay_partitions.gameplay_push_events_d<day>` after the export is verified |
+| `gameplay_walker_days` (day partitions) | Takes, verified units, refusal counters and the refused-visit sample (at most 1,000 units) | 14 days (only the day itself needs them; the proof keeps the totals) | Same drop, same day |
+| `gameplay_player_day_proofs` | sha256 of the walker's accepted rows in `seq` order, plus counts: proves an archive was not altered | 120 days (season plus 30-day appeal) | Row delete by day, in batches |
+| `gameplay_applied_sessions` | Receipts: a retried apply returns the stored result | 14 days. After that a retry gets 409 `day_closed` | Row delete |
+| `gameplay_unit_day_states` | End-of-day snapshots | The latest per unit is kept; superseded rows are deleted after 14 days | Row delete (bounds settlement's `DISTINCT ON`) |
+| `gameplay_units`, `gameplay_unit_challenges` | Current state | No TTL (current only) | Erasure only |
+| `gameplay_players` | user ↔ integer number | Lives as long as the account | Cascades from `users` on erasure |
+| Settlements, credit lines, day rules, club days, district days, clubs, memberships | The season record | Kept | Erasure cascades as today |
+| `gameplay_unit_districts` | Operator-loaded district map, no personal data | Kept, versioned | Replaced by version |
+| `movement_verifications` summary row | Verified session (distance, duration, confidence, seal) | Season plus 30 days. **It must outlive the ledger's raw window**: deleting it cascades to its applied-session receipt | Row delete |
+| `movement_verifications.traversed_hex_ids` | Route cells | 14 days, then set to NULL | Row update |
+| `security_audit_events` | Security trail | **X-25 matrix (proposal only):** `session_refreshed` 30 days, security rows 180 days, anonymous `account_deleted` kept | Row delete in batches |
+| `auth_sessions` | Refresh tokens | Already pruned 7 days after the 30-day expiry (about 37 days). Unchanged | Existing pruning |
+
+Projection (b) in §11 uses exactly these TTLs.
+
+### 12.2 Archive: format, encryption, keys, location, cost
+
+- **Format.** One file per day and table: `COPY (SELECT … ORDER BY seq) TO STDOUT WITH (FORMAT csv, HEADER)`. It has integer player numbers and bigint units only, with no user ids, no e-mail and no coordinates. It is compressed with gzip. The size estimate is in §11.5.
+- **Encryption.** `age` (free, open source) to an X25519 recipient. The server or job holds only the **public** key. It can write archives but cannot read them.
+- **Key ownership.** The private key belongs to the owner. It is kept offline (a password manager plus a paper or USB copy), never in Render, Supabase, Vercel, the repository or CI. The owner must decide who else, if anyone, holds a copy. If the key is lost, every archive is lost.
+- **Location (free only).** Two options, for the owner to choose:
+  1. the owner's own disk, plus one off-site copy;
+  2. a private Supabase Storage bucket on the existing project (the Free plan includes 1 GB of storage). The data stays with the same vendor, but it is ciphertext there.
+
+  Paid object stores, and stores that need a card on file, are out of scope. A public repository or bucket is never allowed.
+- **Cost.** $0 at pilot scale. The owner must confirm the Storage allowance on the dashboard before relying on it.
+- **Who runs it.** An owner-run script on the owner's machine, with read access to the database. It is not built, and it is not part of the API.
+
+### 12.3 User deletion
+
+- **Active database.** Account deletion (`accountDeletion.ts`) deletes the user. That cascades:
+  - to `gameplay_players`, and through it to the player's ledger rows in every partition, walker days and proofs;
+  - to the player's receipts, credit lines and memberships.
+
+  Holder columns that pointed at the player become NULL. The tests cover this on revision 2. The bench measured it with the real store (§11.4).
+- **Archives.** An encrypted file cannot be edited one person at a time. Proposal:
+  1. Archives name players only by `player_no`. Once the `gameplay_players` row is deleted, nothing in the database links that number back to a person, and numbers are never reused.
+  2. The manifest keeps an **erasure list**: the player numbers erased after each archive was written. Every restore drops those rows before anything else.
+  3. Archives expire at 120 days, so erasure in archives is complete within a known bound.
+
+  Whether pseudonymous rows plus a bounded expiry meet the owner's legal obligations is a legal question for the owner. It is not answered here.
+
+### 12.4 Manifest, restore and appeal, legal hold
+
+- **Manifest** (proposed table, not built). One row per archived day and table, holding:
+  - row count, sha256 of the plain stream and sha256 of the encrypted file;
+  - the `age` recipient's fingerprint and the location;
+  - the settlement's `input_digest` and a roll-up of that day's player-day proofs;
+  - a `verified_at` time, a `dropped_at` time and a `hold` flag.
+
+  It contains no personal data.
+- **Order before a drop:**
+  1. The day is settled.
+  2. The export is written.
+  3. It is checked. The row count, the plain sha256 and the proof roll-up are computed from the stream before it is encrypted, and compared with the partition. The file is then downloaded again and its encrypted sha256 compared. The job cannot decrypt, because it holds only the public key, so the owner test-decrypts a sample on a schedule.
+  4. The manifest row is written.
+  5. Only then is the partition dropped, and never while `hold` is set.
+- **Restore or appeal.**
+  1. The owner decrypts the file locally.
+  2. The owner checks it against the manifest and the 120-day proofs.
+  3. The owner loads it into a disposable local database, never back into production `public`, and applies the erasure list.
+  4. The owner replays `settleDay` for that day against the stored `input_digest`.
+
+  The appeal window is proposed as the season plus 30 days. After the archive expires, an appeal can be checked only against the settled credit lines.
+- **Legal hold.** The owner sets `hold` on a range of days with a reason code (no personal data in it). Drops and archive expiry skip held days. Lifting a hold is also an owner action.
+
+### 12.5 No location data on public surfaces
+
+- No coordinate is stored server-side. A test asserts that 0011 has no coordinate column.
+- Units are H3 cells derived from verified movement. They are personal data when tied to a player, so:
+  - the `authenticated` role reads only its own units and receipts;
+  - `anon` gets nothing;
+  - the partitions are in a schema with no USAGE grant, and RLS is enabled on each one.
+- Public surfaces (settled day headers, club days, district days, the leaderboard) carry credits and district aggregates, never cells, routes or a player's units.
+- Archives and the bench output are never published.
+- **Owner decision:** whether a district with very few active players should be hidden from public aggregates (a minimum count).
+
+## 13. Go/no-go: capped, credits-only staging pilot
+
+**NO-GO today.** The storage numbers would allow a small pilot. Revision 2 with the proposed retention stays under 85% of 500 MiB up to about 1,600 players for one season, 900 over four seasons, and 765 with 2% hostile accounts over four seasons. A 100–200 player pilot uses 11–30% of the quota. Even with everything kept, 100 players for one season is 17%.
+
+The blockers are decisions and authorization, not bytes. Each needs the owner:
+
+1. **The real quota.** Confirm the project's database allowance on the Supabase dashboard. Every percentage here assumes 500 MiB.
+2. **Retention (§12).**
+   - Accept or change the TTLs.
+   - Decide the archive location and who holds the `age` private key.
+   - Set the appeal window and the legal-hold process.
+   - Decide whether pseudonymous archives with a 120-day expiry are acceptable for erasure.
+   - Until this is decided, nothing is dropped, so a pilot must be sized for "keep everything", row (a).
+3. **X-25.** Decide security log retention (30/180 days proposed). Auth and audit are about a quarter of the four-season total.
+4. **Capacity settings.**
+   - The unit budget: 300 by default.
+   - The guard quota (`MOVENRUN_GAMEPLAY_CAPACITY_QUOTA_MIB`). Without it the guard is off.
+   - Per-table autovacuum for `gameplay_unit_challenges` (§11.2 churn).
+5. **Backup.** Free has no point-in-time restore. Decide on a `pg_dump` of `gameplay_*` and `gameplay_partitions` before 0011 is promoted.
+6. **Pilot cap.** Set the player cap and season length. ≤ 200 players and one season is the measured comfortable range.
+7. **An exact SHA authorized for staging.**
+   - Promote 0011 into `drizzle/` with its journal entry.
+   - Update the migration count in `runtime.test.ts`.
+   - Re-run this bench and the backend suite at that SHA.
+   - Back up first.
+   - Set `MOVENRUN_GAMEPLAY_ENABLED=true` on staging only.
+
+   None of this is done or proposed for a specific commit here.
+
+Once 1–7 are decided and a SHA is authorized, the measurements support **go for a capped pilot: credits only, ≤ 200 players, one season, guard on, budget 300**. That is a forecast from local simulation, not a live measurement.
