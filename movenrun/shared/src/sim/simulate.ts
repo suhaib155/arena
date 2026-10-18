@@ -37,7 +37,8 @@ import {
   type CreditsPlayerInput,
   type HoldingsAtClose,
 } from "../domain/holdingSettlement";
-import { rulesetProblems, shadeStrength, type SimRuleset } from "./pilotRuleset";
+import { rulesetProblems, shadeStrength, SIM_ONLY, type SimRuleset } from "./pilotRuleset";
+import type { SeasonTrace, TraceDay } from "./trace";
 import {
   buildPopulation,
   buildWorld,
@@ -102,6 +103,8 @@ export interface SimOptions {
   controlVariants?: { label: string; rule: DistrictControlRule }[];
   /** Share of the previous day's events resent as retries (idempotency check). Default 0.02. */
   retryShare?: number;
+  /** Also return a per-day trace (`trace.ts`). Off by default; changes no other output. */
+  trace?: boolean;
 }
 
 export interface ControlVariantResult {
@@ -190,6 +193,8 @@ export interface SimResult {
   shade: { shadePushes: number; shadeRejectedLoops: number; shadeUnitsHeldAtEnd: number; shadeFarmerShadeUnitsAtEnd: number; shadeFarmerUpkeepPaidMicro: number };
   /** Hash of the final unit states and season credits: equal for equal inputs. */
   fingerprint: string;
+  /** Present only when `SimOptions.trace` is set. */
+  trace?: SeasonTrace;
 }
 
 /* ── helpers ──────────────────────────────────────────────────────────────── */
@@ -328,6 +333,8 @@ export function simulate(opts: SimOptions): SimResult {
 
   let prevClose: HoldingsAtClose | null = null;
   let prevDayShare = 0;
+  const traceDays: TraceDay[] = [];
+  let levelSpendToday = new Map<string, number>();
   let prevEvents: PushEvent[] = [];
   let prevApplied: string[] = [];
 
@@ -490,12 +497,14 @@ export function simulate(opts: SimOptions): SimResult {
             const cost = Math.floor(R.levels.camp.costDayShares * prevDayShare);
             wallet.set(y, cash - cost);
             simLevelSpend += cost;
+            levelSpendToday.set(y, (levelSpendToday.get(y) ?? 0) + cost);
             levelUps += 1;
             store.set(u.id, { ...raw, level: 2 });
           } else if (raw.level === 2 && day - m.heldSince >= R.levels.holding.heldDays && cash >= R.levels.holding.costDayShares * prevDayShare) {
             const cost = Math.floor(R.levels.holding.costDayShares * prevDayShare);
             wallet.set(y, cash - cost);
             simLevelSpend += cost;
+            levelSpendToday.set(y, (levelSpendToday.get(y) ?? 0) + cost);
             levelUps += 1;
             store.set(u.id, { ...raw, level: 3 });
           }
@@ -630,6 +639,8 @@ export function simulate(opts: SimOptions): SimResult {
     }
 
     seasonDays.push({ credits, snapshot, districts: controls[0]! });
+    if (opts.trace && credits.status === "settled") traceDays.push(traceDay(day, credits, close, entries, levelSpendToday));
+    levelSpendToday = new Map();
 
     /* retention and holding counts */
     let heldNow = 0;
@@ -776,6 +787,9 @@ export function simulate(opts: SimOptions): SimResult {
     d23: { immuneDropped, shieldUnitsLostPerShielder: shieldLost / shielders, shieldSwitches, colluderFlipsPerDay: colluderFlips / days },
     shade: { shadePushes, shadeRejectedLoops: shadeRejected, shadeUnitsHeldAtEnd: shadeHeldEnd, shadeFarmerShadeUnitsAtEnd: shadeFarmerShade, shadeFarmerUpkeepPaidMicro: shadeFarmerUpkeep },
     fingerprint: fp,
+    ...(opts.trace
+      ? { trace: { status: SIM_ONLY, ruleset: R.name, seed, units: world.units.length, players: players.map((p) => ({ id: p.id, profile: p.profile, club: p.initialClub })), days: traceDays } }
+      : {}),
   };
 }
 
@@ -970,4 +984,29 @@ function kingmakerCount(players: readonly Player[], snap: ClubSnapshot, res: Dis
     if (!controls(first, other, d.held.weight, rule)) n += 1;
   }
   return n;
+}
+
+/** The trace of one settled day (`SimOptions.trace`). Reads the day's results; changes nothing. */
+function traceDay(day: number, credits: Extract<CreditsDayResult, { status: "settled" }>, close: HoldingsAtClose, entries: readonly LedgerEntry[], levelSpend: ReadonlyMap<string, number>): TraceDay {
+  const stepped = new Map<string, Set<string>>();
+  for (const e of entries) {
+    if (e.pushKind !== "solid") continue; // a refused push still crossed the unit: it is traffic
+    let s = stepped.get(e.unitId);
+    if (!s) stepped.set(e.unitId, (s = new Set()));
+    s.add(e.walkerId);
+  }
+  const held: TraceDay["held"] = [];
+  for (const st of close.states.values()) if (st.holderId !== null) held.push([st.unitId, st.holderId, st.ground]);
+  held.sort((a, b) => byString(a[0], b[0]));
+  return {
+    day,
+    poolMicro: credits.poolMicro,
+    dayShareMicro: credits.settlement.dayShareMicro,
+    lines: credits.lines
+      .map((l) => ({ playerId: l.playerId, earnedMicro: l.earnedMicro, rechargeMicro: l.rechargeMicro, upkeepTakenMicro: l.upkeepTakenMicro, tollPaidMicro: l.tollPaidMicro, tollReceivedMicro: l.tollReceivedMicro, netMicro: l.netMicro }))
+      .sort((a, b) => byString(a.playerId, b.playerId)),
+    levelSpendMicro: [...levelSpend].sort(([a], [b]) => byString(a, b)),
+    held,
+    stepped: [...stepped].map(([u, w]) => [u, [...w].sort(byString)] as [string, string[]]).sort((a, b) => byString(a[0], b[0])),
+  };
 }
