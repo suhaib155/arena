@@ -141,6 +141,9 @@ export type SessionRestoreResult =
    *  unreadable keystore. Neither says anything about session existence. */
   | { kind: "unavailable"; code: UnavailableCode };
 
+/** How long a sign-in waits for the API: covers a free-tier cold start (about a minute). */
+export const SIGN_IN_TIMEOUT_MS = 90_000;
+
 export class IdentityApiClient {
   private credentialWrites: Promise<unknown> = Promise.resolve();
   private writeCredentials(generation: number, work: () => Promise<void>): Promise<void> {
@@ -163,9 +166,13 @@ export class IdentityApiClient {
    */
   readonly transport: AuthedJsonTransport;
 
-  constructor(opts: { baseUrl?: string; store?: SecureSessionStore } = {}) {
+  private readonly signInTimeoutMs: number;
+  private waking: Promise<void> | null = null;
+
+  constructor(opts: { baseUrl?: string; store?: SecureSessionStore; signInTimeoutMs?: number } = {}) {
     this.baseUrl = opts.baseUrl ?? resolveBaseUrl();
     this.store = opts.store ?? getSecureSessionStore();
+    this.signInTimeoutMs = opts.signInTimeoutMs ?? SIGN_IN_TIMEOUT_MS;
     this.transport = new AuthedJsonTransport({
       baseUrl: this.baseUrl,
       /* A keystore that cannot be READ is not the same as an empty keystore, so
@@ -363,6 +370,21 @@ export class IdentityApiClient {
   }
 
   // ---- auth ---------------------------------------------------------------
+  /**
+   * Wake the API before a sign-in needs it. The free host sleeps when idle and
+   * takes up to about a minute to start, so this runs while the person is
+   * still choosing a method or in Google's or the wallet's screens. One call
+   * at a time; the answer and any failure are ignored.
+   */
+  wakeServer(): Promise<void> {
+    if (!this.waking) {
+      this.waking = this.request<unknown>("/health", { timeoutMs: this.signInTimeoutMs })
+        .then(() => undefined, () => undefined)
+        .finally(() => { this.waking = null; });
+    }
+    return this.waking;
+  }
+
   async beginEmailOtp(email: string): Promise<void> {
     await this.request<{ challengeId: string }>("/identity/auth/email/begin", { method: "POST", body: { email } });
   }
@@ -394,7 +416,9 @@ export class IdentityApiClient {
   /** Every sign-in method ends here: the server's answer is committed only once the session is stored. */
   private async signIn(path: string, body: Record<string, string>): Promise<LoginResult> {
     const startedGeneration = verificationGeneration();
-    const result = await this.request<LoginResult>(path, { method: "POST", body });
+    // Bounded, so a server that never answers ends in a retry message rather
+    // than a spinner. Long enough for the free host to wake from sleep.
+    const result = await this.request<LoginResult>(path, { method: "POST", body, timeoutMs: this.signInTimeoutMs });
     try {
       if (startedGeneration !== verificationGeneration()) throw new IdentityApiError(0, "session_changed");
       const clearing = clearPendingQueue();

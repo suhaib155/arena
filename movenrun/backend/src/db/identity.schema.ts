@@ -22,6 +22,7 @@ import {
   pgTable,
   text,
   integer,
+  bigserial,
   boolean,
   timestamp,
   jsonb,
@@ -256,8 +257,30 @@ export const securityAuditEvents = pgTable(
 export const accountCapacity = pgTable("account_capacity", {
   id: boolean("id").primaryKey().default(true),
   maxAccounts: integer("max_accounts").notNull(),
+  /** New accounts allowed per rolling hour, at the Supabase hook and in the API (0009). */
+  maxNewPerHour: integer("max_new_per_hour").notNull().default(50),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+/** One row per auth user the Supabase hook let through: the time only, for the hourly quota. */
+export const authUserCreations = pgTable("auth_user_creations", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/** Supabase sessions from Google sign-in that have already been exchanged for
+ *  a MovenRun session. Only the session id and when the row may go (once the
+ *  session's exchange window has closed) are kept. */
+export const googleSignInExchanges = pgTable(
+  "google_sign_in_exchanges",
+  {
+    sessionId: text("session_id").primaryKey(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (t) => ({
+    expiresIdx: index("google_sign_in_exchanges_expires_idx").on(t.expiresAt),
+  })
+);
 
 /** A wallet sign-in message the server issued. The exact message text is kept
  *  so only that message, signed by that address, before it expires, and only

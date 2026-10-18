@@ -13,7 +13,7 @@
  *  - "set sole active wallet" and "create user + first identity" run inside a
  *    transaction so their invariants hold under concurrency.
  */
-import { and, desc, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "../../../db/client.js";
 import {
   accountCapacity,
@@ -26,6 +26,7 @@ import {
   wallets,
 } from "../../../db/identity.schema.js";
 import {
+  RegistrationBusyError,
   RegistrationClosedError,
   UniqueConstraintError,
   type AuditEventRepository,
@@ -327,10 +328,17 @@ export class DrizzleSessionRepository implements SessionRepository {
     const rows = await this.db
       .select()
       .from(authSessions)
-      .where(eq(authSessions.userId, userId))
+      .where(and(eq(authSessions.userId, userId), isNull(authSessions.rotatedAt)))
       .orderBy(desc(authSessions.issuedAt), authSessions.id)
       .limit(limit);
     return rows.map(toSession);
+  }
+  async deleteExpiredBefore(cutoff: Date, limit: number): Promise<number> {
+    // Bounded batch: each run deletes at most `limit` rows, so a large backlog
+    // after a long sleep is worked off over several runs, not in one long lock.
+    const due = this.db.select({ id: authSessions.id }).from(authSessions).where(lt(authSessions.expiresAt, cutoff)).limit(limit);
+    const rows = await this.db.delete(authSessions).where(inArray(authSessions.id, due)).returning({ id: authSessions.id });
+    return rows.length;
   }
   async revokeOwned(
     sessionId: string,
@@ -564,10 +572,18 @@ export function createDrizzleStores(db: Db): IdentityStores {
         // two sign-ups at 999 accounts produce exactly one 1,000th account.
         // A missing capacity row admits nobody (fail closed).
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext('movenrun_account_admission'))`);
-        const [capacity] = await tx.select({ maxAccounts: accountCapacity.maxAccounts }).from(accountCapacity).limit(1);
+        const [capacity] = await tx
+          .select({ maxAccounts: accountCapacity.maxAccounts, maxNewPerHour: accountCapacity.maxNewPerHour })
+          .from(accountCapacity).limit(1);
         const maxAccounts = capacity?.maxAccounts ?? 0;
         const [{ admitted }] = await tx.select({ admitted: sql<number>`count(*)::int` }).from(users);
         if (admitted >= maxAccounts) throw new RegistrationClosedError();
+        // Hourly quota, so a script cannot fill the cap in one burst (0009).
+        const [{ recent }] = await tx
+          .select({ recent: sql<number>`count(*)::int` })
+          .from(users)
+          .where(sql`${users.createdAt} > now() - interval '1 hour'`);
+        if (recent >= (capacity?.maxNewPerHour ?? 0)) throw new RegistrationBusyError();
         const [userRow] = await tx.insert(users).values({ id: userId, status: "active" }).returning();
         try {
           const [idRow] = await tx

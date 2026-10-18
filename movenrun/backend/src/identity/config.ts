@@ -59,10 +59,6 @@ const identityEnvSchema = z.object({
   IDENTITY_GOOGLE_CLIENT_ID: z.string().optional(),
   IDENTITY_GOOGLE_CLIENT_SECRET: z.string().optional(),
   IDENTITY_GOOGLE_REDIRECT_URIS: z.string().optional(), // comma-separated allowlist
-
-  // Email delivery for one-time codes. Unset in Play v1 (sign-in is Google
-  // or wallet through Supabase); only its presence makes the OTP pepper required.
-  RESEND_API_KEY: z.string().optional(),
 });
 
 export interface ResolvedIdentityConfig {
@@ -121,7 +117,6 @@ export function resolveIdentityConfig(
   const otpPepper = v.IDENTITY_OTP_PEPPER;
   if (opts.requireSecrets) {
     if (!sessionPepper) errors.push("IDENTITY_SESSION_PEPPER is required in production");
-    if (!otpPepper && v.RESEND_API_KEY) errors.push("IDENTITY_OTP_PEPPER is required in production when email codes are on");
   }
 
   // Google: all-or-nothing. Partial config is a misconfiguration.

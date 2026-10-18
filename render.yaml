@@ -1,18 +1,27 @@
 # Staging API on Render's free instance, database on the Supabase Free project
-# (see movenrun/docs/play-launch/HOSTING_SUPABASE_FREE.md). No automatic deploy.
-# Free instances have no pre-deploy step, so migrations run before start; the
-# migration command is idempotent.
+# (see movenrun/docs/play-launch/LIVE_SETUP_OPERATOR_GUIDE.md). No automatic
+# deploy. Free instances have no pre-deploy step, so migrations run before
+# start; the migration command is idempotent and runs in one transaction.
+#
+# The service deploys `deploy/render-free-staging`, a branch that moves only
+# when the owner approves a new deployable commit (the approved full SHA is
+# recorded in docs/play-launch/LIVE_SETUP_OPERATOR_GUIDE.md). Never point it
+# at a branch that predates the security fixes. Guarded by
+# backend/src/api/renderBlueprint.test.ts.
 services:
   - type: web
     name: movenrun-staging-api
     runtime: node
     plan: free
     region: virginia
-    branch: release/android-v1-cxfdbd
+    branch: deploy/render-free-staging
     rootDir: movenrun
     autoDeployTrigger: off
     numInstances: 1
-    buildCommand: corepack enable && yarn install --immutable && yarn workspace @movenrun/backend build
+    # Installs only the API's own dependencies (about 150 packages, not the
+    # whole monorepo's 1,300+ with the app and contracts toolchains): a faster
+    # free-tier build, and far less third-party code next to the secrets.
+    buildCommand: corepack enable && yarn workspaces focus @movenrun/backend && yarn workspace @movenrun/backend build
     startCommand: yarn workspace @movenrun/backend db:migrate && yarn workspace @movenrun/backend start
     healthCheckPath: /ready
     envVars:
@@ -39,3 +48,8 @@ services:
         value: movenrun.xyz
       - key: TRUST_PROXY_HOPS
         value: "1"
+      # Trust Cloudflare and Render's private proxies by network, so the rate
+      # limits key on the visitor's own address (backend/src/api/trustedProxies.ts).
+      # TRUST_PROXY_HOPS is then ignored; it stays for a rollback.
+      - key: TRUST_PROXY
+        value: render-cloudflare

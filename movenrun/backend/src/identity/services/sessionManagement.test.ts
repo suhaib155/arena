@@ -272,3 +272,55 @@ test("a sanitized-null device label renders as the generic fallback, never break
   const [summary] = await h.sessions.listSessions(current.session);
   assert.equal(summary.deviceLabel, "MovenRun mobile");
 });
+
+// ---- long-lived devices and storage bounds ---------------------------------
+
+test("a device signed in days ago stays listed after the current phone refreshes for weeks", async () => {
+  const h = createHarness();
+  const uid = await newUser(h, "busy-1");
+  const tablet = await issueFor(h, uid, "Tablet");
+  let phone = await issueFor(h, uid, "Phone");
+  // Access tokens last 10 minutes, so an hour of play is about six refreshes.
+  // 150 refreshes leave far more rotated links than the inventory reads.
+  for (let i = 0; i < 150; i++) {
+    h.advanceSeconds(600);
+    phone = await h.sessions.refresh(phone.refreshToken);
+  }
+  const list = await h.sessions.listSessions(phone.session);
+  assert.equal(list[0].id, phone.session.id);
+  assert.ok(list.some((s) => s.id === tablet.session.id && s.status === "active"), "the other device can still be seen and revoked");
+});
+
+test("expired sessions are deleted only after they leave the inventory window", async () => {
+  const h = createHarness();
+  const uid = await newUser(h, "prune-1");
+  let phone = await issueFor(h, uid, "Phone");
+  const rotatedId = phone.session.id;
+  phone = await h.sessions.refresh(phone.refreshToken);
+  const revoked = await issueFor(h, uid, "Old phone");
+  await h.sessions.revoke(revoked.session.id);
+
+  assert.equal(await h.sessions.pruneExpiredSessions(), 0, "nothing is old enough yet");
+  const refreshTtl = 60 * 60 * 24 * 30;
+  h.advanceSeconds(refreshTtl + SessionService.INVENTORY_RETENTION_DAYS * 24 * 3600 - 60);
+  assert.equal(await h.sessions.pruneExpiredSessions(), 0, "still inside the window after expiry");
+  h.advanceSeconds(120);
+  assert.equal(await h.sessions.pruneExpiredSessions(), 3, "rotated, terminal and revoked rows all past the window");
+  assert.equal(await h.stores.sessions.findById(rotatedId), null);
+  assert.equal(await h.stores.sessions.findById(revoked.session.id), null);
+  await assert.rejects(() => h.sessions.refresh(phone.refreshToken), "an expired, deleted session can never be refreshed");
+});
+
+test("pruning never touches a live session or another user's live session", async () => {
+  const h = createHarness();
+  const a = await newUser(h, "prune-a");
+  const b = await newUser(h, "prune-b");
+  await issueFor(h, a, "Old");
+  h.advanceSeconds(60 * 60 * 24 * 40);
+  const liveA = await issueFor(h, a, "New");
+  const liveB = await issueFor(h, b, "B");
+  assert.equal(await h.sessions.pruneExpiredSessions(), 1);
+  assert.equal((await h.stores.sessions.findById(liveA.session.id))!.status, "active");
+  assert.equal((await h.stores.sessions.findById(liveB.session.id))!.status, "active");
+  assert.equal(await h.sessions.pruneExpiredSessions(), 0, "idempotent");
+});

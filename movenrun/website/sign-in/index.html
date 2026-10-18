@@ -28,12 +28,14 @@
 
 <div class="card" id="from-app" hidden>
   <div id="step-sign">
+    <p class="warning"><strong>Only continue if you just tapped Continue with Wallet in the MovenRun app on this phone.</strong> If someone sent you this link, or another app opened it, close this page: signing would let whoever started it into your MovenRun account.</p>
     <button type="button" id="sign">Sign in with this wallet</button>
+    <div class="wallet-choice" id="wallet-choice" hidden></div>
   </div>
   <div id="step-done" hidden>
     <p>Signed in. Return to the MovenRun app to finish.</p>
     <a class="button" id="return" href="movenrun://auth/wallet">Return to MovenRun</a>
-    <p>If the app doesn't open, enter this code in the app. It works once, only on the phone that started this sign-in, and expires in 5 minutes.</p>
+    <p>If the app doesn't open, type this code into the MovenRun app yourself. It works once, only on the phone that started this sign-in, and expires in 5 minutes. <strong>Never read it out or send it to anyone</strong>: MovenRun will never ask you for it.</p>
     <p class="code" id="code" aria-label="Sign-in code"></p>
   </div>
   <p class="status" id="status" role="status" aria-live="polite"></p>
@@ -67,7 +69,7 @@
   if (!auth.hasWallet()) say(auth.message({ code: "no_wallet" }));
   sign.addEventListener("click", function () {
     sign.disabled = true; say("Check your wallet: sign the MovenRun message to continue.");
-    auth.signInWithWallet({ handoffChallenge: challenge }).then(function (handoff) {
+    auth.signInWithWallet({ handoffChallenge: challenge, chooser: document.getElementById("wallet-choice") }).then(function (handoff) {
       var code = String(handoff.code);
       var link = "movenrun://auth/wallet?code=" + encodeURIComponent(code);
       document.getElementById("step-sign").hidden = true;

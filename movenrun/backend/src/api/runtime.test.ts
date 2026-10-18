@@ -13,7 +13,7 @@ import { resolveApiConfig } from "./config.js";
 const databaseUrl = process.env.MOVENRUN_TEST_DATABASE_URL;
 const SUPABASE_URL = "https://movenrun-test.supabase.co";
 
-test("built API, migrations and real session/PostgreSQL flow (delivery transport mocked only)", { skip: !databaseUrl }, async () => {
+test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stand-in only)", { skip: !databaseUrl }, async () => {
   const databaseName = `preview_test_${randomUUID().replaceAll("-", "")}`;
   const admin = new Pool({ connectionString: databaseUrl });
   await admin.query(`CREATE DATABASE "${databaseName}"`);
@@ -29,12 +29,13 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     Object.assign(process.env, {
       NODE_ENV: "production", DATABASE_URL: url.toString(),
       IDENTITY_SESSION_PEPPER: randomBytes(32).toString("hex"),
-      IDENTITY_OTP_PEPPER: randomBytes(32).toString("hex"),
+      // Left over from the email-code design: the API must ignore them.
+      RESEND_API_KEY: "re_test_not_used", IDENTITY_EMAIL_FROM: "MovenRun <info@movenrun.xyz>",
       CORS_ORIGINS: "https://preview.example.com",
       SUPABASE_URL: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test", SUPABASE_SECRET_KEY: "sb_secret_test",
       IDENTITY_AUTH_DOMAIN: "movenrun.xyz",
       // This one test makes more sign-in calls from one address than a person would.
-      RATE_LIMIT_WRITE_MAX: "60",
+      RATE_LIMIT_WRITE_MAX: "100",
     });
     // Exercise the actual deployment command, including its migration journal.
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -44,7 +45,7 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
         }));
     }
     const migrationRows = await pool.query("select count(*)::int as count from drizzle.__drizzle_migrations");
-    assert.equal(migrationRows.rows[0].count, 9);
+    assert.equal(migrationRows.rows[0].count, 11);
     // A hosted database's automatic REST API must not reach any table: every
     // table has row level security on (and no policies).
     const openTables = await pool.query(
@@ -72,25 +73,43 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     }
     assert.ok(healthy, "compiled API reaches readiness with migrated PostgreSQL and no legacy variables");
     assert.equal((await originalFetch(`http://127.0.0.1:${port}/gps/submit`, { method: "POST" })).status, 404);
+    // Public sign-in routes refuse large bodies; only movement accepts megabytes.
+    const bulky = JSON.stringify({ address: "0x" + "a".repeat(40_000) });
+    assert.equal((await originalFetch(`http://127.0.0.1:${port}/identity/auth/wallet/begin`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: bulky,
+    })).status, 413);
+    assert.notEqual((await originalFetch(`http://127.0.0.1:${port}/movement/verify`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: bulky,
+    })).status, 413);
     child.kill();
     await once(child, "exit");
     child = undefined;
     assert.match(logs, /V3 API listening/);
+    assert.match(logs, /proxies: 0 trusted hop\(s\)/);
     assert.ok(!logs.includes(process.env.IDENTITY_SESSION_PEPPER!));
     const graph = JSON.parse(await readFile("dist/api-inputs.json", "utf8")) as string[];
     assert.ok(!graph.some(path => /src\/(workers|routes|blockchain)\//.test(path)));
+
+    // A session a week past its refresh expiry, and a live one: the clean-up
+    // run at start deletes only the first (the batch delete is real SQL).
+    await pool.query("insert into users (id) values ('prune-check')");
+    await pool.query(`insert into auth_sessions (id, user_id, family_id, refresh_token_hash, expires_at)
+      values ('prune-old', 'prune-check', 'f1', 'h-old', now() - interval '8 days'),
+             ('prune-live', 'prune-check', 'f2', 'h-live', now() + interval '1 day')`);
 
     // Supabase Auth is the only thing replaced: a stand-in that publishes a
     // signing key, issues Web3 sessions and accepts admin deletions. Tokens are
     // real ES256 JWTs that the API verifies exactly as it would Supabase's.
     const keys = generateKeyPairSync("ec", { namedCurve: "P-256" });
     const deletedProviderUsers: string[] = [];
+    let adminListings = 0;
     const walletUsers = new Map<string, string>();
-    const mint = (sub: string, method: string, email: string | null) => {
+    const mint = (sub: string, method: string, email: string | null, session: { id?: string | null; signedInAt?: number; refreshedAt?: number } = {}) => {
       const now = Math.floor(Date.now() / 1000);
       const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
       const head = enc({ alg: "ES256", kid: "k1", typ: "JWT" });
-      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], is_anonymous: false });
+      const sessionId = session.id === undefined ? randomUUID() : session.id;
+      const body = enc({ iss: `${SUPABASE_URL}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: session.signedInAt ?? now }, ...(session.refreshedAt === undefined ? [] : [{ method: "token_refresh", timestamp: session.refreshedAt }])], app_metadata: { provider: method === "oauth" ? "google" : "web3", providers: [method === "oauth" ? "google" : "web3"] }, is_anonymous: false, ...(sessionId === null ? {} : { session_id: sessionId }) });
       return `${head}.${body}.${sign("sha256", Buffer.from(`${head}.${body}`), { key: keys.privateKey, dsaEncoding: "ieee-p1363" }).toString("base64url")}`;
     };
     globalThis.fetch = async (input, init) => {
@@ -109,6 +128,11 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
         assert.equal((init.headers as Record<string, string>).apikey, "sb_secret_test");
         deletedProviderUsers.push(admin[1]);
         return new Response("{}", { status: 200 });
+      }
+      if (url.startsWith(`${SUPABASE_URL}/auth/v1/admin/users?`) && (init?.method ?? "GET") === "GET") {
+        assert.equal((init?.headers as Record<string, string>).apikey, "sb_secret_test");
+        adminListings += 1;
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
       throw new Error(`unexpected outbound request: ${url}`);
     };
@@ -136,6 +160,7 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     assert.equal((await request("/identity/me")).status, 401);
     // Email codes are not part of this deployment.
     assert.equal((await request("/identity/auth/email/begin", { email: "runner@example.com" })).status, 404);
+    assert.equal((await request("/identity/auth/email/complete", { email: "runner@example.com", code: "123456" })).status, 404);
     const email = "runner@example.com";
     const subject = randomUUID();
     const token = await signIn(subject, email);
@@ -143,6 +168,39 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     // A token not signed by the project's key gets nothing.
     const forged = mint(subject, "oauth", email).replace(/\.[^.]+$/, ".AAAA");
     assert.equal((await request("/identity/auth/google/complete", { accessToken: forged })).status, 401);
+    // A Google token is exchanged once. Replaying it, even several at once,
+    // gets nothing, so a copied token cannot mint more sessions.
+    const copied = mint(subject, "oauth", email);
+    const replays = await Promise.all(Array.from({ length: 4 }, () => request("/identity/auth/google/complete", { accessToken: copied })));
+    assert.deepEqual(replays.map(r => r.status).sort(), [200, 401, 401, 401]);
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: copied })).status, 401);
+    // Once per Supabase session: a refreshed token (same session id and
+    // sign-in time, new expiry) is refused too, and so is a sign-in older than
+    // the ten-minute window or a token without a session id.
+    const refreshedSession = randomUUID();
+    const signedIn = Math.floor(Date.now() / 1000) - 120;
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email, { id: refreshedSession, signedInAt: signedIn }) })).status, 200);
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email, { id: refreshedSession, signedInAt: signedIn }) })).status, 401);
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email, { signedInAt: Math.floor(Date.now() / 1000) - 11 * 60 }) })).status, 401);
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email, { id: null }) })).status, 401);
+    // A refresh entry newer than the Google sign-in never restarts the window:
+    // a session signed in 11 minutes ago is refused even when its token says
+    // it was refreshed just now (and a refresh within the window is fine).
+    const nowS = Math.floor(Date.now() / 1000);
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email, { signedInAt: nowS - 11 * 60, refreshedAt: nowS }) })).status, 401);
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email, { signedInAt: nowS - 60, refreshedAt: nowS }) })).status, 200);
+    const kept = await pool.query("select session_id, expires_at > now() + interval '29 days' as kept from google_sign_in_exchanges where session_id = $1", [refreshedSession]);
+    assert.deepEqual(kept.rows, [{ session_id: refreshedSession, kept: true }]);
+    // Twenty-five new players at once each get their session.
+    const crowd = await Promise.all(Array.from({ length: 25 }, () => request("/identity/auth/google/complete", { accessToken: mint(randomUUID(), "oauth", null) })));
+    assert.deepEqual(crowd.map(r => r.status), Array(25).fill(200));
+    // Spent records are removed in bounded batches by later exchanges.
+    await pool.query("insert into google_sign_in_exchanges (session_id, expires_at) select 'old-' || g, now() - interval '1 hour' from generate_series(1, 520) g");
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email) })).status, 200);
+    assert.equal((await pool.query("select count(*)::int as count from google_sign_in_exchanges where session_id like 'old-%'")).rows[0].count, 20);
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email) })).status, 200);
+    assert.equal((await pool.query("select count(*)::int as count from google_sign_in_exchanges where session_id like 'old-%'")).rows[0].count, 0);
+    assert.equal((await pool.query("select count(*)::int as count from google_sign_in_exchanges where session_id = $1", [refreshedSession])).rows[0].count, 1);
     // The same Google user is the same player.
     const again = await (await request("/identity/me", undefined, await signIn(subject, email))).json();
     assert.equal(again.user.id, (await (await request("/identity/me", undefined, token)).json()).user.id);
@@ -247,9 +305,12 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     // simultaneous new players produce exactly one new account.
     const before = (await pool.query("select count(*)::int as count from users")).rows[0].count as number;
     await pool.query("update account_capacity set max_accounts = $1", [before + 1]);
-    const rush = await Promise.all(Array.from({ length: 8 }, () =>
-      request("/identity/auth/google/complete", { accessToken: mint(randomUUID(), "oauth", null) })));
+    const rushTokens = Array.from({ length: 8 }, () => mint(randomUUID(), "oauth", null));
+    const rush = await Promise.all(rushTokens.map(accessToken => request("/identity/auth/google/complete", { accessToken })));
     assert.deepEqual(rush.map(r => r.status).sort(), [200, 403, 403, 403, 403, 403, 403, 403]);
+    // A refused sign-in is spent: its provider user is being removed.
+    const refusedToken = rushTokens[rush.findIndex(r => r.status === 403)];
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: refusedToken })).status, 401);
     assert.equal((await pool.query("select count(*)::int as count from users")).rows[0].count, before + 1);
     // The seven refused provider users were removed again.
     assert.equal(deletedProviderUsers.length, 1 + 7);
@@ -261,7 +322,29 @@ test("built API, migrations and real session/PostgreSQL flow (delivery transport
     await pool.query("update account_capacity set max_accounts = 1000");
     const hookOpen = await pool.query("select public.movenrun_before_user_created('{}'::jsonb) as r");
     assert.deepEqual(hookOpen.rows[0].r, {});
+    // The hook's hourly quota (0009): it records each user it lets through and
+    // refuses with 429 once the hour's quota is used, whoever called the provider.
+    assert.equal((await pool.query("select count(*)::int as count from auth_user_creations")).rows[0].count, 1);
+    await pool.query("update account_capacity set max_new_per_hour = 1");
+    const hookBusy = await pool.query("select public.movenrun_before_user_created('{}'::jsonb) as r");
+    assert.equal(hookBusy.rows[0].r.error.http_code, 429);
+    // The API applies the same hourly quota to new players, on real Postgres.
+    const recentPlayers = (await pool.query("select count(*)::int as count from users where created_at > now() - interval '1 hour'")).rows[0].count as number;
+    await pool.query("update account_capacity set max_new_per_hour = $1", [recentPlayers]);
+    const busyUser = randomUUID();
+    const busy = await request("/identity/auth/google/complete", { accessToken: mint(busyUser, "oauth", null) });
+    assert.equal(busy.status, 429);
+    assert.equal((await busy.json()).error.code, "registration_busy");
+    assert.ok(deletedProviderUsers.includes(busyUser));
+    assert.equal((await request("/identity/auth/google/complete", { accessToken: mint(subject, "oauth", email) })).status, 200);
+    await pool.query("update account_capacity set max_new_per_hour = 50");
 
+    // Clean-up does not wait for a timer: the first requests after start
+    // (a wake from sleep on the free host) already ran the orphan sweep,
+    // which listed provider users once and only once while it was due.
+    assert.equal(adminListings, 1);
+    const pruneLeft = await pool.query("select id from auth_sessions where user_id = 'prune-check' order by id");
+    assert.deepEqual(pruneLeft.rows.map(r => r.id), ["prune-live"]);
     await pool.query("alter table auth_identities rename column provider_subject to unavailable_provider_subject");
     assert.equal((await request("/ready")).status, 503);
   } finally {

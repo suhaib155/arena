@@ -26,7 +26,7 @@ import { getAddress } from "ethers";
 import { IdentityError } from "../domain/errors.js";
 import type { IdentityStores } from "../repositories/interfaces.js";
 import type { SignInStores } from "../repositories/signInStores.js";
-import { SupabaseAuthError, type VerifiedSupabaseUser } from "../providers/supabaseAuth.js";
+import { SupabaseAuthError, type ProviderUserSummary, type VerifiedSupabaseUser } from "../providers/supabaseAuth.js";
 import type { WalletOwnershipVerifier } from "../providers/types.js";
 
 export const SUPABASE_PROVIDER = "supabase" as const;
@@ -66,7 +66,28 @@ export interface SupabaseTokenCheck {
 export interface SupabaseAuthCalls {
   signInWithEthereum(message: string, signature: string): Promise<{ accessToken: string }>;
   deleteUser(subject: string): Promise<void>;
+  listUsers(page: number, perPage: number): Promise<ProviderUserSummary[]>;
+  getUser(subject: string): Promise<ProviderUserSummary | null>;
 }
+
+/** How soon after its Google sign-in a Supabase session must be exchanged. */
+export const GOOGLE_EXCHANGE_WINDOW_MS = 10 * 60 * 1000;
+/** Clock difference tolerated between Supabase and this server. */
+export const GOOGLE_EXCHANGE_SKEW_MS = 60 * 1000;
+/**
+ * How long a spent session's record is kept: far longer than the window, so
+ * the record still refuses the session if its sign-in time were ever
+ * misreported. Rows are a session id and a time; at the 1,000-account cap a
+ * month of daily sign-ins is about 30,000 rows (a few MB).
+ */
+export const GOOGLE_EXCHANGE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+/** Most spent records one exchange removes; the rest go on later exchanges. */
+export const GOOGLE_EXCHANGE_PURGE_BATCH = 500;
+
+/** How long a provider user may exist without a MovenRun account before the sweep removes it. */
+export const ORPHAN_GRACE_MS = 60 * 60 * 1000;
+/** Most provider users one sweep may delete; the rest wait for the next run. */
+export const ORPHAN_SWEEP_MAX_DELETES = 100;
 
 export interface SupabaseSignInConfig {
   /** The domain written into wallet messages; must also be on Supabase's redirect allow list. */
@@ -90,12 +111,15 @@ export interface VerifiedSignIn {
   subject: string;
   email: string | null;
   method: "google" | "wallet";
+  /** Google only: the Supabase session to spend with `claimGoogleExchange`, and how long its record is kept. */
+  googleSession?: { id: string; keepUntil: Date };
 }
 
 export class SupabaseSignInService {
   private readonly now: () => Date;
   private readonly nonce: () => string;
   private readonly handoffCode: () => string;
+  private sweeping: Promise<number> | null = null;
 
   constructor(private readonly deps: Deps) {
     this.now = deps.now ?? (() => new Date());
@@ -103,7 +127,30 @@ export class SupabaseSignInService {
     this.handoffCode = deps.handoffCode ?? randomHandoffCode;
   }
 
-  /** Verify a Supabase session from Google sign-in. */
+  /**
+   * Verify a Supabase session from Google sign-in.
+   *
+   * One MovenRun session per Supabase session. Two independent guards:
+   *
+   * - Time: a session may be exchanged only within GOOGLE_EXCHANGE_WINDOW_MS
+   *   of its Google sign-in, read from the token's `oauth` amr entry alone.
+   *   A refresh gives a new token for the same session; any newer
+   *   `token_refresh` (or other) entry it carries is ignored, so a refresh
+   *   cannot restart the window.
+   * - Record: the first exchange records the session id and keeps it for
+   *   GOOGLE_EXCHANGE_RETENTION_MS, far past the window, so a copy of the
+   *   token or a refresh of it is refused even if the first guard were wrong.
+   *
+   * The app and website exchange right after the Google redirect and never
+   * retry with the same token, so this refuses only a replay. A token without
+   * a session id or a single oauth sign-in time is refused rather than let in
+   * unrecorded.
+   *
+   * Nothing is spent here: the record is written by `claimGoogleExchange`
+   * after the account is admitted and just before the MovenRun session is
+   * issued, so a refusal (account cap, hourly quota) or an outage before that
+   * point leaves the same token usable for a retry.
+   */
   async verifyGoogle(accessToken: string): Promise<VerifiedSignIn> {
     let user: VerifiedSupabaseUser;
     try {
@@ -113,8 +160,35 @@ export class SupabaseSignInService {
     }
     // Only an OAuth login may come in this way. A Web3 session must go through
     // the wallet routes, where the nonce and message are checked.
-    if (!user.methods.includes("oauth")) throw new IdentityError("verification_failed");
-    return { subject: user.subject, email: user.email, method: "google" };
+    if (!user.methods.includes("oauth") || !user.providers.includes("google")) throw new IdentityError("verification_failed");
+    if (!user.sessionId || !user.oauthSignedInAt) throw new IdentityError("verification_failed");
+    const now = this.now().getTime();
+    const signedInAt = user.oauthSignedInAt.getTime();
+    if (signedInAt > now + GOOGLE_EXCHANGE_SKEW_MS || now - signedInAt > GOOGLE_EXCHANGE_WINDOW_MS) throw new IdentityError("verification_failed");
+    // A cheap read refuses a plain replay before any account work.
+    if (await this.deps.signIn.googleExchanges.exchanged(user.sessionId)) throw new IdentityError("verification_failed");
+    return {
+      subject: user.subject,
+      email: user.email,
+      method: "google",
+      googleSession: { id: user.sessionId, keepUntil: new Date(now + GOOGLE_EXCHANGE_RETENTION_MS) },
+    };
+  }
+
+  /**
+   * Spend a verified Google sign-in. Called once the account is admitted and
+   * immediately before the MovenRun session is issued; of concurrent
+   * exchanges of one Supabase session exactly one gets past this. If the
+   * session cannot be issued after this point (a database failure or a lost
+   * process) the player signs in with Google again, which starts a new
+   * Supabase session; a lost response is the same case and must not be
+   * retried with the token.
+   */
+  async claimGoogleExchange(verified: VerifiedSignIn): Promise<void> {
+    const session = verified.googleSession;
+    if (!session) throw new IdentityError("verification_failed");
+    await this.deps.signIn.googleExchanges.purgeExpired(this.now(), GOOGLE_EXCHANGE_PURGE_BATCH);
+    if (!(await this.deps.signIn.googleExchanges.claim(session.id, session.keepUntil))) throw new IdentityError("verification_failed");
   }
 
   /** Write the message the wallet will sign. */
@@ -164,9 +238,14 @@ export class SupabaseSignInService {
     try {
       ({ accessToken } = await this.deps.auth.signInWithEthereum(message, signature));
     } catch (err) {
-      // A refusal (for example the account cap in the provider's hook) is final;
-      // an outage is worth retrying with a new message.
-      if (err instanceof SupabaseAuthError && err.reason === "rejected") throw new IdentityError("verification_failed");
+      // A refusal is final; an outage is worth retrying with a new message. The
+      // provider's hook answers 403 at the account cap and 429 at the hourly
+      // quota (0009); 429 is also the provider's own sign-in rate limit.
+      if (err instanceof SupabaseAuthError && err.reason === "rejected") {
+        if (err.status === 403) throw new IdentityError("registration_closed");
+        if (err.status === 429) throw new IdentityError("too_many_attempts");
+        throw new IdentityError("verification_failed");
+      }
       throw new IdentityError("provider_not_configured");
     }
     let user: VerifiedSupabaseUser;
@@ -242,6 +321,59 @@ export class SupabaseSignInService {
       }
     }
     return { removed, pending };
+  }
+
+  /**
+   * Provider users nobody turned into a MovenRun account: a Google sign-in
+   * abandoned before the app reached the API, or a wallet grant made straight
+   * against the provider with the public key (a script, not the app). Each
+   * one counts toward the provider's free monthly users, so they are removed
+   * once both their creation and their last sign-in are older than the grace
+   * period. Users mapped to an account, or with a wallet code still waiting,
+   * are never touched.
+   *
+   * Each candidate is read again just before it is deleted, so a person who
+   * signed in after the listing keeps their sign-in user. One run deletes at
+   * most `maxDeletes`, and a run that starts while another is going joins it
+   * instead of listing twice.
+   */
+  sweepOrphanProviderUsers(opts: { graceMs?: number; perPage?: number; maxPages?: number; maxDeletes?: number } = {}): Promise<number> {
+    if (!this.sweeping) {
+      this.sweeping = this.sweepOnce(opts).finally(() => {
+        this.sweeping = null;
+      });
+    }
+    return this.sweeping;
+  }
+
+  private async sweepOnce(opts: { graceMs?: number; perPage?: number; maxPages?: number; maxDeletes?: number }): Promise<number> {
+    const graceMs = opts.graceMs ?? ORPHAN_GRACE_MS;
+    const perPage = opts.perPage ?? 100;
+    const maxPages = opts.maxPages ?? 20;
+    const maxDeletes = opts.maxDeletes ?? ORPHAN_SWEEP_MAX_DELETES;
+    const stale = (u: ProviderUserSummary, cutoff: number) =>
+      u.createdAt.getTime() <= cutoff && (!u.lastSignInAt || u.lastSignInAt.getTime() <= cutoff);
+    const listedAt = this.now();
+    const candidates: string[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const users = await this.deps.auth.listUsers(page, perPage);
+      for (const u of users) {
+        if (!stale(u, listedAt.getTime() - graceMs)) continue;
+        if (await this.deps.signIn.walletHandoffs.inUse(u.id, listedAt)) continue;
+        candidates.push(u.id);
+      }
+      if (users.length < perPage) break;
+    }
+    let removed = 0;
+    for (const subject of candidates) {
+      if (removed >= maxDeletes) break;
+      const now = this.now();
+      const current = await this.deps.auth.getUser(subject);
+      if (!current || !stale(current, now.getTime() - graceMs)) continue;
+      if (await this.deps.signIn.walletHandoffs.inUse(subject, now)) continue;
+      removed += (await this.removeProviderUsers([subject])).removed.length;
+    }
+    return removed;
   }
 
   /** Retry provider deletions that failed earlier. Safe to run repeatedly. */

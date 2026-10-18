@@ -8,8 +8,16 @@ const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_URL: z.string().url().regex(/^postgres(?:ql)?:\/\//),
   CORS_ORIGINS: z.string().min(1),
-  // Configure only for a deployment whose proxy path has been verified.
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(1).default(0),
+  // How many proxies in front of the API append to X-Forwarded-For. Set it to
+  // the measured count for the host (scripts/check-client-ip.mjs): too few and
+  // every visitor behind one proxy node shares a rate-limit bucket, too many
+  // and a client can choose its own address. Render plus its CDN is more
+  // than one hop.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
+  // "render-cloudflare" trusts the proxies by network instead of by count and
+  // then ignores TRUST_PROXY_HOPS (see trustedProxies.ts). The default keeps
+  // the hop count so an environment that does not set it behaves as before.
+  TRUST_PROXY: z.enum(["hops", "render-cloudflare"]).default("hops"),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1000).default(300),
   RATE_LIMIT_WRITE_MAX: z.coerce.number().int().min(1).max(100).default(20),
@@ -27,9 +35,8 @@ export function resolveApiConfig(env: NodeJS.ProcessEnv = process.env) {
   const resolved = resolveIdentityConfig(env, { requireSecrets: true });
   if (!resolved.ok) throw new Error("Invalid identity environment");
   const identity = resolved.config;
-  if (identity.sessionPepper.length < 32 ||
-      (env.RESEND_API_KEY && (identity.otpPepper.length < 32 || identity.sessionPepper === identity.otpPepper))) {
-    throw new Error("V3 API requires distinct identity peppers of at least 32 characters");
+  if (identity.sessionPepper.length < 32) {
+    throw new Error("V3 API requires an identity session pepper of at least 32 characters");
   }
   // Sign-in is Supabase Auth (Google and wallet); the API does not start without it.
   const supabase = supabaseAuthConfigFrom(env);

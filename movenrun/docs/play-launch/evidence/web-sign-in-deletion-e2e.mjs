@@ -38,7 +38,7 @@ const mint = (sub, method, email) => {
   const now = Math.floor(Date.now() / 1000);
   const enc = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
   const head = enc({ alg: "ES256", kid: "k1", typ: "JWT" });
-  const body = enc({ iss: `${SB}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], is_anonymous: false });
+  const body = enc({ iss: `${SB}/auth/v1`, aud: "authenticated", role: "authenticated", sub, email, exp: now + 3600, iat: now, amr: [{ method, timestamp: now }], app_metadata: { provider: method === "oauth" ? "google" : "web3", providers: [method === "oauth" ? "google" : "web3"] }, is_anonymous: false });
   return `${head}.${body}.${sign("sha256", Buffer.from(`${head}.${body}`), { key: keys.privateKey, dsaEncoding: "ieee-p1363" }).toString("base64url")}`;
 };
 const GOOGLE_SUB = randomUUID();

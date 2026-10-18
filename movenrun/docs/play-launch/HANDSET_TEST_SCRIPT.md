@@ -10,6 +10,11 @@ on the **Play internal-test install** (R gate, adds steps 16 to 17). Steps
 15a–15f need a wallet app installed (no funds needed) and must pass on a phone
 by 24 Oct, otherwise the release flags `WALLET_LOGIN_BLOCKED` (DECISIONS D-19).
 
+The QA0 checks Q0-1 to Q0-6 in `ANDROID_DEVICE_GATE_PLAN.md` (Hermes cold
+start, location in the background, the Google and wallet flows in more
+detail, deletion, backup and transfer) run alongside this script on the same
+APK and use its evidence rules.
+
 | # | Step | Expected |
 |---|---|---|
 | 1 | Fresh install, cold start | Splash with MovenRun icon on light background, then welcome. No crash, no blank screen |
@@ -32,6 +37,8 @@ by 24 Oct, otherwise the release flags `WALLET_LOGIN_BLOCKED` (DECISIONS D-19).
 | 15d | Sign in the wallet | Wallet returns to MovenRun signed in. If it does not, the page shows a 12-character code; typing it in the app signs in. Record which happened per wallet app |
 | 15e | Save a verified session while signed in with the wallet, then Account security → Delete account | Session verifies; deletion succeeds; signing in with the same wallet again creates a fresh account with 0 sessions |
 | 15f | Kill the app while the wallet is open, sign in the wallet, reopen MovenRun | The code field is shown; the code from the page signs in |
+| 15g | Leave the API idle for 20 minutes (it sleeps), open the app, then Continue with Google | Signs in within about a minute, or shows "MovenRun took too long to answer…" with the buttons usable again. Never an endless spinner. Record the time taken |
+| 15h | In the wallet's browser, open `https://movenrun.xyz/sign-in/?app=android&challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA` typed by hand (a flow the app did not start) and read the page | The warning "Only continue if you just tapped Continue with Wallet…" shows above the button. Do not sign. Record whether the wallet browser offers to open `https://movenrun.xyz/...` links in the app (input to QA-04) |
 | 16 | Google account: Account security → Delete account; then delete on the web for a second account at movenrun.xyz/account-deletion/ | Confirm dialog; account deleted; signed out; local progress cleared; signing in again creates a fresh account; web deletion signs out the phone |
 | 17 | Play-installed build: map tiles | Real Google map tiles (not grey). Grey tiles mean the Play App Signing SHA-1 is missing from the Maps key |
 | 18 | Smallest supported screen / largest font size | No clipped CTAs; Move, Finish, Back reachable |

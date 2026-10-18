@@ -64,6 +64,20 @@
       "when": 1784918400000,
       "tag": "0008_wallet_sign_in_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785004800000,
+      "tag": "0009_new_account_quota",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785091200000,
+      "tag": "0010_google_sign_in_exchanges",
+      "breakpoints": true
     }
   ]
 }

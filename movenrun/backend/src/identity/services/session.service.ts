@@ -187,9 +187,17 @@ export class SessionService {
       throw new IdentityError("session_invalid");
     }
 
-    await this.sessions.markUsed(sessionId, this.now());
+    // Last use only orders the device list, so it is written at most once a
+    // minute per session rather than on every authenticated request.
+    const now = this.now();
+    if (!session.lastUsedAt || now.getTime() - session.lastUsedAt.getTime() >= SessionService.LAST_USED_RESOLUTION_MS) {
+      await this.sessions.markUsed(sessionId, now);
+    }
     return session;
   }
+
+  /** How stale a session's recorded last use may get before a request rewrites it. */
+  static readonly LAST_USED_RESOLUTION_MS = 60_000;
 
   /**
    * Rotate a refresh token. On success returns fresh access+refresh tokens for
@@ -292,6 +300,10 @@ export class SessionService {
   /** Sessions revoked/expired longer ago than this are omitted from the
    *  inventory — a fixed retention window, not unbounded history. */
   static readonly INVENTORY_RETENTION_DAYS = 7;
+  /** Expired sessions are deleted once they are this far past the inventory
+   *  window, in batches, by the API's background clean-up. */
+  static readonly PRUNE_BATCH = 1000;
+  static readonly PRUNE_MAX_BATCHES = 10;
   /** Hard cap on inventory size (current session always included). */
   static readonly INVENTORY_MAX_SESSIONS = 20;
   /** How many raw rows to pull from the repository before mapping. */
@@ -351,6 +363,27 @@ export class SessionService {
    * Idempotent: an already-settled caller-owned session returns success
    * without a second transition or audit event.
    */
+  /**
+   * Deletes sessions whose refresh token expired more than
+   * INVENTORY_RETENTION_DAYS ago, whatever their status. Each refresh adds a
+   * row, so without this the table grows for as long as anyone plays.
+   * A token this old can never be refreshed: before deletion it is refused as
+   * expired or replayed, after it as unknown. The only thing lost is that
+   * replaying a token stolen more than 37 days ago no longer also ends its
+   * family. The row is already outside the device list (a revoked row's
+   * revokedAt is never later than its expiry). Returns rows deleted.
+   */
+  async pruneExpiredSessions(): Promise<number> {
+    const cutoff = new Date(this.now().getTime() - SessionService.INVENTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    let total = 0;
+    for (let i = 0; i < SessionService.PRUNE_MAX_BATCHES; i++) {
+      const n = await this.sessions.deleteExpiredBefore(cutoff, SessionService.PRUNE_BATCH);
+      total += n;
+      if (n < SessionService.PRUNE_BATCH) break;
+    }
+    return total;
+  }
+
   async revokeOtherSession(currentSession: SessionRecord, targetSessionId: string): Promise<void> {
     if (targetSessionId === currentSession.id) {
       throw new IdentityError("conflict", "use session/revoke for the current session");

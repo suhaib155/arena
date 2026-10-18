@@ -5,6 +5,11 @@ Scope: **Path A, Movement Game v1** (see `DECISIONS.md` D-01). The switchboard i
 keeps every deferred surface unreachable. Deferred screens are preserved in
 source, not deleted.
 
+**Frontend on owner hold (D-25, 2026-10-13).** This matrix describes the app
+as it is. No screen, visual, navigation or copy change is made until the
+owner's next design brief. Separate Google and wallet accounts were accepted by
+the owner on 2026-10-13 (X-20).
+
 | Screen / feature | Route | v1 | Authority | Data source | User-facing copy |
 |---|---|---|---|---|---|
 | First run: opening, welcome, onboarding | `/opening`, `/welcome`, `/onboarding` | ON | Device | Local first-run state | Movement game intro; Continue with Google, Continue with Wallet, or Start exploring as a guest |

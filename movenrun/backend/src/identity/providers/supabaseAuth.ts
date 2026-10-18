@@ -21,7 +21,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Failure with no token, key or provider payload attached. */
 export class SupabaseAuthError extends Error {
-  constructor(readonly reason: string) {
+  /** HTTP status from the provider, when it answered. */
+  constructor(readonly reason: string, readonly status?: number) {
     super(`Supabase auth: ${reason}`);
     this.name = "SupabaseAuthError";
   }
@@ -30,9 +31,9 @@ export class SupabaseAuthError extends Error {
 export interface SupabaseAuthConfig {
   /** Project URL, e.g. https://<ref>.supabase.co (no trailing slash). */
   url: string;
-  /** Publishable (or legacy anon) key: sent as `apikey` on public auth calls. */
+  /** Publishable key (`sb_publishable_…`): sent as `apikey` on public auth calls. */
   publishableKey: string;
-  /** Secret (or legacy service role) key: admin calls only. Never leaves the server. */
+  /** Secret key (`sb_secret_…`): admin calls only. Never leaves the server. */
   secretKey: string;
   /** Legacy HS256 JWT secret. Only for projects that have not moved to signing keys. */
   legacyJwtSecret?: string | null;
@@ -48,6 +49,15 @@ export interface VerifiedSupabaseUser {
   methods: string[];
   /** Providers linked to the auth user (`app_metadata.providers`). */
   providers: string[];
+  /** The Supabase session this token belongs to (`session_id`), or null if absent. */
+  sessionId: string | null;
+  /**
+   * When this session's Google (OAuth) sign-in happened: the timestamp of its
+   * single `amr` entry with method `oauth`. Entries for other methods
+   * (`token_refresh`, `otp`, ...) are never used. Null when there is no such
+   * entry, more than one, or no usable timestamp.
+   */
+  oauthSignedInAt: Date | null;
   expiresAt: Date;
 }
 
@@ -85,6 +95,8 @@ export class SupabaseTokenVerifier {
     } catch {
       throw new SupabaseAuthError("malformed_token");
     }
+    // No extension this verifier understands is ever marked critical (RFC 7515 §4.1.11).
+    if (header.crit !== undefined) throw new SupabaseAuthError("bad_signature");
     const signed = Buffer.from(`${parts[0]}.${parts[1]}`);
     const signature = Buffer.from(parts[2], "base64url");
 
@@ -119,6 +131,7 @@ export class SupabaseTokenVerifier {
     if (claims.is_anonymous === true) throw new SupabaseAuthError("anonymous_user");
     if (typeof claims.exp !== "number" || claims.exp <= nowSeconds + CLOCK_SKEW_SECONDS) throw new SupabaseAuthError("expired");
     if (typeof claims.iat === "number" && claims.iat > nowSeconds + CLOCK_SKEW_SECONDS) throw new SupabaseAuthError("not_yet_valid");
+    if (claims.nbf !== undefined && (typeof claims.nbf !== "number" || claims.nbf > nowSeconds + CLOCK_SKEW_SECONDS)) throw new SupabaseAuthError("not_yet_valid");
     if (typeof claims.sub !== "string" || !UUID.test(claims.sub)) throw new SupabaseAuthError("bad_subject");
 
     const methods = Array.isArray(claims.amr)
@@ -128,7 +141,14 @@ export class SupabaseTokenVerifier {
     const providers = Array.isArray(appMetadata.providers) ? appMetadata.providers.filter((p): p is string => typeof p === "string") : [];
     const email = typeof claims.email === "string" && claims.email.includes("@") ? claims.email.trim().toLowerCase() : null;
 
-    return { subject: claims.sub.toLowerCase(), email, methods, providers, expiresAt: new Date(claims.exp * 1000) };
+    const sessionId = typeof claims.session_id === "string" && UUID.test(claims.session_id) ? claims.session_id.toLowerCase() : null;
+    const oauthEntries = Array.isArray(claims.amr)
+      ? claims.amr.filter((m) => m && typeof m === "object" && (m as { method?: unknown }).method === "oauth")
+      : [];
+    const oauthStamp = oauthEntries.length === 1 ? (oauthEntries[0] as { timestamp?: unknown }).timestamp : undefined;
+    const oauthSignedInAt = typeof oauthStamp === "number" && Number.isFinite(oauthStamp) && oauthStamp > 0 ? new Date(oauthStamp * 1000) : null;
+
+    return { subject: claims.sub.toLowerCase(), email, methods, providers, sessionId, oauthSignedInAt, expiresAt: new Date(claims.exp * 1000) };
   }
 
   private async keyFor(kid: string) {
@@ -173,6 +193,26 @@ export class SupabaseTokenVerifier {
   }
 }
 
+export interface ProviderUserSummary {
+  id: string;
+  createdAt: Date;
+  lastSignInAt: Date | null;
+}
+
+/** A row that cannot be read is skipped, never treated as old enough to remove. */
+function toSummary(u: unknown): ProviderUserSummary | null {
+  if (!u || typeof u !== "object") return null;
+  const row = u as { id?: unknown; created_at?: unknown; last_sign_in_at?: unknown };
+  const createdAt = typeof row.created_at === "string" ? new Date(row.created_at) : null;
+  if (typeof row.id !== "string" || !UUID.test(row.id) || !createdAt || Number.isNaN(createdAt.getTime())) return null;
+  const lastSignInAt = typeof row.last_sign_in_at === "string" ? new Date(row.last_sign_in_at) : null;
+  return {
+    id: row.id.toLowerCase(),
+    createdAt,
+    lastSignInAt: lastSignInAt && !Number.isNaN(lastSignInAt.getTime()) ? lastSignInAt : null,
+  };
+}
+
 export interface Web3Session {
   accessToken: string;
 }
@@ -198,6 +238,35 @@ export class SupabaseAuthClient {
     const accessToken = body && typeof body === "object" ? (body as { access_token?: unknown }).access_token : undefined;
     if (typeof accessToken !== "string" || !accessToken) throw new SupabaseAuthError("web3_grant_failed");
     return { accessToken };
+  }
+
+  /**
+   * One page of auth users, oldest first as the provider lists them. Only the
+   * id and two timestamps are kept; nothing else about the user is read.
+   */
+  async listUsers(page: number, perPage: number): Promise<ProviderUserSummary[]> {
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(perPage) || perPage < 1 || perPage > 1000) {
+      throw new SupabaseAuthError("bad_page");
+    }
+    const body = await this.call("GET", `/admin/users?page=${page}&per_page=${perPage}`, this.config.secretKey);
+    const users = body && typeof body === "object" ? (body as { users?: unknown }).users : undefined;
+    if (!Array.isArray(users)) throw new SupabaseAuthError("malformed_response");
+    const out: ProviderUserSummary[] = [];
+    for (const u of users) {
+      const summary = toSummary(u);
+      if (summary) out.push(summary);
+    }
+    return out;
+  }
+
+  /** One auth user's id and timestamps, or null when the provider no longer has it. */
+  async getUser(subject: string): Promise<ProviderUserSummary | null> {
+    if (!UUID.test(subject)) throw new SupabaseAuthError("bad_subject");
+    const body = await this.call("GET", `/admin/users/${subject}`, this.config.secretKey, undefined, [404]);
+    if (body === null) return null;
+    const summary = toSummary(body);
+    if (!summary || summary.id !== subject.toLowerCase()) throw new SupabaseAuthError("malformed_response");
+    return summary;
   }
 
   /** Delete an auth user. A user that is already gone counts as deleted. */
@@ -230,7 +299,7 @@ export class SupabaseAuthClient {
     if (!response.ok) {
       await response.body?.cancel();
       // 4xx from the grant means the provider refused the proof; anything else is an outage.
-      throw new SupabaseAuthError(response.status >= 400 && response.status < 500 ? "rejected" : "unavailable");
+      throw new SupabaseAuthError(response.status >= 400 && response.status < 500 ? "rejected" : "unavailable", response.status);
     }
     const text = await response.text();
     if (!text) return null;
@@ -240,6 +309,14 @@ export class SupabaseAuthClient {
       throw new SupabaseAuthError("malformed_response");
     }
   }
+}
+
+/**
+ * Which keys this API trusts for Supabase access tokens, for the startup log.
+ * Says only whether a legacy secret is configured, never anything about it.
+ */
+export function tokenTrustSummary(config: Pick<SupabaseAuthConfig, "legacyJwtSecret">): string {
+  return config.legacyJwtSecret ? "signing keys and legacy secret" : "signing keys only";
 }
 
 /**
@@ -256,6 +333,11 @@ export function supabaseAuthConfigFrom(env: Record<string, string | undefined>):
     throw new Error("Invalid Supabase configuration: SUPABASE_URL (https), SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY are required together");
   }
   if (publishableKey === secretKey) throw new Error("Invalid Supabase configuration: the secret key must differ from the publishable key");
+  // The legacy anon and service_role keys are JWTs signed with the legacy
+  // shared secret, so they stop working once that secret is revoked. Only the
+  // new keys are accepted, which keeps revoking it safe for this service.
+  if (!publishableKey.startsWith("sb_publishable_")) throw new Error("Invalid Supabase configuration: SUPABASE_PUBLISHABLE_KEY must be an sb_publishable_ key");
+  if (!secretKey.startsWith("sb_secret_")) throw new Error("Invalid Supabase configuration: SUPABASE_SECRET_KEY must be an sb_secret_ key");
   if (legacyJwtSecret !== null && legacyJwtSecret.length < 32) throw new Error("Invalid Supabase configuration: SUPABASE_LEGACY_JWT_SECRET is too short");
   return { url: url.replace(/\/$/, ""), publishableKey, secretKey, legacyJwtSecret };
 }

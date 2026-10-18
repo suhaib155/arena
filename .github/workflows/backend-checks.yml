@@ -10,6 +10,8 @@ on:
       - "movenrun/yarn.lock"
       - "movenrun/.yarnrc.yml"
       - "movenrun/scripts/verify-package-manager.mjs"
+      - "movenrun/scripts/check-secrets.mjs"
+      - "render.yaml"
       - "movenrun/backend/**"
       - "movenrun/shared/**"
       - "movenrun/contracts/deployments/**"
@@ -21,6 +23,8 @@ on:
       - "movenrun/yarn.lock"
       - "movenrun/.yarnrc.yml"
       - "movenrun/scripts/verify-package-manager.mjs"
+      - "movenrun/scripts/check-secrets.mjs"
+      - "render.yaml"
       - "movenrun/backend/**"
       - "movenrun/shared/**"
       - "movenrun/contracts/deployments/**"
@@ -73,6 +77,11 @@ jobs:
 
       - name: Verify package manager version
         run: node scripts/verify-package-manager.mjs
+
+      # No server secret (Supabase secret or service_role key, private key,
+      # provider token) may be committed. Prints the kind and file only.
+      - name: Secret scan (tracked files)
+        run: node scripts/check-secrets.mjs
 
       # movenrun/yarn.lock is committed and deterministic.
       - name: Install dependencies (immutable)
