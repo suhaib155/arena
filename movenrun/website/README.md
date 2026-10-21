@@ -75,6 +75,16 @@ Static export, `vercel.json` in this folder sets the build to a no-op. Project s
 - **Install Command:** (empty)
 - **Build Command:** (empty)
 - **Output Directory:** `.`
+- **Ignored Build Step:** `sh scripts/ignored-build.sh`
+
+`scripts/ignored-build.sh` skips the build (exit 0) only when nothing under
+`movenrun/website` (including `vercel.json`) changed between
+`VERCEL_GIT_PREVIOUS_SHA` and `VERCEL_GIT_COMMIT_SHA`. It builds (exit 1) when
+the previous SHA is empty or missing from the clone, when the two SHAs are
+equal, or when git fails. It uses read-only git commands and compares trees,
+so multi-commit pushes and merge commits are handled as one change set. The
+site imports nothing from outside its folder; if that changes, set
+`IGNORED_BUILD_EXTRA_WATCH` or edit `WATCH` in the script.
 
 ## Structure
 
