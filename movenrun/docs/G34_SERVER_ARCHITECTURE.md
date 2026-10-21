@@ -12,8 +12,7 @@
 
 | Piece | Path |
 |---|---|
-| Proposed migration and rollback | `backend/drizzle-proposed/0011_gameplay_holdings.sql`, `0011_gameplay_holdings.down.sql` |
-| Proposed 1002 addendum (session paths), to fold into 0011 | `backend/drizzle-proposed/1002_session_paths.sql`, `1002_session_paths.down.sql` (section 15.9) |
+| Proposed migration and rollback (revision 3: storage revision 2 plus 1002's session paths, default deny) | `backend/drizzle-proposed/0011_gameplay_holdings.sql`, `0011_gameplay_holdings.down.sql` (section 16) |
 | 1002 session path: resolution 10 units from verified fixes | `backend/src/gameplay/path.ts`, written by the movement pipeline (`movement/http/productionRouter.ts`, `movement/repositories/drizzle/store.ts`) only when 1002 runs |
 | 1002 zone partitions | `backend/src/gameplay/zones.ts` |
 | Same-seed comparison of 1001 and 1002 (SIMULATION ONLY) | `backend/src/gameplay/compare.ts`, `backend/scripts/compare-rulesets.ts` |
@@ -38,6 +37,8 @@
 ## 3. Tables
 
 All tables are new and prefixed `gameplay_`. Every reference to a user either cascades or is set to NULL (section 9).
+
+**Revision 3** keeps revision 2's layout below, adds `gameplay_session_paths` and `gameplay_unit_challenges.opened_received_at`, and closes every table to the API roles (section 16).
 
 **Revision 2 (compact layout).** The 0011 header changelog lists every old and new column; G34_STORAGE_CAPACITY.md §11 has the measurements.
 - Units are H3 cells stored as `bigint` (the `unit` column), in canonical lowercase only.
@@ -99,14 +100,10 @@ One index is added to an existing table, `movement_verifications (end_time) WHER
 
 - **Server role.** The API connects as the table owner and is the only writer. RLS is enabled (not forced) on every new table, so the owner is unaffected, as for 0000–0010.
 - **anon.** Supabase grants new `public` tables to `anon` and `authenticated` by default. 0011 revokes everything from `anon`, `authenticated` and `PUBLIC` on every new table and on its functions. `anon` gets nothing back. Tested with `has_table_privilege` for every privilege on every table.
-- **authenticated (Supabase JWT through the Data API).** It gets `SELECT` only, column by column, plus policies:
-  - own rows: units it holds, its push events, applied sessions, credit lines and memberships. The player is resolved by `gameplay_current_player_id()`: the `sub` claim → `auth_identities` (provider `supabase`, not revoked) → `user_id`. A request with no claims resolves to nobody and sees nothing;
-  - public aggregates for any signed-in player: settled day headers (without `problems`, `input_digest` or rules columns), club names, club days and district days.
-  - `gameplay_day_rules`, `gameplay_walker_days` and `gameplay_unit_challenges` get no grant and no policy at all: server only, like the unit day states.
-  - No `INSERT`, `UPDATE` or `DELETE` grant or policy exists for any role. Tested: inserts, updates, deletes, ungranted columns and the server-only tables all fail with `42501` for `authenticated`.
+- **authenticated (Supabase JWT through the Data API).** Revision 3: nothing. No grant, no column grant and no policy on any gameplay table, partition, sequence, function or schema, as for `anon` (default deny). Revision 2's own-row read policies, its column grants and `gameplay_current_player_id()` are gone. Tested: every privilege on every table is false for both roles, `pg_policies` has no gameplay row, and reads and writes fail with `42501` with and without JWT claims.
 - **The routes** expose no unit ids and no other player's id. Holdings are counts by stage. A player board shows rank, score and whether the row is yours. Club and district responses carry club ids and tallies only. A refused board reports how many problems it had, not their text.
 
-Opening the Data API read path at all (the `authenticated` grants) is a change from 0000–0010, where every table is closed to it. The API serves the same reads. Whether to keep the grants is listed under "Going live".
+As in 0000–0010, the Data API read path stays closed; the API serves every gameplay read. Opening any of it again would be a new, separately reviewed migration.
 
 ## 8. The one-push rule in the database
 
@@ -157,7 +154,7 @@ The apply result counts outcomes, including `refused_take_budget`. The gameplay 
 |---|---|
 | Code only (flag on, problem found) | Unset `MOVENRUN_GAMEPLAY_ENABLED` and restart. Routes and the task disappear and data stays. |
 | Bad settled day | Settled days are final by design. Fix forward in a new rules version; never edit a header. A refused header may be deleted (the trigger allows it), and the next maintenance run settles that day again. |
-| Remove the schema | If the 1002 addendum was applied, run `1002_session_paths.down.sql` first. Run `0011_gameplay_holdings.down.sql` in one transaction (and, if 0011 was promoted into `drizzle/`, delete its row from `drizzle.__drizzle_migrations` in the same transaction). **This is not a harmless rollback.** It permanently destroys every gameplay record: holdings, the append-only ledger, settled days and credit lines, the rule set pinned to each day, take counters, open challenges and clubs. Settled days are final by design, and after this they cannot be replayed or reconciled. Running it is its own owner decision, after a `pg_dump`. It leaves 0000–0010 untouched. Tested: up → down gives exactly the 0000–0010 tables and no gameplay functions, and up again works. |
+| Remove the schema | Run `0011_gameplay_holdings.down.sql` in one transaction (and, if 0011 was promoted into `drizzle/`, delete its row from `drizzle.__drizzle_migrations` in the same transaction). **This is not a harmless rollback.** It permanently destroys every gameplay record: holdings, the append-only ledger, settled days and credit lines, the rule set pinned to each day, take counters, open challenges and clubs. Settled days are final by design, and after this they cannot be replayed or reconciled. Running it is its own owner decision, after a `pg_dump`. It leaves 0000–0010 untouched. Tested: up → down gives exactly the 0000–0010 tables and no gameplay functions, and up again works. |
 | Restore | Supabase Free has no point-in-time restore. Take a `pg_dump` of the `gameplay_*` tables before any rollback that matters. |
 
 ## 12. Open decisions D1–D23
@@ -202,10 +199,10 @@ Supabase Free allows 500 MB of database. A rough sizing: each push row is about 
 ## 14. Going live (each step needs owner approval)
 
 1. Approve the D-values above, or change them, as a server ruleset. Any change to the V3 economy numbers would be a new economy rules version, never an edit.
-2. Decide the retention rule for settled ledger rows and day states (section 13), and whether to keep the `authenticated` Data API read grants (section 7) or serve reads through the API only.
+2. Decide the retention rule for settled ledger rows, day states and session paths (section 13).
 3. Promote the migration. Move `0011_gameplay_holdings.sql` into `backend/drizzle/`, add its journal entry and checksum, update `runtime.test.ts`'s migration count to 12, review, merge, and move `deploy/render-free-staging` to the approved commit. Taking a backup first is part of the same approval.
 4. Load the D20 district map for the pilot area.
-5. Set `MOVENRUN_GAMEPLAY_SEASON_START_DAY`, choose the rule set (`MOVENRUN_GAMEPLAY_RULES_VERSION`: unset is 1001; 1002 is the sim-pilot-2 proposal; it also needs the session-path addendum applied with 0011, and only sessions verified while it runs can be applied under it), and then set `MOVENRUN_GAMEPLAY_ENABLED=true` on staging. This step activates multiplayer gameplay and is its own approval.
+5. Set `MOVENRUN_GAMEPLAY_SEASON_START_DAY`, choose the rule set (`MOVENRUN_GAMEPLAY_RULES_VERSION`: unset is 1001; 1002 is the sim-pilot-2 proposal; its session paths are part of 0011 revision 3, and only sessions verified while it runs can be applied under it), and then set `MOVENRUN_GAMEPLAY_ENABLED=true` on staging. This step activates multiplayer gameplay and is its own approval.
 6. Wire the app. The mobile UI is frozen; the app keeps showing territory as an on-device preview until this is approved.
 7. Run an independent reconciliation of the first settled days. Recompute each day from the stored inputs and compare it with `input_digest` and the header.
 
@@ -396,11 +393,31 @@ Reading it: under 1001 the attackers' long routes flip whole resolution 8 cells,
 
 ### 15.9 Schema notes for 0011
 
-The 0011 SQL is being reworked separately for storage. Nothing in it was edited here. The code above works with the current 0011 columns, plus one new table in a separate proposed addendum:
+Written before the storage rework; section 16 records how revision 3 settled each point.
 
-- **New table `gameplay_session_paths`** (`drizzle-proposed/1002_session_paths.sql`, with its rollback): `movement_verification_id` (primary key, references `movement_verifications` on delete cascade), `path_version smallint`, `resolution smallint`, `unit_ids bigint[]` (H3 as 8-byte integers, walk order, at most 500), `interpolated varbit` (one bit a unit), `skipped_segments`, `truncated`, `created_at`. RLS on; nothing granted to `anon`, `authenticated` or `PUBLIC`. Needs 0011 only for ordering; fold it into 0011 when 0011 is final. It is applied by the local tests only.
-- **Challenge opening time.** The 20-hour gap reads the opening time by joining `gameplay_unit_challenges` to the challenger's `eroded` row in `gameplay_push_events` on the challenge's first day and its `source_session_id` → `movement_verifications.created_at` (or the event's own `created_at` for a server batch). If the storage rework drops `gameplay_push_events.created_at` or `source_session_id`, or partitions the ledger so that join gets expensive, add `opened_received_at timestamptz NOT NULL` (or an epoch-seconds `integer`) to `gameplay_unit_challenges` instead, written when the challenge opens; `policy.ts` already takes the value as an input.
+- **New table `gameplay_session_paths`** (first proposed as a separate addendum; now part of 0011 revision 3, section 16): `movement_verification_id` (primary key, references `movement_verifications` on delete cascade), `path_version smallint`, `resolution smallint`, `unit_ids bigint[]` (H3 as 8-byte integers, walk order, at most 500), `interpolated varbit` (one bit a unit), `skipped_segments`, `truncated`, `created_at`. RLS on; nothing granted to `anon`, `authenticated` or `PUBLIC`. Folded into 0011 revision 3.
+- **Challenge opening time.** The 20-hour gap reads the opening time by joining `gameplay_unit_challenges` to the challenger's `eroded` row in `gameplay_push_events` on the challenge's first day and its `source_session_id` → `movement_verifications.created_at` (or the event's own `created_at` for a server batch). The storage rework dropped both, so revision 3 adds `opened_received_at timestamptz NOT NULL` to `gameplay_unit_challenges`, written when the challenge opens (section 16).
 - **Walk order** needs no column: it is the order of `unit_ids`, and pushes are stored in it (`seq`).
 - **Season guard** uses the existing `gameplay_day_rules.season`; an index on `(season)` would help if a season ever had many pinned days (at most 90 rows, so not needed now).
 - **Partitions** need no column: they are computed at day close from the unit day states.
 - **Compact identifiers.** If 0011 moves unit ids to `bigint`, `path.ts`'s `cellToInt8` / `int8ToCell` are the conversion the session path already uses.
+
+## 16. Integration: 0011 revision 3 (storage revision 2 and rule set 1002)
+
+REVIEWED UNAPPLIED. Branch `integration/g34-0011-1002-unapplied`, based on #121 (685852b), with #124 (storage revision 2, b3a39cb) and #126 (rule set 1002 fixes, fb7cd5b) merged by normal merge commits. Nothing here was run against a hosted database; 0011 is still outside `drizzle/` and its journal, so the start command (`drizzle-kit migrate`, which reads `./drizzle` only) cannot apply it.
+
+**One migration.** `0011_gameplay_holdings.sql` revision 3 contains everything: the day-partitioned ledger and walker days, bigint unit ids, integer player numbers, refusal counters, per-player day sha256 proofs, the unit budget counter the capacity guard scales (the guard itself reads `pg_database_size` and needs no table), and 1002's `gameplay_session_paths`. The separate 1002 addendum is removed. The rollback stays a separate file that nothing on the start path reads.
+
+**`opened_received_at` on `gameplay_unit_challenges`: yes, `timestamptz NOT NULL`.** Reasons:
+- The 20-hour second-push gap needs when the server received the push that opened each open challenge. Under revision 1 that came from joining the challenge to its opening ledger row and that row's session. Revision 2's ledger keeps no event id, text unit, `source_session_id` or `created_at`, so the join no longer exists; rebuilding it through `gameplay_applied_sessions` would read a partitioned table on the hot path.
+- Retention may drop ledger partitions. A challenge stays open up to three days; its opening time must not depend on a partition still being there.
+- The value is the server's own: the movement row's `created_at` (written by the database when the upload arrived) or, for a server batch, the server clock. No client or device time is read. It is copied forward unchanged while the challenge stays open, so re-writing a unit's challenges never resets it.
+- It is NOT NULL because every challenge is opened by the service, which always knows the receipt time; an unknown time can never be stored. The policy still treats a missing value as too recent, so a corrupt input fails closed.
+- Cost: 8 bytes per open challenge (current state, not history). Tested: the 1002 replay derives the same receipt time for every open challenge as the stored column.
+
+**Default deny.** RLS on every table and partition, no policy, no grant to `anon` or `authenticated` (section 7).
+
+**Fixes found while integrating.** Forty concurrent first pushes of a new day exposed two partition problems from revision 2: a creator that waited for the partition lock could still fail with 42P07 (it read the catalog before the other creator committed), and creating a partition (DDL on the parent and its foreign-key targets) could deadlock with pushes in flight (40P01). The function now skips a partition that appeared meanwhile, and the push path retries a deadlock victim a bounded number of times; both sides are whole transactions. The maintenance loop still creates today's and the next two days' partitions ahead of use, so the push path rarely creates one.
+
+**1001 unchanged.** Its config digest is the same as at 685852b (`d4199ec6…41cd6`), the shared economy code and its worked examples are byte-identical, the seeded stream fingerprint is unchanged, and a fixed PostgreSQL scenario gives the same stored game state (schema-independent projection, recorded by running the same test file on 685852b).
+

@@ -614,3 +614,22 @@ The blockers are decisions and authorization, not bytes. Each needs the owner:
    None of this is done or proposed for a specific commit here.
 
 Once 1–7 are decided and a SHA is authorized, the measurements support **go for a capped pilot: credits only, ≤ 200 players, one season, guard on, budget 300**. That is a forecast from local simulation, not a live measurement.
+
+## 14. Revision 3: the integrated 0011 (storage revision 2 + rule set 1002), measured
+
+SIMULATION ONLY (local PostgreSQL 16.15, synthetic players, rule set 1002 at resolution 10, dense area, 14 days, which is the proposed 14-day raw retention window). Run: `node --import tsx scripts/gameplay-storage-bench.ts --profile integration` (the bench writes each session's 1002 path to `gameplay_session_paths` as the pipeline would and keeps resolution 8 cells in `traversed_hex_ids`). Sizes are at day 14 after VACUUM ANALYZE, every 0011 table counted. "FSM/VM" is free-space and visibility maps. WAL is the cluster's WAL from the daily writes and settlements only (measurement VACUUMs excluded; nothing else ran on the cluster). Temp is the settlement sort spill over all 14 settlements.
+
+| Players | Sessions | Ledger rows | Session paths | 0011 data (heap) MiB | Indexes MiB | TOAST MiB | FSM/VM MiB | 0011 total MiB | After VACUUM FULL MiB | movement_verifications MiB | Database MiB | WAL MiB | Temp MiB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 12 | 391 | 12 | 0.47 | 1.20 | 0.24 | 0.94 | 2.85 | 1.86 | 0.11 | 13.0 | 2.7 | 0 |
+| 100 | 1,292 | 13,167 | 1,292 | 5.66 | 4.77 | 0.24 | 1.34 | 12.02 | 7.45 | 0.88 | 23.4 | 31.5 | 0 |
+| 200 | 2,544 | 24,032 | 2,544 | 10.97 | 7.42 | 0.24 | 1.34 | 19.98 | 11.50 | 1.60 | 32.5 | 71.7 | 0 |
+| 500 | 6,313 | 57,269 | 6,313 | 37.43 | 16.18 | 0.24 | 1.34 | 55.20 | 22.56 | 4.04 | 70.6 | 291.5 | 0 |
+| 1,000 | 12,666 | 111,920 | 12,667 | 110.95 | 34.30 | 0.24 | 1.36 | 146.86 | 40.38 | 7.87 | 166.4 | 977.7 | 0 |
+
+- **Against revision 2** (§11.2, 1,000 players, 14 days): the ledger is about the same (20.2 MiB, 189 B/row against 19.5). Session paths add 5.7 MiB (about 470 B a session). Worst settlement 254 ms, no spill.
+- **The challenge table is the outlier.** At 1,000 players `gameplay_unit_challenges` is 104.7 MiB for 22,784 live rows, 3.7 MiB after VACUUM FULL. Every batch deletes and re-inserts the touched units' challenges, and the bench pushes much faster than people walk, so autovacuum lags. It is also most of the WAL. Revision 2 showed the same churn (66–80 MiB); the extra 8-byte `opened_received_at` is not the cause. Options for the owner: per-table autovacuum settings, or updating challenge rows in place instead of delete-and-insert (a code change, not made here).
+- **Projections** from this run, as the bench prints them (ASSUMPTION: synthetic activity, 60% daily active, 1.5 sessions, 500 MiB quota; OWNER DECISION NEEDED for quota, retention and pilot cap):
+  - keep everything: 493 players under 85% for one season, 127 over four seasons;
+  - 14-day partitions plus 120-day player-day proofs: 1,233 players for one season, 679 over four seasons (1,150 / 652 with 2% hostile accounts).
+- **14-day retention steady state** (ASSUMPTION: constant activity; partition drop is not built and needs the owner): the ledger and walker days stay near the day-14 figures above; units, day states, proofs, settlements, credit lines and session paths keep growing until their own retention is decided.
