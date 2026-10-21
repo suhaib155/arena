@@ -1,4 +1,5 @@
--- 0011 gameplay holdings: PROPOSED, NOT APPLIED. Revision 2 (compact storage).
+-- 0011 gameplay holdings: PROPOSED, NOT APPLIED. Revision 3 (revision 2's
+-- compact storage plus rule set 1002's session paths, default-deny access).
 --
 -- This file is deliberately outside drizzle/ and its journal. The staging
 -- start command runs `drizzle-kit migrate`, which applies every journal entry,
@@ -28,6 +29,28 @@
 -- rather than one row each, and the ledger and the day counters live in
 -- one-day range partitions that a retention job can export and drop whole.
 -- No retention runs today; every TTL is an owner decision.
+--
+-- Revision 3 changelog (revisions 1 and 2 were never applied anywhere):
+--   new: gameplay_session_paths, folded in from the 1002 addendum
+--        (drizzle-proposed/1002_session_paths.sql, now removed): the
+--        resolution 10 path rule set 1002 derives once from the verified
+--        fixes, bigint unit ids plus one interpolated bit per unit.
+--   gameplay_unit_challenges  + opened_received_at timestamptz NOT NULL: the
+--                         server's receipt time of the push that opened the
+--                         challenge (the session row's created_at, or the
+--                         server clock for a server batch), never a client
+--                         clock. Read by 1002's 20-hour second-push gap.
+--   access: default deny on every table. The signed-in role's read policies
+--        and column grants of revision 2 are removed, as is
+--        gameplay_current_player_id(); anon and authenticated get nothing on
+--        any gameplay table, partition, sequence, function or schema. The
+--        API (table owner) serves every read.
+--   gameplay_ensure_day_partitions: a partition another creator committed
+--        while this one waited for the lock is skipped instead of failing
+--        the push with 42P07 (found by 40 concurrent first pushes of a day).
+--   unchanged from revision 2: the day-partitioned ledger and walker days,
+--        bigint units, integer player numbers, refusal counters, player day
+--        proofs and the unit budget counter the capacity guard scales.
 --
 -- Revision 2 changelog (revision 1 was never applied anywhere):
 --   gameplay_push_events  event_id text PK, seq identity UNIQUE, unit_id text,
@@ -73,13 +96,13 @@
 --        gameplay_credit_lines, gameplay_clubs, gameplay_club_memberships,
 --        gameplay_club_days, gameplay_district_days, the end_time index.
 --
--- Access: row level security on every new table and on every partition.
--- Nothing is granted to anon. The signed-in role (Supabase `authenticated`)
--- may read its own units, applied sessions, credit lines and memberships and
--- the public aggregates, column by column; nobody but the table owner (the
--- API's server role) can write. Partitions live in their own schema, which
--- no API role can use. On plain PostgreSQL the role-specific statements are
--- skipped.
+-- Access: default deny. Row level security is on for every new table and
+-- every partition, no policy exists for any role, and nothing is granted to
+-- anon or authenticated (Supabase's default grants on new public tables are
+-- revoked). Only the table owner (the API's server role) reads or writes;
+-- the API serves every gameplay read. Partitions live in their own schema,
+-- which no API role can use. On plain PostgreSQL the role-specific
+-- statements are skipped.
 --
 -- Erasure: every reference to a user either cascades or is set to NULL
 -- (directly, or through gameplay_players, which cascades from users), so the
@@ -386,16 +409,24 @@ BEGIN
     FOREACH t IN ARRAY ARRAY['gameplay_push_events', 'gameplay_walker_days'] LOOP
       p := t || '_d' || d;
       IF to_regclass(format('gameplay_partitions.%I', p)) IS NULL THEN
-        EXECUTE format('CREATE TABLE gameplay_partitions.%I PARTITION OF public.%I FOR VALUES FROM (%s) TO (%s)', p, t, d, d + 1);
-        EXECUTE format('ALTER TABLE gameplay_partitions.%I ENABLE ROW LEVEL SECURITY', p);
-        EXECUTE format('REVOKE ALL ON TABLE gameplay_partitions.%I FROM PUBLIC', p);
-        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-          EXECUTE format('REVOKE ALL ON TABLE gameplay_partitions.%I FROM anon', p);
-        END IF;
-        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-          EXECUTE format('REVOKE ALL ON TABLE gameplay_partitions.%I FROM authenticated', p);
-        END IF;
-        made := made + 1;
+        -- A creator that held the lock just before may have committed this
+        -- partition after this backend last read the catalog (an advisory
+        -- lock does not refresh it). Its transaction also applied the RLS
+        -- and the revokes below, so the duplicate is skipped, not counted.
+        BEGIN
+          EXECUTE format('CREATE TABLE gameplay_partitions.%I PARTITION OF public.%I FOR VALUES FROM (%s) TO (%s)', p, t, d, d + 1);
+          EXECUTE format('ALTER TABLE gameplay_partitions.%I ENABLE ROW LEVEL SECURITY', p);
+          EXECUTE format('REVOKE ALL ON TABLE gameplay_partitions.%I FROM PUBLIC', p);
+          IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+            EXECUTE format('REVOKE ALL ON TABLE gameplay_partitions.%I FROM anon', p);
+          END IF;
+          IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+            EXECUTE format('REVOKE ALL ON TABLE gameplay_partitions.%I FROM authenticated', p);
+          END IF;
+          made := made + 1;
+        EXCEPTION WHEN duplicate_table THEN
+          NULL;
+        END;
       END IF;
     END LOOP;
   END LOOP;
@@ -407,11 +438,18 @@ $$;--> statement-breakpoint
 -- Part of a unit's current state, written under the unit's row lock. One row
 -- per challenger; the day the challenge opened. A challenger's erasure
 -- removes their challenges; a holder's erasure removes the unit's.
+-- opened_received_at: when the server received the push that opened the
+-- challenge (the movement row's created_at, or the server clock for a server
+-- batch). Never a client clock. Kept while the challenge is open so 1002's
+-- second-push gap does not depend on the ledger, whose partitions retention
+-- may drop. Required: every challenge is opened by the service, which always
+-- knows the receipt time, so an unknown time can never be stored.
 CREATE TABLE IF NOT EXISTS "gameplay_unit_challenges" (
   "unit" bigint NOT NULL REFERENCES "gameplay_units"("unit"),
   "walker_id" text NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
   "first_day" integer NOT NULL CHECK ("first_day" >= 0),
   "holding_rules_version" integer NOT NULL,
+  "opened_received_at" timestamptz NOT NULL,
   PRIMARY KEY ("unit", "walker_id")
 );--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "gameplay_unit_challenges_walker_idx" ON "gameplay_unit_challenges" ("walker_id");--> statement-breakpoint
@@ -458,6 +496,30 @@ CREATE TABLE IF NOT EXISTS "gameplay_applied_sessions" (
   CONSTRAINT "gameplay_applied_sessions_session_has_user" CHECK ("movement_verification_id" IS NULL OR "user_id" IS NOT NULL)
 );--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "gameplay_applied_sessions_user_idx" ON "gameplay_applied_sessions" ("user_id", "day") WHERE "user_id" IS NOT NULL;--> statement-breakpoint
+
+-- ── session paths (rule set 1002): one row per verified session ───────────
+-- 1002 plays on H3 resolution 10 units, and the movement pipeline stores only
+-- the resolution 8 cells that contain a fix. Raw fixes are never stored, so
+-- the resolution 10 path is derived once, from the verified fixes, in the
+-- transaction that stores the verification (backend/src/gameplay/path.ts),
+-- and only when gameplay runs 1002. Units are bigint H3 indexes in walk order
+-- (first touch), with one bit per unit: 1 = interpolated between two accepted
+-- fixes, 0 = an accepted fix inside it. No position, no fix time and no
+-- per-unit time is stored. The row cascades with its movement verification,
+-- which account deletion removes. Pruning rows once their day is settled is
+-- a retention decision for the owner; nothing prunes them today.
+CREATE TABLE IF NOT EXISTS "gameplay_session_paths" (
+  "movement_verification_id" text PRIMARY KEY NOT NULL REFERENCES "movement_verifications"("id") ON DELETE CASCADE,
+  "path_version" smallint NOT NULL CHECK ("path_version" >= 1),
+  "resolution" smallint NOT NULL CHECK ("resolution" BETWEEN 0 AND 15),
+  -- At most 500 units (the rule's cap).
+  "unit_ids" bigint[] NOT NULL CHECK (cardinality("unit_ids") <= 500 AND array_position("unit_ids", NULL) IS NULL),
+  "interpolated" varbit NOT NULL,
+  "skipped_segments" integer NOT NULL CHECK ("skipped_segments" >= 0),
+  "truncated" boolean NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  CONSTRAINT "gameplay_session_paths_flags" CHECK (length("interpolated") = cardinality("unit_ids"))
+);--> statement-breakpoint
 
 -- ── player day proofs: one row per walker and settled day ──────────────────
 -- Written at day close: how many pushes were accepted (and how many were
@@ -662,25 +724,8 @@ ALTER TABLE "gameplay_district_days" ENABLE ROW LEVEL SECURITY;--> statement-bre
 ALTER TABLE "gameplay_day_rules" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_walker_days" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_unit_challenges" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "gameplay_session_paths" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 
--- The MovenRun user behind the caller's Supabase JWT (claims as PostgREST
--- sets them), or NULL. SECURITY DEFINER so policies can resolve it without
--- the caller reading auth_identities.
-CREATE OR REPLACE FUNCTION public.gameplay_current_player_id()
-RETURNS text
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-  SELECT i.user_id
-    FROM public.auth_identities i
-   WHERE i.provider = 'supabase'
-     AND i.revoked_at IS NULL
-     AND i.provider_subject = (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
-   LIMIT 1
-$$;--> statement-breakpoint
-REVOKE ALL ON FUNCTION public.gameplay_current_player_id() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_reset_erased_holder() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_reset_erased_state_holder() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_push_events_append_only() FROM PUBLIC;--> statement-breakpoint
@@ -693,39 +738,18 @@ REVOKE ALL ON FUNCTION public.gameplay_ensure_day_partitions(integer, integer) F
 REVOKE ALL ON SEQUENCE "gameplay_push_seq" FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_source_no_seq" FROM PUBLIC;--> statement-breakpoint
 
--- Read policies for the signed-in role. No INSERT, UPDATE or DELETE policy
--- exists for anyone: with RLS on, only the owner (the API) can write.
-DROP POLICY IF EXISTS "gameplay_units_own" ON "gameplay_units";--> statement-breakpoint
-CREATE POLICY "gameplay_units_own" ON "gameplay_units" FOR SELECT USING ("holder_id" = public.gameplay_current_player_id());--> statement-breakpoint
-DROP POLICY IF EXISTS "gameplay_applied_sessions_own" ON "gameplay_applied_sessions";--> statement-breakpoint
-CREATE POLICY "gameplay_applied_sessions_own" ON "gameplay_applied_sessions" FOR SELECT USING ("user_id" = public.gameplay_current_player_id());--> statement-breakpoint
-DROP POLICY IF EXISTS "gameplay_credit_lines_own" ON "gameplay_credit_lines";--> statement-breakpoint
-CREATE POLICY "gameplay_credit_lines_own" ON "gameplay_credit_lines" FOR SELECT USING ("player_id" = public.gameplay_current_player_id());--> statement-breakpoint
-DROP POLICY IF EXISTS "gameplay_club_memberships_own" ON "gameplay_club_memberships";--> statement-breakpoint
-CREATE POLICY "gameplay_club_memberships_own" ON "gameplay_club_memberships" FOR SELECT USING ("walker_id" = public.gameplay_current_player_id());--> statement-breakpoint
-DROP POLICY IF EXISTS "gameplay_day_settlements_public" ON "gameplay_day_settlements";--> statement-breakpoint
-CREATE POLICY "gameplay_day_settlements_public" ON "gameplay_day_settlements" FOR SELECT USING ("status" = 'settled' AND public.gameplay_current_player_id() IS NOT NULL);--> statement-breakpoint
-DROP POLICY IF EXISTS "gameplay_clubs_public" ON "gameplay_clubs";--> statement-breakpoint
-CREATE POLICY "gameplay_clubs_public" ON "gameplay_clubs" FOR SELECT USING (public.gameplay_current_player_id() IS NOT NULL);--> statement-breakpoint
-DROP POLICY IF EXISTS "gameplay_club_days_public" ON "gameplay_club_days";--> statement-breakpoint
-CREATE POLICY "gameplay_club_days_public" ON "gameplay_club_days" FOR SELECT USING (public.gameplay_current_player_id() IS NOT NULL);--> statement-breakpoint
-DROP POLICY IF EXISTS "gameplay_district_days_public" ON "gameplay_district_days";--> statement-breakpoint
-CREATE POLICY "gameplay_district_days_public" ON "gameplay_district_days" FOR SELECT USING (public.gameplay_current_player_id() IS NOT NULL);--> statement-breakpoint
--- gameplay_players, gameplay_push_events, gameplay_walker_days,
--- gameplay_player_day_proofs, gameplay_unit_day_states,
--- gameplay_unit_districts, gameplay_day_rules and gameplay_unit_challenges:
--- no policy and no grant for any role, server only.
+-- No policy exists for any role: with RLS on and no grant, nobody but the
+-- owner (the API) can read or write any gameplay table.
 
 -- Privileges. Supabase grants every new public table to anon and
--- authenticated by default; take that back, then give the signed-in role
--- SELECT on the columns its policies show. Nothing at all for anon.
+-- authenticated by default; take that back. Nothing at all for either role.
 DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['gameplay_players', 'gameplay_units', 'gameplay_unit_day_states', 'gameplay_push_events', 'gameplay_applied_sessions',
     'gameplay_player_day_proofs', 'gameplay_day_settlements', 'gameplay_credit_lines', 'gameplay_clubs', 'gameplay_club_memberships',
     'gameplay_unit_districts', 'gameplay_club_days', 'gameplay_district_days',
-    'gameplay_day_rules', 'gameplay_walker_days', 'gameplay_unit_challenges'] LOOP
+    'gameplay_day_rules', 'gameplay_walker_days', 'gameplay_unit_challenges', 'gameplay_session_paths'] LOOP
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', t);
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', t);
@@ -743,24 +767,12 @@ BEGIN
     END IF;
   END LOOP;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    REVOKE ALL ON FUNCTION public.gameplay_current_player_id() FROM anon;
     REVOKE ALL ON FUNCTION public.gameplay_ensure_day_partitions(integer, integer) FROM anon;
     REVOKE ALL ON SCHEMA gameplay_partitions FROM anon;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
     REVOKE ALL ON FUNCTION public.gameplay_ensure_day_partitions(integer, integer) FROM authenticated;
     REVOKE ALL ON SCHEMA gameplay_partitions FROM authenticated;
-    GRANT EXECUTE ON FUNCTION public.gameplay_current_player_id() TO authenticated;
-    GRANT SELECT ("unit", "holder_id", "strength", "ground", "deeded", "level", "fortified", "as_of_day") ON public.gameplay_units TO authenticated;
-    GRANT SELECT ("movement_verification_id", "user_id", "day", "applied", "skipped", "rejected", "outcome_counts", "rejected_by_reason") ON public.gameplay_applied_sessions TO authenticated;
-    GRANT SELECT ("day", "player_id", "earned_micro", "toll_paid_micro", "toll_received_micro", "recharge_micro", "upkeep_taken_micro",
-      "upkeep_in_condition_micro", "zones_held", "net_micro") ON public.gameplay_credit_lines TO authenticated;
-    GRANT SELECT ("id", "club_id", "walker_id", "from_day", "to_day") ON public.gameplay_club_memberships TO authenticated;
-    GRANT SELECT ("day", "season", "status", "pool_micro", "minted_micro", "credited_micro", "toll_paid_micro", "toll_received_micro",
-      "burned_micro", "returned_micro", "day_share_micro", "players", "clubs_status", "settled_at") ON public.gameplay_day_settlements TO authenticated;
-    GRANT SELECT ("club_id", "name", "created_at") ON public.gameplay_clubs TO authenticated;
-    GRANT SELECT ON public.gameplay_club_days TO authenticated;
-    GRANT SELECT ON public.gameplay_district_days TO authenticated;
   END IF;
 END
 $$;

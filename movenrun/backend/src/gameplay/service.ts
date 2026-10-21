@@ -283,13 +283,38 @@ export class GameplayService {
     return Number(r?.made ?? 0);
   }
 
+  /**
+   * Run a push transaction, creating a missing day partition first when it
+   * asks for one. Creating a partition is DDL: it locks the partitioned
+   * parent and the tables its foreign keys reference, so it can deadlock
+   * with pushes already in flight (PostgreSQL then aborts one side with
+   * 40P01). Both sides are whole transactions and the aborted one wrote
+   * nothing, so the victim is retried, a bounded number of times.
+   */
   private async withPartitions<T>(fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn();
-    } catch (err) {
-      if (!(err instanceof MissingPartitionError)) throw err;
-      await this.ensurePartitions(err.day, err.day + 1);
-      return fn();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        const last = attempt >= 4;
+        if (err instanceof MissingPartitionError && !last) {
+          await this.ensurePartitionsRetrying(err.day, err.day + 1);
+          continue;
+        }
+        if (pgCode(err) === "40P01" && !last) continue;
+        throw err;
+      }
+    }
+  }
+
+  private async ensurePartitionsRetrying(fromDay: number, toDay: number): Promise<void> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.ensurePartitions(fromDay, toDay);
+        return;
+      } catch (err) {
+        if (pgCode(err) !== "40P01" || attempt >= 4) throw err;
+      }
     }
   }
 
@@ -582,12 +607,12 @@ export class GameplayService {
        WHERE e.day = ${day} AND e.unit = ANY(${arr(unitInts)}::bigint[]) AND e.outcome IN (3, 4)
        ORDER BY e.unit, p.user_id`);
     // opened_received_at: the server's receipt time of the push that opened
-    // the challenge (never a client clock); NULL when unknown.
-    const challengeRows = await rows<{ unit: string; walker_id: string; first_day: number; opened_ms: number | null }>(tx, sql`
+    // the challenge (never a client clock).
+    const challengeRows = await rows<{ unit: string; walker_id: string; first_day: number; opened_ms: number }>(tx, sql`
       SELECT unit::text AS unit, walker_id, first_day, (extract(epoch FROM opened_received_at) * 1000)::float8 AS opened_ms
         FROM gameplay_unit_challenges
        WHERE unit = ANY(${arr(unitInts)}::bigint[]) ORDER BY unit, walker_id`);
-    const openedBefore = new Map(challengeRows.map((c) => [challengeKey(int8ToCell(c.unit), c.walker_id), c.opened_ms === null ? null : Number(c.opened_ms)]));
+    const openedBefore = new Map(challengeRows.map((c) => [challengeKey(int8ToCell(c.unit), c.walker_id), Number(c.opened_ms)]));
     const receivedAt = opts.receivedMs ?? now;
 
     // 1002's day-boundary guard: when the server received the session that opened each open challenge.
@@ -598,7 +623,7 @@ export class GameplayService {
         minElapsedMs: takeover.secondPush.minElapsedMs,
         windowDays: takeover.windowDays,
         eventReceivedMs: new Map(live.map((e) => [e.eventId, receivedAt])),
-        challengeOpenedMs: new Map([...openedBefore].filter((kv): kv is [string, number] => kv[1] !== null)),
+        challengeOpenedMs: new Map(openedBefore),
       };
     }
 
@@ -673,9 +698,9 @@ export class GameplayService {
           masked = EXCLUDED.masked, level = EXCLUDED.level, fortified = EXCLUDED.fortified, holding_rules_version = EXCLUDED.holding_rules_version`);
       // The touched units' open challenges, replaced as the model left them.
       await tx.execute(sql`DELETE FROM gameplay_unit_challenges WHERE unit = ANY(${arr(cols.unit)}::bigint[])`);
-      // A challenge that was already open keeps its receipt time (or its
-      // unknown one); a new one takes this batch's server receipt time.
-      const openedAt = (unitId: string, walkerId: string): number | null => {
+      // A challenge that was already open keeps its receipt time; a new one
+      // takes this batch's server receipt time.
+      const openedAt = (unitId: string, walkerId: string): number => {
         const k = challengeKey(unitId, walkerId);
         if (openedBefore.has(k)) return openedBefore.get(k)!;
         return ledger.challengeOpenedMs.get(k) ?? receivedAt;
@@ -686,7 +711,7 @@ export class GameplayService {
       if (open.length > 0) {
         await tx.execute(sql`
           INSERT INTO gameplay_unit_challenges (unit, walker_id, first_day, holding_rules_version, opened_received_at)
-          SELECT v.unit, v.walker_id, v.first_day, ${hv}::int, CASE WHEN v.opened_ms IS NULL THEN NULL ELSE to_timestamp(v.opened_ms / 1000.0) END
+          SELECT v.unit, v.walker_id, v.first_day, ${hv}::int, to_timestamp(v.opened_ms / 1000.0)
             FROM unnest(${arr(open.map((c) => c.unit))}::bigint[], ${arr(open.map((c) => c.walkerId))}::text[], ${arr(open.map((c) => c.day))}::int[],
                         ${arr(open.map((c) => c.openedMs))}::float8[])
               AS v(unit, walker_id, first_day, opened_ms)`);

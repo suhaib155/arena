@@ -148,7 +148,6 @@ before(async () => {
   const journal = JSON.parse(readFileSync(join(BACKEND, "drizzle", "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
   await runInTx(journal.entries.flatMap((e) => sqlFile(`drizzle/${e.tag}.sql`)));
   await runInTx(sqlFile("drizzle-proposed/0011_gameplay_holdings.sql"));
-  await runInTx(sqlFile("drizzle-proposed/1002_session_paths.sql"));
   p2 = new GameplayService({ db, rules: P2, now: () => clock });
   a9 = new GameplayService({ db, rules: A9, now: () => clock });
 });

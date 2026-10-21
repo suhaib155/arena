@@ -1,4 +1,4 @@
--- Rollback for 0011_gameplay_holdings.sql (revision 2). Removes everything
+-- Rollback for 0011_gameplay_holdings.sql (revision 3). Removes everything
 -- 0011 added and nothing else: migrations 0000 to 0010 and their data are
 -- untouched.
 --
@@ -15,6 +15,8 @@
 --     memberships;
 --   - applied-session receipts, the rule set pinned to each day, open
 --     challenges, the district map and the player numbers;
+--   - every stored 1002 session path: an unapplied 1002 session can then
+--     never be applied (its raw fixes were never stored);
 --   - the sequences behind ledger order and source numbers.
 -- Settled days are meant to be final; after this they cannot be reconciled
 -- or replayed. Take a pg_dump of the gameplay_* tables and the
@@ -22,6 +24,7 @@
 -- decision. If 0011 was promoted into drizzle/, also delete its row from
 -- drizzle.__drizzle_migrations in the same transaction, or a later
 -- `drizzle-kit migrate` will not re-apply it.
+DROP TABLE IF EXISTS "gameplay_session_paths";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_unit_challenges";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_walker_days";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_district_days";--> statement-breakpoint

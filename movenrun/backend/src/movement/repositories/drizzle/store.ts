@@ -38,7 +38,7 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 /**
  * Rule set 1002's session path, written in the verification's transaction
  * (table `gameplay_session_paths`, proposed with migration 0011, see
- * drizzle-proposed/1002_session_paths.sql). Only reached when gameplay asked
+ * drizzle-proposed/0011_gameplay_holdings.sql, revision 3). Only reached when gameplay asked
  * for a path, so with gameplay off no gameplay table is touched.
  */
 async function insertSessionPath(tx: Tx, movementVerificationId: string, path: SessionPath): Promise<void> {

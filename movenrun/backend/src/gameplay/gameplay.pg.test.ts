@@ -1,5 +1,5 @@
 /**
- * Gameplay against real PostgreSQL: the proposed migration 0011 (revision 2,
+ * Gameplay against real PostgreSQL: the proposed migration 0011 (revision 3,
  * compact storage) applied on top of the committed chain 0000 to 0010, the
  * service, the HTTP router and the API's feature flag.
  *
@@ -167,7 +167,8 @@ test("0011 applies on the committed chain, rolls back cleanly, and applies again
   assert.ok(!before.some((t) => t.startsWith("gameplay_")));
   await migrateUp();
   const withGameplay = await tables();
-  assert.equal(withGameplay.filter((t) => t.startsWith("gameplay_")).length, 16);
+  assert.equal(withGameplay.filter((t) => t.startsWith("gameplay_")).length, 17);
+  assert.ok(withGameplay.includes("gameplay_session_paths"), "revision 3 folds in 1002's session paths");
   // The ledger and the walker days are partitioned by day; partitions are made ahead of use.
   const parted = await pool.query("SELECT c.relname FROM pg_partitioned_table p JOIN pg_class c ON c.oid = p.partrelid ORDER BY 1");
   assert.deepEqual(parted.rows.map((r) => r.relname), ["gameplay_push_events", "gameplay_walker_days"]);
@@ -188,31 +189,30 @@ test("0011 applies on the committed chain, rolls back cleanly, and applies again
   assert.deepEqual(await tables(), withGameplay);
 });
 
-test("no privilege at all for anon; the signed-in role can only read", { skip: SKIP }, async () => {
+test("default deny: no privilege and no policy at all for anon or the signed-in role on any gameplay table", { skip: SKIP }, async () => {
   const gameplay = (await pool.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE 'gameplay_%'")).rows.map((r) => r.tablename as string);
+  assert.equal(gameplay.length, 17);
   for (const t of gameplay) {
-    for (const priv of ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"]) {
-      const anon = await pool.query("SELECT has_table_privilege('anon', $1, $2) AS ok", [`public.${t}`, priv]);
-      assert.equal(anon.rows[0].ok, false, `anon ${priv} on ${t}`);
-      if (priv !== "SELECT") {
-        const authd = await pool.query("SELECT has_table_privilege('authenticated', $1, $2) AS ok", [`public.${t}`, priv]);
-        assert.equal(authd.rows[0].ok, false, `authenticated ${priv} on ${t}`);
+    for (const role of ["anon", "authenticated"]) {
+      for (const priv of ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"]) {
+        const r = await pool.query("SELECT has_table_privilege($1, $2, $3) AS ok", [role, `public.${t}`, priv]);
+        assert.equal(r.rows[0].ok, false, `${role} ${priv} on ${t}`);
       }
+      const col = await pool.query("SELECT has_any_column_privilege($1, $2, 'SELECT') AS s, has_any_column_privilege($1, $2, 'INSERT') AS i, has_any_column_privilege($1, $2, 'UPDATE') AS u", [role, `public.${t}`]);
+      assert.deepEqual(col.rows[0], { s: false, i: false, u: false }, `${role} columns of ${t}`);
     }
-    const anyAnon = await pool.query("SELECT has_any_column_privilege('anon', $1, 'SELECT') AS ok", [`public.${t}`]);
-    assert.equal(anyAnon.rows[0].ok, false, `anon column SELECT on ${t}`);
+    const rls = await pool.query("SELECT relrowsecurity FROM pg_class WHERE oid = $1::regclass", [`public.${t}`]);
+    assert.equal(rls.rows[0].relrowsecurity, true, t);
   }
-  const fn = await pool.query("SELECT has_function_privilege('anon', 'public.gameplay_current_player_id()', 'EXECUTE') AS ok");
-  assert.equal(fn.rows[0].ok, false);
+  const policies = await pool.query("SELECT tablename, policyname FROM pg_policies WHERE tablename LIKE 'gameplay_%'");
+  assert.deepEqual(policies.rows, [], "no policy for any role");
+  const exposed = await pool.query("SELECT proname FROM pg_proc WHERE proname = 'gameplay_current_player_id'");
+  assert.deepEqual(exposed.rows, [], "revision 2's JWT helper is gone");
   for (const role of ["anon", "authenticated"]) {
     const r = await pool.query(`SELECT has_function_privilege($1, 'public.gameplay_ensure_day_partitions(integer, integer)', 'EXECUTE') AS f,
-      has_schema_privilege($1, 'gameplay_partitions', 'USAGE') AS s, has_sequence_privilege($1, 'public.gameplay_push_seq', 'USAGE') AS q`, [role]);
-    assert.deepEqual(r.rows[0], { f: false, s: false, q: false }, role);
-  }
-  // The ledger, its counters, the proofs and the player numbers are server only, even for the signed-in role.
-  for (const t of ["gameplay_players", "gameplay_push_events", "gameplay_walker_days", "gameplay_player_day_proofs"]) {
-    const r = await pool.query("SELECT has_any_column_privilege('authenticated', $1, 'SELECT') AS s", [`public.${t}`]);
-    assert.equal(r.rows[0].s, false, t);
+      has_schema_privilege($1, 'gameplay_partitions', 'USAGE') AS s, has_sequence_privilege($1, 'public.gameplay_push_seq', 'USAGE') AS q,
+      has_sequence_privilege($1, 'public.gameplay_source_no_seq', 'USAGE') AS q2`, [role]);
+    assert.deepEqual(r.rows[0], { f: false, s: false, q: false, q2: false }, role);
   }
 });
 
@@ -444,19 +444,16 @@ test("capacity guard: a hard stop refuses pushes with 503 and writes nothing, a 
 
 /* ── row level security ─────────────────────────────────────────────────── */
 
-test("RLS: a signed-in player reads only their own rows and writes nothing", { skip: SKIP }, async () => {
-  const a = "usr-rule-a";
+test("RLS: a signed-in player, with or without JWT claims, reads and writes nothing; anon neither", { skip: SKIP }, async () => {
   const b = "usr-rule-b";
-  await asAuthenticated(`sub-${a}`, async (c) => {
-    const units = await c.query("SELECT unit, holder_id FROM gameplay_units");
-    assert.ok(units.rows.length > 0);
-    assert.ok(units.rows.every((r) => r.holder_id === a));
-    const sessions = await c.query("SELECT user_id FROM gameplay_applied_sessions");
-    assert.ok(sessions.rows.every((r) => r.user_id === a));
-    // Columns outside the grant are refused.
-    assert.equal(await errorCode(c.query("SELECT masked FROM gameplay_units")), "42501");
-  });
   for (const [sql, args] of [
+    ["SELECT unit, holder_id FROM gameplay_units", []],
+    ["SELECT user_id FROM gameplay_applied_sessions", []],
+    ["SELECT 1 FROM gameplay_credit_lines", []],
+    ["SELECT 1 FROM gameplay_clubs", []],
+    ["SELECT 1 FROM gameplay_club_memberships", []],
+    ["SELECT 1 FROM gameplay_session_paths", []],
+    ["SELECT day FROM gameplay_day_settlements", []],
     ["INSERT INTO gameplay_units (unit, as_of_day, holding_rules_version) VALUES ($1, 1, 1)", [big("u-forged")]],
     ["UPDATE gameplay_units SET strength = 100 WHERE holder_id = $1", [b]],
     ["SELECT walker_no FROM gameplay_push_events", []],
@@ -466,25 +463,21 @@ test("RLS: a signed-in player reads only their own rows and writes nothing", { s
     [`SELECT 1 FROM gameplay_partitions.gameplay_push_events_d${D}`, []],
     ["DELETE FROM gameplay_push_events WHERE walker_no = 1", []],
     ["INSERT INTO gameplay_clubs (club_id, name) VALUES ('forged-club-1', 'Forged')", []],
-    ["SELECT problems FROM gameplay_day_settlements", []],
     ["SELECT * FROM gameplay_unit_day_states", []],
+    ["SELECT * FROM gameplay_unit_challenges", []],
   ] as const) {
-    const code = await asAuthenticated(`sub-${a}`, (c) => errorCode(c.query(sql, [...args])));
-    assert.equal(code, "42501", sql);
-  }
-  // No JWT claims: the signed-in role sees nothing at all.
-  await asAuthenticated(null, async (c) => {
-    assert.equal((await c.query("SELECT 1 FROM gameplay_units")).rows.length, 0);
-    assert.equal((await c.query("SELECT 1 FROM gameplay_clubs")).rows.length, 0);
-  });
-  // anon reads nothing.
-  const anon = await pool.connect();
-  try {
-    await anon.query("BEGIN; SET LOCAL ROLE anon");
-    assert.equal(await errorCode(anon.query("SELECT 1 FROM gameplay_units")), "42501");
-  } finally {
-    await anon.query("ROLLBACK");
-    anon.release();
+    for (const sub of ["sub-usr-rule-a", null]) {
+      const code = await asAuthenticated(sub, (c) => errorCode(c.query(sql, [...args])));
+      assert.equal(code, "42501", `${sub ?? "no claims"}: ${sql}`);
+    }
+    const anon = await pool.connect();
+    try {
+      await anon.query("BEGIN; SET LOCAL ROLE anon");
+      assert.equal(await errorCode(anon.query(sql, [...args])), "42501", `anon: ${sql}`);
+    } finally {
+      await anon.query("ROLLBACK");
+      anon.release();
+    }
   }
 });
 

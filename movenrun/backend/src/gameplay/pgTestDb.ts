@@ -1,11 +1,11 @@
 /**
  * A throwaway PostgreSQL database for the gameplay tests: the committed chain
- * 0000-0010, then the proposed 0011 (and, when asked, the proposed 1002
- * session-path addendum), each in one transaction. Test support only; the
+ * 0000-0010, then (when asked) the proposed 0011 revision 3, which includes
+ * rule set 1002's session paths, each in one transaction. Test support only; the
  * caller drops the database when done. Nothing here runs against a hosted
  * database: the URL comes from MOVENRUN_TEST_DATABASE_URL.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
@@ -39,7 +39,7 @@ async function runInTx(pool: pg.Pool, statements: string[]): Promise<void> {
   }
 }
 
-export async function createTestDb(url: string, prefix: string, opts: { gameplay: boolean; sessionPaths: boolean }): Promise<TestDb> {
+export async function createTestDb(url: string, prefix: string, opts: { gameplay: boolean }): Promise<TestDb> {
   const admin = new pg.Pool({ connectionString: url });
   admin.on("error", () => undefined);
   for (const role of ["anon", "authenticated"]) {
@@ -55,9 +55,6 @@ export async function createTestDb(url: string, prefix: string, opts: { gameplay
   const journal = JSON.parse(readFileSync(join(BACKEND, "drizzle", "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
   await runInTx(pool, journal.entries.flatMap((e) => sqlFile(`drizzle/${e.tag}.sql`)));
   if (opts.gameplay) await runInTx(pool, sqlFile("drizzle-proposed/0011_gameplay_holdings.sql"));
-  if (opts.gameplay && opts.sessionPaths && existsSync(join(BACKEND, "drizzle-proposed/1002_session_paths.sql"))) {
-    await runInTx(pool, sqlFile("drizzle-proposed/1002_session_paths.sql"));
-  }
   return {
     pool,
     db: drizzle(pool) as unknown as Db,

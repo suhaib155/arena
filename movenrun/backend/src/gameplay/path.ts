@@ -8,7 +8,7 @@
  * resolution 10 unit cannot be recovered from a resolution 8 cell, and the
  * raw fixes are never stored. So the path is derived here, once, from the
  * very fixes the pipeline has just verified, in the same request, and stored
- * beside the verification (see `drizzle-proposed/1002_session_paths.sql`).
+ * beside the verification (table `gameplay_session_paths`, proposed migration 0011 revision 3).
  * Nothing the client sends is a cell: the input is the verified observation.
  *
  * What the path contains, in walk order (first touch):

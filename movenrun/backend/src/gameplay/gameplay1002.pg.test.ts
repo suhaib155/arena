@@ -28,7 +28,7 @@ import { DrizzleMovementVerificationRepository } from "../movement/repositories/
 import { MovementVerificationService } from "../movement/services/movementVerification.service.js";
 import { sessionPathFor, toValidatable } from "../movement/http/productionRouter.js";
 import type { MovementObservation, ObservedPoint } from "../movement/domain/types.js";
-import { cellToInt8, deriveSessionPath, VERIFIED_STEPS_V1 } from "./path.js";
+import { cellToInt8, deriveSessionPath, int8ToCell, VERIFIED_STEPS_V1 } from "./path.js";
 import { fixesOf, poly, ROUTE_FIXTURES } from "./pathFixtures.js";
 import { DAY_MS, PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, type GameplayRules } from "./rules.js";
 import { GameplayError, GameplayService } from "./service.js";
@@ -44,6 +44,14 @@ const A9: GameplayRules = { ...PILOT_PROPOSAL, holding: { ...PILOT_PROPOSAL.hold
 const at = (day: number, hour: number) => day * DAY_MS + Math.round(hour * H);
 const ZONES = gridDisk(latLngToCell(51.52, -0.1, 9), 7).sort();
 const U = ZONES.flatMap((z) => cellToChildren(z, 10).sort());
+/** Resolution 8 cells for rule set 1001, which pushes the pipeline's stored cells. */
+const R8 = gridDisk(latLngToCell(51.52, -0.1, 8), 3).sort();
+/** The ledger (revision 3: player numbers, bigint units, outcome codes) as user ids and outcome names. */
+const LEDGER = `(SELECT e.seq, e.day, e.unit, e.source_no, w.user_id AS walker_id, ph.user_id AS previous_holder_id, nh.user_id AS new_holder_id,
+    (ARRAY['claimed', 'reinforced', 'eroded', 'flipped'])[e.outcome] AS outcome, e.strength_before, e.strength_after
+  FROM gameplay_push_events e JOIN gameplay_players w ON w.player_no = e.walker_no
+  LEFT JOIN gameplay_players ph ON ph.player_no = e.previous_holder_no LEFT JOIN gameplay_players nh ON nh.player_no = e.new_holder_no) ledger`;
+const DAYROWS = `(SELECT d.*, p.user_id AS walker_id FROM gameplay_walker_days d JOIN gameplay_players p ON p.player_no = d.walker_no) dayrows`;
 
 let t: TestDb;
 let clock = at(D, 9);
@@ -52,7 +60,7 @@ let a9: GameplayService;
 
 before(async () => {
   if (!DATABASE_URL) return;
-  t = await createTestDb(DATABASE_URL, "rules_g1002", { gameplay: true, sessionPaths: true });
+  t = await createTestDb(DATABASE_URL, "rules_g1002", { gameplay: true });
   p2 = new GameplayService({ db: t.db, rules: P2, now: () => clock });
   a9 = new GameplayService({ db: t.db, rules: A9, now: () => clock });
 });
@@ -93,7 +101,7 @@ const walk = async (svc: GameplayService, userId: string, sid: string, endMs: nu
   await session(userId, sid, endMs, units, opts);
   return svc.applySession(userId, sid);
 };
-const unitRow = async (u: string) => (await q("SELECT holder_id, strength FROM gameplay_units WHERE unit_id = $1", [u]))[0];
+const unitRow = async (u: string) => (await q("SELECT holder_id, strength FROM gameplay_units WHERE unit = $1", [cellToInt8(u)]))[0];
 
 /* ── the resolution mismatch, through the real pipeline ─────────────────── */
 
@@ -131,7 +139,8 @@ test("the movement pipeline stores the resolution 10 path of verified fixes; 100
   assert.equal(row.bits.length, expected.units.length);
   const r = await p2.applySession(ana, "pipe-1");
   assert.equal(r.outcomes.claimed, expected.units.length);
-  const seqOrder = (await q("SELECT unit_id FROM gameplay_push_events WHERE source_session_id = $1 ORDER BY seq", [record.id])).map((x) => x.unit_id);
+  const seqOrder = (await q(`SELECT ledger.unit::text AS unit FROM ${LEDGER} JOIN gameplay_applied_sessions s ON s.source_no = ledger.source_no
+    WHERE s.movement_verification_id = $1 ORDER BY ledger.seq`, [record.id])).map((x) => int8ToCell(x.unit));
   assert.deepEqual(seqOrder, expected.units, "stored in walk order");
   if (process.env.MOVENRUN_PRINT_MEASUREMENTS) {
     const text = (await q("SELECT pg_column_size($1::text[]) AS b", [expected.units]))[0].b;
@@ -144,7 +153,7 @@ test("the movement pipeline stores the resolution 10 path of verified fixes; 100
 });
 
 test("gameplay off: the pipeline works on a database without 0011 and stores nothing for gameplay", { skip: SKIP }, async () => {
-  const bare = await createTestDb(DATABASE_URL!, "rules_bare", { gameplay: false, sessionPaths: false });
+  const bare = await createTestDb(DATABASE_URL!, "rules_bare", { gameplay: false });
   try {
     await bare.pool.query("INSERT INTO users (id) VALUES ('solo')");
     const out = await pipeline(false, bare.db).submit({ userId: "solo", clientSessionId: "s", observation: observation(1, at(D, 11)) });
@@ -169,7 +178,7 @@ test("the budget is applied in walk order: of twenty units walked in reverse id 
   const walked = [...units].reverse();
   const r = await walk(p2, ben, "ben-walk", at(D, 12), walked);
   assert.deepEqual([r.outcomes.eroded, r.outcomes.refused_take_budget], [13, 7]);
-  const taken = (await q("SELECT unit_id FROM gameplay_push_events WHERE walker_id = $1 AND outcome = 'eroded' ORDER BY seq", [ben])).map((x) => x.unit_id);
+  const taken = (await q(`SELECT unit::text AS unit FROM ${LEDGER} WHERE walker_id = $1 AND outcome = 'eroded' ORDER BY seq`, [ben])).map((x) => int8ToCell(x.unit));
   assert.deepEqual(taken, walked.slice(0, 13));
 });
 
@@ -184,7 +193,7 @@ test("midnight straddle by server receipt: 23:50 then 00:20 cannot flip; back 20
   const early = await walk(p2, cal, "cal-0020", at(D + 1, 0.33), [u]);
   assert.deepEqual([early.day, early.outcomes.flipped, early.outcomes.eroded], [D + 1, 0, 1]);
   assert.equal((await unitRow(u)).holder_id, "ana");
-  assert.deepEqual((await q("SELECT first_day FROM gameplay_unit_challenges WHERE unit_id = $1 AND walker_id = $2", [u, cal])).map((x) => Number(x.first_day)), [D]);
+  assert.deepEqual((await q("SELECT first_day FROM gameplay_unit_challenges WHERE unit = $1 AND walker_id = $2", [cellToInt8(u), cal])).map((x) => Number(x.first_day)), [D]);
   // Device clock ahead: a walk the device dates tomorrow is refused by server time, whatever its receipt.
   clock = at(D + 1, 19);
   assert.equal(await code(walk(p2, cal, "cal-ahead", at(D + 2, 0.2), [u])), "session_in_future");
@@ -212,10 +221,10 @@ test("one walker on three devices: 30 overlapping sessions, each submitted twice
   for (const f of failed) assert.equal((f.reason as GameplayError).code, "concurrent_push_retry");
   // Idempotent retries of anything that had to be retried.
   for (const s of sids) await p2.applySession(dev, s);
-  const perUnit = await q("SELECT unit_id, count(*)::int AS n FROM gameplay_push_events WHERE walker_id = $1 AND outcome IN ('eroded','flipped') GROUP BY unit_id", [dev]);
+  const perUnit = await q(`SELECT unit, count(*)::int AS n FROM ${LEDGER} WHERE walker_id = $1 AND outcome IN ('eroded','flipped') GROUP BY unit`, [dev]);
   assert.ok(perUnit.every((r) => r.n === 1), "one push per walker, unit and day");
   assert.equal(perUnit.length, 13);
-  assert.equal((await q("SELECT takes_used FROM gameplay_walker_days WHERE walker_id = $1 AND day = $2", [dev, D + 2]))[0].takes_used, 13);
+  assert.equal((await q(`SELECT takes_used FROM ${DAYROWS} WHERE walker_id = $1 AND day = $2`, [dev, D + 2]))[0].takes_used, 13);
   assert.equal((await q("SELECT count(*)::int AS n FROM gameplay_applied_sessions WHERE user_id = $1", [dev]))[0].n, 30);
   if (process.env.MOVENRUN_PRINT_MEASUREMENTS) console.log(`devices: ${failed.length} of 60 concurrent applies asked to retry`);
 });
@@ -238,10 +247,10 @@ test("30 challengers on one unit at once, then all 30 back 22 hours later at onc
   assert.equal(second.reduce((a, r) => a + r.outcomes.eroded, 0), 29);
   const winner = (await unitRow(u)).holder_id as string;
   assert.ok(ws.includes(winner));
-  const open = await q("SELECT walker_id, first_day FROM gameplay_unit_challenges WHERE unit_id = $1", [u]);
+  const open = await q("SELECT walker_id, first_day FROM gameplay_unit_challenges WHERE unit = $1", [cellToInt8(u)]);
   assert.equal(open.length, 29);
   assert.ok(open.every((c) => Number(c.first_day) === D + 3 && c.walker_id !== winner));
-  const chain = await q("SELECT previous_holder_id, new_holder_id, strength_before, strength_after, day FROM gameplay_push_events WHERE unit_id = $1 ORDER BY seq", [u]);
+  const chain = await q(`SELECT previous_holder_id, new_holder_id, strength_before, strength_after, day FROM ${LEDGER} WHERE unit = $1 ORDER BY seq`, [cellToInt8(u)]);
   for (let i = 1; i < chain.length; i++) {
     assert.equal(chain[i].previous_holder_id, chain[i - 1].new_holder_id);
     if (chain[i].day === chain[i - 1].day) assert.equal(chain[i].strength_before, chain[i - 1].strength_after);
@@ -253,7 +262,7 @@ test("mid-season rule change fails closed: 1001 cannot touch a 1002 season, and 
   assert.equal(await code(walk(a9, "ana", "a9-mid", at(D + 3, 11), [], { path: false })), "rules_version_mismatch", "a pinned day");
   clock = at(D + 4, 12);
   await session("ana", "a9-new-day", at(D + 4, 11), [], { path: false });
-  await t.pool.query("UPDATE movement_verifications SET traversed_hex_ids = $1 WHERE client_session_id = 'a9-new-day'", [["u-a9-x"]]);
+  await t.pool.query("UPDATE movement_verifications SET traversed_hex_ids = $1 WHERE client_session_id = 'a9-new-day'", [[R8[0]!]]);
   assert.equal(await code(a9.applySession("ana", "a9-new-day")), "season_rules_changed", "a new day of the 1002 season");
   // Season 2 starts on D+90. 20 pushes under each rule set race on its first two days (the first in its grace).
   const S2 = D + 90;
@@ -266,7 +275,7 @@ test("mid-season rule change fails closed: 1001 cannot touch a 1002 season, and 
     await session(w, `race-p2-${i}`, end, [U[400 + i]!]);
     await t.pool.query(
       `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time)
-       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6)`, [`mv-race-a9-${i}`, w, `race-a9-${i}`, [`u-race-${i}`], end - 1_800_000, end]);
+       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6)`, [`mv-race-a9-${i}`, w, `race-a9-${i}`, [R8[i + 1]!], end - 1_800_000, end]);
   }
   const settled = await Promise.allSettled(racers.flatMap((w, i) => [p2.applySession(w, `race-p2-${i}`), a9.applySession(w, `race-a9-${i}`)]));
   const codes = settled.map((s) => (s.status === "fulfilled" ? "ok" : (s.reason as GameplayError).code));
@@ -291,16 +300,16 @@ test("day close: a zone shared by two holders splits per holder (levels differ, 
   await walk(p2, eve, "eve-s", at(S, 8), [kids[0]!, kids[1]!, kids[2]!]);
   await walk(p2, fay, "fay-s", at(S, 9), [kids[3]!]);
   // One of Eve's units at level 2 (no level purchase exists; set by hand): the shared model alone would refuse the day.
-  await t.pool.query("UPDATE gameplay_units SET level = 2 WHERE unit_id = $1", [kids[0]]);
-  await t.pool.query("UPDATE gameplay_unit_day_states SET level = 2 WHERE unit_id = $1 AND day = $2", [kids[0], S]);
+  await t.pool.query("UPDATE gameplay_units SET level = 2 WHERE unit = $1", [cellToInt8(kids[0]!)]);
+  await t.pool.query("UPDATE gameplay_unit_day_states SET level = 2 WHERE unit = $1 AND day = $2", [cellToInt8(kids[0]!), S]);
   // Fay's unit is deeded: crossing it costs a toll only when stepped on, never when interpolated.
-  await t.pool.query("UPDATE gameplay_units SET deeded = true WHERE unit_id = $1", [kids[3]]);
-  await t.pool.query("UPDATE gameplay_unit_day_states SET deeded = true WHERE unit_id = $1 AND day = $2", [kids[3], S]);
+  await t.pool.query("UPDATE gameplay_units SET deeded = true WHERE unit = $1", [cellToInt8(kids[3]!)]);
+  await t.pool.query("UPDATE gameplay_unit_day_states SET deeded = true WHERE unit = $1 AND day = $2", [cellToInt8(kids[3]!), S]);
   const gus = await user("gus");
   const hal = await user("hal");
   await walk(p2, gus, "gus-s", at(S, 10), [kids[4]!, kids[3]!, kids[5]!], { interpolated: [false, true, false] });
   await walk(p2, hal, "hal-s", at(S, 11), [kids[6]!, kids[3]!], { interpolated: [false, false] });
-  await t.pool.query("INSERT INTO gameplay_unit_districts (unit_id, district_id, districts_version) SELECT unit_id, 'district-a', 'test-v1' FROM gameplay_units ON CONFLICT DO NOTHING");
+  await t.pool.query("INSERT INTO gameplay_unit_districts (unit, district_id, districts_version) SELECT unit, 'district-a', 'test-v1' FROM gameplay_units ON CONFLICT DO NOTHING");
   clock = at(S + 1, 3);
   const day = await p2.settleDay(S);
   const header = (await q("SELECT status, problems FROM gameplay_day_settlements WHERE day = $1", [S]))[0];

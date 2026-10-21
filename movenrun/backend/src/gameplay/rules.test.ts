@@ -58,15 +58,21 @@ test("0011 is proposed only: not in drizzle/, its journal or its checksums", () 
   assert.ok(journal.includes("0010_google_sign_in_exchanges"), "0011 follows the live chain's latest migration");
 });
 
-test("0011 enables RLS on every table it creates, grants nothing to anon, and its rollback drops them all", () => {
+test("0011 enables RLS on every table it creates, grants nothing to anon or authenticated, and its rollback drops them all", () => {
   const created = [...up.matchAll(/CREATE TABLE IF NOT EXISTS "([a-z_]+)"/g)].map((m) => m[1]!);
-  assert.equal(created.length, 16);
+  assert.equal(created.length, 17);
+  assert.ok(created.includes("gameplay_session_paths"), "revision 3 folds in 1002's session paths");
   for (const t of created) {
     assert.match(up, new RegExp(`ALTER TABLE "${t}" ENABLE ROW LEVEL SECURITY`), t);
     assert.match(down, new RegExp(`DROP TABLE IF EXISTS "${t}"`), t);
     assert.ok(t.startsWith("gameplay_"), t);
   }
   assert.doesNotMatch(up, /\bGRANT\b[^;]*\bTO\s+anon\b/);
+  // Revision 3: default deny. No grant and no policy for any API role.
+  const upStatements = up.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
+  assert.doesNotMatch(upStatements, /\bGRANT\b/);
+  assert.doesNotMatch(upStatements, /\bCREATE POLICY\b/);
+  assert.doesNotMatch(upStatements, /gameplay_current_player_id/);
   assert.doesNotMatch(up, /\bGRANT\s+(ALL|INSERT|UPDATE|DELETE|TRUNCATE)/);
   assert.doesNotMatch(up, /\bFOR\s+(ALL|INSERT|UPDATE|DELETE)\b/, "no write policy for any role");
   // The rollback touches only what 0011 created.
@@ -162,7 +168,7 @@ test("0011: the rule, counter and challenge tables are server only, and the roll
   assert.doesNotMatch(statements, /\bCASCADE\b/, "the rollback never cascades into anything 0011 did not make");
 });
 
-test("0011 revision 2 is the compact layout: partitioned ledger, derived event ids, bigint cells, integer players, refusals as counts", () => {
+test("0011 revision 3 keeps revision 2's compact layout (partitioned ledger, derived event ids, bigint cells, integer players, refusals as counts) and adds session paths and the challenge receipt time", () => {
   const table = (name: string) => {
     const m = up.match(new RegExp(`CREATE TABLE IF NOT EXISTS "${name}" \\(([\\s\\S]*?)\\n\\)( PARTITION BY RANGE \\("day"\\))?;`));
     assert.ok(m, name);
@@ -191,6 +197,10 @@ test("0011 revision 2 is the compact layout: partitioned ledger, derived event i
   assert.match(up, /ALTER TABLE gameplay_partitions\.%I ENABLE ROW LEVEL SECURITY/);
   assert.match(up, /REVOKE ALL ON FUNCTION public\.gameplay_ensure_day_partitions\(integer, integer\) FROM PUBLIC/);
   assert.doesNotMatch(up, /DEFAULT PARTITION/, "no catch-all partition: a day without one fails closed");
+  // Revision 3: 1002's session paths (bigint units, one bit each) and the server receipt time of an open challenge.
+  assert.match(table("gameplay_session_paths").body, /"unit_ids" bigint\[\] NOT NULL/);
+  assert.match(table("gameplay_session_paths").body, /"interpolated" varbit NOT NULL/);
+  assert.match(table("gameplay_unit_challenges").body, /"opened_received_at" timestamptz NOT NULL,/);
   // No coordinates anywhere in 0011.
   assert.doesNotMatch(up, /\b(lat|lng|latitude|longitude|coordinates?)\b/i);
 });

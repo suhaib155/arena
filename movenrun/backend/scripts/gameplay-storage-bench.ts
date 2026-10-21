@@ -227,6 +227,12 @@ const PROFILES: Record<string, Scenario[]> = {
     { name: "cap-res10-hostile2x-nobudget", rulesVersion: 1002, res: 10, density: "dense", players: 100, days: 7, activeShare: 0.6, sessionsPerActiveDay: 1.5, walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7], alternatives: true,
       hostile: { accounts: 10, sessionsPerDay: 20, units: 500 }, unitBudget: null },
   ],
+  // Revision 3 (integration of storage revision 2 and rule set 1002): 1 to 1000 players for 14 days
+  // (a 14-day raw retention window), with 1002's session paths written as the movement pipeline would.
+  integration: [1, 100, 200, 500, 1000].map((players): Scenario => ({
+    name: `r3-res10-${players}`, rulesVersion: 1002, res: 10, density: "dense", players, days: 14, activeShare: 0.6, sessionsPerActiveDay: 1.5,
+    walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7, 14], explain: players === 1000,
+  })),
 };
 
 /* ── database helpers ──────────────────────────────────────────────────── */
@@ -325,6 +331,10 @@ interface ScenarioResult {
   hostileOutcomes?: Record<string, number>;
   /** Temp files written by each day's settlement (pg_stat_database), the sort spill. */
   settleSpill?: { day: number; tempFiles: number; tempBytes: number; ms: number }[];
+  /** Cluster WAL written by the scenario's daily writes and settlements, measurement VACUUMs excluded (pg_current_wal_lsn differences; cluster-wide). */
+  walBytes?: number;
+  /** Revision 3: 1002 session path rows written beside the verifications. */
+  sessionPaths?: number;
   /** Revision 2 only: bytes of one empty day partition, per partitioned table. */
   emptyPartition?: Record<string, number>;
   partitions?: number;
@@ -451,8 +461,15 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
     let explain: ScenarioResult["explain"] = null;
     const hostileBlock = s.hostile ? gridDisk(latLngToCell(CENTER.lat, CENTER.lng, s.res), 14).slice(0, s.hostile.units) : [];
     const lastDay = SEASON_START + s.days - 1;
+    // Rule set 1002 pushes the stored session path; the movement pipeline writes it (resolution 10, walk order)
+    // beside the verification and keeps the resolution 8 cells in traversed_hex_ids.
+    const writesPaths = Boolean(rules.units.source) && proposedTables.includes("gameplay_session_paths");
+    let sessionPaths = 0;
+    const lsn = async () => String((await pool.query("SELECT pg_current_wal_lsn()::text AS l")).rows[0].l);
+    let walBytes = 0;
 
     for (let day = SEASON_START; day <= lastDay; day++) {
+      const walDayStart = await lsn();
       const todays: { userId: string; clientSessionId: string; id: string; cells: string[]; meters: number; seconds: number; end: number; hostile?: boolean }[] = [];
       for (const p of players) {
         if (rng() >= s.activeShare) continue;
@@ -480,7 +497,14 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
         SELECT t.id, t.u, t.c, 'verified', t.m, t.s, string_to_array(t.cells, ','), 0.92, t.e - t.s * 1000, t.e, 'onFoot', 1, t.e - t.s * 1000 - 5000, t.e + 2000, 0, false, 0
           FROM unnest($1::text[], $2::text[], $3::text[], $4::int[], $5::int[], $6::text[], $7::bigint[]) AS t(id, u, c, m, s, cells, e)`,
         [todays.map((x) => x.id), todays.map((x) => x.userId), todays.map((x) => x.clientSessionId), todays.map((x) => x.meters),
-          todays.map((x) => x.seconds), todays.map((x) => x.cells.join(",")), todays.map((x) => x.end)]);
+          todays.map((x) => x.seconds), todays.map((x) => (writesPaths ? [...new Set(x.cells.map((c) => cellToParent(c, 8)))] : x.cells).join(",")), todays.map((x) => x.end)]);
+      if (writesPaths) {
+        for (const x of todays) {
+          await pool.query(`INSERT INTO gameplay_session_paths (movement_verification_id, path_version, resolution, unit_ids, interpolated, skipped_segments, truncated)
+            VALUES ($1, 1, 10, $2::bigint[], $3::varbit, 0, false)`, [x.id, x.cells.map(cellToInt8), x.cells.map(() => "0").join("")]);
+          sessionPaths += 1;
+        }
+      }
       clock = at(day, 23.5);
       const isProbeDay = s.explain && day === lastDay;
       const toApply = isProbeDay ? todays.slice(0, -1) : todays;
@@ -531,6 +555,8 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       const ms = Date.now() - ts;
       const t2 = await temp();
       settleSpill.push({ day: day - SEASON_START + 1, tempFiles: t2.files - t1.files, tempBytes: t2.bytes - t1.bytes, ms });
+      // WAL of the day's writes and settlement only (not the measurement VACUUMs below). Cluster-wide.
+      walBytes += Number((await pool.query("SELECT pg_wal_lsn_diff(pg_current_wal_lsn(), $1::pg_lsn) AS b", [walDayStart])).rows[0].b);
       const n = day - SEASON_START + 1;
       if (s.checkpoints.includes(n)) {
         await pool.query("VACUUM ANALYZE");
@@ -569,7 +595,7 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       outcomes, retries, checkpoints, pushEventIndexes,
       dayStatesPerPush: rowsOf("gameplay_unit_day_states") / Math.max(1, pushes.normal + pushes.hostile),
       distinctUnits: rowsOf("gameplay_units"), districtMapUnits: mapCells.length, clubs: nClubs, districts,
-      authFootprint, alternatives, explain, seconds: (Date.now() - t0) / 1000,
+      authFootprint, alternatives, explain, walBytes, sessionPaths, seconds: (Date.now() - t0) / 1000,
     };
   } finally {
     await pool.end();
