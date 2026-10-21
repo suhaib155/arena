@@ -99,12 +99,12 @@ done; the X-07 invocation proof (X-07b) happens inside the X-05 window.
 |---|---|---|---|
 | V1 | JWT Keys page: Current = ECC (P-256); legacy secret = **Revoked** | Owner, dashboard | as stated |
 | V2 | API Keys page: legacy `anon` / `service_role` disabled | Owner, dashboard | as stated |
-| V3 | Public JWKS lists only asymmetric public keys (no `oct` key) | Claude, public URL | `kty` EC/RSA only |
-| V4 | API `/ready` = 200 | Claude | 200 |
-| V5 | API refuses forged tokens on `POST /identity/auth/google/complete`: HS256 (random key), ES256 (unknown `kid`), `alg: none` | Claude | 401 `verification_failed` each; missing token 400 |
+| V3 | Public JWKS lists only asymmetric public keys (no `oct` key) | Operator, public URL | `kty` EC/RSA only |
+| V4 | API `/ready` = 200 | Operator | 200 |
+| V5 | API refuses forged tokens on `POST /identity/auth/google/complete`: HS256 (random key), ES256 (unknown `kid`), `alg: none` | Operator | 401 `verification_failed` each; missing token 400 |
 | V6 | Render: no `SUPABASE_LEGACY_JWT_SECRET` (name check) | Owner | absent |
 | V7 | Positive path: a real ES256 Supabase token is accepted | First Google sign-in in the X-05 window | sign-in succeeds |
-| V8 | After the next approved deploy (X-24): startup log reads `Supabase tokens: signing keys only` | Owner or Claude, Render logs | as stated |
+| V8 | After the next approved deploy (X-24): startup log reads `Supabase tokens: signing keys only` | Owner or Operator, Render logs | as stated |
 
 Baseline before rotation (2026-10-14 06:2x UTC, Render at `dd83065`): V4 200;
 V5 401/401/401 and 400. These hold before and after; they prove the API
@@ -119,7 +119,7 @@ happen and do not keep the incident open.
 |---|---|---|
 | Render name check | Owner, dashboard | `SUPABASE_LEGACY_JWT_SECRET` removed (it was present) |
 | ECC (P-256) key made Current | Owner, dashboard | Done |
-| Legacy `anon` / `service_role` keys disabled | Claude, Management API (legacy API keys toggle, response `enabled: false`) | Done |
+| Legacy `anon` / `service_role` keys disabled | Operator, Management API (legacy API keys toggle, response `enabled: false`) | Done |
 | Legacy secret revoked | Owner, dashboard | Revoked; "Previously used" list empty |
 
 | Check | Result |
