@@ -6,6 +6,7 @@ import {
   DAY_MS, DEFAULT_RULES_VERSION, PILOT_PROPOSAL, RULESETS, SIM_PILOT_2_PROPOSAL, UnknownRulesVersionError, dayOf, dayStartMs, gameplayRulesFromEnv,
   isUnitUnder, lastClosedDay, rulesetDigest, rulesetFor, rulesetProblems, seasonOf, takeoverRuleOf,
 } from "./rules.js";
+import { VERIFIED_STEPS_V1 } from "./path.js";
 
 const drizzleDir = new URL("../../drizzle/", import.meta.url);
 const proposedDir = new URL("../../drizzle-proposed/", import.meta.url);
@@ -85,14 +86,22 @@ test("rule sets: 1001 (A9 immediate, no budget, unit = zone) is the default; 100
   assert.equal(gameplayRulesFromEnv(ON)?.takeBudget, null);
   const p2 = gameplayRulesFromEnv({ ...ON, MOVENRUN_GAMEPLAY_RULES_VERSION: "1002" })!;
   assert.equal(p2.ruleset, "server-sim-pilot-2-proposal");
-  assert.deepEqual(p2.takeover, { name: "two-day-challenge", policyVersion: 1, windowDays: 3, floor: 50, immediateBelowStrength: 30 });
-  assert.deepEqual(p2.takeBudget, { perWalkerPerDay: 13, counting: "takes-v1" });
-  assert.deepEqual(p2.units, { unit: { kind: "h3", resolution: 10 }, zone: { kind: "h3-parent", resolution: 9 }, mixedHolderZone: "each-holder-holds-zone" });
+  assert.deepEqual(p2.takeover, {
+    name: "two-day-challenge", policyVersion: 2, windowDays: 3, floor: 50, immediateBelowStrength: 30,
+    secondPush: { rule: "min-elapsed-server-receipt", version: 1, minElapsedMs: 20 * 3_600_000 },
+  });
+  assert.deepEqual(p2.takeBudget, { perWalkerPerDay: 13, counting: "takes-v1", order: "walk-order-v1" });
+  assert.deepEqual(p2.units, {
+    unit: { kind: "h3", resolution: 10 }, zone: { kind: "h3-parent", resolution: 9 }, mixedHolderZone: "each-holder-holds-zone",
+    source: { kind: "session-path", rule: VERIFIED_STEPS_V1 }, partition: "per-holder-min-level-v1",
+  });
+  assert.deepEqual(p2.dayAttribution, { rule: "d1-last-verified-fix", version: 1 }, "D1, named");
   // The same levers as the simulator's sim-pilot-2 (shared/src/sim/pilotRuleset.ts), under a server version.
   assert.deepEqual(p2.holding.takeover, { challenge: { windowDays: 3, floor: 50, immediateBelowStrength: 30 }, maxFlipsPerUnitPerDay: null });
   assert.notEqual(p2.holding.rulesVersion, 9002);
   // Everything else is 1001's: only the three levers differ.
-  const { ruleset: _a, holding: _b, takeover: _c, takeBudget: _d, units: _e, ...rest2 } = SIM_PILOT_2_PROPOSAL;
+  // (dayAttribution names D1 in 1002; 1001 runs the same D1 unnamed, so its recorded identity stays as it was.)
+  const { ruleset: _a, holding: _b, takeover: _c, takeBudget: _d, units: _e, dayAttribution: _k, ...rest2 } = SIM_PILOT_2_PROPOSAL;
   const { ruleset: _f, holding: _g, takeover: _h, takeBudget: _i, units: _j, ...rest1 } = PILOT_PROPOSAL;
   assert.deepEqual(rest2, rest1);
   assert.deepEqual({ ...SIM_PILOT_2_PROPOSAL.holding, rulesVersion: 0, takeover: undefined }, { ...PILOT_PROPOSAL.holding, rulesVersion: 0, takeover: undefined });

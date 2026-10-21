@@ -16,7 +16,7 @@
  * order), so the same batch always gives the same result whatever order it
  * arrived in. Across batches the order is commit order.
  */
-import type { HoldingRules, PushOutcome, UnitState } from "@movenrun/shared/holding";
+import { decayTo, type HoldingRules, type PushOutcome, type UnitState } from "@movenrun/shared/holding";
 import { applyLedger, type LedgerEntry, type PushEvent, type RejectReason } from "@movenrun/shared/holdingLedger";
 import type { TakeBudget } from "./rules.js";
 
@@ -69,7 +69,26 @@ export interface ServerLedgerInput {
    * the map has none left.
    */
   unitsRemaining?: ReadonlyMap<string, number>;
+  /**
+   * Walk position of each event (its unit's first-touch index in the
+   * session path). Used only when the budget's order is `walk-order-v1`;
+   * events without one come after, by event id.
+   */
+  walkOrder?: ReadonlyMap<string, number>;
+  /** The challenge's day-boundary guard (`SecondPushGap`), with the server receipt times it needs. */
+  secondPush?: SecondPushInput;
 }
+
+export interface SecondPushInput {
+  minElapsedMs: number;
+  windowDays: number;
+  /** Server receipt time of each event's session (epoch ms). */
+  eventReceivedMs: ReadonlyMap<string, number>;
+  /** Server receipt time of the session that opened each open challenge, keyed by `challengeKey`. Unknown is treated as too recent. */
+  challengeOpenedMs: ReadonlyMap<string, number>;
+}
+
+export const challengeKey = (unitId: string, walkerId: string) => `${unitId}\u0000${walkerId}`;
 
 export interface ServerLedgerResult {
   states: Map<string, UnitState>;
@@ -80,6 +99,20 @@ export interface ServerLedgerResult {
   takesUsed: Map<string, number>;
   /** Units this batch counted against each walker's unit budget: every applied push, refusals included. */
   unitsUsed: Map<string, number>;
+  /** With `secondPush`: receipt times of open challenges after the batch (input ones plus any opened by it). */
+  challengeOpenedMs: Map<string, number>;
+}
+
+function walkComparator(walk: ReadonlyMap<string, number>) {
+  return (a: PushEvent, b: PushEvent): number => {
+    const da = Number.isFinite(a.day) ? a.day : -Infinity;
+    const db = Number.isFinite(b.day) ? b.day : -Infinity;
+    if (da !== db) return da < db ? -1 : 1;
+    const wa = walk.get(String(a.eventId)) ?? Infinity;
+    const wb = walk.get(String(b.eventId)) ?? Infinity;
+    if (wa !== wb) return wa < wb ? -1 : 1;
+    return compareEvents(a, b);
+  };
 }
 
 /** The shared ledger's event order. */
@@ -105,14 +138,28 @@ export function applyServerLedger(input: ServerLedgerInput): ServerLedgerResult 
   const cap = input.budget?.perWalkerPerDay ?? null;
   const unitsUsed = new Map<string, number>();
 
-  for (const event of [...input.events].sort(compareEvents)) {
+  const order = input.budget?.order === "walk-order-v1" && input.walkOrder ? walkComparator(input.walkOrder) : compareEvents;
+  const opened = new Map(input.secondPush?.challengeOpenedMs ?? []);
+
+  for (const event of [...input.events].sort(order)) {
     const before = typeof event.unitId === "string" ? states.get(event.unitId) : undefined;
+    // The day-boundary guard: a would-be second push that comes too soon after
+    // the push that opened the challenge is shown to the model as a same-day
+    // challenge, so it cannot complete it; the real first day is put back after.
+    const held = input.secondPush && before ? tooSoon(before, event, input.secondPush, opened, input.holding) : null;
     const one = applyLedger({
-      states: before ? new Map([[event.unitId, before]]) : new Map(),
+      states: before ? new Map([[event.unitId, held ? held.presented : before]]) : new Map(),
       events: [event],
       rules: input.holding,
       appliedEventIds: applied.has(event.eventId) ? [event.eventId] : [],
     });
+    if (held && one.entries[0]) {
+      one.entries[0] = { ...one.entries[0], strengthBefore: before!.strength };
+      const s = one.states.get(event.unitId);
+      if (s?.challenges) {
+        one.states.set(event.unitId, { ...s, challenges: s.challenges.map((c) => (c.walkerId === event.walkerId ? { ...c, day: held.firstDay } : c)) });
+      }
+    }
     const r = one.results[0]!;
     if (r.status === "skipped") {
       results.push({ eventId: r.eventId, unitId: r.unitId, status: "skipped", reason: "already_applied" });
@@ -143,11 +190,38 @@ export function applyServerLedger(input: ServerLedgerInput): ServerLedgerResult 
       });
       continue;
     }
-    states.set(event.unitId, one.states.get(event.unitId)!);
+    const after = one.states.get(event.unitId)!;
+    states.set(event.unitId, after);
+    if (input.secondPush && after.challenges?.some((c) => c.walkerId === event.walkerId) && !before?.challenges?.some((c) => c.walkerId === event.walkerId)) {
+      const at = input.secondPush.eventReceivedMs.get(event.eventId);
+      if (at !== undefined) opened.set(challengeKey(event.unitId, event.walkerId), at);
+    }
     if (isTake(entry.outcome)) takesUsed.set(event.walkerId, used + 1);
     else if (!takesUsed.has(event.walkerId)) takesUsed.set(event.walkerId, used);
     results.push({ eventId: event.eventId, unitId: event.unitId, status: "applied", outcome: entry.outcome });
     entries.push({ ...entry, shadeStrength });
   }
-  return { states, results, entries, takesUsed, unitsUsed };
+  return { states, results, entries, takesUsed, unitsUsed, challengeOpenedMs: opened };
+}
+
+/**
+ * The state to show the model when `event` would complete the walker's open
+ * challenge too soon after it opened, else null. The unit is decayed to the
+ * event's day first so the moved challenge date stays consistent with it.
+ */
+function tooSoon(
+  before: UnitState, event: PushEvent, gap: SecondPushInput, opened: ReadonlyMap<string, number>, holding: HoldingRules,
+): { presented: UnitState; firstDay: number } | null {
+  if (before.holderId === null || before.holderId === event.walkerId || !Number.isFinite(event.day) || event.day < before.asOfDay) return null;
+  const mine = before.challenges?.find((c) => c.walkerId === event.walkerId);
+  if (!mine || !(mine.day < event.day) || event.day - mine.day > gap.windowDays) return null;
+  const openedAt = opened.get(challengeKey(event.unitId, event.walkerId));
+  const at = gap.eventReceivedMs.get(event.eventId);
+  if (openedAt !== undefined && at !== undefined && at - openedAt >= gap.minElapsedMs) return null;
+  const decayed = decayTo(before, event.day, holding);
+  if (decayed.holderId === null || !decayed.challenges) return null;
+  return {
+    presented: { ...decayed, challenges: decayed.challenges.map((c) => (c.walkerId === event.walkerId ? { ...c, day: event.day } : c)) },
+    firstDay: mine.day,
+  };
 }

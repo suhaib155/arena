@@ -14,15 +14,15 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID, randomBytes } from "node:crypto";
-import { cellToChildren, cellToParent, gridDisk, latLngToCell } from "h3-js";
+import { cellToChildren, cellToParent, getResolution, gridDisk, isValidCell, latLngToCell } from "h3-js";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { newUnit, type UnitState } from "@movenrun/shared/holding";
 import type { PushEvent } from "@movenrun/shared/holdingLedger";
 import type { Db } from "../db/client.js";
 import { createDrizzleAccountDeletionStore } from "../identity/accountDeletion.js";
-import { applyServerLedger } from "./policy.js";
-import { DAY_MS, PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, type GameplayRules } from "./rules.js";
+import { applyServerLedger, challengeKey } from "./policy.js";
+import { DAY_MS, PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, rulesetConfig, rulesetDigest, type GameplayRules } from "./rules.js";
 import { GameplayError, GameplayService } from "./service.js";
 import { cellToInt8, int8ToCell } from "./cells.js";
 import { createHash } from "node:crypto";
@@ -81,13 +81,29 @@ async function user(id: string): Promise<string> {
   return id;
 }
 
-async function session(userId: string, clientSessionId: string, endMs: number, units: string[]): Promise<string> {
+/**
+ * A verified session, received by the server at `receivedMs` (default: the
+ * test clock). Resolution 10 units also get the stored 1002 path, in the
+ * given (walk) order, as the movement pipeline writes it with gameplay on;
+ * `path: false` stores none, as for a session verified with gameplay off.
+ */
+async function session(userId: string, clientSessionId: string, endMs: number, units: string[],
+  opts: { receivedMs?: number; path?: boolean; interpolated?: boolean[] } = {}): Promise<string> {
   const id = randomUUID();
   await pool.query(
-    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time)
-     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6)`,
-    [id, userId, clientSessionId, units, endMs - 1_800_000, endMs],
+    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
+     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')))`,
+    [id, userId, clientSessionId, units, endMs - 1_800_000, endMs, opts.receivedMs ?? clock],
   );
+  const fine = units.length > 0 && units.every((u) => isValidCell(u) && getResolution(u) === 10);
+  if (opts.path ?? fine) {
+    const flags = opts.interpolated ?? units.map(() => false);
+    await pool.query(
+      `INSERT INTO gameplay_session_paths (movement_verification_id, path_version, resolution, unit_ids, interpolated, skipped_segments, truncated)
+       VALUES ($1, 1, 10, $2::bigint[], $3::varbit, 0, false)`,
+      [id, units.map(cellToInt8), flags.map((f) => (f ? "1" : "0")).join("")],
+    );
+  }
   return id;
 }
 
@@ -132,6 +148,7 @@ before(async () => {
   const journal = JSON.parse(readFileSync(join(BACKEND, "drizzle", "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
   await runInTx(journal.entries.flatMap((e) => sqlFile(`drizzle/${e.tag}.sql`)));
   await runInTx(sqlFile("drizzle-proposed/0011_gameplay_holdings.sql"));
+  await runInTx(sqlFile("drizzle-proposed/1002_session_paths.sql"));
   p2 = new GameplayService({ db, rules: P2, now: () => clock });
   a9 = new GameplayService({ db, rules: A9, now: () => clock });
 });
@@ -300,8 +317,15 @@ test("server time decides the day: a future-dated session is refused, a late upl
   // After the grace the previous day is closed to every upload.
   clock = at(D + 3, 2.5);
   assert.equal(await code(walk(p2, eve, "eve-too-late", at(D + 2, 23.9), [U[73]!])), "day_closed");
-  // Under 1002, a session of resolution 8 cells (what the movement pipeline stores today) is refused whole.
-  assert.equal(await code(walk(p2, eve, "eve-res8", at(D + 3, 2), ["88194ad14dfffff"])), "unit_resolution_mismatch");
+  // Under 1002 the units come from the stored session path, never from the resolution 8 cells:
+  // a session verified without a path (gameplay off at the time) is refused, and so is a path under another rule.
+  assert.equal(await code(walk(p2, eve, "eve-res8", at(D + 3, 2), ["88194ad14dfffff"])), "session_path_unavailable");
+  const odd = await session(eve, "eve-odd-path", at(D + 3, 2), [U[74]!]);
+  await pool.query("UPDATE gameplay_session_paths SET path_version = 2 WHERE movement_verification_id = $1", [odd]);
+  assert.equal(await code(p2.applySession(eve, "eve-odd-path")), "session_path_version_mismatch");
+  // A stored path whose units are not resolution 10 is refused whole.
+  await session(eve, "eve-res9-path", at(D + 3, 2), [ZONES[5]!], { path: true });
+  assert.equal(await code(p2.applySession(eve, "eve-res9-path")), "unit_resolution_mismatch");
 });
 
 test("split sessions: one walk in two uploads takes a unit once and spends one take; across midnight it is two days", { skip: SKIP }, async () => {
@@ -312,12 +336,16 @@ test("split sessions: one walk in two uploads takes a unit once and spends one t
   const b = await walk(p2, gus, "gus-part-2", at(D + 3, 2.8), [U[13]!, U[14]!]);
   assert.deepEqual([a.outcomes.eroded, b.outcomes.eroded, b.outcomes.refused_daily_limit], [2, 1, 1]);
   assert.equal((await pool.query(`SELECT takes_used FROM ${DAYROWS} WHERE walker_id = $1 AND day = $2`, [gus, D + 3])).rows[0].takes_used, 3);
-  // The midnight straddle (open decision): a challenge at 23:50 and a push at 00:20 are two D1 days.
+  // The midnight straddle: a challenge at 23:50 and a push at 00:20 are two D1 days, but the server
+  // received them 30 minutes apart, so the second erodes and keeps the challenge's first day (1002's
+  // 20-hour second-push gap). Under D1 alone this flipped (the exploit).
   clock = at(D + 4, 0.5);
   const hal = await user("hal");
   const before = await walk(p2, hal, "hal-2350", at(D + 3, 23.83), [U[15]!]);
   const afterMidnight = await walk(p2, hal, "hal-0020", at(D + 4, 0.33), [U[15]!]);
-  assert.deepEqual([before.day, before.outcomes.eroded, afterMidnight.day, afterMidnight.outcomes.flipped], [D + 3, 1, D + 4, 1]);
+  assert.deepEqual([before.day, before.outcomes.eroded, afterMidnight.day, afterMidnight.outcomes.flipped, afterMidnight.outcomes.eroded], [D + 3, 1, D + 4, 0, 1]);
+  assert.deepEqual((await challengers(U[15]!)).filter(([w]) => w === hal), [[hal, D + 3]], "too early: the challenge is kept, not restarted");
+  assert.equal((await unitRow(U[15]!)).holder_id, "ana");
 });
 
 /* ── masked and deeded ──────────────────────────────────────────────────── */
@@ -362,8 +390,16 @@ test("day close under 1002: books balance, every holder of a mixed zone holds it
 
   // Replay: every stored push, one at a time in commit order, from unheld ground, under the recorded version.
   // Refusals are not rows: they changed no ground, so the accepted rows alone rebuild every unit.
-  const events = (await pool.query(`SELECT source_no, unit::text AS unit, walker_id, day, shade_strength, outcome, new_holder_id, strength_after, holding_rules_version FROM ${LEDGER} ORDER BY seq`)).rows
+  // Each row's receipt time is the server's: its session row's created_at (or the batch receipt's applied_at).
+  const events = (await pool.query(`SELECT ledger.source_no, ledger.unit::text AS unit, ledger.walker_id, ledger.day, ledger.shade_strength, ledger.outcome,
+      ledger.new_holder_id, ledger.strength_after, ledger.holding_rules_version,
+      (extract(epoch FROM (COALESCE(mv.created_at, s.applied_at) AT TIME ZONE current_setting('TimeZone'))) * 1000)::float8 AS received_ms
+    FROM ${LEDGER} JOIN gameplay_applied_sessions s ON s.source_no = ledger.source_no
+    LEFT JOIN movement_verifications mv ON mv.id = s.movement_verification_id ORDER BY ledger.seq`)).rows
     .map((e) => ({ ...e, unit_id: int8ToCell(e.unit), event_id: `${e.source_no}:${int8ToCell(e.unit)}` }));
+  const tk = P2.takeover;
+  assert.ok(tk.name === "two-day-challenge" && tk.policyVersion === 2);
+  let opened = new Map<string, number>();
   const masked = new Set((await pool.query("SELECT unit::text AS unit FROM gameplay_units WHERE masked")).rows.map((r) => int8ToCell(r.unit)));
   let states = new Map<string, UnitState>();
   const used = new Map<string, number>();
@@ -373,6 +409,7 @@ test("day close under 1002: books balance, every holder of a mixed zone holds it
     const k = `${e.walker_id}:${e.day}`;
     const r = applyServerLedger({
       states, holding: P2.holding, budget: P2.takeBudget, takesUsed: new Map([[e.walker_id, used.get(k) ?? 0]]),
+      secondPush: { minElapsedMs: tk.secondPush.minElapsedMs, windowDays: tk.windowDays, eventReceivedMs: new Map([[e.event_id, Number(e.received_ms)]]), challengeOpenedMs: opened },
       events: [{ eventId: e.event_id, unitId: e.unit_id, walkerId: e.walker_id, day: Number(e.day), push: Number(e.shade_strength) > 0 ? { kind: "shade", strength: Number(e.shade_strength) } : { kind: "solid" } }],
     });
     assert.equal(r.entries[0]?.outcome, e.outcome, e.event_id);
@@ -380,11 +417,19 @@ test("day close under 1002: books balance, every holder of a mixed zone holds it
     assert.equal(r.entries[0]?.strengthAfter, e.strength_after, e.event_id);
     used.set(k, r.takesUsed.get(e.walker_id)!);
     states = r.states;
+    opened = r.challengeOpenedMs;
   }
   for (const [u, s] of states) {
     const row = await unitRow(u);
     assert.deepEqual([row.holder_id, row.strength, row.as_of_day], [s.holderId, s.strength, s.asOfDay], u);
     assert.deepEqual(await challengers(u), (s.challenges ?? []).map((c) => [c.walkerId, c.day]), u);
+  }
+  // Every open challenge stores the server receipt time the replay derives for it (opened_received_at).
+  const stored = (await pool.query("SELECT unit::text AS unit, walker_id, (extract(epoch FROM opened_received_at) * 1000)::float8 AS ms FROM gameplay_unit_challenges")).rows;
+  assert.ok(stored.length > 0);
+  for (const c of stored) {
+    const want = opened.get(challengeKey(int8ToCell(c.unit), c.walker_id));
+    assert.ok(want !== undefined && c.ms !== null && Math.abs(Number(c.ms) - want) < 1, `${c.unit}:${c.walker_id}`);
   }
   // The counters equal the takes in the ledger, for every walker and day.
   const counters = (await pool.query(`SELECT walker_id, day, takes_used FROM ${DAYROWS}`)).rows;
@@ -417,10 +462,17 @@ test("no silent migration: another version on a pinned day, on held ground or at
   // D+4 is pinned to 1002: the 1001 service cannot push on it.
   const ivy = await user("ivy");
   assert.equal(await code(walk(a9, ivy, "ivy-d4", at(D + 4, 11), [R8[0]!])), "rules_version_mismatch");
-  // D+5 is unpinned, but the ground Ben holds under 1002 is never re-read under 1001.
+  // D+5 is unpinned, but season 1 runs 1002: 1001 cannot pin a new day of it (mid-season change), held ground or not.
   clock = at(D + 5, 12);
-  assert.equal(await code(walk(a9, ivy, "ivy-d5-held", at(D + 5, 9), [U[0]!])), "unit_rules_version_mismatch");
-  assert.equal((await pool.query("SELECT count(*)::int AS n FROM gameplay_day_rules WHERE day = $1", [D + 5])).rows[0].n, 0, "the refused batch pinned nothing");
+  assert.equal(await code(walk(a9, ivy, "ivy-d5-held", at(D + 5, 9), [U[0]!])), "season_rules_changed");
+  assert.equal(await code(walk(a9, ivy, "ivy-d5-free-0", at(D + 5, 9.5), [R8[1]!])), "season_rules_changed");
+  assert.equal(await code(a9.settleDay(D)), undefined, "a settled day is returned as stored, whatever the instance runs");
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM gameplay_day_rules WHERE day = $1", [D + 5])).rows[0].n, 0, "the refused batches pinned nothing");
+  // An explicitly recorded pin (an operator's migration decision, not built) is the only way in. With D+5
+  // pinned to 1001, the ground Ben holds under 1002 is still never re-read under 1001.
+  await pool.query(`INSERT INTO gameplay_day_rules (day, season, ruleset, holding_rules_version, takeover_policy, take_budget, unit_zone_rule, config, config_digest)
+    VALUES ($1, 1, $2, 1001, 'immediate', NULL, 'unit/unit-is-zone', $3::jsonb, $4)`, [D + 5, A9.ruleset, JSON.stringify(rulesetConfig(A9)), rulesetDigest(A9)]);
+  assert.equal(await code(walk(a9, ivy, "ivy-d5-held-2", at(D + 5, 9.6), [U[0]!])), "unit_rules_version_mismatch");
   // Unheld ground carries no rule state: 1001 may claim it, and that pins D+5 to 1001 …
   assert.equal((await walk(a9, ivy, "ivy-d5-free", at(D + 5, 10), [R8[1]!])).outcomes.claimed, 1);
   assert.equal(await code(walk(p2, ivy, "ivy-d5-p2", at(D + 5, 11), [U[90]!])), "rules_version_mismatch");
