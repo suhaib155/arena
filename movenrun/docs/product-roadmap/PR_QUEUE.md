@@ -51,12 +51,18 @@ EXTERNAL_ACTIONS); this board links to them rather than repeating them.
 | `feat/sim-pilot-ruleset` | e6cfe42 | #120 on #119: simulation-only pilot ruleset `sim-pilot-1` and sweeps (not production) |
 | `privacy/a2-android-backup-off` | 1c3caab | #115: Android backup and transfer off, QA0 device checks, free EAS and Play Console prep; prebuild manifest test and Data safety evidence table (E-82) |
 | `web/a5-website-repairs` | 61d30bb | #116 on #113: website release candidate with publishable key (X-21 waiting on the mail check) |
-| `feat/g34-server-holdings` | 685852b | #121 on #120 (with #112 and #123 merged in): server-side holdings, settlement, clubs, districts; optional rule set 1002 (two-day challenge, 13-take budget, res10 units in res9 zones); migration 0011 proposed, not applied; flag off (E-80) |
-| `feat/g34-storage-capacity` | b3a39cb | #124 on #121: 0011 revision 2 (day-partitioned ledger, compact ids, refusal counters, player-day proofs, unit budget, capacity guard off by default); 1,000 players x 14 days 127.8 MiB (was 317.4); REVIEWED, UNAPPLIED (E-90) |
-| `feat/g34-rules-1002` | fb7cd5b | #126 on #121: 1002 fixes (server-built res10 path, 20 h gap, walk-order budget, zone partitions, concurrency); 1001 unchanged (E-91) |
+| `feat/g34-server-holdings` | 850bf64 | #121 on #120 (with #112 and #123 merged in): server-side holdings, settlement, clubs, districts; optional rule set 1002; #129 (0011 revision 2 + 1002 fixes, cb27318) and #130 (deadlock 409, 850bf64) merged in 22 Oct; migration 0011 proposed, not applied; flag off (E-80, E-92, E-93) |
+| `feat/g34-storage-capacity` | b3a39cb | #124 on #121 (closed as merged via #129, 22 Oct): 0011 revision 2 (day-partitioned ledger, compact ids, refusal counters, player-day proofs, unit budget, capacity guard off by default); 1,000 players x 14 days 127.8 MiB (was 317.4); REVIEWED, UNAPPLIED (E-90) |
+| `feat/g34-rules-1002` | fb7cd5b | #126 on #121 (closed as merged via #129, 22 Oct): 1002 fixes (server-built res10 path, 20 h gap, walk-order budget, zone partitions, concurrency); 1001 unchanged (E-91) |
 | `preview/android-qa0-candidate` | 15f7f87 | #125 on release/android-v1-cxfdbd: 2192de6 + #115, verified QA0 integration candidate, no build run (E-87) |
 | `feat/sim-churn-study` | c428aa0 | #123 on #120: churn comparison and route farming; proposed candidate review2-trust-after (simulation only, E-89) |
 | `research/g5-g7-economy` | 6eea3b4 | #122 on #120: contract issue ledger, patched H1-H3/M1/N1 with local proofs, Deed ring and valve findings (E-88) |
+| `feat/g34-storage-lifecycle` | 8db2715 | #135 on #121: lifecycle matrix, archive design, read-only TTL dry run, capacity model, promotion gate (all NOT MET / OWNER); SIMULATION ONLY (E-99) |
+| `sim/g34-1001-1002-fairness` | d4206fd | #134 on #121: same-seed 1001 vs 1002 fairness study; SIMULATION ONLY (E-98) |
+| `research/g5-g7-economy-suite-port` | 1b383fd | #133 on #122: original v3 suite ported to the draft patches, 138/0/0 local Hardhat; RESEARCH ONLY (E-97) |
+| `ops/vercel-ignore-build` | 49c9fe9 | #128: ignored-build script outside the public folder (E-94); needs the X-29 dashboard step |
+| `docs/decode-uri-exception-22oct` | 713a1c0 | #131 on preview/android-qa0-candidate: time-limited dependency exception to 21 Nov 2026 (E-96) |
+| `docs/qa0-handset-worksheet` | 53d1f6f | #132 on preview/android-qa0-candidate: H-1..H-10 handset worksheet (E-96) |
 | `ops/two-network-check` | b23c31e | Scratch workflow for the two-network check (E-70). Owner to delete; the proxy here refuses ref deletion |
 | `feat/v3-onchain-core` | c8262ec | Separate prototype contracts branch. Not part of Play v1 |
 
