@@ -95,7 +95,7 @@ Patch `.yarn/patches/h3-js-npm-4.5.0-64ee667011.patch` replaces `new TextDecoder
 
 ## 8. Mapping to the handset gates
 
-HANDSET_TEST_SCRIPT.md numbers steps 1-20, 15a-15h; it does not define labels H-1 to H-10 (LAUNCH_GATES_SOURCE_OF_TRUTH.md:18,37 uses that name for the whole script). Mapping of this script's results is therefore by step, and the H-1..H-10 numbering is UNKNOWN until the owner fixes it.
+The H-gate numbering is defined once in LAUNCH_GATES_SOURCE_OF_TRUTH.md section 2a (from the owner's 22 October directive). This script supplies the binary half of H-2 (signing SHA-1s), H-9 (backup and transfer flags) and H-11 (16 KB alignment); the table below maps results to HANDSET_TEST_SCRIPT steps.
 
 | Script result | Feeds | Does not replace |
 |---|---|---|
@@ -113,4 +113,4 @@ A script PASS is a precondition, not a gate pass. A step not run is not a pass.
 - Affected paths: `research/play-assurance/tools/android-artifact-acceptance.sh`, `research/play-assurance/tests/androidAcceptanceScript.test.ts`, this file. No change to #125/#127/#128/#129.
 - Evidence: 3/3 script tests pass (LOCAL TEST CONFIRMED); real-tool paths NOT RUN; facts @ 15f7f87.
 - Conflicts: none known. Proposed patch text only: if #125 adds `expo-build-properties`, update the targetSdk note in section 2.
-- Next decisions (max 3): (1) owner builds one preview APK and runs the script; (2) fix the H-1..H-10 numbering; (3) decide whether the extra permissions in section 2 are accepted.
+- Next decisions (max 3): (1) owner builds one preview APK and runs the script; (2) use the LAUNCH_GATES section 2a H-gate mapping; (3) decide whether the extra permissions in section 2 are accepted.

@@ -71,5 +71,5 @@ Close-out after +48 h: owner and engineer sign the record; list fixes made (new 
 
 ## Integration digest
 - Affected paths: this file only. Evidence: POST_LAUNCH_MONITORING.md, EVIDENCE_REGISTER E-62/E-63, render.yaml startCommand and autoDeployTrigger @ 2326aa6; website copy @ 61d30bb. No conflict with #125/#127/#128/#129.
-- Risk to note: Render rollback re-runs migrations on start (section 4); rollback ID mismatch between project memory and repo records.
+- Risk to note: Render rollback re-runs migrations on start (section 4).
 - Next decisions (owner): (1) confirm current Render and Vercel rollback ids; (2) confirm freeze/rollback thresholds; (3) name who is on call for each check time.

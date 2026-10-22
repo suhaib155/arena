@@ -120,7 +120,7 @@ test("finding: a JWKS outage and a forged Google token produce the same public e
 // C7: provider deletion queue after an erase, then the person signs in again.
 // ---------------------------------------------------------------------------
 
-test("control: a failed provider deletion is queued and retried until it succeeds", async () => {
+test("control: a failed provider deletion is queued and becomes due for retry after ten minutes", async () => {
   const { svc, signIn } = service({ async verify() { throw new Error("unused"); } }, true);
   const first = await svc.removeProviderUsers([SUB]);
   assert.deepEqual(first.pending, [SUB]);

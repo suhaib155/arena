@@ -31,7 +31,8 @@ Per data type. "Required" = cannot use the feature without it. "Ephemeral" per P
 | App activity > Other (security events) | Audit event types tied to user id (M20) | No | Required for account holders | Fraud prevention, security, and compliance | No | B/db/identity.schema.ts:235-250 | M. Metadata contents UNKNOWN |
 | App info and performance | No app-side crash or diagnostics SDK. Google Play vitals are collected by Google, not declared by us | n/a | n/a | n/a | n/a | M/package.json (no sentry/firebase); M/app/legal.tsx:13 | H for app-side |
 | Device or other IDs | Draft: No. A generic label ("Android device") is stored; the user-agent hash column exists but is never populated on the Supabase path. IP is processed in memory; hosting providers see it | n/a | n/a | n/a | n/a | B/identity/http/router.ts:148-149; B/db/identity.schema.ts:164-165 | M. Owner/legal determination on IP |
-| Financial info; Health and fitness data; Contacts; Photos; Audio; Files; Messages; Web history | No | n/a | n/a | n/a | n/a | M/app.json:32-41 blocked permissions; no such APIs in package.json | H (source) |
+| Health and fitness > Fitness info | Draft: Yes. Verified session distance, duration and movement mode are physical-activity records tied to the account (M13). Ties to decision #1 | No | Optional (guest play keeps it on device) | App functionality | No | B/db/movement.schema.ts:26-68 | M. Owner/legal determination |
+| Financial info; Health info (medical); Contacts; Photos; Audio; Files; Messages; Web history | No | n/a | n/a | n/a | n/a | M/app.json:32-41 blocked permissions; no such APIs in package.json | H (source) |
 
 Also disclose (not asked by the form, needed in the privacy policy per Play): retention and deletion (matrix section 3), unsent sessions on device, third parties (Google Maps SDK, Google sign-in, Supabase, Render, Vercel website, Google Fonts on the website).
 
@@ -70,7 +71,7 @@ Also disclose (not asked by the form, needed in the privacy policy per Play): re
 | Target audience | 13 and over; not directed to children. Owner/legal determination for age-gating and Families policy | W/privacy/index.html:97; no age field in schema | M |
 | Privacy policy URL | https://movenrun.xyz/privacy/ (HTML, public, non-PDF). Must match app behavior: see PRIVACY_CLAIM_CONSISTENCY_AUDIT.md before submission | W/privacy/index.html | M |
 | App category | Game (Adventure or Sports): owner choice | worksheet | L |
-| Prominent location disclosure | Only the OS permission string "MovenRun uses location during a movement session to draw your route and calculate progress." (M/app.json:54) and an upload note on the summary screen (M/app/move/summary.tsx:683-685). No dedicated pre-permission screen found; permission is requested from the move readiness flow (M/app/move/index.tsx:72-100; text not read). Play requires in-app disclosure immediately before the runtime prompt (https://support.google.com/googleplay/android-developer/answer/10144311) | M | L. Question for owner |
+| Prominent location disclosure | The move readiness screen shows privacy facts before the Start button that triggers the permission request: "Foreground only — no background tracking" and "Signed in, saving sends the route to verify it" (M/app/move/index.tsx:151-158 @15f7f87), plus the OS permission string (M/app.json:54). Play expects the disclosure immediately before the runtime prompt and to say what is collected and how it is used (https://support.google.com/googleplay/android-developer/answer/10144311). Whether these two lines meet that bar is an owner/legal determination; a fuller sentence is proposed in decision #6 | M |
 
 ## 7. Decision worksheet (owner)
 | # | Decision | Options | Recommendation | Blocks |
@@ -80,7 +81,7 @@ Also disclose (not asked by the form, needed in the privacy policy per Play): re
 | 3 | Google Maps SDK sharing | Mark Shared / not | Follow Google's current SDK guidance | Data safety |
 | 4 | Wallet address category | User IDs / other | User IDs; Play page silent | Data safety |
 | 5 | Financial features answer | None / crypto wallet category | None, with the sign-in-only explanation | Console form |
-| 6 | Prominent disclosure before location prompt | Add screen / rely on OS string + readiness text | Add (patch proposal: one screen on first Start stating "MovenRun uses your precise location while a session is running and, if you are signed in and tap Save, sends the route points once to verify distance"). Not applied to #125 | Policy compliance |
+| 6 | Prominent disclosure before location prompt | Keep the existing readiness facts / extend them | Extend the existing readiness text (no new screen; patch proposal for the #125 owner, wording only stating "MovenRun uses your precise location while a session is running and, if you are signed in and tap Save, sends the route points once to verify distance"). Not applied to #125 | Policy compliance |
 | 7 | Reviewer access | Own Google account / provide test account | Own Google account; no bypass | App access |
 | 8 | Backups statement | Confirm none / document copies | Check Supabase plan and any owner copies | Privacy text |
 

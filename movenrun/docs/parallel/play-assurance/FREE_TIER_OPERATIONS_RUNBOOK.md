@@ -99,6 +99,8 @@ Column `requested_at` confirmed in backend/src/db/identity.schema.ts:327-332 @ 2
 | Vercel website | production `dpl_ABCfgjsFiJ4DHtRnrLPCc8npLAuD` (61d30bb); rollback target `dpl_1pNg2cyGZ4MLWuqfsSHBtU9P1KBf` | REVIEWER REPORTED (E-79, X-21). Confirm in the Vercel dashboard before relying on them |
 Rule: rollbacks are owner actions in the provider dashboards; do not delete a deployment that is a rollback target. A database migration is not undone by a Render rollback.
 
+Live observations are recorded verbatim in `research/play-assurance/evidence/LIVE_PASSIVE_CHECK_2026-10-22T0924Z.md`.
+
 ## Integration digest
 - Affected paths: this file only (docs/parallel/play-assurance/). Evidence SHAs: 2326aa6, 15f7f87, 61d30bb. No conflict with #125/#127/#128/#129.
 - Findings to carry: migrations run on every start via startCommand; stuck provider deletions have no cap, alert or log.

@@ -22,6 +22,8 @@ No scanning, load tests, credential attacks or enrolment were run. Live checks w
 | 11 | Compromised legacy JWT secret reintroduced by a merge | **Proven latent gap** | One environment variable re-enables HS256 trust (AUTH A-1, LT) | Fix: refuse the variable at startup; blueprint test |
 | 12 | Unsupported promise of cash, NFTs, property or live city competition | **Clean in v1 sources** | Store listing describes XP and badges only (`docs/play-launch/STORE_LISTING.md:3,18-20,39`); clubs, competition, deeds and wallets are unreachable in release builds (`mobile/src/lib/releaseScope.ts` @15f7f87); website docs say deeds are planned with no monetary value (WEBSITE_FACTS) | Keep `releaseScope.ts` flags false; listing review at NO-GO 10 |
 
+Live observations are recorded verbatim in `research/play-assurance/evidence/LIVE_PASSIVE_CHECK_2026-10-22T0924Z.md`.
+
 ## Integration digest
 
 - Affected paths: this file only.

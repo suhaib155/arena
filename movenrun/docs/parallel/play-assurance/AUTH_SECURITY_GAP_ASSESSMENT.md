@@ -39,7 +39,7 @@ Recommendation: have the verifier distinguish `jwks_unavailable` and map it to 5
 
 ### A-4 Callback parser throws on malformed escapes
 
-`queryOf` calls `decodeURIComponent` without a guard (`mobile/src/lib/signInMethods.ts:108-109`); `signInWithGoogle` calls it directly (`mobile/src/services/signInProviders.ts:82`). A URL such as `movenrun://auth/callback?x=%E0%A4%A` throws `URIError` instead of returning `{kind:"error"}`. The redirect normally comes from Supabase, so this needs a crafted link or an interception (A-7). Effect: an untyped exception reaches the sign-in screen's handler. Fix: wrap each decode and return `unexpected_redirect` on failure. Mobile UI is frozen, but this is a library change, not a screen change; it belongs to the #125 owner.
+`queryOf` calls `decodeURIComponent` without a guard (`mobile/src/lib/signInMethods.ts:111-112`); `signInWithGoogle` calls it directly (`mobile/src/services/signInProviders.ts:82`). A URL such as `movenrun://auth/callback?x=%E0%A4%A` throws `URIError` instead of returning `{kind:"error"}`. The redirect normally comes from Supabase, so this needs a crafted link or an interception (A-7). Effect: an untyped exception reaches the sign-in screen's handler. Fix: wrap each decode and return `unexpected_redirect` on failure. Mobile UI is frozen, but this is a library change, not a screen change; it belongs to the #125 owner.
 
 ### A-5 Refresh retry after a lost response
 
@@ -72,6 +72,20 @@ Both returns use `movenrun://` (no `intentFilters`/`autoVerify`, SV ANDROID_FACT
 | App: session tokens in SecureStore; Google verifier in memory; Android backup and device transfer excluded | ANDROID_FACTS (15f7f87) | SV |
 | No `console.*` in mobile app code outside tests | ANDROID_FACTS | SV |
 | Email OTP routes are not mounted in the deployed API | `api/app.ts:25-31,91` | SV |
+
+## 2a. Remaining C2 items
+
+| Item | Assessment | Evidence | Class |
+|---|---|---|---|
+| Account enumeration | No route takes an email or user handle; email OTP is not mounted; Google and wallet failures all return `verification_failed`; `wallet/begin` answers the same for any valid address | `api/app.ts:25-31,91`; `supabaseSignIn.service.ts:156-160,195-213` | SV |
+| Web CSRF | The API uses `Authorization: Bearer` headers, never cookies, and CORS sets `credentials: false` with an apex-only list, so a cross-site form cannot carry a session | `identity/http/router.ts:100-105`; `middleware/security.ts:49-64` | SV, LO |
+| Cross-account resource access | Every authenticated identity and movement route scopes by the session's user id; foreign session ids and wallet ids return 404 | `identity/http/router.ts:317-327,387-404`; `movement/http/router.ts:118-170` | SV, RR (existing auth-binding tests) |
+| Orphan provider identities | Abandoned Google users and uncollected wallet codes are swept after one hour, at most 100 deletions per run; mapped users are never touched. Gap: A-2 | `supabaseSignIn.service.ts:291-377` | SV, RR |
+| Clipboard | The wallet page can show a 12-character code for manual entry; it is useless without the app's PKCE verifier. The candidate removes `expo-clipboard` (lockfile 2326aa6 to 15f7f87) | `supabaseSignIn.service.ts:278-284`; RUNTIME_DEPENDENCY_RISK_LEDGER | SV |
+| URL and log exposure | API never logs bodies; website strips `?code=`; the sign-in page leaves the public PKCE `challenge` in the address bar (not a secret) | `api/app.ts:99`; WEBSITE_FACTS | SV |
+| Provider down / Render cold start | Fails closed (A-3); the app waits up to 90 s for sign-in requests | `mobile/src/services/identityApi.ts:144-145` @15f7f87 | SV |
+
+Live observations (LO) in this document are recorded in `research/play-assurance/evidence/LIVE_PASSIVE_CHECK_2026-10-22T0924Z.md`.
 
 ## 3. What only a genuine provider, wallet or phone can prove (OG)
 

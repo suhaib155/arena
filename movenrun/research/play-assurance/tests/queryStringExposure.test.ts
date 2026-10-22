@@ -58,8 +58,11 @@ test("decode-uri-component returns or throws within 50 ms on short malformed inp
   }
 });
 
-test("query-string.parse does not pollute Object.prototype with __proto__ / constructor keys", () => {
-  queryString.parse("__proto__=%E0%A4&constructor=%&__proto__[x]=1");
+test("query-string.parse with malformed escapes in special keys returns a plain result and leaves Object.prototype unchanged", () => {
+  const before = Object.getOwnPropertyNames(Object.prototype).sort().join(",");
+  const parsed = queryString.parse("__proto__=%E0%A4&constructor=%&x=1&__proto__[x]=1") as Record<string, unknown>;
+  assert.equal(parsed.x, "1", "ordinary keys still parse");
+  assert.equal(Object.getOwnPropertyNames(Object.prototype).sort().join(","), before);
   assert.equal(({} as Record<string, unknown>).x, undefined);
 });
 

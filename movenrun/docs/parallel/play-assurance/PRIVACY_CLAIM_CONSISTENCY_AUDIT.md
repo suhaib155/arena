@@ -43,7 +43,7 @@ Path shorthand: W = movenrun/website @61d30bb; B = movenrun/backend/src @2326aa6
 | P27 [:97] not for under 13 | Policy statement; no age field in any schema | UNVERIFIABLE |
 | P28 [:100] no purchases, payouts, tokens | Live flows store no balances. Dormant legacy columns (routes.earned_amount, zones.accumulated_yield) exist in B/db/schema.ts:15-34; use by live API UNKNOWN | MATCH (live flows) |
 | Backups, support SLA | Provider/owner facts | see A4; UNVERIFIABLE |
-| Deletion page: signed out immediately | Session rows are deleted in the transaction (B/identity/accountDeletion.ts:104). Already-issued access tokens: lifetime UNKNOWN | MATCH with UNKNOWN |
+| Deletion page: signed out immediately | Session rows are deleted in the transaction (B/identity/accountDeletion.ts:104). Already-issued access tokens are refused at once because `verifyAccess` needs the deleted session row (B/identity/services/session.service.ts:177-184) | MATCH |
 | Deletion page: erased from DB "immediately" | Synchronous transaction in POST /identity/account/delete (B/identity/http/router.ts:358-376) | MATCH |
 | Deletion page: phone-only progress cleared by in-app deletion or uninstall | M/app/account/security.tsx:178-188 (resetProgress; failures swallowed) | MATCH |
 | Support [:42] and sign-in pages: wallet code 12 characters, 5 min | Code format: M/src/lib/signInMethods.ts:126-141 (regex allows 8-512 chars in callback, 12-char handoff normalizer) ; TTL 5 min above | MATCH |
