@@ -10,7 +10,7 @@ synthetic run or team member's walk is evidence of player retention.
 |---|---|---|
 | Discover | Welcome: "Your next move starts here." Terms checkbox before any button | None found |
 | Understand location | Intro step 1, then the `/move` rationale before the OS prompt: foreground only, never background | Intro step 2 says "Capture and defend" before any preview label |
-| Sign in | Google or wallet, or "Start exploring" as a guest. Both providers are OFF until the owner turns them on | None found. `/move` states that only a signed-in save is sent to verify |
+| Sign in | Google or wallet, or "Start exploring" as a guest. Per the launch ledger both providers are OFF until the owner turns them on (hosted state, not checked by this track) | None found. `/move` states that only a signed-in save is sent to verify |
 | Short genuine move | Start, acquire GPS (up to 30 s), walk | No safety line (S2-1); no hint to keep the screen on (S2-7); an honest 220 m city walk is rejected by the server (MR-A-01) |
 | Honest progress | Distance and time on the session screen; "Cross your own trail…" seal hint | The seal hint is an instruction to return to a point |
 | Stop, save, verify | Finish (2 taps), Summary, Save. Verification runs after XP is already shown | XP is shown before the server's verdict (MR-A-09). Below the threshold the summary explains it: "Move at least 200 m or 5 minutes to save a session and earn XP." |

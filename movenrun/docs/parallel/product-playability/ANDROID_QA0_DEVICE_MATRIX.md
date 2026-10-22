@@ -9,7 +9,7 @@ it without the owner's approval.
 
 | Slot | Profile | Why |
 |---|---|---|
-| D1 | Android 7.0 (API 24), 2 to 3 GB RAM | The lowest supported version; slow storage and GPS |
+| D1 | The build's minSdk (expected Android 7.0, API 24; confirm with QA0-02), 2 to 3 GB RAM | The lowest supported version; slow storage and GPS |
 | D2 | Android 12 to 13 mid-range (for example Samsung A-series) | Most common class; approximate-location toggle; aggressive battery saver |
 | D3 | Android 15 or 16 Pixel | Current platform; 16 KB page size checks; predictive back |
 | D4 | Any device with 320 dp width, or an emulator set that way | Large-font and narrow-layout checks |
@@ -19,7 +19,7 @@ it without the owner's approval.
 | Id | Check | How | Pass when | Result |
 |---|---|---|---|---|
 | QA0-01 | h3-js starts under Hermes | Cold start the signed release build | No `RangeError: Unknown encoding: utf-16le` in `adb logcat`; Home renders. The repo's `h3HermesRuntime.test.ts` covers this locally, but only a signed build proves it | NOT RUN |
-| QA0-02 | SDK levels | `aapt2 dump badging` on the APK | minSdk 24 and targetSdk 36 (Expo SDK 54 defaults; confirm from the merged manifest) | NOT RUN |
+| QA0-02 | SDK levels | `aapt2 dump badging` on the APK | minSdk and targetSdk match the release plan. The repo sets neither, so they come from Expo SDK 54's defaults (expected 24 and 36, not verified here) | NOT RUN |
 | QA0-03 | 16 KB page alignment | `zipalign -c -P 16 -v 4 app.apk` and check every `.so` | All native libraries aligned to 16 KB | NOT RUN |
 | QA0-04 | Merged manifest | `aapt2 dump xmltree --file AndroidManifest.xml` | Only coarse and fine location; no background location, foreground service, `LocationTaskService`, overlay or storage permissions; `usesCleartextTraffic="false"` | NOT RUN |
 | QA0-05 | Backup off | Same dump | `allowBackup="false"`, and the data-extraction rules from `withNoBackupTransfer` exclude app data from device transfer | NOT RUN |
@@ -45,8 +45,8 @@ it without the owner's approval.
 | QA0-20 | Process kill | Swipe the app away mid-walk | Next launch: record what the user sees. Today nothing tells them the walk was lost | NOT RUN |
 | QA0-21 | Rotation | Rotate during a session and on Summary | No reset, no lost session | NOT RUN |
 | QA0-22 | Back navigation | Hardware and predictive back in session, summary and account | Session shows the discard dialog; no route left in a blank state | NOT RUN |
-| QA0-23 | Google sign-in return | Continue with Google (only once the owner turns the provider on) | Browser returns to `movenrun://auth/callback` with PKCE and lands signed in | BLOCKED: provider is off |
-| QA0-24 | Wallet sign-in return | Continue with Wallet (same condition) | Returns to `movenrun://auth/wallet` and lands signed in | BLOCKED: provider is off |
+| QA0-23 | Google sign-in return | Continue with Google (only once the owner turns the provider on) | Browser returns to `movenrun://auth/callback` with PKCE and lands signed in | BLOCKED (provider OFF per the launch ledger; not checked by this track) |
+| QA0-24 | Wallet sign-in return | Continue with Wallet (same condition) | Returns to `movenrun://auth/wallet` and lands signed in | BLOCKED (provider OFF per the launch ledger; not checked by this track) |
 | QA0-25 | Slow backend | Save while the backend is cold (free tier sleeps) | "Submitting" then "Verified" within the 20 s timeout, or "Pending" with a retry later | NOT RUN |
 | QA0-26 | Offline save | Airplane mode, Save, then reconnect | Pending, then verified after reconnecting | NOT RUN |
 | QA0-27 | Battery | 30 min session, screen on, full brightness | Record battery percentage used and device temperature | NOT RUN |

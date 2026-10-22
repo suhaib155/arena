@@ -39,6 +39,8 @@ idle --requestStart--> starting --trackerStarted--> active <--pause/resume--> pa
 |---|---|---|---|---|
 | idle | requestStart | ok | starting | Nothing is stamped yet |
 | starting | requestStart | ignored | starting | Double tap on Start |
+| active, paused or finished | requestStart | ignored | unchanged | A late Start tap does nothing |
+| active | resume | ignored | active | |
 | starting | trackerStarted | ok | active | Session id, mode, rules version and start time are stamped together |
 | starting | trackerFailed | ok | idle | Permission, services or acquisition timeout. Nothing is burned |
 | active | pause | ok | paused | |
@@ -49,7 +51,7 @@ idle --requestStart--> starting --trackerStarted--> active <--pause/resume--> pa
 | active or paused | finish | ok | finished | An open pause closes at finish |
 | finished | finish | ignored | finished | Double Finish is one session |
 
-Every other pair is `invalid` and leaves the state unchanged.
+Every other pair is `invalid`. Both `ignored` and `invalid` leave the state unchanged.
 
 ## 3. Inside an active session
 
@@ -57,7 +59,7 @@ Every other pair is `invalid` and leaves the state unchanged.
 |---|---|---|
 | First fixes | Acquisition needs 3 fixes at 20 m accuracy or better over at least 8 s. It times out after 30 s | A01, A02 |
 | Each fix | `inspectFix` accepts or rejects it: accuracy over 40 m, under 2 m of movement, over 12 m/s, older than 10 s, future-dated, unknown accuracy, or non-increasing time | corpus |
-| Weak signal | Repeated quality rejections turn the chip to weak signal. Future-dated fixes do not (MR-A-05) | G01, C01 |
+| Weak signal | A single `weak_accuracy` or `stale_fix` rejection, or an accepted fix worse than 25 m, turns the chip to weak signal (`session.tsx`, `mapPresence.ts`). Future-dated fixes do not (MR-A-05) | G01, C01 |
 | App backgrounded | Tracking is foreground only. On return the next fix starts a new stretch and the gap is noted | L01 |
 | Provider error | Recorded as a gap; the session continues | G03 |
 | Process killed | The session lives in memory and is lost. Nothing is saved or submitted. The Home "Finish your move" task that would recover it is dead code (`hasRecoverableMovement` is hard-coded false) | L02 |

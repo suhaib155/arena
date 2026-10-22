@@ -37,8 +37,8 @@ All evidence here is LOCAL (code and unit tests). Nothing is LIVE-proven on a ph
 | XP and streak | `/`, `/profile`, `/result` | verified_local | local store | `xpSemantics.test.ts` | XP is banked before the server verdict (MR-A-09); the day key is the phone's clock (MR-A-08) |
 | Timed quests | `/quests`, `/quest/[id]`, `/active`, `/result` | verified_local | seed quests, local store | `xpSemantics.test.ts` | "You won't earn XP if you leave now" and "Keep moving" |
 | Profile | `/profile` | verified_local | local store | mobile tests | "Browse quests" opens Home, not Quests |
-| Google sign-in | `/welcome`, `/account`, `/auth/callback` | configured_unproven | Supabase Auth | provider is OFF (owner step pending) | None |
-| Wallet sign-in | `/welcome`, `/account`, `/auth/wallet` | configured_unproven | Supabase Web3 | provider is OFF | None |
+| Google sign-in | `/welcome`, `/account`, `/auth/callback` | configured_unproven | Supabase Auth | provider OFF per the project's launch ledger (18 Oct); not checked by this track | None |
+| Wallet sign-in | `/welcome`, `/account`, `/auth/wallet` | configured_unproven | Supabase Web3 | provider OFF per the launch ledger; not checked by this track | None |
 | Account deletion | `/account/security` | configured_unproven | `POST /identity/account/delete` | backend tests | Guests have no server data, so only "Reset progress" applies |
 | Help and legal | `/help`, `/legal` | configured_unproven | static copy | `privacyTruth.test.ts` | `LEGAL_VERSION` reads `v1-2026-11-02`; confirm before launch |
 | Technical info | `/settings/technical` | preview_only | hard-coded `contractStatus.ts` | none | Highest token and chain density in the release UI (see below) |

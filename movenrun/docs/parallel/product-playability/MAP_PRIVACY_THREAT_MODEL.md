@@ -27,7 +27,7 @@ gym, a time of day. Co-walks reveal who someone walks with.
 |---|---|---|---|
 | T1 | A public board reveals a home through a lone player's cells | No public board exists in v1 | PROPOSED: res-6 areas only, at least 3 distinct players, no cell ids (GEO-10) |
 | T2 | A shared route image shows a start point at a front door | Route proof shares a summary | PROPOSED: trim the first and last 200 m of any drawn route in shares, or share stats only. Needs a device check of the current image |
-| T3 | Another account on the same phone submits a previous user's routes | Queue is owner-scoped; tested | Built |
+| T3 | Another account on the same phone submits a previous user's routes | Queue is owner-scoped; mobile `verificationRetry.test.ts` ("the ownership check is decided before age, budget and backoff") | Built |
 | T4 | Sign-out mid-upload leaves a route behind | Privacy generation erases it; tested | Built |
 | T5 | Logs leak coordinates or tokens | No redaction tool existed | `tools/redactLog.ts` removes coordinates, tokens, emails, ids, cells, wallets and IPs; tested. Use it for every QA0 log |
 | T6 | Cell ids act as coarse location | Server keeps res-8 cells (about 0.7 km²) per session | Keep cell ids out of any public or shared surface. Retention: delete with the account (built), and define a retention period for unused records (owner decision) |
