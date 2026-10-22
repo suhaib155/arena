@@ -1,5 +1,5 @@
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "labVersion": "redteam-scenario-lab-1",
   "status": "Hypotheses and thresholds below were fixed in this file before any sweep was run. Results are compared against them unchanged in G2_G4_FAIRNESS_AND_ABUSE_RESULTS.md.",
   "geography": {
@@ -34,14 +34,18 @@
     "default": [
       101,
       202,
-      303,
-      404,
-      505
+      303
     ],
     "scale1000": [
       101,
+      202
+    ],
+    "five": [
+      101,
       202,
-      303
+      303,
+      404,
+      505
     ]
   },
   "variants": [
@@ -119,7 +123,6 @@
       "id": "A-core",
       "purpose": "Main rule comparison across malicious share",
       "population": [
-        100,
         200
       ],
       "horizonDays": [
@@ -240,7 +243,7 @@
         true
       ],
       "variants": "allVariants",
-      "seeds": "default"
+      "seeds": "five"
     },
     {
       "id": "F-noise-off",
@@ -272,6 +275,10 @@
     {
       "what": "Full factorial of population x horizon x malicious x density x noise x 12 variants",
       "why": "About 4 x 5 x 3 x 3 x 2 x 12 = 4320 cells x 5 seeds. The staged design above varies one or two factors at a time around the A-core cell (population 100/200, 90 days, medium density)."
+    },
+    {
+      "what": "A-core at population 100; five seeds outside E-small",
+      "why": "Compute budget (manifest revision 2). Population 100 is covered by C-horizon and F-noise-off; 95% intervals with three seeds are wide and are reported as such."
     },
     {
       "what": "1000 participants beyond 30 days, and all 12 variants at 1000",
@@ -346,8 +353,8 @@
     },
     {
       "id": "H2",
-      "metric": "straddleFlips (flips completed under 20 h after the challenge opened)",
-      "cell": "A-core all",
+      "metric": "straddleFlips: flips that complete a walker's challenge under 20 h (server receipt) after it opened, on ground at or above the immediate-take line (strength 30). Ground decayed below that line falls at once by design and is counted separately (straddleFlipsDecayedGround).",
+      "cell": "A-core all cells",
       "test": "R1002 = 0 in every run; R1002-nogap > 0 in every run with malicious participants"
     },
     {
@@ -371,7 +378,7 @@
     {
       "id": "H6",
       "metric": "zeroGainSessionRate and unexplainedDenialSessionRate (legit)",
-      "cell": "A-core all",
+      "cell": "A-core all cells",
       "test": "every variant: zero-gain <= 0.02 and unexplained denial <= 0.03"
     },
     {
@@ -383,7 +390,7 @@
     {
       "id": "H8",
       "metric": "falsePositiveFlagsPer1000PerMonth (legit pairs flagged by the illustrative review heuristic)",
-      "cell": "A-core all",
+      "cell": "A-core all cells",
       "test": "<= 5"
     },
     {
@@ -421,6 +428,16 @@
       "metric": "invariantViolations (two holders, budget exceeded, one-push rule, unitProblems)",
       "cell": "every run",
       "test": "0"
+    }
+  ],
+  "revisions": [
+    {
+      "version": 1,
+      "note": "Hypotheses H1-H14 and the first stage plan written before any run."
+    },
+    {
+      "version": 2,
+      "note": "Before the sweep, the stage plan was cut to fit the compute budget (seed counts lowered to 3 for most stages, A-core population 100 dropped, D-scale to 2 seeds). One development smoke run (population 100 and 200, 30/90 days, 10% malicious, seed 101) had been executed to check run time and correctness. The H9 metric wording was made conditional on joiners having uploaded a session (written before that smoke run). Hypotheses and thresholds are otherwise unchanged from version 1. The H2 metric was narrowed during that smoke run to exclude ground decayed below the 1002 immediate-take line, which the rule hands over at once by design; the excluded flips are reported in their own column."
     }
   ]
 }

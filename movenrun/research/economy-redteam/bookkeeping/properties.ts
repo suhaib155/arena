@@ -182,8 +182,12 @@ export const PROPERTIES: Property[] = [
         if (d.sum !== s.books.returnedToSeasonPoolMicro) t.fail(`case ${i}: parts ${d.sum} ≠ returned ${s.books.returnedToSeasonPoolMicro}`);
         if (d.dust < 0 || d.trust < 0 || d.sessionTrim < 0 || d.dayTrim < 0) t.fail(`case ${i}: a negative part ${JSON.stringify(d)}`);
         // Each floor loses less than one micro; plus at most one per session from float points.
-        if (d.dust > sessions + 1) t.fail(`case ${i}: split dust ${d.dust} above ${sessions + 1}`);
-        maxDust = Math.max(maxDust, d.dust);
+        if (s.totalPoints === 0) {
+          if (d.dust !== input.poolMicro) t.fail(`case ${i}: nobody scored but ${input.poolMicro - d.dust} left the pool`);
+        } else {
+          if (d.dust > sessions + 1) t.fail(`case ${i}: split dust ${d.dust} above ${sessions + 1}`);
+          maxDust = Math.max(maxDust, d.dust);
+        }
         t.add("returnedMicro", s.books.returnedToSeasonPoolMicro);
       }
       t.metrics.maxSplitDustMicro = maxDust;
@@ -319,7 +323,7 @@ export const PROPERTIES: Property[] = [
         const day = settleDay(RULES, {
           poolMicro: 1_000_000_000,
           players: [{ playerId: "runner", linkedPlayerIds: linked, sessions: [{ minutes: 40, meters: 4000, crossedCells: cells }], activeDaysThisWeek: 3, trustWeight: 1, kitLevel: 1, zonesHeld: 0, unvisitedZoneLevels: [] }],
-          deedOwnerByCell: stripped.size === deeds.size ? new Map([...deeds].filter(([, o]) => self.has(o))) : new Map([...deeds].filter(([, o]) => self.has(o))),
+          deedOwnerByCell: new Map([...deeds].filter(([, o]) => self.has(o))),
         });
         if (day.players[0]!.tollPaidMicro !== 0 || day.players[0]!.tollReceivedMicro !== 0) t.fail(`case ${i}: self-toll moved through settleDay`);
       }

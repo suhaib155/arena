@@ -1,0 +1,43 @@
+{
+  "version": "b5-params-1",
+  "_tiers": "M = MEASURED on the local B5 bench (out/measured*.csv; PostgreSQL 16.15, synthetic players, dense 2 km area, 14 days, rule set 1002 res 10). R = REPORTED by docs/G34_STORAGE_CAPACITY.md, not re-measured here. A = ASSUMED. Everything else is computed (PROJECTED) by calculator.ts.",
+  "quota": { "nominalMiB": 500, "operationalReservePct": 20, "baselineMiB": 11.8, "_tier": "nominalMiB: A (owner must confirm the real project quota); operationalReservePct: A (headroom for WAL, dashboard lag, migrations, restores); baselineMiB: R (live DB read on 18 Oct per G34 doc)" },
+  "grid": { "users": [200, 500, 1000], "lifetimes": { "14d": 14, "90d": 90, "4season": 360 }, "abusePct": [0, 2, 10] },
+  "activity": { "activeShare": 0.6, "sessionsPerActiveDay": 1.5, "_tier": "A (bench values; no pilot has run)" },
+  "rules": {
+    "1001": { "label": "rule 1001 (default): res 8 units, immediate flip, no challenges", "resolution": 8, "unitsPerSession": 4.9, "acceptedRowsPerSession": 4.9, "challengeInsertsPerAcceptedRowPerPlayer": 0, "liveChallengesPerPlayer": 0, "distinctUnitsPerPlayer": 3, "unitUpdatesPerAcceptedRow": 0.02, "dayStatesPerAcceptedRow": 0.5, "_tier": "unitsPerSession R (res 8 bench of rev 1); accepted rows A (no refusal rows in rev 3; 1001 has no take budget); no 1001 bench exists on revision 3, so 1001 is PROJECTED from per-row costs only" },
+    "1002": { "label": "rule 1002 (unratified alternative): res 10 units, two-day challenge, 13 takes/day", "resolution": 10, "unitsPerSession": 30.8, "acceptedRowsPerSession": 8.84, "challengeInsertsPerAcceptedRowPerPlayer": 0.01845, "liveChallengesPerPlayer": 22.8, "distinctUnitsPerPlayer": 30, "unitUpdatesPerAcceptedRow": 0.02, "dayStatesPerAcceptedRow": 0.5, "_tier": "acceptedRowsPerSession M (111,918 rows / 12,666 sessions); challenge inserts per row per player M (2,064,813 inserts / 111,918 rows / 1,000 players, dense 2 km area; it grows with density, 3.9 at 200 players, 9.4 at 500, 18.4 at 1,000); liveChallenges M; distinctUnitsPerPlayer A (bench dense area gave 1.2, sparse reported 142)" }
+  },
+  "rowBytes": {
+    "pushEvent": { "heap": 93, "index": 94 },
+    "walkerDay": { "heap": 276, "index": 70 },
+    "appliedSession": { "heap": 206, "index": 186 },
+    "sessionPath": { "heap": 382, "index": 84 },
+    "unitDayState": { "heap": 100, "index": 100 },
+    "unit": { "heap": 213, "index": 93 },
+    "unitChallenge": { "heap": 80, "index": 110 },
+    "playerDayProof": { "heap": 93, "index": 42 },
+    "creditLine": { "heap": 141, "index": 161 },
+    "player": { "heap": 139, "index": 131 },
+    "_tier": "M from the 1,000-player default run (out/measured_tables.csv, post-VACUUM, per live row); pushEvent R (G34 rev 2/3: 189 B/row); unitDayState A; unitChallenge is the LIVE tuple size, bloat is separate"
+  },
+  "movement": { "baseBytes": 453, "bytesPerCell": 22, "cellsPerSession": 7.6, "_tier": "R/M: 453 B base and 22 B per cell reported; 7.6 cells fits the measured 621 B per session" },
+  "perDay": { "settlementRowBytes": 6000, "dayRulesBytes": 8192, "clubDayBytes": 492, "districtDayBytes": 1274, "clubsPerPlayer": 0.1, "districtsPerDay": 3, "partitionDayBytes": 98304, "_tier": "R/M small fixed rows" },
+  "retention": {
+    "keep_all": { "rawDays": null, "proofDays": null, "summaryDays": null },
+    "ttl14_proof120": { "rawDays": 14, "proofDays": 120, "summaryDays": 120 },
+    "ttl30_proof180": { "rawDays": 30, "proofDays": 180, "summaryDays": 180 },
+    "ttl7_proof60": { "rawDays": 7, "proofDays": 60, "summaryDays": 60 },
+    "_tier": "A: every retention value is an unratified candidate, including 14/120. summaryDays is the movement_verifications summary row"
+  },
+  "abuse": { "sessionsPerDay": 20, "unitsPerSession": 500, "unitBudget": 300, "acceptedRowsPerAccountDay": 300, "activeDays": 14, "_tier": "A: a hostile account is stopped after activeDays; its accepted rows per day are capped at the unit budget (upper bound: every budgeted unit becomes a ledger row)" },
+  "churn": {
+    "tupleBytes": { "unitChallenge": 80, "unit": 213 },
+    "indexBytesPerVersion": { "unitChallenge": 110, "unit": 0 },
+    "burstShare": { "default": 3.5, "aggressive": 1.0 },
+    "indexBloatFactor": 1.0,
+    "_tier": "burstShare = days of challenge churn that sit as dead tuples at the high-water mark before vacuum catches up, calibrated on the bench at bench speed (default autovacuum 4.4 / 3.3 / 2.7 at 200 / 500 / 1,000 players; aggressive 1.7 / 0.95 / 0.37). People walk far slower than the bench pushes, so this is pessimistic: see params.v1-optimistic.json. unit rows are 98% HOT updates (M), priced by the 2% non-HOT share"
+  },
+  "wal": { "bytesPerAcceptedRow": 1441, "bytesPerSession": 0, "bytesPerChallengeVersion": 395, "retainedDays": 2, "_tier": "M: least-squares through the 200 and 1,000 player runs (predicts the 500 run within 1.5%). retainedDays A: WAL kept on disk after a checkpoint, replica or archive lag" },
+  "settlement": { "bytesPerEntry": 225, "workMemMiB": 16, "msPerThousandEntries": 60, "sortsPerSettlement": 2, "maxDaysPerRun": 31, "_tier": "bytesPerEntry R (6.5 MB / 28,815 rows); ms M (worst settle 472 ms at 7.5k entries per day, 1,000 players); work_mem R (rev 3 SET LOCAL 16 MiB); maxDaysPerRun VERIFIED CODE rules.ts:245" }
+}

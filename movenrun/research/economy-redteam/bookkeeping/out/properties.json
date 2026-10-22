@@ -1,0 +1,412 @@
+[
+  {
+    "id": "P01",
+    "title": "G0 day books close under random days (rules pool and small binding pools)",
+    "invariants": [
+      "INV-POOL-01",
+      "INV-POOL-02",
+      "INV-MINT-01",
+      "INV-TOLL-01",
+      "INV-TOLL-02",
+      "INV-TOLL-03",
+      "INV-TOLL-04",
+      "INV-CEIL-01",
+      "INV-CEIL-02",
+      "INV-SESS-01",
+      "INV-COST-01",
+      "INV-COST-02",
+      "INV-NEG-01",
+      "INV-BURN-01"
+    ],
+    "source": "V3 §17, §20, §8, §22, §26; rules 4, 5, 6, 10",
+    "fn": "economyV3.settleDay + dayBooksProblems",
+    "seed": 80101,
+    "cases": 3000,
+    "failures": 0,
+    "metrics": {
+      "tollShareDivergences": 0,
+      "players": 24939,
+      "daysWithReturn": 2724
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P02",
+    "title": "Rounding dust and trimmed amounts return to the season pool, part by part",
+    "invariants": [
+      "INV-POOL-02",
+      "INV-RET-01"
+    ],
+    "source": "V3 §17 (trimmed amounts return to the season pool; trust difference stays in the pool)",
+    "fn": "economyV3.settleDay",
+    "seed": 80102,
+    "cases": 3000,
+    "failures": 0,
+    "metrics": {
+      "returnedMicro": 167859232739,
+      "maxSplitDustMicro": 36
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P03",
+    "title": "Toll shares equal the exact rational floor; the remainder stays with the runner",
+    "invariants": [
+      "INV-TOLL-02",
+      "INV-TOLL-03",
+      "INV-DUST-01"
+    ],
+    "source": "V3 §20 (rounding remainders go back to the runner; never more than disclosed)",
+    "fn": "economyV3.sessionToll",
+    "seed": 80103,
+    "cases": 5000,
+    "failures": 0,
+    "metrics": {
+      "sharesBelowExactFloor": 0,
+      "sharesAboveExactFloor": 0
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P04",
+    "title": "Path uniqueness: laps, repeats and order never change the toll (ten laps pay once)",
+    "invariants": [
+      "INV-PATH-01"
+    ],
+    "source": "V3 §20 (ten laps of the same cell pay one toll); rule 4",
+    "fn": "economyV3.sessionToll",
+    "seed": 80104,
+    "cases": 3000,
+    "failures": 0,
+    "metrics": {},
+    "result": "pass"
+  },
+  {
+    "id": "P05",
+    "title": "Many deed holders (1, 2, 50, 51, 1000): 2% of one session total, never multiplied by owner count",
+    "invariants": [
+      "INV-TOLL-02",
+      "INV-TOLL-05"
+    ],
+    "source": "V3 §20 table (20 owners cost the same as one); rule 4",
+    "fn": "economyV3.sessionToll",
+    "seed": 80105,
+    "cases": 2000,
+    "failures": 0,
+    "metrics": {
+      "cases_n1": 400,
+      "cases_n2": 400,
+      "cases_n50": 400,
+      "cases_n51": 400,
+      "cases_n1000": 400,
+      "maxRoundingGapMicro": 998
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P06",
+    "title": "Owner = walker and linked owners pay nothing and are treated as undeeded",
+    "invariants": [
+      "INV-TOLL-04"
+    ],
+    "source": "V3 §20 (own land and linked accounts are free; you cannot pay yourself)",
+    "fn": "economyV3.sessionToll, settleDay",
+    "seed": 80106,
+    "cases": 3000,
+    "failures": 0,
+    "metrics": {},
+    "result": "pass"
+  },
+  {
+    "id": "P07",
+    "title": "Two best sessions: at most two, qualifying, not unscored, highest effort, ties to the earlier",
+    "invariants": [
+      "INV-SESS-01",
+      "INV-SESS-03"
+    ],
+    "source": "V3 §17 (two best qualifying sessions; a third feeds the map only); §2; §8 unscored",
+    "fn": "economyV3.scoringSessionIndices, settleDay",
+    "seed": 80107,
+    "cases": 5000,
+    "failures": 0,
+    "metrics": {},
+    "result": "pass"
+  },
+  {
+    "id": "P08",
+    "title": "Zero rewards: nobody scores or trust is zero; nothing minted, nothing burned, upkeep paid in condition",
+    "invariants": [
+      "INV-ZERO-01",
+      "INV-COST-02",
+      "INV-NEG-01"
+    ],
+    "source": "V3 §19 (60% of nothing is nothing); §7, §8; rule 10",
+    "fn": "economyV3.settleDay",
+    "seed": 80108,
+    "cases": 2000,
+    "failures": 0,
+    "metrics": {},
+    "result": "pass"
+  },
+  {
+    "id": "P09",
+    "title": "Cap crossing: the 400M allocation is released exactly once, daily pools never exceed their season, the season sum refuses overruns",
+    "invariants": [
+      "INV-CAP-01",
+      "INV-CAP-02",
+      "INV-POOL-03",
+      "INV-ONCE-02"
+    ],
+    "source": "V3 §17 (400M player allocation; 9M, −10%, floor 2M); rule 2 (1bn)",
+    "fn": "economyV3.seasonPoolMicro, dailyPoolMicro; holdingSettlement.settleCreditsSeason",
+    "seed": 80109,
+    "cases": 2000,
+    "failures": 0,
+    "metrics": {
+      "lastSeasonWithPool": 180,
+      "undistributedByDailyFloorMicro": 3460,
+      "badSeasonsRefused": 5
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P10",
+    "title": "G3 credits day: settled days satisfy every invariant; any injected fault refuses the whole day",
+    "invariants": [
+      "INV-REFUSE-01",
+      "INV-NEG-01",
+      "INV-BURN-01",
+      "INV-POOL-03"
+    ],
+    "source": "V3 §26 (halts settlement if the books do not balance); §7, §17, §20",
+    "fn": "holdingSettlement.holdingsAtDayClose + settleCreditsDay",
+    "seed": 80110,
+    "cases": 3000,
+    "failures": 0,
+    "metrics": {
+      "bad_active_days:refused": 115,
+      "bad_kit:refused": 118,
+      "none:settled": 1538,
+      "entry_rules_version:refused": 121,
+      "mixed_level:refused": 137,
+      "unknown_economy_version:refused": 123,
+      "duplicate_player:refused": 117,
+      "unit_future_asof:refused": 105,
+      "season_zero:refused": 133,
+      "holdings_day_mismatch:refused": 117,
+      "unit_no_zone:refused": 126,
+      "trust_above_one:refused": 125,
+      "unit_wrong_key:refused": 125
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P11",
+    "title": "Negative, fractional, NaN, Infinity and unsafe-integer inputs: refused, or settled with balanced books",
+    "invariants": [
+      "INV-REFUSE-01",
+      "INV-INT-01"
+    ],
+    "source": "V3 §26; §8 (never negative, never debt)",
+    "fn": "economyV3.settleDay + dayBooksProblems (as a reconciler would run them)",
+    "seed": 80111,
+    "cases": 3500,
+    "failures": 179,
+    "firstFailure": "case 21: poolMicro=1152921504606847000 passed the reconciler with books.poolMicro is not a non-negative safe integer (1152921504606847000)",
+    "metrics": {
+      "poolMicro=-1:thrown": 56,
+      "minutes=9007199254740992:accepted_balanced": 68,
+      "meters=1.7976931348623157e+308:accepted_balanced": 57,
+      "trustWeight=0.5:accepted_balanced": 59,
+      "activeDaysThisWeek=1.7976931348623157e+308:thrown": 46,
+      "zonesHeld=NaN:thrown": 56,
+      "kitLevel=1.7976931348623157e+308:refused_by_reconciler": 48,
+      "poolMicro=1.7976931348623157e+308:refused_by_reconciler": 13,
+      "meters=9007199254740992:accepted_balanced": 62,
+      "trustWeight=1.7976931348623157e+308:thrown": 61,
+      "activeDaysThisWeek=-1000000000:accepted_balanced": 8,
+      "zonesHeld=1.7976931348623157e+308:accepted_balanced": 42,
+      "kitLevel=NaN:refused_by_reconciler": 55,
+      "poolMicro=Infinity:thrown": 54,
+      "minutes=Infinity:thrown": 51,
+      "meters=-Infinity:accepted_balanced": 48,
+      "trustWeight=9007199254740992:thrown": 61,
+      "activeDaysThisWeek=-Infinity:thrown": 39,
+      "kitLevel=1152921504606847000:refused_by_reconciler": 64,
+      "poolMicro=1152921504606847000:ACCEPTED_UNBALANCED": 53,
+      "minutes=1152921504606847000:accepted_balanced": 49,
+      "trustWeight=NaN:thrown": 65,
+      "activeDaysThisWeek=-Infinity:accepted_balanced": 10,
+      "kitLevel=-1000000000:refused_by_reconciler": 50,
+      "poolMicro=-Infinity:thrown": 51,
+      "minutes=-1000000000:accepted_balanced": 68,
+      "activeDaysThisWeek=Infinity:thrown": 45,
+      "zonesHeld=-Infinity:thrown": 57,
+      "poolMicro=NaN:thrown": 66,
+      "minutes=-1:accepted_balanced": 51,
+      "meters=NaN:accepted_balanced": 61,
+      "activeDaysThisWeek=1.7976931348623157e+308:accepted_balanced": 14,
+      "zonesHeld=0.5:thrown": 61,
+      "kitLevel=-1:refused_by_reconciler": 48,
+      "meters=1152921504606847000:accepted_balanced": 50,
+      "trustWeight=1152921504606847000:thrown": 51,
+      "activeDaysThisWeek=NaN:thrown": 52,
+      "zonesHeld=1152921504606847000:accepted_balanced": 60,
+      "kitLevel=Infinity:refused_by_reconciler": 52,
+      "poolMicro=9007199254740992:ACCEPTED_UNBALANCED": 72,
+      "trustWeight=-1000000000:thrown": 48,
+      "activeDaysThisWeek=9007199254740992:accepted_balanced": 11,
+      "zonesHeld=9007199254740992:accepted_balanced": 53,
+      "kitLevel=9007199254740992:refused_by_reconciler": 72,
+      "kitLevel=-Infinity:refused_by_reconciler": 65,
+      "meters=0.5:accepted_balanced": 64,
+      "trustWeight=-1:thrown": 47,
+      "activeDaysThisWeek=0.5:accepted_balanced": 11,
+      "zonesHeld=Infinity:thrown": 52,
+      "meters=Infinity:accepted_balanced": 62,
+      "trustWeight=Infinity:thrown": 54,
+      "activeDaysThisWeek=0.5:thrown": 49,
+      "kitLevel=0.5:refused_by_reconciler": 46,
+      "minutes=0.5:accepted_balanced": 53,
+      "meters=-1000000000:accepted_balanced": 54,
+      "activeDaysThisWeek=Infinity:accepted_balanced": 9,
+      "zonesHeld=-1:thrown": 66,
+      "activeDaysThisWeek=1152921504606847000:thrown": 50,
+      "poolMicro=1.7976931348623157e+308:ACCEPTED_UNBALANCED": 44,
+      "zonesHeld=-1000000000:thrown": 43,
+      "minutes=-Infinity:accepted_balanced": 61,
+      "trustWeight=-Infinity:thrown": 54,
+      "activeDaysThisWeek=-1:thrown": 42,
+      "zonesHeld=1.7976931348623157e+308:ACCEPTED_UNBALANCED": 10,
+      "activeDaysThisWeek=9007199254740992:thrown": 41,
+      "poolMicro=-1000000000:thrown": 56,
+      "activeDaysThisWeek=-1000000000:thrown": 41,
+      "minutes=1.7976931348623157e+308:accepted_balanced": 49,
+      "minutes=NaN:accepted_balanced": 45,
+      "meters=-1:accepted_balanced": 42,
+      "activeDaysThisWeek=1152921504606847000:accepted_balanced": 11,
+      "minutes=Infinity:accepted_balanced": 5,
+      "poolMicro=0.5:thrown": 35,
+      "activeDaysThisWeek=-1:accepted_balanced": 11,
+      "activeDaysThisWeek=NaN:accepted_balanced": 10
+    },
+    "result": "FAIL"
+  },
+  {
+    "id": "P12",
+    "title": "Rule-version drift: unknown economy versions, holding-rule mismatches and mixed-version seasons are refused",
+    "invariants": [
+      "INV-VER-01"
+    ],
+    "source": "V3 §30 (every session records its rules version; never changed retroactively); §26",
+    "fn": "economyV3.economyRulesFor; holdingSettlement.settleCreditsDay, holdingsAtDayClose, settleCreditsSeason",
+    "seed": 80112,
+    "cases": 1000,
+    "failures": 0,
+    "metrics": {
+      "holdingDriftRefused": 789
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P13",
+    "title": "Concurrent and duplicate settlement: deterministic, order-free, idempotent; a day summed twice is refused",
+    "invariants": [
+      "INV-ONCE-01",
+      "INV-ONCE-02",
+      "INV-DET-01"
+    ],
+    "source": "V3 §1 rule 7 (rewards settle once a day); §26 (deterministic, versioned)",
+    "fn": "settleCreditsDay, settleCreditsSeason, holdingLedger.applyLedger",
+    "seed": 80113,
+    "cases": 1000,
+    "failures": 0,
+    "metrics": {},
+    "result": "pass"
+  },
+  {
+    "id": "P14",
+    "title": "Missing-day settlement: a season with gaps sums exactly the days settled and nothing else",
+    "invariants": [
+      "INV-MISS-01",
+      "INV-BURN-01",
+      "INV-CAP-02"
+    ],
+    "source": "V3 §17 (trimmed amounts never cross a season); §26",
+    "fn": "holdingSettlement.settleCreditsSeason",
+    "seed": 80114,
+    "cases": 1000,
+    "failures": 0,
+    "metrics": {
+      "unsettledDayPoolsNotReportedMicro": 131200000000000
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P15",
+    "title": "Expired late submission: stale pushes are rejected; a settled day is never re-opened by a late push",
+    "invariants": [
+      "INV-LATE-01"
+    ],
+    "source": "V3 §1 rule 7; §26; §28 (pending stays reversible until final)",
+    "fn": "holdingLedger.applyLedger, settleCreditsDay, settleCreditsSeason",
+    "seed": 80115,
+    "cases": 1000,
+    "failures": 0,
+    "metrics": {
+      "latePushForClosedDayAccepted": 1000
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P16",
+    "title": "Emergency halt (as modelled: a refused day) stops the whole season sum; no partial totals",
+    "invariants": [
+      "INV-HALT-01",
+      "INV-REFUSE-01"
+    ],
+    "source": "V3 §26 (halts settlement if the books do not balance)",
+    "fn": "holdingSettlement.settleCreditsSeason",
+    "seed": 80116,
+    "cases": 1000,
+    "failures": 0,
+    "metrics": {},
+    "result": "pass"
+  },
+  {
+    "id": "P17",
+    "title": "18-decimal conversion: exact micro↔wei, dust and unsafe numbers refused, day books still balance in wei",
+    "invariants": [
+      "INV-WEI-01",
+      "INV-WEI-02",
+      "INV-CAP-03"
+    ],
+    "source": "V3 §17 / rule 2 (1bn cap in the contract); §26 (books balance)",
+    "fn": "lib/units.ts reference converter over settleDay books (no product converter exists)",
+    "seed": 80117,
+    "cases": 5000,
+    "failures": 0,
+    "metrics": {
+      "safeIntegerHeadroomOverCap": 9,
+      "floatPathConversionErrors": 2456
+    },
+    "result": "pass"
+  },
+  {
+    "id": "P18",
+    "title": "No route data in the books; credits carry no transferable or liquid state",
+    "invariants": [
+      "INV-GPS-01",
+      "INV-LOCK-01"
+    ],
+    "source": "V3 §1 rule 12, §26–27 (route never on chain); rule 11, §21 (locked)",
+    "fn": "settleCreditsDay result shape",
+    "seed": 80118,
+    "cases": 1000,
+    "failures": 0,
+    "metrics": {
+      "creditLinesCarryingZoneIds": 813
+    },
+    "result": "pass"
+  }
+]

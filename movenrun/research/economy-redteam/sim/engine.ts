@@ -104,7 +104,7 @@ export function runVariant(sc: Scenario, v: Variant, opts: RunOptions = {}): Run
 
   // Counters.
   const c = {
-    attackerFlips: 0, attackerFlipsFromLegit: 0, attackerClaims: 0, legitVsLegitFlips: 0, legitClaims: 0, straddleFlips: 0,
+    attackerFlips: 0, attackerFlipsFromLegit: 0, attackerClaims: 0, legitVsLegitFlips: 0, legitClaims: 0, straddleFlips: 0, straddleFlipsDecayed: 0,
     jointSessions: 0, jointWalkFlips: 0, jointWalkErodes: 0, dayClosed: 0, staleDay: 0, otherRejected: 0, dailyLimitRefused: 0,
     takeCapDenialsLegit: 0, takeCapDenialsMal: 0, unitCapDenialsLegit: 0, unitCapDenialsMal: 0, d1Mismatch: 0, legitSessions: 0,
     zeroGain: 0, unexplained: 0, challengeOnly: 0, tooManyUnits: 0, retriesSkipped: 0,
@@ -271,7 +271,14 @@ export function runVariant(sc: Scenario, v: Variant, opts: RunOptions = {}): Run
           if (!firstClaim.has(`${s.walker}\u0000${e.unitId}`)) firstClaim.set(`${s.walker}\u0000${e.unitId}`, day);
           if (legit) everLegitHeld.add(e.unitId);
           const openedAt = metricOpened.get(e.unitId)?.get(s.walker);
-          if (openedAt !== undefined && s.receivedMs - openedAt < 20 * H) c.straddleFlips++;
+          if (openedAt !== undefined && s.receivedMs - openedAt < 20 * H) {
+            // Ground that had decayed below the immediate-take line falls at once under 1002 by design;
+            // a straddle is a completion of a challenge on ground above that line.
+            const before = sub.get(e.unitId)!;
+            const decayed = before.asOfDay <= day ? decayTo(before, day, rules.holding) : before;
+            const line = rules.holding.takeover?.challenge?.immediateBelowStrength ?? 0;
+            if (decayed.strength >= line) c.straddleFlips++; else c.straddleFlipsDecayed++;
+          }
           metricOpened.delete(e.unitId);
           if (!legit) { c.attackerFlips++; if (prev && !isMal(prev)) c.attackerFlipsFromLegit++; } else if (prev && !isMal(prev)) {
             c.legitVsLegitFlips++;
@@ -408,6 +415,7 @@ export function runVariant(sc: Scenario, v: Variant, opts: RunOptions = {}): Run
     attackerShareSeason1: mean(seasonAttackerShare[0]!),
     attackerShareSeason2: seasonAttackerShare[1]!.length ? mean(seasonAttackerShare[1]!) : NaN,
     straddleFlips: c.straddleFlips,
+    straddleFlipsDecayedGround: c.straddleFlipsDecayed,
     abuseFlipsFromLegitPerPhysicalHour: malHours ? c.attackerFlipsFromLegit / malHours : NaN,
     abuseFlipsFromLegitPerRecordedHour: malRecordedHours ? c.attackerFlipsFromLegit / malRecordedHours : NaN,
     abuseFlipsFromLegitPerDevice: malDevices ? c.attackerFlipsFromLegit / malDevices : NaN,
@@ -457,7 +465,7 @@ export function runVariant(sc: Scenario, v: Variant, opts: RunOptions = {}): Run
     staleDayRejectionsLegit: c.staleDay,
     dailyLimitRefusals: c.dailyLimitRefused,
     d1MismatchSessionRate: c.d1Mismatch / ls,
-    retriesSkipped: c.retriesSkipped,
+    retryEventsSkipped: c.retriesSkipped,
     otherRejected: c.otherRejected + c.tooManyUnits,
     // MODEL ASSUMPTION, kept apart from gameplay outcomes: never observed retention.
     model_survivalLegit: mean(legitSurvival),

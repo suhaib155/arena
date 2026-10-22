@@ -15,7 +15,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cellToChildren, getResolution, gridDisk, latLngToCell } from "h3-js";
+import { cellToChildren, gridDisk, latLngToCell } from "h3-js";
 import { cellsForObservations } from "@movenrun/shared/h3";
 import { SESSION_RULES_VERSION } from "@movenrun/shared/session";
 import type { PushEvent } from "@movenrun/shared/holdingLedger";
@@ -82,9 +82,8 @@ async function session(userId: string, sid: string, endMs: number, opts: {
   if (opts.units) {
     await t.pool.query(
       `INSERT INTO gameplay_session_paths (movement_verification_id, path_version, resolution, unit_ids, interpolated, skipped_segments, truncated)
-       VALUES ($1, 1, $4, $2::bigint[], $3::varbit, 0, false)`,
-      [id, opts.units.map(cellToInt8), (opts.interpolated ?? opts.units.map(() => false)).map((f) => (f ? "1" : "0")).join(""),
-       opts.units.length > 0 ? getResolution(opts.units[0]!) : 10]);
+       VALUES ($1, 1, 10, $2::bigint[], $3::varbit, 0, false)`,
+      [id, opts.units.map(cellToInt8), (opts.interpolated ?? opts.units.map(() => false)).map((f) => (f ? "1" : "0")).join("")]);
   }
   return id;
 }
@@ -329,7 +328,7 @@ test("a refusal leaves no half-state: nine refusal paths change no gameplay row,
     ["not verified", () => p2.applySession(ivy, "ivy-rejected1"), "session_not_verified"],
     ["device clock ahead", () => p2.applySession(ivy, "ivy-future-01"), "session_in_future"],
     ["day closed", () => p2.applySession(ivy, "ivy-closed-01"), "day_closed"],
-    ["1001 on a 1002 season", () => a9.applySession(ivy, "ivy-a9-same01"), "season_rules_changed"],
+    ["1001 on a day pinned to 1002", () => a9.applySession(ivy, "ivy-a9-same01"), "rules_version_mismatch"],
   ];
   for (const [name, run, expected] of cases) {
     const before = await snapshot();

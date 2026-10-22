@@ -15,8 +15,8 @@ export interface RuleParams {
   unitsPerSession: number;
   /** Accepted (ledger) rows per verified session. Refusals are counters, not rows (0011 rev 3). */
   acceptedRowsPerSession: number;
-  /** Challenge row versions (insert + delete counted as 1 version each way) written per accepted ledger row. 0 for rule 1001 (immediate flip, no challenges). */
-  challengeVersionsPerAcceptedRow: number;
+  /** Challenge inserts (each later a dead tuple) per accepted ledger row per player in the pilot area. Measured in a dense 2 km area; it grows with density. 0 for rule 1001. */
+  challengeInsertsPerAcceptedRowPerPlayer: number;
   liveChallengesPerPlayer: number;
   distinctUnitsPerPlayer: number;
   /** Share of accepted rows that rewrite a gameplay_units row. */
@@ -114,7 +114,7 @@ export function project(p: Params, rule: string, users: number, lifetime: string
 
   // dead-tuple bloat: high-water mark of dead versions between vacuum passes; never returned without VACUUM FULL
   const totalRowsPerDay = rowsPerDay + hostileRowsPerDay * (hostileDays > 0 ? 1 : 0);
-  const chVersionsPerDay = totalRowsPerDay * r.challengeVersionsPerAcceptedRow;
+  const chVersionsPerDay = totalRowsPerDay * r.challengeInsertsPerAcceptedRowPerPlayer * users;
   const unitUpdatesPerDay = totalRowsPerDay * r.unitUpdatesPerAcceptedRow;
   const bloat = (share: number) => {
     const ch = chVersionsPerDay * share * (p.churn.tupleBytes.unitChallenge + p.churn.indexBytesPerVersion.unitChallenge * p.churn.indexBloatFactor);
@@ -185,7 +185,7 @@ export function backlog(p: Params, rule: string, users: number, sleepDays: numbe
     settle_seconds_per_run: round3(perRun * msPerDay / 1000), settle_seconds_total: round3(sleepDays * msPerDay / 1000),
     entries_per_day: Math.round(entries),
     temp_bytes_per_settlement: sortBytes > p.settlement.workMemMiB * MIB ? Math.round(sortBytes * p.settlement.sortsPerSettlement) : 0,
-    wal_bytes_total: Math.round(sleepDays * (entries * (p.wal.bytesPerAcceptedRow + r.challengeVersionsPerAcceptedRow * p.wal.bytesPerChallengeVersion))),
+    wal_bytes_total: Math.round(sleepDays * (entries * (p.wal.bytesPerAcceptedRow + r.challengeInsertsPerAcceptedRowPerPlayer * users * p.wal.bytesPerChallengeVersion))),
   };
 }
 
