@@ -1,0 +1,338 @@
+{
+  "label": "Play v1 feature-state register. Derived from routes, releaseScope gating and data sources at #125 head 15f7f87, not from screen names.",
+  "states": {
+    "verified_local": "working and verified locally by a named functional test",
+    "configured_unproven": "configured but not yet proven on a real phone or hosted service",
+    "preview_only": "honest preview or concept, local data only, labelled as such",
+    "hidden_excluded": "hidden and excluded from v1 by releaseScope",
+    "future_credits_pilot": "future credits-only private pilot (V3 J2)",
+    "future_financial": "future financial or onchain, not launch eligible"
+  },
+  "features": [
+    {
+      "id": "home",
+      "routes": [
+        "/"
+      ],
+      "state": "verified_local",
+      "data": "local store + lib/tasks.ts",
+      "evidence": "mobile tasks.test.ts, todayNavigation.test.ts",
+      "claimIssues": [
+        "Home board shows 'Defend N zones' in danger tone and 'Capture your first zone' (preview vocabulary)"
+      ]
+    },
+    {
+      "id": "intro",
+      "routes": [
+        "/opening"
+      ],
+      "state": "verified_local",
+      "data": "local store (intro seen flag)",
+      "evidence": "mobile introFlow.test.ts",
+      "claimIssues": []
+    },
+    {
+      "id": "permission-education",
+      "routes": [
+        "/move"
+      ],
+      "state": "verified_local",
+      "data": "lib/moveReadiness.ts",
+      "evidence": "mobile moveReadiness.test.ts, privacyTruth.test.ts",
+      "claimIssues": [
+        "Denied/services-off copy says 'or try a demo route' but the demo button exists only in __DEV__ builds"
+      ]
+    },
+    {
+      "id": "start-move",
+      "routes": [
+        "/move",
+        "/move/session"
+      ],
+      "state": "configured_unproven",
+      "data": "expo-location foreground watch",
+      "evidence": "research corpus A01-A05; mobile gpsReadiness.test.ts",
+      "claimIssues": []
+    },
+    {
+      "id": "gps-acquisition",
+      "routes": [
+        "/move/session"
+      ],
+      "state": "verified_local",
+      "data": "shared createGpsAcquisition",
+      "evidence": "research corpus A01, A02, A04",
+      "claimIssues": []
+    },
+    {
+      "id": "pause-resume",
+      "routes": [
+        "/move/session"
+      ],
+      "state": "verified_local",
+      "data": "lib/sessionLifecycle.ts",
+      "evidence": "research stateMachine.test.ts; corpus T02, L03",
+      "claimIssues": []
+    },
+    {
+      "id": "finish",
+      "routes": [
+        "/move/session"
+      ],
+      "state": "verified_local",
+      "data": "lib/sessionLifecycle.ts",
+      "evidence": "research stateMachine.test.ts (double Finish)",
+      "claimIssues": []
+    },
+    {
+      "id": "mission-eligibility",
+      "routes": [
+        "/move/summary"
+      ],
+      "state": "verified_local",
+      "data": "isSaveable + hasDrawableRoute",
+      "evidence": "research corpus S01/S02; known defects MR-A-02/03/04",
+      "claimIssues": [
+        "Save rule (200 m or 5 min) uses the wall clock: MR-A-03"
+      ]
+    },
+    {
+      "id": "session-summary",
+      "routes": [
+        "/move/summary"
+      ],
+      "state": "verified_local",
+      "data": "local session + POST /movement/verify",
+      "evidence": "research verificationStates.test.ts; mobile completionSummary.test.ts",
+      "claimIssues": [
+        "'Route checked' shown for server-verified routes that include a vehicle leg: MR-A-02"
+      ]
+    },
+    {
+      "id": "server-verification",
+      "routes": [
+        "/move/summary",
+        "/account"
+      ],
+      "state": "configured_unproven",
+      "data": "POST /movement/verify on Render free staging",
+      "evidence": "research corpus (production rules in-process); not exercised against the hosted API",
+      "claimIssues": [
+        "Honest short walks rejected by MIN_POINTS = 10: MR-A-01"
+      ]
+    },
+    {
+      "id": "history",
+      "routes": [
+        "/route/passport",
+        "/route/review-history",
+        "/account",
+        "/route/proof"
+      ],
+      "state": "verified_local",
+      "data": "local routeTrustHistory; GET /movement/verifications when signed in",
+      "evidence": "mobile passportEntries.test.ts, accountHistory.test.ts; /route/proof builds its view from lib/routeProof.ts (no named test of the screen)",
+      "claimIssues": [
+        "review-history outcome label 'Captured'"
+      ]
+    },
+    {
+      "id": "xp-streak",
+      "routes": [
+        "/",
+        "/profile",
+        "/result"
+      ],
+      "state": "verified_local",
+      "data": "useGameStore (device only)",
+      "evidence": "research xpSemantics.test.ts",
+      "claimIssues": [
+        "XP is banked before and regardless of the server verdict: MR-A-09",
+        "Day key follows the phone clock: MR-A-08"
+      ]
+    },
+    {
+      "id": "timed-quests",
+      "routes": [
+        "/quests",
+        "/quest/[id]",
+        "/active",
+        "/result"
+      ],
+      "state": "verified_local",
+      "data": "seed quests, local timer",
+      "evidence": "research xpSemantics.test.ts",
+      "claimIssues": [
+        "Self-timed, no sensor evidence; result ShareCard prints 'Move → Capture → Own'"
+      ]
+    },
+    {
+      "id": "profile",
+      "routes": [
+        "/profile"
+      ],
+      "state": "verified_local",
+      "data": "local store",
+      "evidence": "mobile profileView.test.ts",
+      "claimIssues": [
+        "'{n} zones' pill without a preview label"
+      ]
+    },
+    {
+      "id": "sign-in-google",
+      "routes": [
+        "/welcome",
+        "/account",
+        "/auth/callback"
+      ],
+      "state": "configured_unproven",
+      "data": "Supabase Google provider (owner gate X-05, provider OFF)",
+      "evidence": "mobile signInMethods.test.ts; no genuine sign-in performed",
+      "claimIssues": []
+    },
+    {
+      "id": "sign-in-wallet",
+      "routes": [
+        "/welcome",
+        "/account",
+        "/auth/wallet"
+      ],
+      "state": "configured_unproven",
+      "data": "SIWE via website, sign-in only",
+      "evidence": "mobile signInMethods.test.ts; WALLET_LOGIN gate not run",
+      "claimIssues": []
+    },
+    {
+      "id": "account-deletion",
+      "routes": [
+        "/account/security"
+      ],
+      "state": "configured_unproven",
+      "data": "POST /identity/account/delete",
+      "evidence": "mobile sessionManagement.test.ts; not run against hosted API by this track",
+      "claimIssues": [
+        "Guests have no deletion path (nothing server-side); local clear is 'Reset progress'"
+      ]
+    },
+    {
+      "id": "help-legal",
+      "routes": [
+        "/help",
+        "/legal"
+      ],
+      "state": "configured_unproven",
+      "data": "static copy; LEGAL_VERSION constant",
+      "evidence": "mobile privacyTruth.test.ts covers privacy copy; no test for help/legal screens",
+      "claimIssues": [
+        "help lists a 'Deeds guide' on a release surface (MR-A-10)",
+        "LEGAL_VERSION reads v1-2026-11-02 before the legal text is final"
+      ]
+    },
+    {
+      "id": "technical-info",
+      "routes": [
+        "/settings/technical"
+      ],
+      "state": "preview_only",
+      "data": "seed data/contractStatus.ts",
+      "evidence": "mobile networkView.test.ts",
+      "claimIssues": [
+        "Release-reachable screen lists '$MOVE token contract', Deed NFTs, treasury, 'owned zones' and Base Sepolia addresses: MR-A-10"
+      ]
+    },
+    {
+      "id": "territory-preview",
+      "routes": [
+        "/territory/map",
+        "/zone/[id]",
+        "/move/captured",
+        "/territory/alerts",
+        "/collections",
+        "/weekly-recap",
+        "/season-objectives"
+      ],
+      "state": "preview_only",
+      "data": "local zones in useGameStore; no server ownership",
+      "evidence": "mobile territoryIntro.test.ts, consumerPreview.test.ts; research claims.test.ts",
+      "claimIssues": [
+        "Intro step 'Capture and defend' and FirstTimeGuide 'capture or strengthen zones' read as live",
+        "'Own your season.' heading",
+        "'Discover Deeds' entry text in FirstTimeGuide"
+      ]
+    },
+    {
+      "id": "clubs-districts",
+      "routes": [
+        "/clubs",
+        "/club-territory",
+        "/crew-missions",
+        "/city-districts",
+        "/district-mastery"
+      ],
+      "state": "hidden_excluded",
+      "data": "seed clubs, fictional",
+      "evidence": "mobile releaseScope.test.ts; research claims.test.ts (out of scope)",
+      "claimIssues": []
+    },
+    {
+      "id": "competition",
+      "routes": [
+        "/city-war",
+        "/rivals",
+        "/event-zones",
+        "/sponsor-zones"
+      ],
+      "state": "hidden_excluded",
+      "data": "fictional",
+      "evidence": "mobile releaseScope.test.ts",
+      "claimIssues": []
+    },
+    {
+      "id": "wallet-management",
+      "routes": [
+        "/account/wallets",
+        "/network/status"
+      ],
+      "state": "hidden_excluded",
+      "data": "identity wallets API",
+      "evidence": "mobile releaseScope.test.ts",
+      "claimIssues": []
+    },
+    {
+      "id": "deeds",
+      "routes": [
+        "/deed-showroom"
+      ],
+      "state": "hidden_excluded",
+      "data": "local preview",
+      "evidence": "mobile releaseScope.test.ts",
+      "claimIssues": []
+    },
+    {
+      "id": "territory-authoritative",
+      "routes": [],
+      "state": "future_credits_pilot",
+      "data": "#121/#129 server holdings behind a flag (not this track)",
+      "evidence": "none in v1",
+      "claimIssues": []
+    },
+    {
+      "id": "move-token-deeds",
+      "routes": [],
+      "state": "future_financial",
+      "data": "contracts on Base Sepolia, not wired",
+      "evidence": "none in v1",
+      "claimIssues": []
+    }
+  ],
+  "unlinked": [
+    {
+      "route": "/questline",
+      "note": "registered, not linked, not in FEATURE_ROUTES; reachable by deep link only"
+    },
+    {
+      "route": "/onboarding",
+      "note": "redirect to /opening"
+    }
+  ]
+}
