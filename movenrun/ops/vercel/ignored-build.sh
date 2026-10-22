@@ -1,20 +1,32 @@
 #!/bin/sh
-# Vercel "Ignored Build Step" for the movenrun.xyz project.
-# Runs from the project Root Directory (movenrun/website).
+# Vercel "Ignored Build Step" for the movenrun-website project.
+# Lives OUTSIDE movenrun/website on purpose: the site's Output Directory is
+# ".", so anything inside that folder is deployed and publicly served.
+# Dashboard command (Root Directory movenrun/website): sh ../ops/vercel/ignored-build.sh
 # Exit 0 = skip the build, exit 1 = build. Fails open: any doubt builds.
 # Read-only git commands only; no network, no writes.
 #
-# Inputs watched: everything under the website folder (this includes
-# vercel.json). The site is static and imports nothing from outside its
-# folder. If that ever changes, add the outside path to WATCH below
-# (paths are relative to the website folder, e.g. ../shared).
-
-WATCH=". ${IGNORED_BUILD_EXTRA_WATCH:-}"
+# Manual override: set VERCEL_FORCE_BUILD=1 (project env var, or in the
+# environment of the run) to force a build.
+#
+# Watched: everything under movenrun/website (includes vercel.json). The site
+# is static and imports nothing from outside its folder. To watch more, set
+# IGNORED_BUILD_EXTRA_WATCH (paths relative to movenrun/website, e.g. ../shared).
 
 build() { echo "ignored-build: BUILD - $1"; exit 1; }
 skip()  { echo "ignored-build: SKIP - $1"; exit 0; }
 
+[ -z "${VERCEL_FORCE_BUILD:-}" ] || [ "${VERCEL_FORCE_BUILD:-}" = "0" ] \
+  || build "VERCEL_FORCE_BUILD is set"
+
 command -v git >/dev/null 2>&1 || build "git not available"
+
+# Always diff the website folder, wherever the step was started from.
+SITE=$(cd "$(dirname "$0")/../../website" 2>/dev/null && pwd) \
+  || build "website folder not found relative to script"
+cd "$SITE" || build "cannot enter website folder"
+WATCH=". ${IGNORED_BUILD_EXTRA_WATCH:-}"
+
 git rev-parse --git-dir >/dev/null 2>&1 || build "not inside a git work tree"
 
 PREV="${VERCEL_GIT_PREVIOUS_SHA:-}"

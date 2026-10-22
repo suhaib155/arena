@@ -75,16 +75,22 @@ Static export, `vercel.json` in this folder sets the build to a no-op. Project s
 - **Install Command:** (empty)
 - **Build Command:** (empty)
 - **Output Directory:** `.`
-- **Ignored Build Step:** `sh scripts/ignored-build.sh`
+- **Ignored Build Step:** Custom (or "Run my Bash script"):
+  `sh ../ops/vercel/ignored-build.sh || exit 1`
 
-`scripts/ignored-build.sh` skips the build (exit 0) only when nothing under
-`movenrun/website` (including `vercel.json`) changed between
-`VERCEL_GIT_PREVIOUS_SHA` and `VERCEL_GIT_COMMIT_SHA`. It builds (exit 1) when
-the previous SHA is empty or missing from the clone, when the two SHAs are
-equal, or when git fails. It uses read-only git commands and compares trees,
-so multi-commit pushes and merge commits are handled as one change set. The
-site imports nothing from outside its folder; if that changes, set
-`IGNORED_BUILD_EXTRA_WATCH` or edit `WATCH` in the script.
+`movenrun/ops/vercel/ignored-build.sh` lives outside this folder because the
+Output Directory is `.`, so every file in this folder is deployed and served.
+It skips the build (exit 0) only when nothing under `movenrun/website`
+(including `vercel.json`) changed between `VERCEL_GIT_PREVIOUS_SHA` and
+`VERCEL_GIT_COMMIT_SHA`. It builds (exit 1) when the previous SHA is empty or
+missing from the clone, when the two SHAs are equal, when the website folder
+cannot be found, or when git fails. It uses read-only git commands and compares
+trees, so multi-commit pushes and merge commits count as one change set. To
+force a build, set the project environment variable `VERCEL_FORCE_BUILD=1`
+(remove it afterwards), or redeploy with "Use project's Ignore Build Step"
+unchecked. If the site ever imports from outside its folder, set
+`IGNORED_BUILD_EXTRA_WATCH` or edit the script. Tests:
+`bash movenrun/ops/vercel/test-ignored-build.sh`.
 
 ## Structure
 
