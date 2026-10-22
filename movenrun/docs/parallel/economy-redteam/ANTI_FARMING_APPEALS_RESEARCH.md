@@ -14,7 +14,7 @@ Reported there: honest accounts penalised 1.3% (+/-0.8) for `review-flag-2plus`,
 
 The 1.3% is the share of honest accounts whose review was wrongly upheld, on an assumed reviewer (upholds 5% of honest groups, 90% of true rings). It is not the share of honest people put into a review. The second figure, 17.8%, is the one that matters for friction, privacy and staffing, and the headline hides it. This is the main re-evaluation finding.
 
-## 2. My own test
+## 2. Our own test
 
 SYNTHETIC EXPERIMENT. Design, all in `farming/sim.ts`:
 
@@ -31,12 +31,12 @@ SYNTHETIC EXPERIMENT. Design, all in `farming/sim.ts`:
 | Variant | Honest accounts put into review | Honest wrongly upheld | Linked-family cohorts put into review | Stranger cohorts put into review |
 |---|---|---|---|---|
 | V0 #123 rule, 4 of 14 | 15.4% [15.1, 15.7] | 0.77% [0.55, 0.99] | 58.6% [57.4, 59.8] | 0.28% |
-| V1 8 of 14 | 11.4% [11.2, 11.7] | 0.54% | 43.4% | 0.23% |
-| V2 4 of 14 + tight trace | 2.1% [1.9, 2.4] | 0.10% | 8.1% | 0.00% |
+| V1 8 of 14 | 11.4% [11.2, 11.7] | 0.54% [0.37, 0.71] | 43.4% | 0.23% |
+| V2 4 of 14 + tight trace | 2.1% [1.9, 2.4] | 0.10% [0.04, 0.16] | 8.1% [7.2, 9.1] | 0.00% |
 | V3 6 of 14 + tight trace | 0.06% [0.03, 0.10] | 0.00% | 0.25% | 0.00% |
 | V2s (honest twice as tight) | 9.1% [8.8, 9.3] | 0.41% | 34.9% | 0.00% |
 
-At N=100 and 200 the V0 honest review rate is 11.2% and 13.7%. The wrongly-upheld rate at N=1,000 (0.77%) is the same order as #123's 1.3%, so I reproduce their number; the review rate is what they did not headline. Full per-cohort tables: `farming/out/cohorts.csv`, `farming/out/headline.csv`.
+At N=100 and 200 the V0 honest review rate is 11.2% and 13.7%. The wrongly-upheld rate at N=1,000 (0.77%) is the same order as #123's 1.3%, (different populations and reviewer draws, so same order only, not a reproduction). In #123 "penalised" means earning at least 1% less than baseline over the season, which is a credit effect; our figure counts accounts inside an upheld review, a different measure. The review rate is what they did not headline. Intervals for every cell are in the CSVs. Full per-cohort tables: `farming/out/cohorts.csv`, `farming/out/headline.csv`.
 
 ### False-positive review rate per cohort (V0, N=1,000)
 
@@ -79,7 +79,7 @@ PILOT ASSUMPTION for design; SYNTHETIC EXPERIMENT for counts (per 1,000 accounts
 
 What the rule needs that the app does not already keep:
 
-1. A link graph: edges between pseudonymous accounts derived from a shared hashed install or device identifier, shared recovery contact hash, or invitation chain. About 142 edges per 1,000 accounts in this synthetic population, 1.1 of them false (strangers). Edges must be retained as long as the rule is wanted (proposed 90 days, renewable only by fresh evidence). This is the large cost: the signal is a persistent record of who is connected to whom.
+1. A link graph: edges between pseudonymous accounts derived from a shared hashed install or device identifier, shared recovery contact hash, or invitation chain. About 142 edges per 1,000 accounts in this synthetic population, 1.1 of them false (strangers). Edges must be retained as long as the rule is wanted (proposed 90 days, renewable only by fresh evidence). This is the large cost: the signal is a persistent record of who is connected to whom. Building this device and link signal is the main privacy cost of the whole proposal and needs explicit owner approval before any implementation.
 2. Co-walk records, only for linked pairs: day, 15-minute start bucket, a salted route-fingerprint match flag and optionally a tight-trace flag. About 800 live records per 1,000 accounts at a 14-day retention. No coordinates, no trace.
 3. A case file: reason codes, counts, record hashes.
 
@@ -89,7 +89,7 @@ Retention table (also `RETENTION` in `farming/dueProcess.ts`): link edge 90 days
 
 ## 4. Mechanisms, kept apart
 
-| Mechanism | What it does | Touches location or links? | Honest cost | Weakness | In my numbers |
+| Mechanism | What it does | Touches location or links? | Honest cost | Weakness | In our numbers |
 |---|---|---|---|---|---|
 | Scoring-only diminishing returns | Lowers credit per extra session or per extra linked account automatically | Needs link graph for the linked variant | Hits real households unless there is a household allowance (#123 measured 17.8% honest penalised for linked-as-one) | Automatic, cannot be appealed before it bites | not simulated here; relied on #123 |
 | Human review queue | A person decides about a linked group after a count threshold | Link graph plus co-walk counts | Review for 15% of honest accounts at V0, 2% at V2 | Staff time; cannot see unlinked rings | simulated |
@@ -112,7 +112,7 @@ Per-case time is an ASSUMPTION; no reviewer has ever timed one. First review 10 
 | V2 tight trace | 9.3 | 48 / 98 / 248 |
 | V3 | 0.3 | 2 / 3 / 8 |
 
-At N=100 the V0 mid estimate is 417 minutes per 1,000 participants; at N=200 it is 550. All of these depend almost entirely on how many linked people walk together, which is exactly what is unknown. The unit to measure first is real minutes per case.
+At N=100 the V0 mid estimate is 417 minutes per 1,000 participants; at N=200 it is 550. The review counts here (about 69 cases per 1,000 for V0 including rings, 57 honest-only) are not comparable with #123's about 99 per 1,000: #123 counts per linked group and re-runs the check after an exemption expires, while we count connected components of flagged links once per season. All of these depend almost entirely on how many linked people walk together, which is exactly what is unknown. The unit to measure first is real minutes per case.
 
 ## 6. Due-process flow (proposal)
 
@@ -123,7 +123,7 @@ Implemented as pure, tested functions in `farming/dueProcess.ts`:
 3. A reviewer who is not on the growth team sees reason codes and counts only (`LINKED_ACCOUNTS`, `REPEATED_SAME_TIME_SAME_ROUTE`, counts, record hashes), never a route, a zone or another person's name. A decision that reduces credits needs a second person.
 4. Outcomes: clear (exemption 90 days) or uphold. Upholding applies only a shared daily allowance for the linked group, starting 3 days after the decision; no settled day is touched.
 5. The player can ask for a second look within 30 days; a different reviewer decides. An overturn restores the allowance from the next settlement and exempts the group. It mints nothing, claws back nothing, and re-settles nothing.
-6. Operator correction of a false positive is prospective and cannot mint credit. See `docs/parallel/economy-redteam/CLUB_AND_DISTRICT_FAIRNESS_BRIEF.md` for the repo-side finding that re-settling a day redistributes the fixed day pool to the other players, which is why corrections must never be done by re-settlement.
+6. Operator correction of a false positive is prospective and cannot mint credit. See `docs/parallel/economy-redteam/CLUB_AND_DISTRICT_FAIRNESS_BRIEF.md` for the repo-side finding that `settleCreditsDay` is deterministic and balanced but not idempotent when the participant set changes, so corrections must be line withdrawals, never re-settlement.
 7. Never auto-ban. Never freeze verified XP, streaks or achievements. Never label a co-walker. A decision log keeps case id, reviewer pseudonym, reason code, effective day; a monthly blind re-review sample replaces the 5% reviewer assumption with a measured rate.
 
 Safe notification wording (tested against a forbidden-word list that includes cheat, fraud, ban, farming, partner, household, friend):
@@ -134,7 +134,7 @@ Safe notification wording (tested against a forbidden-word list that includes ch
 
 ## 7. Conclusions and what to do
 
-1. Do not cite 1.3% as the cost of the rule. Cite two numbers: honest accounts put into review (15% under the #123 rule in this model, 17.8% in theirs) and wrongly upheld (about 1%). SYNTHETIC EXPERIMENT.
+1. Do not cite 1.3% as the cost of the rule. Cite two numbers: honest accounts put into review (15% under the #123 rule in this model, 17.8% in theirs) and wrongly upheld (0.8%). SYNTHETIC EXPERIMENT.
 2. The rule reviews real households, siblings, guides and organised walks at 30% to 96%. It is cheap in penalties and expensive in friction, privacy and staff time. SYNTHETIC EXPERIMENT.
 3. It cannot see unlinked rings or time-staggered rings. If the owner's concern is organised farming, linkage is not enough; this study does not show what is. SYNTHETIC EXPERIMENT.
 4. A second feature that separates a person carrying phones from real co-walkers would cut the review rate sharply in this model, but the feature's separation is assumed. Collect it (as a coarse flag) in the private prototype before any rule depends on it, and test with consenting testers. PILOT ASSUMPTION.

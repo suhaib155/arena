@@ -33,7 +33,8 @@ const DOCUMENTED_FAILURES = new Set(["P11"]);
 
 for (const p of PROPERTIES) {
   const m = manifest.properties[p.id];
-  test(`${p.id} ${p.title}`, () => {
+  const title = DOCUMENTED_FAILURES.has(p.id) ? `${p.id} ${p.title} (known failure, see BK-D1)` : `${p.id} ${p.title}`;
+  test(title, () => {
     assert.ok(m, `${p.id} has no seed in seeds.json`);
     assert.ok(m.cases >= 1000, `${p.id} runs at least a thousand cases`);
     const r = runProperty(p, m.seed, m.cases, mulberry32);
@@ -114,7 +115,7 @@ test("documents defect: sessionToll and dayCloseCharges return NaN/Infinity on n
   // Through settleCreditsDay these cannot arise (pool and day-share are derived), and a NaN kit level is refused by the books check.
 });
 
-test("documents gap: the ledger accepts a push dated a day that may already be settled (BK-G1)", () => {
+test("documents gap (reference model only; the server refuses with day_closed): the ledger accepts a push dated a day that may already be settled (BK-G1)", () => {
   const unit = { ...newUnit("z0/a", 20), holderId: "h", strength: 100 };
   const r = applyLedger({ states: new Map([["z0/a", unit]]), events: [{ eventId: "late", unitId: "z0/a", walkerId: "w", push: { kind: "solid" }, day: 20 }], rules: HARNESS_HOLDING_RULES });
   assert.equal(r.results[0]!.status, "applied", "no closed-day watermark exists");

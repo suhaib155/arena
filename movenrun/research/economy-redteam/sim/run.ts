@@ -35,7 +35,7 @@ export function loadManifest(): Manifest & { stages: Stage[]; seeds: Record<stri
   return JSON.parse(readFileSync(join(HERE, "manifest.json"), "utf8"));
 }
 
-const fmt = (x: unknown) => (typeof x === "number" ? (Number.isFinite(x) ? String(Number(x.toPrecision(6))) : "") : String(x));
+const fmt = (x: unknown) => (typeof x === "number" ? (Number.isFinite(x) ? String(Number(x.toPrecision(4))) : "") : String(x));
 
 export function toCsv(rows: Record<string, unknown>[]): string {
   if (!rows.length) return "";
@@ -110,7 +110,6 @@ export function summarize() {
     }
   }
   writeFileSync(join(OUT, "summary.csv"), toCsv(out));
-  writeFileSync(join(OUT, "summary.json"), JSON.stringify(json));
   return json;
 }
 

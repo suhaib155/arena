@@ -105,9 +105,9 @@ Result: H1 holds step by step from the printed intermediates, and fails in eight
 | §17 2.37 vs 1.00 | 2.37, 1.00 | 2.372, 1.00 | effort × consistency reproduces | yes |
 | §17 12/20 | 0.6 | 0.6 | constants | yes |
 | §17 schedule | 400M, ~180 seasons, ~44 years | 400M, 179.27 seasons (15 above the floor), 44.2 years | 400M over 180 seasons, the last partial | yes |
+| §20 season-one toll bound | 180,000 | 9M × 2% | implied by the per-day 2% check | yes |
 
 Season count: the model releases the 400M in 179.27 seasons (180 counting the last, partial season), against the source's "roughly 180"; the two agree.
-| §20 season-one toll bound | 180,000 | 9M × 2% | implied by the per-day 2% check | yes |
 
 Rounding and remainders, checked in code: each owner's share is floored and the remainder stays with the runner (`economyV3.ts:232-239`); a 20,000.02-micro toll split three ways pays 19,998 and leaves 2.02 with the runner. Recharge is on the gross day reward before the toll, as in §18 step 8. The per-session ceiling applies before the day ceiling (A7).
 

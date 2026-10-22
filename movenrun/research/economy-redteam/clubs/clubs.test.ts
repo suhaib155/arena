@@ -254,7 +254,7 @@ test("k-threshold publishing: groups below k are merged; a lone suppressed row i
   assert.equal(publishBoard([{ id: "X", score: 1, contributors: 4 }, { id: "Y", score: 2, contributors: 3 }], 5).shown.length, 0);
 });
 
-test("documents hazard: re-settling a settled day without a removed player redistributes the fixed day pool to the others (a retroactive mint to them)", () => {
+test("documents: settleCreditsDay is not idempotent when the participant set changes; a removed player's share is reassigned to the others (corrections must be line withdrawals)", () => {
   const ms = [member("a", "A"), member("b", "B")];
   const ev1 = [ev("1", unitId(0, 0), "a", 1), ev("2", unitId(1, 0), "b", 1)];
   const original = playDay(1, ms, ev1, [walker("a"), walker("b")]);
