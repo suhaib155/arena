@@ -787,3 +787,180 @@ test("a push for a day with no partition yet creates it outside the push transac
   await pool.query(`DROP TABLE gameplay_partitions.gameplay_push_events_d${D + 60}`);
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM gameplay_push_events WHERE day = $1`, [D + 60])).rows[0].n, 0);
 });
+
+/* ── the flag off, the partition race and the deadlock retry ───────────── */
+
+test("flag off on 0000–0010 alone: every gameplay route is a 404 for GET and POST, no gameplay relation appears, and the scheduler queries no gameplay table", { skip: SKIP }, async () => {
+  const gate = `gameplay_gate_${randomBytes(6).toString("hex")}`;
+  await admin.query(`CREATE DATABASE "${gate}"`);
+  const url = new URL(DATABASE_URL!);
+  url.pathname = `/${gate}`;
+  const gatePool = new pg.Pool({ connectionString: url.toString() });
+  gatePool.on("error", () => undefined);
+  const keys = ["NODE_ENV", "DATABASE_URL", "IDENTITY_SESSION_PEPPER", "CORS_ORIGINS", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY",
+    "SUPABASE_SECRET_KEY", "IDENTITY_AUTH_DOMAIN", "MOVENRUN_GAMEPLAY_SEASON_START_DAY", "MOVENRUN_GAMEPLAY_ENABLED"];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const savedFetch = globalThis.fetch;
+  // Maintenance may try the sign-in provider; nothing may leave the machine.
+  globalThis.fetch = async () => { throw new Error("no network in this test"); };
+  const { closeDb } = await import("../db/client.js");
+  // Every query any pg client sends while the API and its scheduler run (the API's pool is made by getDb).
+  const proto = pg.Client.prototype as unknown as { query: (...args: unknown[]) => unknown };
+  const realQuery = proto.query;
+  const sent: string[] = [];
+  const rollbacks = async () => Number((await gatePool.query("SELECT xact_rollback FROM pg_stat_database WHERE datname = current_database()")).rows[0].xact_rollback);
+  try {
+    const journal = JSON.parse(readFileSync(join(BACKEND, "drizzle", "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
+    await runInTx(gatePool, journal.entries.flatMap((e) => sqlFile(`drizzle/${e.tag}.sql`)));
+    const rolledBack = await rollbacks();
+    Object.assign(process.env, {
+      NODE_ENV: "production", DATABASE_URL: url.toString(), IDENTITY_SESSION_PEPPER: randomBytes(32).toString("hex"),
+      CORS_ORIGINS: "https://preview.example.com", SUPABASE_URL: "https://movenrun-test.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test", SUPABASE_SECRET_KEY: "sb_secret_test", IDENTITY_AUTH_DOMAIN: "movenrun.xyz",
+      MOVENRUN_GAMEPLAY_SEASON_START_DAY: String(Math.floor(Date.now() / DAY_MS)),
+    });
+    const { resolveApiConfig } = await import("../api/config.js");
+    const { createApiApp } = await import("../api/app.js");
+    // Every gameplay route, under the path the router defines, with GET and with POST.
+    const paths = ["/gameplay/sessions/abcdefgh/apply", "/gameplay/clubs", "/gameplay/clubs/club-gate-01/join", "/gameplay/clubs/leave",
+      "/gameplay/me/holdings", "/gameplay/me/credits", "/gameplay/clubs/club-gate-01/days/1", "/gameplay/districts/days/1",
+      "/gameplay/leaderboards/1", "/gameplay/nothing-here"];
+    for (const flag of [undefined, "false"]) {
+      if (flag === undefined) delete process.env.MOVENRUN_GAMEPLAY_ENABLED;
+      else process.env.MOVENRUN_GAMEPLAY_ENABLED = flag;
+      const server: Server = createApiApp(resolveApiConfig()).listen(0, "127.0.0.1");
+      await once(server, "listening");
+      const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+      sent.length = 0;
+      proto.query = function (this: unknown, ...args: unknown[]) {
+        const q = args[0];
+        sent.push(typeof q === "string" ? q : String((q as { text?: unknown } | null)?.text ?? ""));
+        return realQuery.apply(this, args);
+      };
+      try {
+        for (const path of paths) {
+          for (const method of ["GET", "POST"]) {
+            const res = await savedFetch(`${base}${path}`, { method, headers: { "content-type": "application/json" }, body: method === "POST" ? "{}" : undefined });
+            // The application's own catch-all answers, not a gameplay route.
+            assert.equal(res.status, 404, `${flag ?? "unset"} ${method} ${path}`);
+            assert.deepEqual(await res.json(), { error: "not_found" }, `${flag ?? "unset"} ${method} ${path}`);
+          }
+        }
+        // Maintenance runs after each response and, on start, a few seconds later: give it time.
+        await new Promise((r) => setTimeout(r, 1500));
+        assert.ok(sent.length > 0, "the scheduler ran (its identity clean-up queried the database)");
+        assert.deepEqual(sent.filter((q) => /gameplay/i.test(q)), [], `${flag ?? "unset"}: no statement names a gameplay relation`);
+      } finally {
+        proto.query = realQuery;
+        server.close();
+      }
+    }
+    const rel = await gatePool.query("SELECT relname FROM pg_class WHERE relname LIKE 'gameplay%' UNION ALL SELECT nspname FROM pg_namespace WHERE nspname LIKE 'gameplay%'");
+    assert.deepEqual(rel.rows, [], "nothing of 0011 exists or was created");
+    assert.equal(await rollbacks(), rolledBack, "no statement failed");
+  } finally {
+    proto.query = realQuery;
+    for (const k of keys) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+    globalThis.fetch = savedFetch;
+    await closeDb();
+    await gatePool.end();
+    await admin.query(`DROP DATABASE IF EXISTS "${gate}" WITH (FORCE)`);
+  }
+});
+
+test("a day partition another creator commits first (42P07) is skipped; a push that gets 40P01 is retried, and its fifth failure is refused and rolled back", { skip: SKIP }, async () => {
+  /* 1. The partition race. Another creator's CREATE of the day's ledger partition is uncommitted when the
+   *    function runs: its to_regclass cannot see that table, its CREATE waits behind the creator, and once the
+   *    creator commits the duplicate is SQLSTATE 42P07, which the function skips. Deterministic: the caller is
+   *    only released after it is seen blocked on a lock. */
+  const race = D + 300;
+  const ledgerPartition = `gameplay_push_events_d${race}`;
+  const creator = await pool.connect();
+  const caller = await pool.connect();
+  try {
+    await creator.query("BEGIN");
+    await creator.query(`CREATE TABLE gameplay_partitions.${ledgerPartition} PARTITION OF public.gameplay_push_events FOR VALUES FROM (${race}) TO (${race + 1})`);
+    await creator.query(`ALTER TABLE gameplay_partitions.${ledgerPartition} ENABLE ROW LEVEL SECURITY`);
+    await creator.query(`REVOKE ALL ON TABLE gameplay_partitions.${ledgerPartition} FROM PUBLIC`);
+    const callerPid = Number((await caller.query("SELECT pg_backend_pid() AS pid")).rows[0].pid);
+    const call = caller.query("SELECT public.gameplay_ensure_day_partitions($1, $1) AS n", [race]);
+    for (let i = 0; ; i++) {
+      const state = await pool.query("SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1", [callerPid]);
+      if (state.rows[0]?.wait_event_type === "Lock") break;
+      if (i >= 500) throw new Error("the racing creation never blocked");
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    await creator.query("COMMIT");
+    // Only the walker-day partition is made here: the ledger partition was the other creator's.
+    assert.equal(Number((await call).rows[0].n), 1);
+  } finally {
+    await creator.query("ROLLBACK").catch(() => undefined);
+    creator.release();
+    caller.release();
+  }
+  const exists = await pool.query("SELECT to_regclass($1) IS NOT NULL AS ok, (SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass($1)) AS rls", [`gameplay_partitions.${ledgerPartition}`]);
+  assert.deepEqual(exists.rows[0], { ok: true, rls: true }, "the other creator's partition stands, with row level security");
+  assert.equal(Number((await pool.query("SELECT public.gameplay_ensure_day_partitions($1, $1) AS n", [race])).rows[0].n), 0, "creating it again changes nothing");
+
+  /* 2. The deadlock retry. The injected 40P01 fires after the push has written its rows, so every failed
+   *    attempt rolls back real work. Test seam: a database handle that delegates to the real one and fails
+   *    each transaction after its callback has run, for the first `failures` transactions. */
+  await service.ensurePartitions(D + 400, D + 400);
+  clock = at(D + 400, 14);
+  const deadlock = () => Object.assign(new Error("deadlock detected"), { code: "40P01" });
+  const flaky = (failures: number) => {
+    let attempts = 0;
+    const wrapped = new Proxy(db, {
+      get(target, prop) {
+        if (prop !== "transaction") {
+          const value = Reflect.get(target, prop, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        }
+        return (fn: (tx: unknown) => Promise<unknown>, config?: unknown) => {
+          attempts += 1;
+          return target.transaction((tx) => fn(tx).then((result) => {
+            if (attempts <= failures) throw deadlock();
+            return result;
+          }), config as never);
+        };
+      },
+    });
+    return { service: new GameplayService({ db: wrapped as unknown as Db, rules: RULES, now: () => clock }), attempts: () => attempts };
+  };
+  // Everything a push writes, as a fingerprint: equal before and after means nothing was written.
+  const fingerprint = async () => (await pool.query(`SELECT
+      (SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) FROM gameplay_push_events t) AS events,
+      (SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) FROM gameplay_applied_sessions t) AS sessions,
+      (SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) FROM gameplay_walker_days t) AS walker_days,
+      (SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) FROM gameplay_unit_day_states t) AS unit_states,
+      (SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) FROM gameplay_units t) AS units,
+      (SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) FROM gameplay_players t) AS players`)).rows[0];
+  const ledgerRows = async (userId: string) => (await pool.query(`SELECT count(*)::int AS n FROM ${LEDGER} WHERE walker_id = $1`, [userId])).rows[0].n;
+
+  const walker = await user("usr-deadlock-a");
+  await session(walker, "deadlock-session-1", at(D + 400, 13), [CELLS[58]!]);
+  // Four failures, then the fifth attempt: applied once, with one ledger row, and a replay changes nothing.
+  const retried = flaky(4);
+  const applied = await retried.service.applySession(walker, "deadlock-session-1");
+  assert.equal(retried.attempts(), 5);
+  assert.equal(applied.replayed, false);
+  assert.equal(applied.applied, 1);
+  assert.equal(await ledgerRows(walker), 1);
+  assert.equal((await service.applySession(walker, "deadlock-session-1")).replayed, true);
+  assert.equal(await ledgerRows(walker), 1);
+
+  // Five failures: refused after the fifth attempt, nothing written by any attempt, no reward.
+  await session(walker, "deadlock-session-2", at(D + 400, 13), [CELLS[59]!]);
+  const before = await fingerprint();
+  const refused = flaky(5);
+  await assert.rejects(refused.service.applySession(walker, "deadlock-session-2"), (err: unknown) => (err as { code?: string }).code === "40P01");
+  assert.equal(refused.attempts(), 5, "five attempts, then no sixth");
+  assert.deepEqual(await fingerprint(), before, "every attempt was rolled back");
+  assert.equal(await ledgerRows(walker), 1, "no ledger row from the refused push");
+  // The session is still unapplied, so an honest retry applies it exactly once.
+  assert.equal((await service.applySession(walker, "deadlock-session-2")).applied, 1);
+  assert.equal(await ledgerRows(walker), 2);
+});
