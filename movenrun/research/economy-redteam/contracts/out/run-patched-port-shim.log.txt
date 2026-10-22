@@ -169,10 +169,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
        cell validity
          refuses values that are not canonical cell indexes:
      Error: Cell arguments had incompatible resolutions (code: 12)
-      at createError (/home/claude/arena/movenrun/node_modules/h3-js/lib/errors.js:96:17)
-      at H3LibraryError (/home/claude/arena/movenrun/node_modules/h3-js/lib/errors.js:116:12)
-      at throwIfError (/home/claude/arena/movenrun/node_modules/h3-js/lib/errors.js:140:15)
-      at cellToParent (/home/claude/arena/movenrun/node_modules/h3-js/lib/h3core.js:912:9)
+      at createError (<path>:96:17)
+      at H3LibraryError (<path>:116:12)
+      at throwIfError (<path>:140:15)
+      at cellToParent (<path>:912:9)
       at __parentOf (test/v3/helpers.ts:656:57)
       at claimDeed (test/v3/helpers.ts:717:94)
       at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:73:9)
@@ -181,31 +181,31 @@ Compiled 53 Solidity files successfully (evm target: cancun).
        eligibility attestation
          refuses an attestation that is expired, replayed, redirected or unsigned by the eligibility signer:
      Error: missing value for component clusterId
-      at /home/claude/arena/movenrun/node_modules/ethers/src.ts/abi/fragments.ts:760:31
+      at <path>:760:31
       at Array.map (<anonymous>)
-      at ParamType.#walkAsync (/home/claude/arena/movenrun/node_modules/ethers/src.ts/abi/fragments.ts:757:37)
-      at ParamType.walkAsync (/home/claude/arena/movenrun/node_modules/ethers/src.ts/abi/fragments.ts:797:24)
-      at /home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:170:22
+      at ParamType.#walkAsync (<path>:757:37)
+      at ParamType.walkAsync (<path>:797:24)
+      at <path>:170:22
       at Array.map (<anonymous>)
-      at resolveArgs (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:169:37)
-      at populateTransaction (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:294:36)
-      at staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:333:26)
-      at staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:30)
+      at resolveArgs (<path>:169:37)
+      at populateTransaction (<path>:294:36)
+      at staticCallResult (<path>:333:26)
+      at staticCall (<path>:303:30)
 
   3) V3 MovenRunDeed and the per-holder city cap
        claim fee
          refuses a quoted fee above the caller's stated maximum:
      Error: missing value for component clusterId
-      at /home/claude/arena/movenrun/node_modules/ethers/src.ts/abi/fragments.ts:760:31
+      at <path>:760:31
       at Array.map (<anonymous>)
-      at ParamType.#walkAsync (/home/claude/arena/movenrun/node_modules/ethers/src.ts/abi/fragments.ts:757:37)
-      at ParamType.walkAsync (/home/claude/arena/movenrun/node_modules/ethers/src.ts/abi/fragments.ts:797:24)
-      at /home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:170:22
+      at ParamType.#walkAsync (<path>:757:37)
+      at ParamType.walkAsync (<path>:797:24)
+      at <path>:170:22
       at Array.map (<anonymous>)
-      at resolveArgs (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:169:37)
-      at populateTransaction (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:294:36)
-      at staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:333:26)
-      at staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:30)
+      at resolveArgs (<path>:169:37)
+      at populateTransaction (<path>:294:36)
+      at staticCallResult (<path>:333:26)
+      at staticCall (<path>:303:30)
 
   4) V3 MovenRunDeed and the per-holder city cap
        per-holder, per-city concentration
@@ -213,10 +213,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
      Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.claimWithThreshold (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
     at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:245:14)
   
 
@@ -226,10 +226,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
      Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.claimWithThreshold (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
     at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:259:14)
   
 
@@ -239,10 +239,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
      Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.claimWithThreshold (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
     at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:282:14)
   
 
@@ -252,10 +252,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
      Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.claimWithThreshold (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
     at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:294:14)
   
 
@@ -265,10 +265,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
      Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.claimWithThreshold (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
     at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:311:14)
   
 
@@ -278,10 +278,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
      Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.claimWithThreshold (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
     at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:360:14)
   
 
@@ -291,10 +291,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
      Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.claimWithThreshold (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:173:14)
   
 
@@ -309,12 +309,12 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          consumes the reservation when the challenger wins:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
-    at async waitForPendingTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-chai-matchers/src/internal/emit.ts:24:17)
+    at async waitForPendingTransaction (<path>:24:17)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:210:7)
   
 
@@ -323,10 +323,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          releases the reservation when the challenger loses:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:231:9)
   
@@ -337,10 +337,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
      Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0xea54e9531a2e7edfed6ade2cb4b48323546c6836457c335ee482bd6894598c22", 7)'
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
     at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.claimWithThreshold (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:253:14)
   
 
@@ -349,10 +349,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          keeps separate reservations for separate contests in the same city:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:277:9)
   
@@ -374,10 +374,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          counts only the best three days of the seven:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:377:16)
   
 
@@ -386,10 +386,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          is settleable by anybody, without the loser's cooperation or approval:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:404:9)
   
@@ -399,10 +399,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          refuses to settle the same contest twice:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:420:9)
   
@@ -412,10 +412,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          leaves the deed with the current holder on a tie:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:437:9)
   
@@ -425,10 +425,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          leaves the deed with the defender when nobody scores at all:
      Error: VM Exception while processing transaction: reverted with custom error 'ScoringWindowNotFinished(1794331884)'
     at MovenRunContests.settleContest (src/v3/MovenRunContests.sol:500)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async HardhatEthersSigner.sendTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
-    at async send (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:313:20)
-    at async Proxy.settleContest (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.settleContest (<path>:352:16)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:450:14)
   
 
@@ -437,12 +437,12 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          applies the home advantage and the defender's fortification:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
-    at async waitForPendingTransaction (/home/claude/arena/movenrun/node_modules/@nomicfoundation/hardhat-chai-matchers/src/internal/emit.ts:24:17)
+    at async waitForPendingTransaction (<path>:24:17)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:461:7)
   
 
@@ -451,10 +451,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          puts a losing challenger in cooldown and gives the surviving deed a peace period:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:479:9)
   
@@ -464,10 +464,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          lets the same challenger come back once the cooldown has run out:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:507:14)
   
@@ -477,10 +477,10 @@ Compiled 53 Solidity files successfully (evm target: cancun).
          pauses new declarations without stopping an active contest from settling:
      Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
     at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
-    at EdrProviderWrapper.request (/home/claude/arena/movenrun/node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
-    at async staticCallResult (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:337:22)
-    at async staticCall (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:303:24)
-    at async Proxy.submitScore (/home/claude/arena/movenrun/node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
     at async playOut (test/ledger/05-contests.test.ts:51:12)
     at async Context.<anonymous> (test/ledger/05-contests.test.ts:533:9)
   

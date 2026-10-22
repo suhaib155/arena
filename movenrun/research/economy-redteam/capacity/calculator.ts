@@ -58,7 +58,8 @@ export interface Row {
   fits_usable_default: 0 | 1;
 }
 
-const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+/** Object keys without the "_tier" documentation fields. */
+export const keys = (o: object) => Object.keys(o).filter((k) => !k.startsWith("_"));
 
 /** One scenario. Day-by-day loop would be exact but every term here is linear in days kept, so closed forms are used. */
 export function project(p: Params, rule: string, users: number, lifetime: string, days: number, abusePct: number, retention: string): Row {
@@ -154,7 +155,7 @@ const round3 = (x: number) => Math.round(x * 1000) / 1000;
 
 export function grid(p: Params): Row[] {
   const rows: Row[] = [];
-  for (const rule of Object.keys(p.rules)) for (const retention of Object.keys(p.retention))
+  for (const rule of keys(p.rules)) for (const retention of keys(p.retention))
     for (const users of p.grid.users) for (const [lt, days] of Object.entries(p.grid.lifetimes)) for (const ab of p.grid.abusePct)
       rows.push(project(p, rule, users, lt, days, ab, retention));
   return rows;
@@ -191,7 +192,7 @@ export function backlog(p: Params, rule: string, users: number, sleepDays: numbe
 
 export function backlogGrid(p: Params, sleepDays = [1, 3, 7, 14, 31, 45]): BacklogRow[] {
   const out: BacklogRow[] = [];
-  for (const rule of Object.keys(p.rules)) for (const u of p.grid.users) for (const d of sleepDays) out.push(backlog(p, rule, u, d));
+  for (const rule of keys(p.rules)) for (const u of p.grid.users) for (const d of sleepDays) out.push(backlog(p, rule, u, d));
   return out;
 }
 

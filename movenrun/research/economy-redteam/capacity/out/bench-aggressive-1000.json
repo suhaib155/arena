@@ -4277,5 +4277,5 @@
       ]
     }
   ],
-  "serviceRoot": "/home/claude/arena/movenrun/backend"
+  "serviceRoot": "movenrun/backend"
 }

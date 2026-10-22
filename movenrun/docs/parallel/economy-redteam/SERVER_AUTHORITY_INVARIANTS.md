@@ -115,7 +115,7 @@ SYNTHETIC EXPERIMENT, `out/segment_sweep.csv`: across 5 seeds × 400 single gaps
 
 ### 4.1 Interpolated units push as solid ground under 1002 (RATIFICATION REQUIRED)
 
-- **What happens (VERIFIED CODE).** `VERIFIED_STEPS_V1.pushInterpolated = true` (`path.ts:73`). `applySession` turns every unit of `pushUnitsOf` into `{ kind: "solid" }` (`service.ts:402,411`). An interpolated unit therefore:
+- **What happens (VERIFIED CODE).** `VERIFIED_STEPS_V1.pushInterpolated = true` (`path.ts:73`). `applySession` turns every unit of `pushUnitsOf` into `{ kind: "solid" }` (`service.ts:411`, units from `service.ts:504`). An interpolated unit therefore:
   - claims at strength 100;
   - reinforces and refreshes the decay of the walker's own ground;
   - erodes or flips other walkers' ground;
@@ -142,6 +142,7 @@ SYNTHETIC EXPERIMENT, `out/segment_sweep.csv`: across 5 seeds × 400 single gaps
 - **Cause (VERIFIED CODE).** The settlement reads sessions by `end_time` and status only (`service.ts:955-958`), never by server receipt `created_at`. The movement pipeline accepts sessions up to 30 days old (`verification.ts:52`), against a 2 h gameplay grace. The client controls `end_time` within that window. So:
   - a backdated session can be steered into any unsettled day;
   - backdated sessions on the six previous days can raise `activeDaysThisWeek` (the consistency multiplier, ×1.0 to ×1.5, `economyV3.ts:165-173`) for the current day. The pool is far from binding at pilot scale, so this second effect could not be observed with a handful of players. It is stated as a mechanism, not a measured effect.
+- **Window sizes.** The same-day steering window runs from the close until the next maintenance settle. Under a healthy 15-minute loop that is narrow; on a sleeping free instance it can be hours. The active-days window is bounded only by the 30-day movement age limit.
 - **Recommended patch (do not apply here).**
   1. In `settleInTx`, count a session for day `d` only if `created_at < dayStartMs(d+1) + dayCloseGraceMs`.
   2. Count a session toward the active-day set for day `k` only if it was received before `k`'s close.
@@ -157,6 +158,7 @@ SYNTHETIC EXPERIMENT, `out/segment_sweep.csv`: across 5 seeds × 400 single gaps
   - (c) Proofs are not chained across days, so deleting a whole player-day (its proof and its archived rows) is undetectable from the proofs.
   - (d) `gameplay_player_day_proofs` has **no** final or append-only trigger. The fixture rewrites a stored digest with a plain UPDATE (1 row).
   - (e) Credit lines are not covered by the player proof. `input_digest` covers settlement inputs, not outputs.
+  - (f) The proof table's `player_no` foreign key is `ON DELETE CASCADE` (`0011:531`), so erasing a player also deletes their proofs.
 
   `docs/G34_STORAGE_CAPACITY.md:161` ("prove the archive was not altered") holds only against someone who cannot also write the proof table.
 - **Recommendation:**
@@ -184,7 +186,7 @@ SYNTHETIC EXPERIMENT, `out/segment_sweep.csv`: across 5 seeds × 400 single gaps
 - **Speed limits differ.** "Fake cellular speed": the anomaly detector allows up to 22 m/s (`gps.service.ts:4`), while the on-foot fix policy (12 m/s) applies only to sessions with metadata (`verification.ts:245-247`). A legacy upload without metadata is checked only against 22 m/s, although its path still stops interpolating above 12 m/s. The path's continuity limits are PILOT PROPOSALS.
 - **Off-route sweep.** The sweep used right-angle synthetic walks with legs of 40–120 m. Real street grids, curved paths and GPS noise were not simulated, so the zero off-route result does not show that off-route pushes are rare in practice.
 - **Not covered here.** Joint fake households, low-end devices, and multi-account farming belong to B6. Concurrency was tested at 10 parallel applies, not at production load, and only on a disposable local PostgreSQL 16 with `fsync=off`. No HOSTED PROOF exists.
-- **Database used.** The throwaway cluster ran from a directory in the database user's home rather than the scratchpad, because the scratchpad's parent permissions were reset during the session and that stopped the server. It was deleted after the run.
+- **Database used.** The cluster was a throwaway local PostgreSQL 16 and was deleted after the run.
 
 ## 6. Open owner decisions
 

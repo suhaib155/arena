@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { backlog, grid, loadParams, project, toCsv } from "./calculator.ts";
+import { backlog, grid, keys, loadParams, project, toCsv } from "./calculator.ts";
 
 const p = loadParams(join(import.meta.dirname, "params.v1.json"));
 const base = (o: Partial<{ rule: string; users: number; days: number; abuse: number; ret: string }> = {}) =>
@@ -12,7 +12,7 @@ test("deterministic: same params give byte-identical CSV", () => {
 });
 
 test("monotone in users, days and abuse", () => {
-  for (const rule of ["1001", "1002"]) for (const ret of Object.keys(p.retention)) {
+  for (const rule of ["1001", "1002"]) for (const ret of keys(p.retention)) {
     assert.ok(base({ rule, ret, users: 200 }).total_default_bytes < base({ rule, ret, users: 1000 }).total_default_bytes);
     assert.ok(base({ rule, ret, days: 14 }).total_default_bytes <= base({ rule, ret, days: 360 }).total_default_bytes);
     assert.ok(base({ rule, ret, abuse: 0 }).total_default_bytes <= base({ rule, ret, abuse: 2 }).total_default_bytes);
@@ -42,7 +42,8 @@ test("unit sanity: bytes are positive integers, percentages match bytes, aggress
 test("rule 1001 has no challenge churn; 1002 has bloat and more WAL per day", () => {
   const a = base({ rule: "1001", users: 1000 }), b = base({ rule: "1002", users: 1000 });
   assert.ok(a.bloat_default_bytes < b.bloat_default_bytes);
-  assert.equal(base({ rule: "1001", users: 1000 }).bloat_default_bytes, base({ rule: "1001", users: 1000 }).bloat_aggressive_bytes === 0 ? 0 : a.bloat_default_bytes);
+  assert.equal(a.bloat_aggressive_bytes, Math.round(a.bloat_aggressive_bytes));
+  assert.ok(a.bloat_default_bytes < 0.1 * a.total_default_bytes, "1001 bloat comes from unit updates only");
   assert.ok(a.wal_per_day_bytes < b.wal_per_day_bytes);
 });
 

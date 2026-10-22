@@ -29,3 +29,27 @@ test("vendored hardhat config targets only the in-process network", () => {
   assert.match(c, /networks: \{ hardhat: \{ chainId: 31337 \} \}/);
   assert.doesNotMatch(c, /url:|accounts:|process\.env|dotenv/);
 });
+
+test("no Solidity file exists under research/economy-redteam outside the two vendored folders", async () => {
+  const { readdirSync, statSync } = await import("node:fs");
+  const root = join(here, "..");
+  const bad: string[] = [];
+  const walk = (d: string) => {
+    for (const n of readdirSync(d)) {
+      if (n === "node_modules") continue;
+      const p = join(d, n);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (n.endsWith(".sol") && !/[\\/]contracts[\\/]vendored-(122|c8262ec)[\\/]/.test(p)) bad.push(p);
+    }
+  };
+  walk(root);
+  assert.deepEqual(bad, []);
+});
+
+test("reverify.sh uses the local hardhat binary and the widened env guard", () => {
+  const t = read("reverify.sh");
+  assert.match(t, /node_modules\/\.bin\/hardhat/);
+  assert.doesNotMatch(t, /npx /);
+  assert.match(t, /MNEMONIC/);
+  assert.match(t, /_PRIVATE_KEY/);
+});

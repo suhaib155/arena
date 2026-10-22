@@ -1,8 +1,0 @@
-autovacuum config: default
-					#   fsync
-					#   fsync_writethrough
-max_wal_size = 1GB
-					# autovacuum, in milliseconds;
-					# autovacuum, -1 means use
-fsync = off
-max_wal_size = 64GB

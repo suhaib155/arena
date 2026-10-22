@@ -12,7 +12,7 @@ V="$HERE/vendored-122"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 # refuse to run if any RPC-like variable is present
-for v in $(env | cut -d= -f1 | grep -E '^(BASE_SEPOLIA_RPC_URL|BASE_RPC_URL|DEPLOYER_PRIVATE_KEY|BASESCAN_API_KEY|ALCHEMY.*|INFURA.*|.*_RPC_URL)$' || true); do
+for v in $(env | cut -d= -f1 | grep -E '^(BASE_SEPOLIA_RPC_URL|BASE_RPC_URL|DEPLOYER_PRIVATE_KEY|BASESCAN_API_KEY|MNEMONIC|ALCHEMY.*|INFURA.*|.*_RPC_URL|.*_RPC|.*_PRIVATE_KEY)$' || true); do
   echo "refusing to run: $v is set" >&2; exit 2; done
 git -C "$ROOT" archive "$SHA" movenrun/contracts | tar -x -C "$WORK"
 ln -s "$ROOT/movenrun/node_modules" "$WORK/movenrun/node_modules"
@@ -46,4 +46,4 @@ cp "$V/proof.config.ts" "$C/"
 # static assertion: config has no url / accounts
 if grep -nE 'url:|accounts:|process\.env' "$C/proof.config.ts"; then echo "config can reach outside" >&2; exit 3; fi
 cd "$C"
-G5_MODE="$MODE" HARDHAT_DISABLE_TELEMETRY_PROMPT=true npx hardhat --config proof.config.ts test
+G5_MODE="$MODE" HARDHAT_DISABLE_TELEMETRY_PROMPT=true node_modules/.bin/hardhat --config proof.config.ts test

@@ -13,7 +13,7 @@ Evidence tiers used below: SOURCE (V3 text), VERIFIED CODE (we read the Solidity
 
 ## 1. What was run, and what it can and cannot show
 
-Commands (all from `/home/claude/arena/movenrun`, offline, in-process Hardhat network only, chain id 31337, no accounts, no URLs, no `.env` read, no RPC variable set; `reverify.sh` refuses to start if one is set, and a test asserts the config has no `url`/`accounts`):
+Commands (all from the `movenrun` directory, offline, in-process Hardhat network only, chain id 31337, no accounts, no URLs, no `.env` read, no RPC variable set; `reverify.sh` refuses to start if one is set, and a test asserts the config has no `url`/`accounts`):
 
 | Run | Command | Result |
 |---|---|---|
