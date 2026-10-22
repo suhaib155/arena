@@ -203,3 +203,12 @@ test("PostgreSQL: without 0011 the gameplay tables are reported absent, not crea
     await t.drop();
   }
 });
+
+test("refuses libpq environment overrides that point away from this machine", () => {
+  const url = "postgres://u@localhost:5432/db";
+  assert.throws(() => assertLocalDatabaseUrl(url, { PGHOST: "db.example.com" }), NonLocalDatabaseError);
+  assert.throws(() => assertLocalDatabaseUrl(url, { PGHOSTADDR: "10.0.0.5" }), NonLocalDatabaseError);
+  assert.throws(() => assertLocalDatabaseUrl(url, { PGSERVICE: "prod" }), NonLocalDatabaseError);
+  assert.doesNotThrow(() => assertLocalDatabaseUrl(url, { PGHOST: "/var/run/postgresql" }));
+  assert.doesNotThrow(() => assertLocalDatabaseUrl(url, {}));
+});

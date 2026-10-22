@@ -32,7 +32,7 @@ export class NonLocalDatabaseError extends Error {
 }
 
 /** Throws unless `url` is a postgres URL whose host is localhost, 127.0.0.1, ::1 or a Unix socket directory. */
-export function assertLocalDatabaseUrl(url: string): void {
+export function assertLocalDatabaseUrl(url: string, env: Record<string, string | undefined> = process.env): void {
   let u: URL;
   try {
     u = new URL(url);
@@ -49,6 +49,12 @@ export function assertLocalDatabaseUrl(url: string): void {
   for (const k of ["hostaddr", "service"]) {
     if (u.searchParams.has(k)) throw new NonLocalDatabaseError(`${k}=${u.searchParams.get(k)}`);
   }
+  // libpq-style environment overrides could redirect the connection; refuse any that do not point at this machine.
+  for (const k of ["PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE"]) {
+    if (env[k]) throw new NonLocalDatabaseError(`${k}=${env[k]}`);
+  }
+  const pgHost = env.PGHOST ?? "";
+  if (pgHost && !pgHost.startsWith("/") && !["localhost", "127.0.0.1", "::1"].includes(pgHost)) throw new NonLocalDatabaseError(`PGHOST=${pgHost}`);
 }
 
 /* ── read-only SQL guard ───────────────────────────────────────────────── */
@@ -195,7 +201,7 @@ export async function withReadOnlyTransaction<T>(c: QueryClient, fn: (q: (sql: s
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 
-/** Evaluates `policy` against the database behind `c` and reports what it WOULD affect. Read only. */
+/** Evaluates `policy` against the database behind `c` and reports what it WOULD affect. Read only. Callers must pass a client they have already checked with `assertLocalDatabaseUrl`, as the CLI does. */
 export async function evaluateRetention(c: QueryClient, policy: RetentionDryRunPolicy): Promise<DryRunReport> {
   const problems = validatePolicy(policy);
   if (problems.length > 0) throw new Error(`invalid policy: ${problems.join("; ")}`);
