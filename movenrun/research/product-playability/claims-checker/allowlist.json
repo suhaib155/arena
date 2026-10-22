@@ -1,0 +1,6 @@
+{
+  "entries": [
+    { "file": "app/move/session.tsx", "rule": "OWNERSHIP", "text": "Cross your own trail", "reason": "\"own\" is an adjective about the player's route, not ownership." },
+    { "file": "src/components/map/CurrentLocationMarker.tsx", "rule": "CAPTURE", "text": "capture paused", "reason": "GPS capture (recording), not territory capture." }
+  ]
+}

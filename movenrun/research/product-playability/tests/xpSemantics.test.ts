@@ -3,6 +3,9 @@
  * (mobile/src/store/useGameStore.ts), with AsyncStorage replaced by memory.
  */
 import { test, mock } from "node:test";
+
+/** Node 22 has mock.timers; the workspace pins @types/node 20, which does not declare it. */
+const timers = (mock as unknown as { timers: { enable(o: { apis: string[]; now: number }): void; setTime(t: number): void; reset(): void } }).timers;
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -53,15 +56,15 @@ test("movement XP banks once per local day: a second saved walk the same day ear
 
 test("FINDING MR-A-08: the day key is the phone's clock, so moving the date forward re-opens movement XP", () => {
   fresh();
-  mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 22, 12, 0, 0) });
+  timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 22, 12, 0, 0) });
   try {
     useGameStore.getState().completeQuest(movementQuest(40));
-    mock.timers.setTime(Date.UTC(2026, 9, 23, 12, 0, 0)); // the player changes the date in Settings
+    timers.setTime(Date.UTC(2026, 9, 23, 12, 0, 0)); // the player changes the date in Settings
     const again = useGameStore.getState().completeQuest(movementQuest(40));
     assert.equal(again.xpGained, 40, "XP is local-only in v1, so the impact is the player's own number");
     assert.equal(useGameStore.getState().streak, 2, "and the streak advances");
   } finally {
-    mock.timers.reset();
+    timers.reset();
   }
 });
 

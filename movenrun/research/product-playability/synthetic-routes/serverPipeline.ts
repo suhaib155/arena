@@ -18,7 +18,31 @@ import { MovementVerificationService } from "../../../backend/src/movement/servi
 import { InMemoryMovementVerificationRepository } from "../../../backend/src/movement/repositories/interfaces";
 import { submitMovementSchema } from "../../../backend/src/movement/http/validation";
 import type { MovementObservation, ObservedPoint } from "../../../backend/src/movement/domain/types";
-import { toValidatable } from "../../../backend/src/movement/http/productionRouter";
+import { hasEvidenceBreak } from "@movenrun/shared/evidence";
+
+/**
+ * Same adapter as `toValidatable` in backend/src/movement/http/productionRouter.ts.
+ * Copied rather than imported because that module's import graph carries a
+ * pre-existing type error (middleware/rateLimit.ts) that would fail this
+ * folder's typecheck; tests/pipelineDrift.test.ts proves the two agree.
+ */
+export function toValidatable(observation: MovementObservation) {
+  return {
+    id: "", userId: "", walletAddress: "",
+    points: observation.points.map((point, index) => {
+      const previous = observation.points[index - 1];
+      if (!previous) return point;
+      const broken = hasEvidenceBreak(
+        { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp },
+        { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, breakBefore: point.breakBefore },
+        observation.session?.pauses,
+      );
+      return broken ? { ...point, breakBefore: true } : point;
+    }),
+    startTime: observation.startTime, endTime: observation.endTime, distanceMeters: 0, hexIds: [] as string[],
+    status: "PROCESSING",
+  };
+}
 
 export interface ServerOutcome {
   /** HTTP-schema verdict before the service runs. */

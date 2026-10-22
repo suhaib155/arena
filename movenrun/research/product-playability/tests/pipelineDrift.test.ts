@@ -38,3 +38,20 @@ for (const [file, lines] of Object.entries(MIRRORED)) {
     for (const line of lines) assert.ok(code.includes(line.replace(/\s+/g, " ")), `${file} no longer contains: ${line}`);
   });
 }
+
+test("the server adapter copy matches the production router's toValidatable", async () => {
+  // A computed specifier keeps tsc out of the router's import graph (see serverPipeline.ts).
+  const routerPath = "../../../backend/src/movement/http/" + "productionRouter";
+  const { toValidatable: production } = await import(routerPath) as { toValidatable: (o: unknown) => unknown };
+  const { toValidatable: copy } = await import("../synthetic-routes/serverPipeline");
+  const observation = {
+    startTime: 1000, endTime: 9000,
+    points: [
+      { lat: 0.5, lng: -25.5, accuracy: 8, timestamp: 1000 },
+      { lat: 0.5002, lng: -25.5, accuracy: 8, timestamp: 5000 },
+      { lat: 0.5004, lng: -25.5, accuracy: 8, timestamp: 9000, breakBefore: true },
+    ],
+    session: { mode: "onFoot" as const, rulesVersion: 1, startedAt: 900, finishedAt: 9100, pauses: [{ startedAt: 2000, endedAt: 4000 }] },
+  };
+  assert.deepEqual(copy(observation), production(observation));
+});
