@@ -113,6 +113,12 @@ function pgCode(err: unknown): string | undefined {
   return typeof code === "string" ? code : undefined;
 }
 
+/** A deadlock (40P01) or serialization failure (40001): the transaction was aborted whole and is safe to rerun. */
+function isRetryableContention(err: unknown): boolean {
+  const code = pgCode(err);
+  return code === "40P01" || code === "40001";
+}
+
 function pgConstraint(err: unknown): string | undefined {
   const e = err as { constraint?: unknown; cause?: { constraint?: unknown } } | null;
   const c = e?.constraint ?? e?.cause?.constraint;
@@ -288,8 +294,10 @@ export class GameplayService {
    * asks for one. Creating a partition is DDL: it locks the partitioned
    * parent and the tables its foreign keys reference, so it can deadlock
    * with pushes already in flight (PostgreSQL then aborts one side with
-   * 40P01). Both sides are whole transactions and the aborted one wrote
-   * nothing, so the victim is retried, a bounded number of times.
+   * 40P01; a serialization failure is 40001). Both sides are whole transactions and the aborted one wrote
+   * nothing, so the victim is retried, a bounded number of times. When the
+   * retries run out the push is refused with 409 `concurrent_push_retry`
+   * (the transaction is already rolled back) instead of a raw driver error.
    */
   private async withPartitions<T>(fn: () => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
@@ -301,7 +309,11 @@ export class GameplayService {
           await this.ensurePartitionsRetrying(err.day, err.day + 1);
           continue;
         }
-        if (pgCode(err) === "40P01" && !last) continue;
+        if (isRetryableContention(err)) {
+          if (!last) continue;
+          // Retries exhausted: every attempt rolled back whole, so the client may simply push again.
+          throw new GameplayError(409, "concurrent_push_retry");
+        }
         throw err;
       }
     }
@@ -313,7 +325,8 @@ export class GameplayService {
         await this.ensurePartitions(fromDay, toDay);
         return;
       } catch (err) {
-        if (pgCode(err) !== "40P01" || attempt >= 4) throw err;
+        if (!isRetryableContention(err)) throw err;
+        if (attempt >= 4) throw new GameplayError(409, "concurrent_push_retry");
       }
     }
   }
