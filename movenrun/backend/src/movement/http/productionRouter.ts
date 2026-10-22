@@ -23,6 +23,7 @@ import { MovementVerificationService } from "../services/movementVerification.se
 import { createMovementRouter } from "./router.js";
 import { createWriteRateLimiter } from "../../middleware/rateLimit.js";
 import type { MovementObservation, ObservedPoint } from "../domain/types.js";
+import { deriveSessionPath, type SessionPathRule } from "../../gameplay/path.js";
 
 /** GpsService speaks the shared GPSRoute shape; only points/startTime/endTime
  *  are read by validateRoute and calculateDistance, so the chain-specific
@@ -51,8 +52,15 @@ export function toValidatable(observation: MovementObservation) {
   };
 }
 
+/** The 1002 path of an accepted observation: its own fixes and pauses, nothing else. */
+export function sessionPathFor(rule: SessionPathRule) {
+  return (observation: MovementObservation) => deriveSessionPath(observation.points, observation.session?.pauses ?? [], rule);
+}
+
 export function createProductionMovementRouter(
   rateLimitConfig?: Parameters<typeof createWriteRateLimiter>[0],
+  /** Gameplay rule set 1002 only (MOVENRUN_GAMEPLAY_ENABLED with a session-path rule set): also derive and store the session path. */
+  options: { sessionPathRule?: SessionPathRule } = {},
 ): Router {
   const stores = createDrizzleStores(getDb());
   const providerConfig = getProviderConfig();
@@ -73,6 +81,7 @@ export function createProductionMovementRouter(
       gps.validateRoute(toValidatable(observation) as never),
     calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
     traversedHexIds: (points: ObservedPoint[]) => hex.getHexIdsForPoints(points),
+    ...(options.sessionPathRule ? { sessionPath: sessionPathFor(options.sessionPathRule) } : {}),
   });
 
   return createMovementRouter({

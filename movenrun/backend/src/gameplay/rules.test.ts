@@ -6,6 +6,7 @@ import {
   DAY_MS, DEFAULT_RULES_VERSION, PILOT_PROPOSAL, RULESETS, SIM_PILOT_2_PROPOSAL, UnknownRulesVersionError, dayOf, dayStartMs, gameplayRulesFromEnv,
   isUnitUnder, lastClosedDay, rulesetDigest, rulesetFor, rulesetProblems, seasonOf, takeoverRuleOf,
 } from "./rules.js";
+import { VERIFIED_STEPS_V1 } from "./path.js";
 
 const drizzleDir = new URL("../../drizzle/", import.meta.url);
 const proposedDir = new URL("../../drizzle-proposed/", import.meta.url);
@@ -57,19 +58,25 @@ test("0011 is proposed only: not in drizzle/, its journal or its checksums", () 
   assert.ok(journal.includes("0010_google_sign_in_exchanges"), "0011 follows the live chain's latest migration");
 });
 
-test("0011 enables RLS on every table it creates, grants nothing to anon, and its rollback drops them all", () => {
+test("0011 enables RLS on every table it creates, grants nothing to anon or authenticated, and its rollback drops them all", () => {
   const created = [...up.matchAll(/CREATE TABLE IF NOT EXISTS "([a-z_]+)"/g)].map((m) => m[1]!);
-  assert.equal(created.length, 14);
+  assert.equal(created.length, 17);
+  assert.ok(created.includes("gameplay_session_paths"), "revision 3 folds in 1002's session paths");
   for (const t of created) {
     assert.match(up, new RegExp(`ALTER TABLE "${t}" ENABLE ROW LEVEL SECURITY`), t);
     assert.match(down, new RegExp(`DROP TABLE IF EXISTS "${t}"`), t);
     assert.ok(t.startsWith("gameplay_"), t);
   }
   assert.doesNotMatch(up, /\bGRANT\b[^;]*\bTO\s+anon\b/);
+  // Revision 3: default deny. No grant and no policy for any API role.
+  const upStatements = up.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
+  assert.doesNotMatch(upStatements, /\bGRANT\b/);
+  assert.doesNotMatch(upStatements, /\bCREATE POLICY\b/);
+  assert.doesNotMatch(upStatements, /gameplay_current_player_id/);
   assert.doesNotMatch(up, /\bGRANT\s+(ALL|INSERT|UPDATE|DELETE|TRUNCATE)/);
   assert.doesNotMatch(up, /\bFOR\s+(ALL|INSERT|UPDATE|DELETE)\b/, "no write policy for any role");
   // The rollback touches only what 0011 created.
-  for (const m of down.matchAll(/DROP (TABLE|INDEX|FUNCTION) IF EXISTS (?:public\.)?"?([a-z_]+)"?/g)) {
+  for (const m of down.matchAll(/DROP (TABLE|INDEX|FUNCTION|SEQUENCE|SCHEMA) IF EXISTS (?:public\.)?"?([a-z_]+)"?/g)) {
     assert.ok(m[2]!.startsWith("gameplay_") || m[2] === "movement_verifications_verified_end_time_idx", m[2]);
   }
 });
@@ -85,14 +92,22 @@ test("rule sets: 1001 (A9 immediate, no budget, unit = zone) is the default; 100
   assert.equal(gameplayRulesFromEnv(ON)?.takeBudget, null);
   const p2 = gameplayRulesFromEnv({ ...ON, MOVENRUN_GAMEPLAY_RULES_VERSION: "1002" })!;
   assert.equal(p2.ruleset, "server-sim-pilot-2-proposal");
-  assert.deepEqual(p2.takeover, { name: "two-day-challenge", policyVersion: 1, windowDays: 3, floor: 50, immediateBelowStrength: 30 });
-  assert.deepEqual(p2.takeBudget, { perWalkerPerDay: 13, counting: "takes-v1" });
-  assert.deepEqual(p2.units, { unit: { kind: "h3", resolution: 10 }, zone: { kind: "h3-parent", resolution: 9 }, mixedHolderZone: "each-holder-holds-zone" });
+  assert.deepEqual(p2.takeover, {
+    name: "two-day-challenge", policyVersion: 2, windowDays: 3, floor: 50, immediateBelowStrength: 30,
+    secondPush: { rule: "min-elapsed-server-receipt", version: 1, minElapsedMs: 20 * 3_600_000 },
+  });
+  assert.deepEqual(p2.takeBudget, { perWalkerPerDay: 13, counting: "takes-v1", order: "walk-order-v1" });
+  assert.deepEqual(p2.units, {
+    unit: { kind: "h3", resolution: 10 }, zone: { kind: "h3-parent", resolution: 9 }, mixedHolderZone: "each-holder-holds-zone",
+    source: { kind: "session-path", rule: VERIFIED_STEPS_V1 }, partition: "per-holder-min-level-v1",
+  });
+  assert.deepEqual(p2.dayAttribution, { rule: "d1-last-verified-fix", version: 1 }, "D1, named");
   // The same levers as the simulator's sim-pilot-2 (shared/src/sim/pilotRuleset.ts), under a server version.
   assert.deepEqual(p2.holding.takeover, { challenge: { windowDays: 3, floor: 50, immediateBelowStrength: 30 }, maxFlipsPerUnitPerDay: null });
   assert.notEqual(p2.holding.rulesVersion, 9002);
   // Everything else is 1001's: only the three levers differ.
-  const { ruleset: _a, holding: _b, takeover: _c, takeBudget: _d, units: _e, ...rest2 } = SIM_PILOT_2_PROPOSAL;
+  // (dayAttribution names D1 in 1002; 1001 runs the same D1 unnamed, so its recorded identity stays as it was.)
+  const { ruleset: _a, holding: _b, takeover: _c, takeBudget: _d, units: _e, dayAttribution: _k, ...rest2 } = SIM_PILOT_2_PROPOSAL;
   const { ruleset: _f, holding: _g, takeover: _h, takeBudget: _i, units: _j, ...rest1 } = PILOT_PROPOSAL;
   assert.deepEqual(rest2, rest1);
   assert.deepEqual({ ...SIM_PILOT_2_PROPOSAL.holding, rulesVersion: 0, takeover: undefined }, { ...PILOT_PROPOSAL.holding, rulesVersion: 0, takeover: undefined });
@@ -148,4 +163,44 @@ test("0011: the rule, counter and challenge tables are server only, and the roll
   assert.match(up, /REFERENCES "gameplay_day_rules" \("day", "holding_rules_version"\)/);
   assert.match(down, /NOT A HARMLESS ROLLBACK/);
   assert.match(down, /permanently destroys every gameplay/);
+  for (const what of [/every day partition/, /player day proof/, /refusal counts/, /sequences/]) assert.match(down, what);
+  const statements = down.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
+  assert.doesNotMatch(statements, /\bCASCADE\b/, "the rollback never cascades into anything 0011 did not make");
+});
+
+test("0011 revision 3 keeps revision 2's compact layout (partitioned ledger, derived event ids, bigint cells, integer players, refusals as counts) and adds session paths and the challenge receipt time", () => {
+  const table = (name: string) => {
+    const m = up.match(new RegExp(`CREATE TABLE IF NOT EXISTS "${name}" \\(([\\s\\S]*?)\\n\\)( PARTITION BY RANGE \\("day"\\))?;`));
+    assert.ok(m, name);
+    return { body: m[1]!, partitioned: m[2] !== undefined };
+  };
+  const ledger = table("gameplay_push_events");
+  assert.ok(ledger.partitioned);
+  assert.ok(table("gameplay_walker_days").partitioned);
+  assert.doesNotMatch(ledger.body, /"event_id"|"walker_id"|"unit_id"|"source_session_id"|text/, "no text column in the ledger");
+  assert.match(ledger.body, /"unit" bigint NOT NULL/);
+  assert.match(ledger.body, /PRIMARY KEY \("source_no", "unit", "day"\)/, "the derived event id, with the partition key");
+  assert.match(ledger.body, /"outcome" smallint NOT NULL CHECK \("outcome" BETWEEN 1 AND 4\)/, "accepted pushes only");
+  // The owner's one-push rule survives partitioning (a partitioned unique index must include the day).
+  assert.match(up, /CREATE UNIQUE INDEX IF NOT EXISTS "gameplay_push_events_one_push_per_walker_unit_day"\s+ON "gameplay_push_events" \("walker_no", "day", "unit"\)\s+WHERE "outcome" IN \(3, 4\)/);
+  assert.match(up, /"gameplay_push_events_takers_idx"\s+ON "gameplay_push_events" \("unit", "day"\)\s+WHERE "outcome" IN \(3, 4\)/);
+  for (const t of ["gameplay_units", "gameplay_unit_day_states", "gameplay_unit_challenges", "gameplay_unit_districts"]) {
+    assert.match(table(t).body, /"unit" bigint/, t);
+    assert.doesNotMatch(table(t).body, /"unit_id"/, t);
+  }
+  for (const c of ["refused_deeded", "refused_masked", "refused_daily_limit", "refused_take_budget", "units_used", "visit_units"]) {
+    assert.match(table("gameplay_walker_days").body, new RegExp(`"${c}"`), c);
+  }
+  assert.match(table("gameplay_player_day_proofs").body, /"events_sha256" bytea NOT NULL CHECK \(octet_length\("events_sha256"\) = 32\)/);
+  // Partitions are made only by a server-side function, in their own schema, each with RLS and no API privilege.
+  assert.match(up, /CREATE TABLE gameplay_partitions\.%I PARTITION OF public\.%I FOR VALUES FROM \(%s\) TO \(%s\)/);
+  assert.match(up, /ALTER TABLE gameplay_partitions\.%I ENABLE ROW LEVEL SECURITY/);
+  assert.match(up, /REVOKE ALL ON FUNCTION public\.gameplay_ensure_day_partitions\(integer, integer\) FROM PUBLIC/);
+  assert.doesNotMatch(up, /DEFAULT PARTITION/, "no catch-all partition: a day without one fails closed");
+  // Revision 3: 1002's session paths (bigint units, one bit each) and the server receipt time of an open challenge.
+  assert.match(table("gameplay_session_paths").body, /"unit_ids" bigint\[\] NOT NULL/);
+  assert.match(table("gameplay_session_paths").body, /"interpolated" varbit NOT NULL/);
+  assert.match(table("gameplay_unit_challenges").body, /"opened_received_at" timestamptz NOT NULL,/);
+  // No coordinates anywhere in 0011.
+  assert.doesNotMatch(up, /\b(lat|lng|latitude|longitude|coordinates?)\b/i);
 });

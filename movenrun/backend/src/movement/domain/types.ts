@@ -85,6 +85,23 @@ export interface MovementVerificationResult {
    * {@link sealSummary}, which carries no indices and no geometry.
    */
   sealEvaluation: SealEvaluation | null;
+  /**
+   * Gameplay rule set 1002's path (resolution 10 units in walk order,
+   * stepped or interpolated), present only for an accepted session and only
+   * when gameplay asked for it. Stored beside the verification; never
+   * returned to the client.
+   */
+  sessionPath?: SessionPath;
+}
+
+/** The shape of `gameplay/path.ts`'s `SessionPath`, restated so this domain imports nothing from gameplay. */
+export interface SessionPath {
+  pathVersion: number;
+  resolution: number;
+  units: string[];
+  interpolated: boolean[];
+  skippedSegments: number;
+  truncated: boolean;
 }
 
 /**

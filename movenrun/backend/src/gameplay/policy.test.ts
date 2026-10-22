@@ -136,7 +136,7 @@ test("masked ground is never claimable and deeded ground is immune, under both p
 /* ── take budget ────────────────────────────────────────────────────────── */
 
 test("the budget: 13 takes a day of other people's ground; claims, own ground and refusals are free; a 14th is refused and changes nothing", () => {
-  assert.deepEqual(P2.takeBudget, { perWalkerPerDay: 13, counting: "takes-v1" });
+  assert.deepEqual(P2.takeBudget, { perWalkerPerDay: 13, counting: "takes-v1", order: "walk-order-v1" });
   const others = UNITS.slice(0, 20);
   const empty = UNITS.slice(20, 25);
   const own = UNITS.slice(25, 28);
@@ -338,4 +338,36 @@ test("properties: every day settles and its books balance, with each holder of a
     }
     assert.ok(r.entries.length > 0);
   }
+});
+
+/* ── the per-walker daily unit budget (a capacity guard, revision 2) ─── */
+
+test("the unit budget stops a walker after their remaining units and changes nothing past it", () => {
+  const events = UNITS.slice(0, 6).map((u) => ev(u, "w1", 20));
+  const other = UNITS.slice(6, 8).map((u) => ev(u, "w2", 20));
+  const states = new Map(UNITS.slice(0, 8).map((u) => [u, newUnit(u, 20)]));
+  const r = applyServerLedger({
+    states, events: [...events, ...other], holding: A9.holding, budget: A9.takeBudget,
+    unitsRemaining: new Map([["w1", 4]]),
+  });
+  const w1 = r.results.filter((x) => events.some((e) => e.eventId === x.eventId));
+  assert.equal(w1.filter((x) => x.status === "applied").length, 4);
+  assert.deepEqual(w1.filter((x) => x.status === "rejected").map((x) => x.status === "rejected" && x.reason), ["unit_budget", "unit_budget"]);
+  // A walker absent from the map has nothing left.
+  assert.ok(r.results.filter((x) => other.some((e) => e.eventId === x.eventId)).every((x) => x.status === "rejected" && x.reason === "unit_budget"));
+  assert.equal(r.unitsUsed.get("w1"), 4);
+  assert.equal(r.unitsUsed.get("w2"), undefined);
+  assert.equal(r.entries.length, 4, "over-budget pushes are not ledger entries");
+  for (const x of r.results) if (x.status === "rejected") assert.deepEqual(r.states.get(x.unitId), states.get(x.unitId));
+});
+
+test("without unitsRemaining nothing is budgeted, and the take budget is separate", () => {
+  const events = UNITS.slice(0, 20).map((u) => ev(u, "w1", 21));
+  const states = new Map<string, UnitState>(UNITS.slice(0, 20).map((u) => [u, held(u, "ana")] as const));
+  const free = applyServerLedger({ states, events, holding: P2.holding, budget: P2.takeBudget });
+  assert.equal(free.unitsUsed.get("w1"), 20);
+  const capped = applyServerLedger({ states, events, holding: P2.holding, budget: P2.takeBudget, unitsRemaining: new Map([["w1", 20]]) });
+  assert.deepEqual(capped.results, free.results, "a budget not reached changes nothing");
+  // Take-budget refusals still spend units: the unit budget counts verified units, accepted or refused.
+  assert.ok(capped.results.some((x) => x.status === "applied" && x.outcome === "refused_take_budget"));
 });

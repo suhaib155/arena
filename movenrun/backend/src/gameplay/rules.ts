@@ -30,6 +30,7 @@
  */
 import { createHash } from "node:crypto";
 import { cellToParent, getResolution, isValidCell } from "h3-js";
+import { sessionPathRuleProblems, VERIFIED_STEPS_V1, type SessionPathRule } from "./path.js";
 import type { HoldingRules, TakeoverRule } from "@movenrun/shared/holding";
 import type { DistrictControlRule, LeaderboardMetric } from "@movenrun/shared/clubsDistricts";
 
@@ -58,6 +59,11 @@ export interface GameplayRules {
    */
   dayOffsetMinutes: number;
   dayCloseGraceMs: number;
+  /**
+   * D1 named explicitly (1002). Absent means the same D1 rule, unnamed, which
+   * keeps 1001's recorded identity (its config digest) exactly as it was.
+   */
+  dayAttribution?: DayAttribution;
   /**
    * D1: the day index (days since 1970-01-01 on the clock above) on which
    * season 1 starts. No default: required when gameplay is enabled.
@@ -105,7 +111,38 @@ export interface GameplayRules {
  */
 export type TakeoverPolicy =
   | { name: "immediate"; policyVersion: 1 }
-  | { name: "two-day-challenge"; policyVersion: 1; windowDays: number; floor: number; immediateBelowStrength: number };
+  | { name: "two-day-challenge"; policyVersion: 1; windowDays: number; floor: number; immediateBelowStrength: number }
+  | {
+    name: "two-day-challenge"; policyVersion: 2; windowDays: number; floor: number; immediateBelowStrength: number;
+    /** The second push must also come this long after the first, by the server's clock (see `SecondPushGap`). */
+    secondPush: SecondPushGap;
+  };
+
+/**
+ * The day-boundary guard of the two-day challenge (SIMULATION-PILOT
+ * PROPOSAL). Calendar days alone let a challenge complete in half an hour
+ * across midnight. With `min-elapsed-server-receipt`, the push that would
+ * complete a challenge flips only if the server received its session at
+ * least `minElapsedMs` after it received the session that opened the
+ * challenge. Received means `movement_verifications.created_at`, the
+ * server's own clock when it verified the upload; device timestamps are
+ * never used, so a device clock that is wrong, changed time zone, or was set
+ * to fake a gap changes nothing. A push that is too early erodes (no lower
+ * than the floor) and keeps the original challenge and its first day; it
+ * does not restart it. Both pushes must still be on distinct D1 days within
+ * the window.
+ */
+export interface SecondPushGap {
+  rule: "min-elapsed-server-receipt";
+  version: 1;
+  minElapsedMs: number;
+}
+
+/** D1, named. The only rule built: the UTC day (shifted by `dayOffsetMinutes`) of the session's last verified fix. */
+export interface DayAttribution {
+  rule: "d1-last-verified-fix";
+  version: 1;
+}
 
 /**
  * Per-walker daily budget of takes (SIMULATION-PILOT PROPOSAL, sim-pilot-2:
@@ -127,6 +164,13 @@ export type TakeoverPolicy =
 export interface TakeBudget {
   perWalkerPerDay: number;
   counting: "takes-v1";
+  /**
+   * The order a session's pushes meet the budget. Absent: event id order,
+   * which is unit id order. `walk-order-v1`: the order the walk first
+   * reached each unit (the session path's first-touch order, ties impossible
+   * within one path), then event id for pushes that carry no walk position.
+   */
+  order?: "walk-order-v1";
 }
 
 /**
@@ -151,6 +195,21 @@ export interface UnitZoneRule {
   unit: { kind: "stored" } | { kind: "h3"; resolution: number };
   zone: { kind: "unit" } | { kind: "h3-parent"; resolution: number };
   mixedHolderZone: MixedHolderZoneRule;
+  /**
+   * Where a session's units come from. Absent: the movement pipeline's
+   * stored cells (`traversed_hex_ids`, resolution 8 today). `session-path`:
+   * the canonical path derived from the verified fixes at verification time
+   * (`path.ts`), stored in `gameplay_session_paths`; a session without one is
+   * refused (`session_path_unavailable`).
+   */
+  source?: { kind: "session-path"; rule: SessionPathRule };
+  /**
+   * How a zone shared by several holders is split for upkeep, levels, away
+   * days and upgrades. Absent: the shared model's behaviour (one holder's
+   * units at two levels refuse the day). `per-holder-min-level-v1`: see
+   * `zones.ts`.
+   */
+  partition?: "per-holder-min-level-v1";
 }
 
 export type MixedHolderZoneRule = "each-holder-holds-zone" | "unit-is-zone";
@@ -202,9 +261,17 @@ export const SIM_PILOT_2_PROPOSAL: Readonly<Omit<GameplayRules, "seasonOneStartD
     stageFloors: { held: 60, atRisk: 30, contested: 10 },
     takeover: { challenge: { windowDays: 3, floor: 50, immediateBelowStrength: 30 }, maxFlipsPerUnitPerDay: null },
   },
-  takeover: { name: "two-day-challenge", policyVersion: 1, windowDays: 3, floor: 50, immediateBelowStrength: 30 },
-  takeBudget: { perWalkerPerDay: 13, counting: "takes-v1" },
-  units: { unit: { kind: "h3", resolution: 10 }, zone: { kind: "h3-parent", resolution: 9 }, mixedHolderZone: "each-holder-holds-zone" },
+  takeover: {
+    name: "two-day-challenge", policyVersion: 2, windowDays: 3, floor: 50, immediateBelowStrength: 30,
+    secondPush: { rule: "min-elapsed-server-receipt", version: 1, minElapsedMs: 20 * 60 * 60 * 1000 },
+  },
+  takeBudget: { perWalkerPerDay: 13, counting: "takes-v1", order: "walk-order-v1" },
+  units: {
+    unit: { kind: "h3", resolution: 10 }, zone: { kind: "h3-parent", resolution: 9 }, mixedHolderZone: "each-holder-holds-zone",
+    source: { kind: "session-path", rule: VERIFIED_STEPS_V1 },
+    partition: "per-holder-min-level-v1",
+  },
+  dayAttribution: { rule: "d1-last-verified-fix", version: 1 },
 });
 
 /** The holding rules version run when MOVENRUN_GAMEPLAY_RULES_VERSION is unset. */
@@ -235,6 +302,8 @@ export function rulesetConfig(rules: Omit<GameplayRules, "seasonOneStartDay">) {
     ruleset: rules.ruleset, economyRulesVersion: rules.economyRulesVersion, holding: rules.holding, takeover: rules.takeover,
     takeBudget: rules.takeBudget, units: rules.units, shadeCountsAsHeld: rules.shadeCountsAsHeld,
     districtControl: rules.districtControl, trustWeight: rules.trustWeight, kitLevel: rules.kitLevel,
+    // Absent in 1001, so its canonical form (and digest) is unchanged.
+    dayAttribution: rules.dayAttribution,
   };
 }
 
@@ -267,17 +336,36 @@ export function rulesetProblems(r: Omit<GameplayRules, "seasonOneStartDay">): st
     // As the simulator checks: inside the window a challenged unit must not decay below
     // the immediate-take line, or a passer-by could finish someone else's challenge.
     if (c.floor - c.windowDays * h.solidDecayPerDay < Math.max(1, c.immediateBelowStrength)) p.push("challenge floor must outlast the window's decay above the immediate-take line");
+    if (c.policyVersion === 2) {
+      const g = c.secondPush;
+      if (g.rule !== "min-elapsed-server-receipt" || g.version !== 1) p.push("unknown second-push rule");
+      // At least one hour, and short enough that a walker coming back on the last day of the window can still finish.
+      else if (!(Number.isInteger(g.minElapsedMs) && g.minElapsedMs >= 3_600_000 && g.minElapsedMs <= c.windowDays * DAY_MS)) p.push("second-push gap must be 1 hour to the window");
+    } else if (c.policyVersion !== 1) p.push("unknown takeover policy version");
   }
   if (r.takeBudget !== null) {
     if (!(Number.isInteger(r.takeBudget.perWalkerPerDay) && r.takeBudget.perWalkerPerDay >= 1)) p.push("take budget must be a whole number, 1 or more");
     if (r.takeBudget.counting !== "takes-v1") p.push("unknown take counting rule");
+    if (r.takeBudget.order !== undefined && r.takeBudget.order !== "walk-order-v1") p.push("unknown take order");
   }
+  if (r.dayAttribution !== undefined && (r.dayAttribution.rule !== "d1-last-verified-fix" || r.dayAttribution.version !== 1)) p.push("unknown day attribution rule");
   const u = r.units;
   if (u.unit.kind === "h3" && !(Number.isInteger(u.unit.resolution) && u.unit.resolution >= 0 && u.unit.resolution <= 15)) p.push("unit resolution must be 0-15");
   if (u.zone.kind === "h3-parent") {
     if (u.unit.kind !== "h3") p.push("h3-parent zones need h3 units");
     else if (!(Number.isInteger(u.zone.resolution) && u.zone.resolution >= 0 && u.zone.resolution < u.unit.resolution)) p.push("zone resolution must be coarser than the unit's");
     if (u.mixedHolderZone !== "each-holder-holds-zone" && u.mixedHolderZone !== "unit-is-zone") p.push("mixed-holder zone rule must be named");
+  }
+  if (u.source !== undefined) {
+    if (u.source.kind !== "session-path") p.push("unknown unit source");
+    else {
+      p.push(...sessionPathRuleProblems(u.source.rule));
+      if (u.unit.kind !== "h3" || u.unit.resolution !== u.source.rule.resolution) p.push("session path resolution must be the unit resolution");
+      if (u.source.rule.maxUnits > r.maxUnitsPerSession) p.push("session path may not hold more units than a session may push");
+    }
+  }
+  if (u.partition !== undefined && (u.partition !== "per-holder-min-level-v1" || u.zone.kind !== "h3-parent" || u.mixedHolderZone !== "each-holder-holds-zone")) {
+    p.push("zone partition needs h3-parent zones held by each holder");
   }
   return p;
 }

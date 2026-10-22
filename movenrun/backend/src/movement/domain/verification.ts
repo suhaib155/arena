@@ -18,6 +18,7 @@ import type {
   MovementObservation,
   MovementVerificationResult,
   ObservedPoint,
+  SessionPath,
 } from "./types.js";
 
 export interface AnomalyVerdict {
@@ -35,6 +36,13 @@ export interface VerifyMovementDeps {
   traversedHexIds: (points: ObservedPoint[]) => string[];
   /** Injected for determinism. */
   now: () => number;
+  /**
+   * Gameplay rule set 1002 only: the canonical fine-resolution path of an
+   * accepted session (gameplay/path.ts), derived from the same verified
+   * fixes. Absent unless gameplay is enabled with a rule set that needs it,
+   * so with the flag off nothing is derived and nothing is stored.
+   */
+  sessionPath?: (observation: MovementObservation) => SessionPath;
 }
 
 /** A session may not be reported from further ahead than this (clock skew). */
@@ -175,6 +183,8 @@ export function verifyMovement(
     confidence: anomaly.confidence,
     rejectionReasons: [],
     sealEvaluation: sealFor(observation),
+    // Only an accepted route has a gameplay path, and only when asked for.
+    ...(deps.sessionPath ? { sessionPath: deps.sessionPath(observation) } : {}),
   };
 }
 

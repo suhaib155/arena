@@ -11,7 +11,7 @@
 import type { MovementMode } from "@movenrun/shared/session";
 import type { SealMethod } from "@movenrun/shared/sealing";
 
-import type { MovementVerificationStatus } from "../domain/types.js";
+import type { MovementVerificationStatus, SessionPath } from "../domain/types.js";
 
 export interface MovementVerificationRecord {
   id: string;
@@ -111,6 +111,15 @@ export interface DailyAdmission {
   max: number;
 }
 
+/**
+ * Gameplay data written with the verification, in the same transaction, or
+ * not at all. Only rule set 1002's session path today; absent unless
+ * gameplay is enabled with a rule set that needs it.
+ */
+export interface VerificationExtras {
+  sessionPath?: SessionPath;
+}
+
 export interface MovementVerificationRepository {
   /**
    * Throws {@link MovementSessionConflictError} if the pair already exists,
@@ -119,7 +128,7 @@ export interface MovementVerificationRepository {
    * pair wins over the limit, so a concurrent retry of an admitted session
    * still converges on its row.
    */
-  create(input: CreateMovementVerificationInput, admission?: DailyAdmission): Promise<MovementVerificationRecord>;
+  create(input: CreateMovementVerificationInput, admission?: DailyAdmission, extras?: VerificationExtras): Promise<MovementVerificationRecord>;
   /** The idempotency lookup. Scoped by userId, so one user can never read
    *  another's verification even with a guessed session id. */
   findByUserSession(
@@ -138,6 +147,8 @@ export class InMemoryMovementVerificationRepository
   implements MovementVerificationRepository
 {
   private readonly byKey = new Map<string, MovementVerificationRecord>();
+  /** Session paths written with their verification, by verification id. */
+  readonly sessionPaths = new Map<string, SessionPath>();
 
   private static key(userId: string, clientSessionId: string): string {
     // Length-prefixed so a userId containing the separator cannot forge a
@@ -148,6 +159,7 @@ export class InMemoryMovementVerificationRepository
   async create(
     input: CreateMovementVerificationInput,
     admission?: DailyAdmission,
+    extras?: VerificationExtras,
   ): Promise<MovementVerificationRecord> {
     const key = InMemoryMovementVerificationRepository.key(
       input.userId,
@@ -158,6 +170,7 @@ export class InMemoryMovementVerificationRepository
     if (admission && this.countSync(input.userId, admission.since) >= admission.max) throw new MovementDailyLimitError();
     const record: MovementVerificationRecord = { ...input, createdAt: new Date() };
     this.byKey.set(key, record);
+    if (extras?.sessionPath) this.sessionPaths.set(input.id, extras.sessionPath);
     return record;
   }
 
