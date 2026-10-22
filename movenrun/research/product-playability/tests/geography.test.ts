@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cellToParent, getResolution, gridDisk, latLngToCell } from "h3-js";
+import { cellToParent, getResolution, gridDisk, latLngToCell, uncompactCells } from "h3-js";
 import {
   cellsForZoom, coverageLayers, crossesAntimeridian, diskAround, publicBoard, ringArea, setSmoothing,
   MIN_PUBLIC_CROWD, PUBLIC_RESOLUTION, type CellRecord,
@@ -60,6 +60,10 @@ test("GEO-06 masked terrain (water, private land) is omitted, never shown as ope
   const without = coverageLayers(records);
   const area = (ls: typeof without) => ls.flatMap((l) => [...l.fill, ...l.outline]).flat().reduce((s, r) => s + ringArea(r), 0);
   assert.ok(area(withMask) < area(without));
+  // Fully masked open ground draws nothing at all: no fill and no outline in any layer.
+  const open = diskAround(0.5, -25.5, 1);
+  const hidden = coverageLayers(rec(open, "unclaimed"), { masked: new Set(open) });
+  assert.ok(hidden.every((l) => l.fill.length === 0 && l.outline.length === 0));
 });
 
 test("GEO-07 pending claims are outline only and never filled", () => {
@@ -78,6 +82,10 @@ test("GEO-08 zoom simplification compacts whole parents and never invents covera
   const compacted = cellsForZoom(children, 11);
   assert.ok(compacted.length <= children.length);
   assert.ok(compacted.every((c) => getResolution(c) <= 8));
+  assert.deepEqual(uncompactCells(compacted, 8).sort(), [...children].sort(), "expanding back gives exactly the same cells");
+  const whole = gridDisk(latLngToCell(0.5, -25.5, 8), 6).filter((c) => cellToParent(c, 7) === parent);
+  assert.ok(cellsForZoom(whole, 11).length <= whole.length);
+  assert.deepEqual(uncompactCells(cellsForZoom(whole, 11), 8).sort(), [...whole].sort());
 });
 
 test("GEO-09 display smoothing keeps area within 10% and leaves the cell set untouched", () => {
