@@ -103,11 +103,16 @@ export function summarize() {
   for (const [k, rs] of groups) {
     const [cell, vid] = k.split("#") as [string, string];
     const metrics = Object.keys(rs[0]!).filter((c) => !skip.has(c));
+    // One wide row per cell and variant: <metric> (mean), <metric>_lo, <metric>_hi (95% interval across seeds).
+    const row: Record<string, unknown> = { cell, variant: vid, seeds: rs.length };
     for (const mtr of metrics) {
       const ci = meanCi(rs.map((r) => (r[mtr] === "" ? NaN : Number(r[mtr]))));
-      out.push({ cell, variant: vid, metric: mtr, mean: ci.mean, ci95lo: ci.lo, ci95hi: ci.hi, seeds: ci.n });
+      row[mtr] = ci.mean;
+      row[`${mtr}_lo`] = ci.lo;
+      row[`${mtr}_hi`] = ci.hi;
       ((json[cell] ??= {})[vid] ??= {})[mtr] = ci;
     }
+    out.push(row);
   }
   writeFileSync(join(OUT, "summary.csv"), toCsv(out));
   return json;
