@@ -1,7 +1,7 @@
 {
   "manifestVersion": 2,
   "labVersion": "redteam-scenario-lab-1",
-  "status": "Hypotheses and thresholds below were fixed in this file before any sweep was run. Results are compared against them unchanged in G2_G4_FAIRNESS_AND_ABUSE_RESULTS.md.",
+  "status": "Hypotheses H1-H14 and thresholds were written in this file before the sweep and are unchanged, with one exception: the H2 metric was narrowed after seeing output of a development smoke run (seed 101, which is also in the sweep). Under the original H2 wording R1002 fails in every run. See the revision log and G2_G4_FAIRNESS_AND_ABUSE_RESULTS.md section 5.",
   "geography": {
     "kind": "SYNTHETIC",
     "note": "Synthetic lattice of H3 resolution 10 cells around an arbitrary origin in open ocean. It is not a city, not a road network and not production-approved geography. Urban core, a small central business district and rural villages are generated discs.",
@@ -355,7 +355,8 @@
       "id": "H2",
       "metric": "straddleFlips: flips that complete a walker's challenge under 20 h (server receipt) after it opened, on ground at or above the immediate-take line (strength 30). Ground decayed below that line falls at once by design and is counted separately (straddleFlipsDecayedGround).",
       "cell": "A-core all cells",
-      "test": "R1002 = 0 in every run; R1002-nogap > 0 in every run with malicious participants"
+      "test": "R1002 = 0 in every run; R1002-nogap > 0 in every run with malicious participants",
+      "originalMetric": "straddleFlips: every flip that completes a walker's challenge under 20 h after it opened (manifest version 1 wording). Under this wording R1002 fails in every A-core run (1 to 8 decayed-ground flips)."
     },
     {
       "id": "H3",

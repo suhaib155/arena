@@ -31,6 +31,8 @@ These come from this track's deliverables. Each one has a local reproduction. No
 | F4 | Player-day proofs detect an edited or reordered row. They do not bind the player or the day, are unkeyed and unchained, and nothing stops a plain UPDATE | VERIFIED CODE | B4 |
 | F5 | No player cap exists, and the storage guard is off unless a quota variable is set | VERIFIED CODE | B4, B5 |
 | F6 | The reference reconciler trusts the rules object it is given. The season roll-up does not re-check day books. There is no operator halt. The reference ledger model has no closed-day watermark, although the server enforces one (`day_closed`) | VERIFIED CODE | `ECONOMIC_BOOKKEEPING_ASSERTIONS.md` |
+| F8 | Under 1002, the 13-a-day take budget counts any erosion of rival ground a route passes through. With no attackers at all, 30–33% of legitimate sessions hit it, including 91% of runner sessions | VERIFIED CODE (`rules.ts:147-174`) + SYNTHETIC EXPERIMENT | `G2_G4_FAIRNESS_AND_ABUSE_RESULTS.md` |
+| F9 | 1002 cuts attacks on held ground by about 42x against the same rule object on res10 units (roughly 36–51x, 3 seeds). Attackers who are accepted as verified still take most vacant land: 67% of held ground at day 90 with 10% malicious players. The takeover rule cannot fix this; movement verification and per-person limits must | SYNTHETIC EXPERIMENT (worst case: every spoofed upload accepted) | B2/B3 |
 | F7 | The toll basis is ambiguous between the session (§20) and the day (§18 example). The code follows §20. This is open decision D10 | SOURCE + VERIFIED CODE | B1, B8 |
 
 ## Stages

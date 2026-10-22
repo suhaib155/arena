@@ -8,7 +8,7 @@ Track B, sections B2 (scenario simulator) and B3 (fairness and first-order game 
 
 | # | Finding | Tier |
 |---|---|---|
-| 1 | Under identical synthetic players and routes, 1002 cuts attacker flips of held ground from 33.2 to 0.78 per 100 held units per day (10% malicious, 200 players, 90 days), about 42 times fewer. 1001 as configured today (resolution 8 stored cells) is far worse again: 207. | SYNTHETIC EXPERIMENT |
+| 1 | Under identical synthetic players and routes, 1002 cuts attacker flips of held ground from 33.2 (the 1001 rule object on the resolution 10 path, lab variant R1001-res10) to 0.78 per 100 held units per day (10% malicious, 200 players, 90 days): about 42x fewer (roughly 36–51x from the 95% intervals; 3 seeds). 1001 as configured by default (resolution 8 stored cells) is far worse again: 207. | SYNTHETIC EXPERIMENT |
 | 2 | That cut does **not** make attackers small. At 10% malicious they still hold 67% [66, 69] of all held ground at day 90 under 1002 (77% under 1001 on the same units). 71% of what they acquire under 1002 is vacant ground claimed, not ground taken. 1002 moves abuse from taking to claiming; it does not stop accounts that upload far more (spoofed, replayed, sybil) ground than a person walks. | SYNTHETIC EXPERIMENT |
 | 3 | The 20 h server-receipt gap removes every challenge completed in under 20 h on ground above the immediate-take line (0 in all runs vs about 2,070 per 90-day run without it at 10% malicious, counting all walkers). Its effect on aggregate attacker flips is small (0.78 vs 0.81); its cost is borne mostly by legitimate players: legit-vs-legit flips drop 15% (135 to 115 per day, 0% malicious). | SYNTHETIC EXPERIMENT |
 | 4 | The 13/day take budget is hit by legitimate players routinely in this synthetic city: 30–33% of legit sessions at medium density with no attackers at all, 91% of runner sessions, 25% of commuter sessions. It counts every erosion of someone else's ground, including ground a walker just passes through. Denials cluster at 06–08 and 17–19 local time (commute and run hours). | SYNTHETIC EXPERIMENT, VERIFIED CODE (`TakeBudget` counts `eroded` and `flipped`, rules.ts:147–174, policy.ts:185) |
@@ -19,7 +19,7 @@ Track B, sections B2 (scenario simulator) and B3 (fairness and first-order game 
 | 9 | Walk order vs unit-id order for the take budget changes almost nothing in aggregate (0.784 vs 0.783 attacker flips per 100 held per day). Pushing interpolated units vs stepped units only changes little at a 10 s fix interval (0.785 vs 0.783). | SYNTHETIC EXPERIMENT |
 | 10 | No invariant violation in 36 audited 90-day runs (3 seeds x 12 variants, 200 players, 10% malicious) and the test fixture: no inconsistent unit, no second hostile push per walker/unit/day, no take or unit budget exceeded. | SYNTHETIC EXPERIMENT, VERIFIED CODE (server ledger used unchanged) |
 
-Pre-registered hypotheses: 7 of 14 pass (H1, H2, H3, H7, H10, H13, H14), 7 fail (H4, H5, H6, H8, H9, H11, H12). See section 5.
+Pre-registered hypotheses: 7 of 14 pass (6 pass: H1, H3, H7, H10, H13, H14; and H2 passes only on the metric narrowed after the smoke run, it fails under its original wording), 7 fail (H4, H5, H6, H8, H9, H11, H12). See section 5.
 
 ## 2. What was built
 
@@ -75,11 +75,11 @@ Timing noise (legit uploads): 85% within 5 min, 10% 10–90 min late, 4% 2–10 
 
 Omitted (reasons in the manifest): the full factorial (about 4,300 cells x seeds), A-core at 100 players, five seeds outside E-small, 1000 players beyond 30 days or with all variants, horizons below 90 days at 200+ players, the unit-budget counterfactuals outside A-core/E-small, levels/fortify/deeds/masks/upkeep/credits/shade, adaptive behaviour, and any replication of #123.
 
-**Seeds and intervals.** Three seeds in most stages, two at 1,000 players, five at 25. Intervals are 95% Student-t intervals across seeds, so with three seeds they are wide (t = 4.30) and a fraction's interval can cross 0 or 1. They show spread, not certainty.
+**Seeds and intervals.** Three seeds in most stages, two at 1,000 players, five at 25. Intervals are 95% Student-t intervals across seeds, so with three seeds they are wide (t = 4.30) and a fraction's interval can cross 0 or 1. They show spread, not certainty. Intervals are not clipped to [0, 1], so a fraction's bound can read below 0 or above 1.
 
 **Non-replication.** PR #123's churn study uses `shared/src/sim` with its own 368-player world. Its exact fixture was not re-run here. Nothing below is a replication of its numbers; where the directions agree that is a non-replication agreement only.
 
-**Manifest revisions (honest log).** Version 1 held the hypotheses and a larger stage plan. Before the sweep, version 2 cut the stage plan to fit the compute budget. One development smoke run (seed 101, 100 and 200 players, 10% malicious) had been run to check run time and correctness. During it the H2 metric was narrowed to exclude ground decayed below 1002's immediate-take line, which the rule hands over at once by design; those flips have their own column. No threshold was changed.
+**Manifest revisions (honest log).** Version 1 held the hypotheses and a larger stage plan. Before the sweep, version 2 cut the stage plan to fit the compute budget. One development smoke run (seed 101, 100 and 200 players, 10% malicious) had been run to check run time and correctness. After seeing that smoke run's output, the H2 metric was narrowed to exclude ground decayed below 1002's immediate-take line, which the rule hands over at once by design; those flips have their own column. The original H2 metric fails (section 5). Seed 101, used in the smoke run, is also in the sweep; a robustness check on seeds 202 and 303 only is in section 5. The other thresholds were not changed.
 
 ## 3. Results
 
@@ -118,16 +118,16 @@ Flips per hour and per device fall about 22–28x under 1002, but **ground held 
 
 ### 3.2 Competition, contested ground and co-walking (A-core, 0% malicious)
 
-| Variant | Legit-vs-legit flips / day | Share of legit-ever-held units contested by another legit player | Flips / 100 shared walks | Challenge erosions / 100 shared walks | Casual holding at day 90 | Calendar-day uptime (legit) |
+| Variant | Legit-vs-legit flips / day | Share of legit-ever-held units contested by another legit player | Flips / 100 shared walks | Challenge erosions / 100 shared walks | Casual holding at day 90 (from the 10% malicious cell, not 0%) | Calendar-day uptime (legit) |
 |---|---|---|---|---|---|---|
-| R1001 (res 8) | 298 [283, 312] | 0.74 | 113 | 0 | n/a (see 3.4) | 0.15 |
+| R1001 (res 8) | 298 [283, 312] | 0.74 | 113 | 0 | 0.07 (10% mal.) | 0.15 |
 | R1001-res10 | 1310 [1164, 1455] | 0.63 | 867 | 0 | 0.60 (10% mal.) | 0.37 [0.29, 0.45] |
 | R1002 | 115 [113, 117] | 0.60 | 53 | 343 | 0.81 (10% mal.) | 0.59 [0.53, 0.66] |
-| R1002-nogap | 135 [131, 139] | 0.60 | 66 | 349 | 0.80 | 0.58 |
-| R1002-gap24 | 93 [90, 96] | 0.60 | 41 | 347 | 0.87 | 0.61 |
-| R1002-win2 | 106 [103, 109] | 0.60 | 47 | 344 | 0.83 | 0.60 |
-| R1002-b5 | 57 [55, 60] | 0.52 | 27 | 174 | 0.92 | 0.70 |
-| R1002-b20 | 139 [138, 140] | 0.61 | 65 | 404 | 0.75 | 0.56 |
+| R1002-nogap | 135 [131, 139] | 0.60 | 66 | 349 | 0.80 (10% mal.) | 0.58 |
+| R1002-gap24 | 93 [90, 96] | 0.60 | 41 | 347 | 0.87 (10% mal.) | 0.61 |
+| R1002-win2 | 106 [103, 109] | 0.60 | 47 | 344 | 0.83 (10% mal.) | 0.60 |
+| R1002-b5 | 57 [55, 60] | 0.52 | 27 | 174 | 0.92 (10% mal.) | 0.70 |
+| R1002-b20 | 139 [138, 140] | 0.61 | 65 | 404 | 0.75 (10% mal.) | 0.56 |
 
 Won, lost and empty-earned area per legit player, 90 days, 10% malicious (km²):
 
@@ -238,7 +238,7 @@ From the results above, if 1002 or anything like it is piloted:
 | Id | Test (from manifest, unchanged) | Result | Verdict |
 |---|---|---|---|
 | H1 | Attacker flips per 100 held per day, A-core 200/10%: R1002 <= 0.5 x R1001-res10 | 0.78 vs 16.6 threshold | PASS |
-| H2 | Straddle completions above the immediate line: R1002 = 0 every run; nogap > 0 every malicious run | 0 in all A-core runs; nogap 1,929–2,214 interval, every run > 0 | PASS (the nogap count includes legit walkers) |
+| H2 | Straddle completions: R1002 = 0 every run; nogap > 0 every malicious run | Narrowed metric (ground at or above the immediate line): 0 in all A-core runs; nogap > 0 in every run. Original wording (all completions under 20 h): R1002 has 1 to 8 decayed-ground flips in every A-core run | PASS under the metric narrowed after the smoke run; original wording FAILS (1 to 8 decayed-ground flips per R1002 run, by design). The nogap count includes legit walkers |
 | H3 | Casual day-90 holding, A-core 200/10%: R1002 >= 0.6 and >= R1001-res10 | 0.81 [0.55, 1.07] vs 0.60 | PASS on means; interval wide |
 | H4 | Attacker share of held ground, A-core 200/10%: R1002 <= 0.20 | 0.67 [0.66, 0.69] | FAIL |
 | H5 | Take-cap session rate, A-core 200/2%: R1002 runners <= 0.05, all legit <= 0.01 | 0.91 and 0.33 | FAIL |
@@ -251,6 +251,8 @@ From the results above, if 1002 or anything like it is piloted:
 | H12 | Rural/urban holding ratio, B-density, R1002, in [0.8, 1.25] | low 0.98, high 1.50 | FAIL (high density) |
 | H13 | Unit-id vs walk order: relative difference < 10% | 0.1% | PASS |
 | H14 | Invariant violations = 0 | 0 in 36 audited runs and all test runs | PASS (see note) |
+
+Robustness without the smoke-run seed (A-core, seeds 202 and 303 only, from `out/rows_A-core.csv`): H1 R1002 0.78 (0.82, 0.74) vs R1001-res10 33.0 (33.7, 32.4), still PASS; H2 narrowed metric R1002 0 and 0, nogap 2,067–2,117, still PASS (original wording still FAILS: 3–8 decayed-ground flips); H4 attacker share 0.67 (0.68, 0.67), still FAIL.
 
 Note on H14: the sweep runs with auditing off for speed, so the `invariantViolations` column in `rows_*.csv` is 0 by construction. The evidence is the audited run (A-core 200 players, 10% malicious, 90 days, seeds 101/202/303, all 12 variants) and the test fixture, both auditing after every session.
 
