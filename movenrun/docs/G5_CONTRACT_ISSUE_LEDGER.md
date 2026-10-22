@@ -607,3 +607,26 @@ Status for every row today: **not met**. Each gate needs recorded evidence, not 
 | 6 | Legal approval | Per market and per feature (G5-11), using §5's questions; app-store policy review for Android | not met |
 | 7 | Owner decisions recorded | At least G5-2, G5-5, G5-6 and G5-7 decided in writing | not met |
 | 8 | Operations ready | Signer independence and key custody in place; incident and appeal process for voids and contests; public disclosures (supply, unissued 600M, admin powers) | not met |
+
+## 13. Ported v3 suite and focused tests against the draft patches
+
+> **RESEARCH ONLY. Tested locally on Hardhat's in-process network. Nothing deployed, no RPC, no keys, not audited.** Source: `shared/contract-proofs/g5-ledger/suite-port/`, run with `G5_MODE=patched G5_PORTED_SUITE=1 bash shared/contract-proofs/g5-ledger/run.sh`. Compiled with the solcjs 0.8.26 already in `node_modules` (pinned 0.8.24 not used).
+
+**Result.** Before the port, the branch's own suite against the patches: 29 passing, 76 failing (§7). After: all 105 original tests are ported and pass; 16 new focused tests pass; the 17 regression proofs still pass. Total 138 passing, 0 failing, 0 pending. The pending list (a test left failing because a patch breaks an original safety property) is **empty**: no original property was found broken by the patches. No original test was removed (category (c): none).
+
+**Category (b): original properties intentionally changed by a patch (test asserts the new behaviour, comment in the test names the patch).**
+
+| Patch | Original test(s) | Change |
+|---|---|---|
+| H1 | all of `02-settlement`, `03-rewards`, and every `fundLockedMove` fixture | A day is publishable only after it closes, so the helper advances the clock to `genesis + dayId days` before building the authorization. Every original assertion (pool, toll, burn, season, replay, pause) is kept unchanged and passes |
+| H2 | `playOut` and three scoring tests in `05-contests` | Single-sided `submitScore` is replaced by `submitDayScores` (both sides, two keys, only after the day closes). "Outside the window" is now `ScoringDayNotClosed` (was `ScoringNotOpen`); "off the roster" is structural (no participant field); forged signature asserts `InvalidScoreSignature` and, new, `InvalidCoSignature`; settlement waits for the 1-day grace |
+| H3 / M1 | claim helper; attestation test; fee test; unopened-city test in `04-deeds-cap` | Claims need two signatures in ascending order, a city-region proof and a cluster id. An unregistered signer is `SignersNotAscendingOrUnknown` (was `InvalidAttestationSignature`); one valid key is `ThresholdNotMet`. A city with city-wide cap 0 is `CityWideCapReached`; the original `CityCapNotConfigured` is still asserted once the city-wide cap is open. The helper raises the per-city daily claim limit to 50 and gives every claim its own cluster id so the original multi-claim scenarios run; those caps are tested in the regression proofs and §13 focused tests |
+| N1 | "frees a slot", "holds a direct transfer", "claim pause" in `04`; entry-fee and reservation tests in `05`; `declareContest` | New deeds are pending 7 days. Tests assert `DeedPending` inside the window, then the original behaviour after `waitOutChallengeWindow` |
+
+**Focused findings (`06-focused.port.test.ts`).**
+
+- **400M valve (A).** One timelocked action still opens the full 400M (A1), unused allowance still never expires (A5) and nothing links it to revenue. What now bounds it is H1: one publication cannot exceed 2 x nominal (200,000 MOVE; A2), a day cannot be drawn on before it closes (A3), and with the valve fully open two keys can still move a whole season budget (9M) liquid over 90 closed days (A4). The guardian can shut it at once and cannot open it (A6). So the answer to "can one action open the full amount" is yes; "can one action *spend* it" is no, but a revenue-linked, expiring per-period allowance (D1) is still missing.
+- **Toll leakage with the valve shut (B).** With allowance 0 every day still issues up to 2% of its gross as transferable liquid (B1); over 30 days exactly the sum of daily tolls (B2); no setter lowers it, and the only lever (pausing publication) also stops locked rewards; the recipient is chosen by the two settlement keys alone (B3). Unchanged by the patches (M4 / V3 stays open).
+- **Signer concentration and timelock (C).** Two eligibility keys held by one operator mint only up to the caps: 5 per city per day, then the city-wide cap (C1). A void inside the window frees the cell and holder slot but does **not** return the cluster, daily or lifetime claim counters, so churn spends the 1,000-claim lifetime ceiling (C2, new gap). Threshold floor 2, duplicate signatures and a lone third key are refused (C3). The timelock admin is sole proposer, executor and canceller, so one admin key can, after the delay, register or rotate both eligibility signers (C4); the schedule is public and the guardian can only pause during the delay. The timelock still accepts a 1-second delay (C5, = L2). Contest signer and co-signer must stay distinct (C6), but one operator holding both decides any contest within the 100,000 per-day ceiling, and declarations still need one key (C7, H2b open).
+
+**Not covered.** Cluster quality, on-chain gas limits, the pinned compiler, upgrade paths, and anything off chain.

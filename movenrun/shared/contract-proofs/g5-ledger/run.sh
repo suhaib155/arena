@@ -5,6 +5,7 @@
 #
 #   bash movenrun/shared/contract-proofs/g5-ledger/run.sh [commit]
 #   G5_MODE=patched bash movenrun/shared/contract-proofs/g5-ledger/run.sh [commit]
+#   G5_PORTED_SUITE=1 G5_MODE=patched ...   runs the ported v3 suite (suite-port/) against the patches
 #   G5_BRANCH_SUITE=1 ...   additionally runs the branch's own test/v3 suite in that mode
 #
 # G5_MODE=original (default): ledger.proof.ts (issue proofs), valve.proof.ts (valve, fallback
@@ -39,6 +40,10 @@ fi
 if [ "${G5_BRANCH_SUITE:-0}" = "1" ]; then
   cp "$C"/test/v3/*.test.ts "$C/test/ledger/"
   sed -i 's#"\./helpers"#"../v3/helpers"#; s#"\./cells"#"../v3/cells"#' "$C"/test/ledger/*.test.ts
+fi
+if [ "${G5_PORTED_SUITE:-0}" = "1" ]; then
+  # Ported v3 suite (RESEARCH ONLY): suite-port/*.ts next to regression.proof.ts, patched mode.
+  cp "$HERE"/suite-port/*.ts "$C/test/ledger/"
 fi
 cp "$HERE/proof.config.ts" "$C/"
 cd "$C"
