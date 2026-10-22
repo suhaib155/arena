@@ -58,8 +58,6 @@ describe("G5 focused: valve, toll leakage, signer concentration (patched)", () =
       const f = await fx();
       await raise(f, PLAYER_MOVEMENT_ALLOCATION, "a2");
       // Skip ahead to day 60 so the unissued budget has piled into that day's pool.
-      const pool = await f.settlement.dailyPoolOf(60).catch(() => 0n);
-      void pool;
       const auth = await settlementAuthorization(f, {
         dayId: 60, grossIssuance: CEILING + 1n, lockedClaims: 0n, liquidMovementClaims: CEILING + 1n,
       });
@@ -220,12 +218,14 @@ describe("G5 focused: valve, toll leakage, signer concentration (patched)", () =
       ], ethers.id("c2"));
       const cluster = ethers.id("ring");
       await (await claimDeed(f, f.alice, cells[0], CITY, { clusterId: cluster })).wait();
+      const claimDay = BigInt(Math.floor((await time.latest()) / DAY));
       await (await f.deed.connect(f.voider).voidPendingDeed(cells[0], 1)).wait();
       expect(await f.deed.cityDeedCount(CITY)).to.equal(0n);
       expect(await f.deed.totalDeeds()).to.equal(0n);
       // Counters on the claims contract stay spent.
       expect(await f.deedClaims.totalClaims()).to.equal(1n);
       expect(await f.deedClaims.clusterClaimCount(CITY, cluster)).to.equal(1n);
+      expect(await f.deedClaims.cityClaimsOnDay(CITY, claimDay)).to.equal(1n);
       await expect(claimDeed(f, f.bob, cells[0], CITY, { clusterId: cluster }))
         .to.be.revertedWithCustomError(f.deedClaims, "ClusterCapReached");
     });

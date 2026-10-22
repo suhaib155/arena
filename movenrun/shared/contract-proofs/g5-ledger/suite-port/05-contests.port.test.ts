@@ -343,8 +343,13 @@ describe("V3 MovenRunContests", () => {
         .withArgs(0);
 
       // (b) H2: the window is extended by the 1-day grace. Still refused once the grace is over.
+      const c = await fx.contests.contestOf(1n);
+      await time.increaseTo(Number(c.scoringEnd) + DAY + 1);
+      await expect(submitDayScores(fx, 1n, 1, 10n, 0n)).to.be.revertedWithCustomError(
+        fx.contests,
+        "ScoringNotOpen"
+      );
       await settleAfterGrace(fx, 1n);
-      await expect(submitDayScores(fx, 1n, 1, 10n, 0n)).to.be.reverted;
     });
 
     it("refuses a score the contest signer did not sign", async () => {
