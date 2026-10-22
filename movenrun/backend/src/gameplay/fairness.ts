@@ -40,6 +40,9 @@ import { DAY_MS, PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, type GameplayRules } from
 
 type Rules = Omit<GameplayRules, "seasonOneStartDay">;
 const H = 3_600_000;
+const P2 = SIM_PILOT_2_PROPOSAL.takeover;
+/** Flips completed sooner than 1002's second-push gap count as straddles, under either rule set. */
+const STRADDLE_MS = P2.name === "two-day-challenge" && P2.policyVersion === 2 ? P2.secondPush.minElapsedMs : 20 * H;
 const MIN = 60_000;
 const EARTH_RADIUS_M = 6_371_000;
 const DEG = Math.PI / 180;
@@ -526,7 +529,7 @@ export function fairnessRun(spec: FairnessSpec, label: string, rules: Rules, gap
           if (e.previousHolderId === partnerOf.get(s.walker)) st.flipsOnPartner += 1;
         }
         const first = challengeOpenedAt.get(key);
-        if (first !== undefined && s.receivedMs - first < 20 * H) st.straddleFlips += 1;
+        if (first !== undefined && s.receivedMs - first < STRADDLE_MS) st.straddleFlips += 1;
       }
       if (e.outcome === "eroded" && !challengeOpenedAt.has(key)) challengeOpenedAt.set(key, s.receivedMs);
       if (e.outcome === "flipped" || e.outcome === "reinforced") {
