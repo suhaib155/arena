@@ -956,9 +956,26 @@ test("a day partition another creator commits first (42P07) is skipped; a push t
   await session(walker, "deadlock-session-2", at(D + 400, 13), [CELLS[59]!]);
   const before = await fingerprint();
   const refused = flaky(5);
-  await assert.rejects(refused.service.applySession(walker, "deadlock-session-2"), (err: unknown) => (err as { code?: string }).code === "40P01");
+  await assert.rejects(refused.service.applySession(walker, "deadlock-session-2"), (err: unknown) =>
+    err instanceof GameplayError && err.status === 409 && err.code === "concurrent_push_retry");
   assert.equal(refused.attempts(), 5, "five attempts, then no sixth");
   assert.deepEqual(await fingerprint(), before, "every attempt was rolled back");
+  // Over HTTP the exhausted case is a 409 the client can retry, not a 500.
+  const httpApp = express();
+  httpApp.use(express.json({ limit: "8kb" }));
+  httpApp.use("/gameplay", createGameplayRouter({ service: flaky(5).service, verifyBearer: async () => ({ userId: walker }) }));
+  const httpServer: Server = httpApp.listen(0, "127.0.0.1");
+  await once(httpServer, "listening");
+  try {
+    const res = await fetch(`http://127.0.0.1:${(httpServer.address() as { port: number }).port}/gameplay/sessions/deadlock-session-2/apply`, {
+      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer t" }, body: "{}",
+    });
+    assert.equal(res.status, 409);
+    assert.deepEqual(await res.json(), { error: "concurrent_push_retry" });
+  } finally {
+    httpServer.close();
+  }
+  assert.deepEqual(await fingerprint(), before, "the HTTP attempts were rolled back too");
   assert.equal(await ledgerRows(walker), 1, "no ledger row from the refused push");
   // The session is still unapplied, so an honest retry applies it exactly once.
   assert.equal((await service.applySession(walker, "deadlock-session-2")).applied, 1);
