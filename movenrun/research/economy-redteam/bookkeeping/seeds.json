@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "note": "Seeds and case counts for the bookkeeping properties. Changing a seed is a new experiment; record it here.",
+  "properties": {
+    "P01": { "seed": 80101, "cases": 3000 },
+    "P02": { "seed": 80102, "cases": 3000 },
+    "P03": { "seed": 80103, "cases": 5000 },
+    "P04": { "seed": 80104, "cases": 3000 },
+    "P05": { "seed": 80105, "cases": 2000 },
+    "P06": { "seed": 80106, "cases": 3000 },
+    "P07": { "seed": 80107, "cases": 5000 },
+    "P08": { "seed": 80108, "cases": 2000 },
+    "P09": { "seed": 80109, "cases": 2000 },
+    "P10": { "seed": 80110, "cases": 3000 },
+    "P11": { "seed": 80111, "cases": 3500 },
+    "P12": { "seed": 80112, "cases": 1000 },
+    "P13": { "seed": 80113, "cases": 1000 },
+    "P14": { "seed": 80114, "cases": 1000 },
+    "P15": { "seed": 80115, "cases": 1000 },
+    "P16": { "seed": 80116, "cases": 1000 },
+    "P17": { "seed": 80117, "cases": 5000 },
+    "P18": { "seed": 80118, "cases": 1000 }
+  }
+}

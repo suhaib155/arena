@@ -376,7 +376,7 @@ export function runVariant(sc: Scenario, v: Variant, opts: RunOptions = {}): Run
     byInt[k]!.lost += (lost.get(p.id) ?? 0) * area;
     byInt[k]!.empty += (empty.get(p.id) ?? 0) * area;
   }
-  const per = (k: string, f: "won" | "lost" | "empty") => (byInt[k]!.n ? byInt[k]!.[f] / byInt[k]!.n : NaN);
+  const per = (k: string, f: "won" | "lost" | "empty") => (byInt[k]!.n ? byInt[k]![f] / byInt[k]!.n : NaN);
 
   // Abuse cost side: physical hours walked and devices used by malicious accounts.
   let malHours = 0, malRecordedHours = 0;
@@ -401,7 +401,7 @@ export function runVariant(sc: Scenario, v: Variant, opts: RunOptions = {}): Run
     unitAreaKm2: area,
     // Attack.
     attackerFlipsPer100HeldPerDay: meanHeldPerDay > 0 ? (c.attackerFlips / days / meanHeldPerDay) * 100 : 0,
-    attackerFlipsFromLegitPerDay: c.attackerFlips / days,
+    attackerFlipsFromLegitPerDay: c.attackerFlipsFromLegit / days,
     attackerShareOfHeldEnd: endTotal ? malEnd / endTotal : 0,
     attackerClaimShareOfAcquired: c.attackerClaims + c.attackerFlips ? c.attackerClaims / (c.attackerClaims + c.attackerFlips) : NaN,
     attackerHeldKm2End: malEnd * area,

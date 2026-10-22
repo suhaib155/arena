@@ -15,7 +15,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cellToChildren, gridDisk, latLngToCell } from "h3-js";
+import { cellToChildren, getResolution, gridDisk, latLngToCell } from "h3-js";
 import { cellsForObservations } from "@movenrun/shared/h3";
 import { SESSION_RULES_VERSION } from "@movenrun/shared/session";
 import type { PushEvent } from "@movenrun/shared/holdingLedger";
@@ -84,7 +84,7 @@ async function session(userId: string, sid: string, endMs: number, opts: {
       `INSERT INTO gameplay_session_paths (movement_verification_id, path_version, resolution, unit_ids, interpolated, skipped_segments, truncated)
        VALUES ($1, 1, $4, $2::bigint[], $3::varbit, 0, false)`,
       [id, opts.units.map(cellToInt8), (opts.interpolated ?? opts.units.map(() => false)).map((f) => (f ? "1" : "0")).join(""),
-       opts.units.length > 0 ? Number(BigInt(`0x${opts.units[0]}`) >> 52n & 15n) : 10]);
+       opts.units.length > 0 ? getResolution(opts.units[0]!) : 10]);
   }
   return id;
 }
