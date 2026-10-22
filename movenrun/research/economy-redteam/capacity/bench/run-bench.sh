@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # B5 local bench driver. NOT part of the default test run. Throwaway PostgreSQL 16 cluster on 127.0.0.1 only.
 # usage: bench/run-bench.sh <config: default|aggressive> <players> [days-profile=integration]
-# The cluster must live where the unprivileged postgres user can read it, so it is created under /tmp/b5-pg-<config>
-# (the session scratch directory is root-only). It is deleted at the end of every run.
+# The cluster must live where the unprivileged postgres user can read it, so it is created in a temp directory
+# (mktemp under TMPDIR, default /tmp). It is deleted at the end of every run.
 set -euo pipefail
 CFG=${1:?config}; PLAYERS=${2:?players}
+case $CFG in default|aggressive) ;; *) echo "config must be default or aggressive" >&2; exit 2;; esac
+case $PLAYERS in ''|*[!0-9]*) echo "players must be a number" >&2; exit 2;; esac
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 MOVENRUN=$(cd "$HERE/../../.." && pwd)
 BIN=/usr/lib/postgresql/16/bin
 PORT=55435
-DIR=/tmp/b5-pg-$CFG
+DIR=$(mktemp -d "${TMPDIR:-/tmp}/b5-pg-$CFG.XXXXXX")
 OUT=$HERE/out/bench-$CFG-$PLAYERS
-rm -rf "$DIR"; mkdir -p "$DIR"; chown postgres "$DIR"
+chown postgres "$DIR"
 runuser -u postgres -- $BIN/initdb -D "$DIR/data" -A trust -U bench >/dev/null
 cat >> "$DIR/data/postgresql.conf" <<CONF
 listen_addresses = '127.0.0.1'
@@ -33,7 +35,9 @@ CONF
 fi
 runuser -u postgres -- $BIN/pg_ctl -D "$DIR/data" -l "$DIR/log" -w start >/dev/null
 trap 'runuser -u postgres -- $BIN/pg_ctl -D "$DIR/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "$DIR"' EXIT
-export MOVENRUN_BENCH_DATABASE_URL=postgres://bench@127.0.0.1:$PORT/postgres
+DBHOST=127.0.0.1
+[ "$DBHOST" = 127.0.0.1 ] || { echo "refusing non-loopback database host" >&2; exit 2; }
+export MOVENRUN_BENCH_DATABASE_URL=postgres://bench@$DBHOST:$PORT/postgres
 cd "$MOVENRUN/backend"
 node --import tsx "$HERE/bench/sampler.ts" "$OUT.samples.csv" &
 SP=$!
