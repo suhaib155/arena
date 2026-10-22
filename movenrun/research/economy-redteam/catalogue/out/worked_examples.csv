@@ -1,0 +1,114 @@
+id,kind,section,what,printed,printedDecimals,value,agrees,note
+S18-RATE,source,V3 §18,"rate = 100,000 ÷ 60,000",1.667,3,1.666667,true,
+S18-EFFORT,source,V3 §18 step 1,effort √(25÷40),0.79,2,0.790569,true,
+S18-POINTS,source,V3 §18 step 2,0.79 + 0.79 (printed inputs),1.58,2,1.58,true,
+S18-DAYPOINTS,source,V3 §18 step 3,1.58 × 1.40 (printed inputs),2.21,2,2.212,true,
+S18-DAYPOINTS-EXACT,source,V3 §18 step 3,exact 2 × √0.625 × 1.40,2.21,2,2.213594,true,
+S18-GROSS,source,V3 §18 step 4,1.667 × 2.21 (printed inputs),3.68,2,3.68407,true,
+S18-GROSS-EXACT,source,V3 §18 step 4,"exact (100,000 ÷ 60,000) × 2.2136",3.68,2,3.689324,false,Exact gross is 3.689; the printed 3.68 comes from multiplying rounded intermediates.
+S18-PER-SESSION,source,V3 §18 step 5,per-session reward 3.68 ÷ 2,1.84,2,1.84,true,
+S18-CEILINGS,source,V3 §18 step 5,1.84 ≤ 12 and 3.68 ≤ 20 (1 = both clear),1,0,1,true,
+S18-TOLL-DAY-BASIS,source,V3 §18 step 6,toll as printed: 3.68 × 2% × 0.25 (day reward basis),0.02,2,0.0184,true,Printed working applies the toll to the whole day's reward (0.0184).
+S18-TOLL-SESSION-BASIS,source,V3 §20 applied to §18,"§20 per-session basis, evening session alone, 3 of 12 cells: 1.84 × 2% × 0.25",0.02,2,0.0092,false,"0.0092: half the printed toll. Rounds to 0.01, not the printed 0.02. Source internal inconsistency (spec D10)."
+S18-RAVI,source,V3 §18 step 7,Ravi 2 of 3 tolled cells of 0.0184,0.012,3,0.012267,true,
+S18-SAM,source,V3 §18 step 7,Sam 1 of 3 tolled cells of 0.0184,0.006,3,0.006133,true,
+S18-RECHARGE,source,V3 §18 step 8,"25% of 3.68 (gross, before toll)",0.92,2,0.92,true,
+S18-UPKEEP-DS,source,V3 §18 step 9,4 × 0.03 × 6^0.25 day-shares,0.19,2,0.18781,true,
+S18-UPKEEP,source,V3 §18 step 9,0.1878 day-shares × 2.50,0.47,2,0.469525,true,
+S18-CAP60,source,V3 §18 step 10,"(0.92 + 0.47) ÷ 3.68, toll excluded",0.38,2,0.377717,true,
+S18-CREDITED,source,V3 §18 step 11,3.68 − 0.02 − 0.92 − 0.47 (printed inputs),2.27,2,2.27,true,
+S18-CREDITED-EXACT-DAYTOLL,source,V3 §18 step 11,"exact chain, day-basis toll",2.27,2,2.279021,false,Exact chain gives 2.279 (rounds to 2.28): the printed 2.27 rests on rounded intermediates.
+S18-CREDITED-EXACT-SESSIONTOLL,source,V3 §18 step 11,"exact chain, §20 per-session toll (3 of 12)",2.27,2,2.288244,false,2.288 under the §20 per-session reading.
+S18-DESTROYED,source,V3 §18,destroyed = 0.92 + 0.47,1.39,2,1.39,true,
+S19-UPKEEP-DS,source,V3 §19,40 × 0.03 × 40^0.25 day-shares,3.02,2,3.01784,true,
+S19-UPKEEP-OWED-PRINTED-INPUT,source,V3 §19,3.02 × 2.50 (printed input),7.55,2,7.55,true,
+S19-UPKEEP-OWED-EXACT,source,V3 §19,exact 3.0179 × 2.50,7.55,2,7.544601,false,"Exact is 7.5446, which rounds to 7.54; the printed 7.55 multiplies the rounded 3.02."
+S19-TAKEN,source,V3 §19,60% of a zero day,0,0,0,true,
+S7-ROW1-PER,source,V3 §7,1 zones: 0.03 × 1^0.25 per zone,0.03,3,0.03,true,
+S7-ROW1-ALL,source,V3 §7,1 zones all unvisited: 1 × per zone,0.03,2,0.03,true,
+S7-ROW1-WEEK,source,V3 §7,"1 zones all unvisited, per week (× 7)",0.2,1,0.21,true,
+S7-ROW6-PER,source,V3 §7,6 zones: 0.03 × 6^0.25 per zone,0.047,3,0.046953,true,
+S7-ROW6-ALL,source,V3 §7,6 zones all unvisited: 6 × per zone,0.28,2,0.281715,true,
+S7-ROW6-WEEK,source,V3 §7,"6 zones all unvisited, per week (× 7)",2,1,1.972007,true,
+S7-ROW16-PER,source,V3 §7,16 zones: 0.03 × 16^0.25 per zone,0.06,3,0.06,true,
+S7-ROW16-ALL,source,V3 §7,16 zones all unvisited: 16 × per zone,1,2,0.96,false,"16 × 0.03 × 16^0.25 = 0.96, printed 1.00: the row is the rounded break-even, not the formula."
+S7-ROW16-WEEK,source,V3 §7,"16 zones all unvisited, per week (× 7)",7,1,6.72,false,"Exact 6.72, printed 7.0."
+S7-ROW30-PER,source,V3 §7,30 zones: 0.03 × 30^0.25 per zone,0.07,3,0.07021,true,
+S7-ROW30-ALL,source,V3 §7,30 zones all unvisited: 30 × per zone,2.11,2,2.106313,true,
+S7-ROW30-WEEK,source,V3 §7,"30 zones all unvisited, per week (× 7)",14.8,1,14.744188,false,Exact 14.74 (rounds to 14.7); printed 14.8 is 7 × the rounded 2.11.
+S7-ROW100-PER,source,V3 §7,100 zones: 0.03 × 100^0.25 per zone,0.095,3,0.094868,true,
+S7-ROW100-ALL,source,V3 §7,100 zones all unvisited: 100 × per zone,9.49,2,9.486833,true,
+S7-ROW100-WEEK,source,V3 §7,"100 zones all unvisited, per week (× 7)",66,0,66.407831,true,
+S7-ROW250-PER,source,V3 §7,250 zones: 0.03 × 250^0.25 per zone,0.119,3,0.119291,true,
+S7-ROW250-ALL,source,V3 §7,250 zones all unvisited: 250 × per zone,29.8,1,29.822652,true,
+S7-ROW250-WEEK,source,V3 §7,"250 zones all unvisited, per week (× 7)",209,0,208.758566,true,
+S20-NONE,source,V3 §20,no deeded ground: keep,20,2,20,true,
+S20-4OF6-RATE,source,V3 §20,four of six deeded: toll rate % = 2 × 4/6,1.33,2,1.333333,true,
+S20-4OF6-KEEP,source,V3 §20,four of six deeded: keep,19.73,2,19.733333,true,
+S20-4OF6-OWNERS,source,V3 §20,four of six deeded: owners receive,0.27,2,0.266667,true,
+S20-ALL-4-KEEP,source,V3 §20,"every cell deeded, 4 owners: keep",19.6,2,19.6,true,
+S20-ALL-4-EACH,source,V3 §20,"every cell deeded, 4 owners: each",0.1,2,0.1,true,
+S20-ALL-8-KEEP,source,V3 §20,"every cell deeded, 8 owners: keep",19.6,2,19.6,true,
+S20-ALL-8-EACH,source,V3 §20,"every cell deeded, 8 owners: each",0.05,2,0.05,true,
+S20-ALL-20-KEEP,source,V3 §20,"every cell deeded, 20 owners: keep",19.6,2,19.6,true,
+S20-ALL-20-EACH,source,V3 §20,"every cell deeded, 20 owners: each",,,0.02,,
+S20-TABLE-VS-SESSION-CEIL,source,V3 §20 vs §17,table's 20.00 session reward within the 12 per-session ceiling (1 = yes),1,0,0,false,"The toll table illustrates a 20.00 session, which the §17 per-session ceiling of 12 cannot produce. Illustrative only; the 2% arithmetic is unaffected."
+S20-SEASON1-TOLL-BOUND,source,V3 §20,"season-one toll bound 9,000,000 × 2%",180000,0,180000,true,Bound assumes the whole season pool is issued; actual issued is lower when ceilings trim.
+S20-RAVI-DAY,source,V3 §20,Ravi: 140 crossers × 0.008,1.12,2,1.12,true,
+S20-RAVI-DS,source,V3 §20,Ravi: 1.12 ÷ 2.50 day-shares,0.45,2,0.448,true,
+S20-REL-12,source,V3 §20,relative earnings 12 ÷ 2 crossers,6,0,6,true,
+S20-REL-45,source,V3 §20,relative earnings 45 ÷ 2 crossers,22,0,22.5,true,"45 ÷ 2 = 22.5, printed 22×."
+S20-REL-140,source,V3 §20,relative earnings 140 ÷ 2 crossers,70,0,70,true,
+S20-RAVI-10X-ALL3,source,V3 §20,Ravi's 0.45 day-shares > 10 × upkeep if all three zones unvisited (1 = yes),1,0,0,false,"Upkeep on three unvisited zones is 0.1184 day-shares; 0.45 is 3.8×, not more than 10×. The claim holds only if at most one of the three is unvisited (11.4×)."
+S17-WALKER,source,V3 §17,two 25-minute walks on the sixth active day,2.37,2,2.371708,true,
+S17-RUNNER,source,V3 §17,"one three-hour run, first active day",1,2,1,true,
+S17-WEEKLY-RATIO,source,V3 §17,weekly points ratio walker ÷ runner under linear consistency (A4),,,11.858541,,2.37 vs 1.00 compares one day at the sixth active day with one run; over a week the ratio is about 11.9 under A4. 'Well over a factor of two' holds either way.
+S17-CEIL-RATIO,source,V3 §17,12 ÷ 20,0.6,1,0.6,true,
+S17-DAY-LT-2SESSIONS,source,V3 §1 rule 6,20 < 2 × 12 (1 = yes),1,0,1,true,
+S17-5000,source,V3 §17,"players at which an even pro-rata share equals the day ceiling: 100,000 ÷ 20",5000,0,5000,true,
+S17-100K,source,V3 §17,"average at 100,000 players",1,0,1,true,
+S17-100,source,V3 §17,uncapped pro-rata at 100 players,1000,0,1000,true,
+S6-3000,source,V3 §6,"pro-rata at 3,000 players exceeds the 20 ceiling (1 = yes)",1,0,1,true,
+S17-SCHED-TOTAL,source,V3 §17,schedule releases (M),400,0,400,true,
+S17-SCHED-SEASONS,source,V3 §17,seasons to release 400M (fractional),180,,179.265101,,About 179.27 seasons (180 with the last partial); 15 seasons sit above the 2M floor.
+S17-SCHED-YEARS,source,V3 §17,years at 90-day seasons,44,0,44.172099,true,
+S17-DAILY-S1,source,V3 §17,"9,000,000 ÷ 90",100000,0,100000,true,
+S8-ONE-STARTER,source,V3 §8,50% × 25%,12.5,1,12.5,true,
+S8-ONE-VETERAN,source,V3 §8,50% × 15%,7.5,1,7.5,true,
+S8-FLAT4,source,V3 §8,"a flat 4-token recharge on a 1-token day, %",400,0,400,true,
+S10-LAND,source,V3 §10,land levels 2+6+18+45 day-shares,71,0,71,true,
+S10-KIT,source,V3 §10,kit levels 3+9+22+50 day-shares,84,0,84,true,
+S26-TX-YEAR,source,V3 §26,"100,000 × 5 × 365 transactions a year (M)",182,0,182.5,true,182.5 M; printed 182 million.
+IMPL-S18-DAYSHARE,implementation,V3 §18,day-share from settleCreditsDay (median),2.5,2,2.5,true,
+IMPL-S18-GROSS,implementation,V3 §18 step 4,Meera's day reward,3.68,2,3.689322,false,Code computes the exact 3.689 and therefore disagrees with the printed 3.68 at printed precision.
+IMPL-S18-SESSION,implementation,V3 §18 step 5,Meera's evening session reward,1.84,2,1.844661,true,
+IMPL-S18-TOLL-12,implementation,V3 §18 step 6,"toll, evening session crossed 12 cells (3 deeded), per-session basis",0.02,2,0.009222,false,"Code applies §20 per session: 0.0092, half the printed 0.0184. Spec D10 open."
+IMPL-S18-RAVI-12,implementation,V3 §18 step 7,Ravi receives,0.012,3,0.006148,false,
+IMPL-S18-SAM-12,implementation,V3 §18 step 7,Sam receives,0.006,3,0.003074,false,
+IMPL-S18-RECHARGE,implementation,V3 §18 step 8,"recharge (on gross, before toll)",0.92,2,0.92233,true,
+IMPL-S18-UPKEEP,implementation,V3 §18 step 9,upkeep taken (4 unvisited Camp zones of 6),0.47,2,0.469525,true,
+IMPL-S18-CAP60,implementation,V3 §18 step 10,(recharge + upkeep) ÷ gross,0.38,2,0.377266,true,
+IMPL-S18-CREDITED-12,implementation,V3 §18 step 11,credited to Meera (earned − toll − recharge − upkeep),2.27,2,2.288245,false,Code gives the exact-arithmetic value; printed 2.27 rests on rounded intermediates.
+IMPL-S19-OWED,implementation,V3 §19,Dan: upkeep owed,7.55,2,7.5446,false,"Code floors 3.0179 × day-share: 7.544, not the printed 7.55 (which multiplies the rounded 3.02)."
+IMPL-S19-TAKEN,implementation,V3 §19,Dan: upkeep taken,0,2,0,true,
+IMPL-S19-ZONES,implementation,V3 §19,Dan: zones charged,40,0,40,true,
+IMPL-S18-TOLL-6,implementation,V3 §18 step 6,toll if the evening session crossed only 6 cells (3 deeded),0.02,2,0.018445,true,Per-session code reproduces 0.0184 only when the tolled session's coverage is twice the day's (D10).
+IMPL-S18-CREDITED-6,implementation,V3 §18 step 11,"credited, 6-cell evening",2.27,2,2.279022,false,
+IMPL-S20-REMAINDER,implementation,V3 §20,"micro-units kept by the runner when 20,000.02 splits three ways",,,2.02,,"Paid 19998 micro of a disclosed 20,000.02; the remainder stays with the runner (floors per owner)."
+IMPL-S20-4OF6,implementation,V3 §20,four of six deeded on a 20.00 session: paid,0.27,2,0.266666,true,
+IMPL-S20-ALL-4,implementation,V3 §20,"every cell deeded, 4 owners: paid",0.4,2,0.4,true,
+IMPL-S20-ALL-8,implementation,V3 §20,"every cell deeded, 8 owners: paid",0.4,2,0.4,true,
+IMPL-S20-ALL-20,implementation,V3 §20,"every cell deeded, 20 owners: paid",0.4,2,0.4,true,
+IMPL-S7-1,implementation,V3 §7,"1 zones all unvisited, day-shares owed",0.03,2,0.03,true,
+IMPL-S7-6,implementation,V3 §7,"6 zones all unvisited, day-shares owed",0.28,2,0.281715,true,
+IMPL-S7-16,implementation,V3 §7,"16 zones all unvisited, day-shares owed",1,2,0.96,false,Code computes the formula (0.96); the printed row says 1.00.
+IMPL-S7-30,implementation,V3 §7,"30 zones all unvisited, day-shares owed",2.11,2,2.106312,true,
+IMPL-S7-100,implementation,V3 §7,"100 zones all unvisited, day-shares owed",9.49,2,9.486832,true,
+IMPL-S7-250,implementation,V3 §7,"250 zones all unvisited, day-shares owed",29.8,1,29.822652,true,
+IMPL-S17-SCHED-TOTAL,implementation,V3 §17,code releases (M),400,0,400,true,
+IMPL-S17-SCHED-SEASONS,implementation,V3 §17,code seasons with a non-zero pool,180,0,180,true,
+IMPL-S17-DAILY-S1,implementation,V3 §17,"code daily pool, season 1",100000,0,100000,true,
+IMPL-S17-DAILY-S2,implementation,V3 §17 (A3),"code daily pool, season 2 (season ÷ 90)",,,90000,,The source prints no later-season daily pool; trimmed amounts are not re-spread into later days (see SRC-TRIM-RETURN).
+IMPL-S17-CEIL-ORDER-CODE,implementation,V3 §17 (A7),"code day total, sessions of effort 1.0 and 0.5 alone in the pool",,,20,,"Code: per-session ceiling first, then proportional day trim → [10, 10]."
+IMPL-S17-CEIL-ORDER-ALT,implementation,V3 §17 (A7),"same raw shares, day trim first then per-session ceiling",,,18.666667,,"Day-first gives [12.00, 6.67] = 18.67. The order changes the day total and the per-session split (and so the per-session toll)."
+IMPL-A9-ONE-PUSH,implementation,owner decision A9 (17 Oct),"alice flips, bob flips back, alice pushes again the same day (1 = refused)",1,0,1,true,Outcomes flipped / flipped / refused_daily_limit; holder after: bob.

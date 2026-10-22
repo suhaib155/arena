@@ -1,0 +1,4 @@
+config,players,sessions,ledger_rows,db_mib_day14,gameplay_total_mib,challenges_total_mib,challenges_live_rows,challenge_inserts,challenge_deletes,challenge_peak_dead_sampled,units_updates,units_hot_updates,wal_mib,wal_bytes_per_ledger_row,temp_mib,worst_settle_ms,autovac_runs_challenges,bench_seconds,after_vacuum_full_gameplay_mib,partition_drop_freed_mib_one_day,delete_then_vacuum_freed_bytes_one_day
+default,1000,12666,111918,136.3,116.76,74.88,22819,2064813,2043043,672442,116198,113563,975.9,9143,0.00,472,3,221,40.41,1.383,0
+default,200,2544,23997,32.5,19.88,6.02,4812,93140,88557,38132,24598,22342,71.3,3116,0.00,162,0,62,11.48,0.383,0
+default,500,6313,57232,64.9,49.53,25.08,11583,536351,525135,179566,59667,57325,290.0,5314,0.00,330,1,106,22.57,0.789,0

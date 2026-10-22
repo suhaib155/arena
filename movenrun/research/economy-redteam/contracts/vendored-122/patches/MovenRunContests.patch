@@ -1,0 +1,254 @@
+--- a/movenrun/contracts/src/v3/MovenRunContests.sol
++++ b/movenrun/contracts/src/v3/MovenRunContests.sol
+@@ -21,6 +21,18 @@
+ ///      the meantime; settlement consumes the reservation on a win and releases it on a loss.
+ ///      Timings, cooldowns and the fortification ceiling are fixed constants. There are no
+ ///      paid score boosts and no paid time extensions. Pausing blocks only new declarations.
++///
++///      G5 DRAFT PATCH (H2). Research copy, not deployed, not audited:
++///      - single-sided score submission is disabled; each scoring day is submitted once, for
++///        both sides together, under two signatures from two distinct keys (contest signer and
++///        contest co-signer). Withholding one side's score is no longer possible, and one
++///        compromised key cannot change an outcome;
++///      - the co-signer is unset at deployment and scoring fails closed until the delayed
++///        administrator sets it;
++///      - a scoring day is accepted only after that calendar day of the window has closed, and
++///        until a short grace period after the window; settlement waits for the grace period;
++///      - each daily score is bounded by maxDailyScore.
++///      Declarations remain single-signed in this draft (see H2b in the ledger).
+ contract MovenRunContests is AccessControl, EIP712, ReentrancyGuard {
+     /// @notice Role permitted to pause new contest declarations and nothing else.
+     bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
+@@ -45,6 +57,24 @@
+     uint16 public constant MAX_FORTIFICATION_BPS = 1_500;
+     /// @notice Basis-point denominator.
+     uint256 public constant BPS_DENOMINATOR = 10_000;
++    /// @notice G5 patch: time after the scoring window during which the last day may be posted.
++    uint64 public constant SCORE_SUBMISSION_GRACE = 1 days;
++
++    /// @notice G5 patch: EIP-712 type of both sides' scores for one scoring day.
++    bytes32 public constant DAY_SCORES_AUTHORIZATION_TYPEHASH =
++        keccak256(
++            "DayScoresAuthorization(uint256 contestId,uint8 scoringDay,uint256 challengerScore,uint256 defenderScore,uint16 rulesVersion,uint256 nonce,uint64 expiry)"
++        );
++
++    struct DayScoresAuthorization {
++        uint256 contestId;
++        uint8 scoringDay;
++        uint256 challengerScore;
++        uint256 defenderScore;
++        uint16 rulesVersion;
++        uint256 nonce;
++        uint64 expiry;
++    }
+ 
+     /// @notice EIP-712 type of a contest declaration authorization.
+     bytes32 public constant DECLARATION_AUTHORIZATION_TYPEHASH =
+@@ -106,6 +136,12 @@
+ 
+     /// @notice Signer of contest declaration and daily score authorizations.
+     address public contestSigner;
++    /// @notice G5 patch: independent second signer for daily scores. Unset until configured.
++    address public contestCoSigner;
++    /// @notice G5 patch: upper bound on one side's score for one day.
++    uint128 public maxDailyScore;
++    /// @notice G5 patch: bitmap of scoring days already posted per contest.
++    mapping(uint256 contestId => uint8 days_) public dayScoresPosted;
+     /// @notice Rules version new authorizations must declare.
+     uint16 public rulesVersion;
+     /// @notice Current-holder home advantage, configurable only inside the fixed bounds.
+@@ -158,6 +194,8 @@
+     event HomeAdvantageUpdated(uint16 previousBps, uint16 newBps);
+     event RulesVersionUpdated(uint16 previousVersion, uint16 newVersion);
+     event DeclarationsPauseUpdated(bool paused, address indexed actor);
++    event ContestCoSignerUpdated(address indexed previousSigner, address indexed newSigner);
++    event MaxDailyScoreUpdated(uint128 previousMax, uint128 newMax);
+ 
+     error ZeroAddress();
+     error DeclarationsArePaused();
+@@ -182,6 +220,11 @@
+     error InvalidScoringDay(uint8 scoringDay);
+     error ScoringDayAlreadySubmitted(uint8 scoringDay);
+     error ScoreOutOfRange(uint256 score);
++    error SingleSidedScoresDisabled();
++    error CoSignerNotConfigured();
++    error InvalidCoSignature();
++    error SignerReuse();
++    error ScoringDayNotClosed(uint8 scoringDay, uint64 closesAt);
+ 
+     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
+     /// @param guardian Emergency address permitted to pause new declarations only.
+@@ -216,6 +259,7 @@
+         contestSigner = contestSigner_;
+         homeAdvantageBps = initialHomeAdvantageBps;
+         rulesVersion = initialRulesVersion;
++        maxDailyScore = 100_000;
+ 
+         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+         _grantRole(GUARDIAN_ROLE, guardian);
+@@ -334,14 +378,17 @@
+     // Scoring
+     // ---------------------------------------------------------------------
+ 
+-    /// @notice Records one already-verified daily score for one side of one contest.
+-    /// @dev The authorization is bound to this exact contest, participant and scoring day,
+-    ///      expires, and is single-use, so a score can never be replayed onto another
+-    ///      contest, another day or another participant. Only the deterministic integer
+-    ///      score crosses the boundary; no route or movement detail is submitted or stored.
+-    function submitScore(ScoreAuthorization calldata authorization, bytes calldata signature)
+-        external
+-    {
++    /// @notice G5 patch: single-sided score submission is disabled; use submitDayScores.
++    function submitScore(ScoreAuthorization calldata, bytes calldata) external pure {
++        revert SingleSidedScoresDisabled();
++    }
++
++    /// @notice G5 patch: posts both sides' scores for one closed scoring day, under two keys.
++    function submitDayScores(
++        DayScoresAuthorization calldata authorization,
++        bytes calldata signature,
++        bytes calldata coSignature
++    ) external {
+         if (block.timestamp > authorization.expiry) revert AuthorizationExpired(authorization.expiry);
+         if (authorization.rulesVersion != rulesVersion) {
+             revert UnexpectedRulesVersion(authorization.rulesVersion, rulesVersion);
+@@ -349,41 +396,80 @@
+         if (authorizationNonceUsed[authorization.nonce]) {
+             revert AuthorizationAlreadyUsed(authorization.nonce);
+         }
+-        if (ECDSA.recover(hashScore(authorization), signature) != contestSigner) {
+-            revert InvalidScoreSignature();
+-        }
++        _verifyDayScoreSignatures(authorization, signature, coSignature);
+         if (authorization.scoringDay >= SCORING_DAYS) {
+             revert InvalidScoringDay(authorization.scoringDay);
+         }
+-        if (authorization.score > type(uint128).max) revert ScoreOutOfRange(authorization.score);
++        uint128 ceiling = maxDailyScore;
++        if (authorization.challengerScore > ceiling) revert ScoreOutOfRange(authorization.challengerScore);
++        if (authorization.defenderScore > ceiling) revert ScoreOutOfRange(authorization.defenderScore);
+ 
+         Contest storage contest = _contests[authorization.contestId];
+         if (contest.challenger == address(0)) revert UnknownContest(authorization.contestId);
+         if (contest.settled) revert ContestAlreadySettled(authorization.contestId);
+-        if (
+-            authorization.participant != contest.challenger &&
+-            authorization.participant != contest.defender
+-        ) revert NotAContestant(authorization.participant);
+-        if (block.timestamp < contest.scoringStart || block.timestamp > contest.scoringEnd) {
+-            revert ScoringNotOpen(contest.scoringStart, contest.scoringEnd);
++        {
++            uint64 closesAt = contest.scoringStart + uint64(authorization.scoringDay + 1) * 1 days;
++            if (block.timestamp < closesAt) revert ScoringDayNotClosed(authorization.scoringDay, closesAt);
++            if (block.timestamp > contest.scoringEnd + SCORE_SUBMISSION_GRACE) {
++                revert ScoringNotOpen(contest.scoringStart, contest.scoringEnd);
++            }
+         }
+ 
+-        SideScore storage side = _scores[authorization.contestId][authorization.participant];
++        _recordDayScores(authorization, contest.challenger, contest.defender);
++    }
++
++    function _recordDayScores(
++        DayScoresAuthorization calldata authorization,
++        address challenger,
++        address defender
++    ) private {
+         uint8 dayBit = uint8(1) << authorization.scoringDay;
+-        if (side.submittedDays & dayBit != 0) {
+-            revert ScoringDayAlreadySubmitted(authorization.scoringDay);
+-        }
++        uint8 posted = dayScoresPosted[authorization.contestId];
++        if (posted & dayBit != 0) revert ScoringDayAlreadySubmitted(authorization.scoringDay);
+ 
+         authorizationNonceUsed[authorization.nonce] = true;
+-        side.submittedDays |= dayBit;
+-        _recordBestThree(side, uint128(authorization.score));
++        dayScoresPosted[authorization.contestId] = posted | dayBit;
+ 
+-        emit ContestScoreSubmitted(
+-            authorization.contestId,
+-            authorization.participant,
+-            authorization.scoringDay,
+-            authorization.score
+-        );
++        SideScore storage challengerSide = _scores[authorization.contestId][challenger];
++        challengerSide.submittedDays |= dayBit;
++        _recordBestThree(challengerSide, uint128(authorization.challengerScore));
++        SideScore storage defenderSide = _scores[authorization.contestId][defender];
++        defenderSide.submittedDays |= dayBit;
++        _recordBestThree(defenderSide, uint128(authorization.defenderScore));
++
++        emit ContestScoreSubmitted(authorization.contestId, challenger, authorization.scoringDay, authorization.challengerScore);
++        emit ContestScoreSubmitted(authorization.contestId, defender, authorization.scoringDay, authorization.defenderScore);
++    }
++
++    function _verifyDayScoreSignatures(
++        DayScoresAuthorization calldata authorization,
++        bytes calldata signature,
++        bytes calldata coSignature
++    ) private view {
++        address coSigner = contestCoSigner;
++        if (coSigner == address(0)) revert CoSignerNotConfigured();
++        bytes32 digest = hashDayScores(authorization);
++        if (ECDSA.recover(digest, signature) != contestSigner) revert InvalidScoreSignature();
++        if (ECDSA.recover(digest, coSignature) != coSigner) revert InvalidCoSignature();
++    }
++
++    /// @notice G5 patch: EIP-712 digest both score signers authorize.
++    function hashDayScores(DayScoresAuthorization calldata authorization) public view returns (bytes32) {
++        return
++            _hashTypedDataV4(
++                keccak256(
++                    abi.encode(
++                        DAY_SCORES_AUTHORIZATION_TYPEHASH,
++                        authorization.contestId,
++                        authorization.scoringDay,
++                        authorization.challengerScore,
++                        authorization.defenderScore,
++                        authorization.rulesVersion,
++                        authorization.nonce,
++                        authorization.expiry
++                    )
++                )
++            );
+     }
+ 
+     /// @dev Keeps only the best three daily scores for a side.
+@@ -413,7 +499,9 @@
+         Contest storage contest = _contests[contestId];
+         if (contest.challenger == address(0)) revert UnknownContest(contestId);
+         if (contest.settled) revert ContestAlreadySettled(contestId);
+-        if (block.timestamp <= contest.scoringEnd) revert ScoringWindowNotFinished(contest.scoringEnd);
++        if (block.timestamp <= contest.scoringEnd + SCORE_SUBMISSION_GRACE) {
++            revert ScoringWindowNotFinished(contest.scoringEnd + SCORE_SUBMISSION_GRACE);
++        }
+ 
+         uint256 challengerTotal = _sideTotal(_scores[contestId][contest.challenger]);
+         uint256 defenderBase = _sideTotal(_scores[contestId][contest.defender]);
+@@ -514,10 +602,25 @@
+     /// @notice Rotates the contest signer. Delayed administration only.
+     function setContestSigner(address newSigner) external onlyRole(DEFAULT_ADMIN_ROLE) {
+         if (newSigner == address(0)) revert ZeroAddress();
++        if (newSigner == contestCoSigner) revert SignerReuse();
+         emit ContestSignerUpdated(contestSigner, newSigner);
+         contestSigner = newSigner;
+     }
+ 
++    /// @notice G5 patch: sets the independent score co-signer. Delayed administration only.
++    function setContestCoSigner(address newCoSigner) external onlyRole(DEFAULT_ADMIN_ROLE) {
++        if (newCoSigner == address(0)) revert ZeroAddress();
++        if (newCoSigner == contestSigner) revert SignerReuse();
++        emit ContestCoSignerUpdated(contestCoSigner, newCoSigner);
++        contestCoSigner = newCoSigner;
++    }
++
++    /// @notice G5 patch: sets the per-day score ceiling. Delayed administration only.
++    function setMaxDailyScore(uint128 newMax) external onlyRole(DEFAULT_ADMIN_ROLE) {
++        emit MaxDailyScoreUpdated(maxDailyScore, newMax);
++        maxDailyScore = newMax;
++    }
++
+     /// @notice Adjusts the current-holder home advantage inside its fixed bounds.
+     function setHomeAdvantage(uint16 newHomeAdvantageBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+         if (

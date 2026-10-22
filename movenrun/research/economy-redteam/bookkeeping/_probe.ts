@@ -1,0 +1,10 @@
+import { sessionToll, dayCloseCharges, economyRulesFor, settleDay, dayBooksProblems } from "@movenrun/shared/economy-v3";
+const r = economyRulesFor(1)!;
+console.log(sessionToll(r, NaN, ["a"], new Map([["a","o"]]), new Set(["x"])));
+console.log(sessionToll(r, Infinity, ["a"], new Map([["a","o"]]), new Set(["x"])));
+console.log(sessionToll(r, 1.7e6+0.5, ["a","b"], new Map([["a","o"]]), new Set(["x"])));
+console.log(dayCloseCharges(r, {dayRewardMicro: 5e6, scoringSessions: 2, kitLevel: 1, dayShareMicro: NaN, zonesHeld: 3, unvisitedZoneLevels:[1]}));
+const s = settleDay(r, { poolMicro: 2**60, players: [{playerId:"a", sessions:[{minutes:30, meters:3000}], activeDaysThisWeek:1, trustWeight:1, kitLevel:1, zonesHeld:0, unvisitedZoneLevels:[]}], deedOwnerByCell: new Map() });
+console.log(s.books, dayBooksProblems(r, s), BigInt(s.books.returnedToSeasonPoolMicro) + BigInt(s.books.mintedMicro) - 2n**60n);
+const s2 = settleDay(r, { poolMicro: 100, players: [{playerId:"a", sessions:[{minutes:30, meters:3000}], activeDaysThisWeek:1, trustWeight:1, kitLevel:9 as any, zonesHeld:0, unvisitedZoneLevels:[]}], deedOwnerByCell: new Map() });
+console.log(s2.books, dayBooksProblems(r, s2));
