@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "purpose": "Seeds and synthetic parameters for the club and district fairness probes (B7). Synthetic geography only: districts are integer-grid stripes or id prefixes, not real places.",
+  "seeds": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120],
+  "world": { "districts": 20, "unitsPerDistrict": 40, "clubSizes": [40, 20, 10, 5, 3], "unclubbedWalkers": 100, "unitsPerWalker": 4 },
+  "sweeps": {
+    "concentration": [0.2, 0.5, 0.9],
+    "shadeWeights": [[1, 4], [1, 3]],
+    "minShares": [[1, 3], [1, 2], [2, 3]],
+    "shadeShareOfClubGround": [0, 0.25, 0.5]
+  },
+  "hypotheses_stated_before_results": [
+    "H1 dense clubs control a larger share of districts than their share of ground; dispersed clubs of equal ground control none.",
+    "H2 raising minShare lowers the number of controlled districts and raises below_share; unclubbed walkers dilute control.",
+    "H3 a shade weight of 1/3 rewards shade-heavy clubs more than 1/4 does, by exactly the arithmetic ratio.",
+    "H4 an immediate D18 rule lets a hopper flip control every day; a delay alone does not stop hopping, a per-walker switch cooldown does.",
+    "H5 one double-membership row refuses district control for every district (documented hazard)."
+  ]
+}

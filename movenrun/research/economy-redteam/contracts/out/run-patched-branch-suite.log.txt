@@ -1,0 +1,1176 @@
+Compiled 53 Solidity files successfully (evm target: cancun).
+
+
+  V3 MovenRunToken
+    lifetime issuance cap
+      ✔ caps lifetime issuance at one billion MOVE (3489ms)
+      ✔ issues up to the cap and refuses the next wei (178ms)
+      ✔ burning reduces supply without reopening mint capacity (87ms)
+      ✔ charges the full gross against the cap even when part of it is burned at once
+      ✔ refuses a burn larger than the issuance it accompanies (40ms)
+      ✔ accepts issuance only from the settlement contract
+    locked and liquid balances
+      ✔ refuses to transfer locked MOVE and allows liquid MOVE (52ms)
+      ✔ refuses to move locked MOVE through an approved spender
+      ✔ burns the locked portion of a balance before the liquid portion (42ms)
+      ✔ never lets a burn increase the transferable portion of a balance (45ms)
+      ✔ releases locked balance only on behalf of the rewards contract
+    fee burning
+      ✔ lets a registered fee sink burn only within the holder's allowance
+      ✔ refuses a fee burn from an address without the fee burner role
+    bootstrap wiring
+      ✔ permanently freezes the wiring and discards the bootstrapper
+      ✔ refuses a second wiring even before it is frozen
+      ✔ refuses to freeze an incomplete wiring
+      ✔ refuses wiring from anybody but the bootstrapper
+
+  V3 MovenRunSettlement
+    dual independent authorization
+      1) publishes when both independent signers authorize the identical settlement
+      2) refuses a settlement signed twice by the same key
+      3) refuses when either signature comes from the wrong key
+      ✔ refuses a deployment that reuses one key for both critical signers
+      ✔ keeps the two critical signers distinct across rotations
+    authorization binding
+      ✔ refuses an expired authorization
+      4) refuses a replayed nonce
+      ✔ refuses an authorization declaring the wrong rules version
+      5) refuses signatures bound to another chain or another contract
+    season and day boundaries
+      6) refuses day zero and any day that does not advance
+      7) refuses a season that does not match the day it claims
+      8) refuses to skip a season so the decay chain cannot be jumped
+      9) keeps a finalized day immutable
+      10) holds each day inside the pool its season allows
+    player movement allocation
+      ✔ declares a four hundred million lifetime movement allocation
+      11) draws every season down from the same allocation and never exceeds it
+    toll: liquid, capped and zero-sum
+      ✔ fixes the toll rate at two percent with no setter anywhere in the ABI
+      12) refuses toll credits above two percent of the applicable reward base
+      13) refuses a toll base larger than the gross settlement it sits inside
+      14) refuses any settlement whose components do not add up to its gross
+      15) mints nothing extra for the toll: a tolled day issues exactly what an untolled day issues
+      16) classifies the toll as liquid without consuming the liquid movement allowance
+      17) refuses newly created liquid movement rewards beyond the allowance
+      ✔ lets the guardian lower the liquid allowance but never raise it
+    automatic burn ceiling
+      18) caps the automatic day-close charge at sixty percent of the day's gross
+    publication pause
+      19) lets the guardian pause publication and only the timelock resume it
+
+  V3 MovenRunRewards
+    20) finalizes the day with the locked and liquid allocation the settlement declared
+    21) pays a valid proof and classifies locked and liquid correctly
+    22) pays the committed account even when somebody else relays the claim
+    23) refuses a proof that does not belong to the leaf
+    24) refuses a duplicate claim of the same leaf
+    25) refuses a claim against a day that was never finalized
+    26) refuses aggregate claims beyond the day's declared allocation
+    27) refuses aggregate liquid claims beyond the day's liquid allocation
+    28) keeps claims available while settlement publication is paused
+    ✔ has no administrator, no pause and no withdrawal path
+    ✔ finalizes a day only on behalf of the settlement contract
+    ✔ binds a reward leaf to this chain and this rewards contract
+
+  V3 MovenRunDeed and the per-holder city cap
+    ✔ stores no geography beyond the cell identifier and the opaque city domain
+    cell validity
+      29) mints one deed whose token id is the resolution-8 cell itself
+      30) refuses any resolution other than eight
+      31) refuses values that are not canonical cell indexes
+      32) allows only one deed per cell
+      33) creates deeds only on behalf of the claims contract
+    eligibility attestation
+      34) refuses ground that is not solid
+      35) refuses ground whose related traffic was not excluded
+      36) refuses ground below any of the three published thresholds
+      37) refuses an attestation that is expired, replayed, redirected or unsigned by the eligibility signer
+    claim fee
+      38) refuses a quoted fee above the caller's stated maximum
+      39) genuinely burns the claim fee rather than moving it to a treasury
+    per-holder, per-city concentration
+      40) refuses any claim in a city the timelock has not opened
+      41) caps one holder at their own limit inside a city
+      42) leaves the city open to everybody else once one holder is at their cap
+      43) counts each city separately
+      44) frees a slot when a deed leaves a holder
+      45) holds a direct transfer to the same limit as a claim
+      46) refuses a voluntary transfer into the contest escrow contract
+      ✔ lets only the timelock open or resize a city
+      47) reports per-holder claim availability rather than a city-wide open or closed flag
+    claim pause
+      48) lets the guardian pause claims without touching existing deeds
+
+  V3 MovenRunContests
+    declaration and escrow
+      49) escrows the deed without ever consulting the defender's approval
+      50) keeps the escrowed deed counted against its defender and never against the escrow contract
+      51) allows one active contest per deed and refuses to overwrite it
+      52) refuses a holder contesting their own deed
+      53) burns the declaration entry fee and honours the caller's maximum
+      54) refuses fortification above its fixed ceiling
+    city capacity reservation
+      55) takes one of the challenger's city slots at declaration
+      56) refuses a declaration from a challenger with no city capacity left
+      57) holds the reservation for the whole escrow so the challenger cannot spend the capacity
+      58) consumes the reservation when the challenger wins
+      59) releases the reservation when the challenger loses
+      60) settles a validly declared contest even when the city is full of other holders
+      61) keeps separate reservations for separate contests in the same city
+      62) reserves and settles city capacity only on behalf of the contests contract
+    scoring
+      63) refuses scores outside the window, off the roster, past the last day or replayed
+      64) refuses a score the contest signer did not sign
+      65) counts only the best three days of the seven
+    settlement
+      66) refuses to settle before the scoring window closes
+      67) is settleable by anybody, without the loser's cooperation or approval
+      68) refuses to settle the same contest twice
+      69) leaves the deed with the current holder on a tie
+      70) leaves the deed with the defender when nobody scores at all
+      71) applies the home advantage and the defender's fortification
+    cooldown and peace
+      72) puts a losing challenger in cooldown and gives the surviving deed a peace period
+      73) lets the same challenger come back once the cooldown has run out
+    pause and constants
+      74) pauses new declarations without stopping an active contest from settling
+      75) fixes the contest timings and cooldowns in code with no setter for any of them
+      76) keeps the home advantage inside its fixed bounds
+
+  G5 regression proofs [patched: fix holds]
+    H1 settlement day bound to the clock, per-publication ceiling
+      ✔ day 90 straight after day 1 (334ms)
+      ✔ after a real 90-day gap, the backlog is not released in one call; skipped days are forfeited on the record
+      ✔ property: an attacker holding both settlement keys, over 25 random steps, stays within 2 x nominal x closed days (556ms)
+      ✔ L5: an authorization valid until 2100
+    H2 contest scores need two keys, both sides per day, bound to the calendar
+      ✔ one key alone hands a deed to the challenger (62ms)
+      ✔ scoring days are bound to the calendar and posted for both sides at once (175ms)
+      ✔ scoring fails closed until a co-signer is set, and each daily score is bounded (228ms)
+    H3 / M1 threshold attestation, city bound to cell, cluster and issuance caps
+      ✔ a single eligibility key mints a deed (57ms)
+      ✔ the threshold can never be lowered below two
+      ✔ cityId is a signer-chosen label (72ms)
+      ✔ on-chain parent computation matches h3-js for every test cell
+      ✔ a ring of three linked wallets labelled as one cluster (52ms)
+      ✔ issuance limits: the sixth claim in one city on one day (170ms)
+      ✔ guardian pause stops claims only; unpause needs the timelock; voids and final transfers still work (68ms)
+    N1 pending window, void, relinquish
+      ✔ a freshly minted deed moves and can be contested at once, and can never be voided (40ms)
+      ✔ a wrongly attested deed is voided inside the window; counters are exact; the cell can be claimed again (50ms)
+      ✔ after the window there is no administrative revoke; the holder alone may relinquish (38ms)
+
+
+  46 passing (8s)
+  76 failing
+
+  1) V3 MovenRunSettlement
+       dual independent authorization
+         publishes when both independent signers authorize the identical settlement:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async waitForPendingTransaction (<path>:24:17)
+    at async Context.<anonymous> (test/ledger/02-settlement.test.ts:26:7)
+  
+
+  2) V3 MovenRunSettlement
+       dual independent authorization
+         refuses a settlement signed twice by the same key:
+     AssertionError: Expected transaction to be reverted with custom error 'InvalidReconciliationSignature', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:41:7)
+
+  3) V3 MovenRunSettlement
+       dual independent authorization
+         refuses when either signature comes from the wrong key:
+     AssertionError: Expected transaction to be reverted with custom error 'InvalidSettlementSignature', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:53:7)
+
+  4) V3 MovenRunSettlement
+       authorization binding
+         refuses a replayed nonce:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/02-settlement.test.ts:109:14)
+  
+
+  5) V3 MovenRunSettlement
+       authorization binding
+         refuses signatures bound to another chain or another contract:
+     AssertionError: Expected transaction to be reverted with custom error 'InvalidSettlementSignature', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:151:9)
+
+  6) V3 MovenRunSettlement
+       season and day boundaries
+         refuses day zero and any day that does not advance:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(5, 1793093155)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/02-settlement.test.ts:168:9)
+  
+
+  7) V3 MovenRunSettlement
+       season and day boundaries
+         refuses a season that does not match the day it claims:
+     AssertionError: Expected transaction to be reverted with custom error 'SeasonMismatch', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:182:7)
+
+  8) V3 MovenRunSettlement
+       season and day boundaries
+         refuses to skip a season so the decay chain cannot be jumped:
+     AssertionError: Expected transaction to be reverted with custom error 'SeasonSequenceViolation', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:194:7)
+
+  9) V3 MovenRunSettlement
+       season and day boundaries
+         keeps a finalized day immutable:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/02-settlement.test.ts:208:14)
+  
+
+  10) V3 MovenRunSettlement
+       season and day boundaries
+         holds each day inside the pool its season allows:
+     AssertionError: Expected transaction to be reverted with custom error 'DailyPoolExceeded', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:228:7)
+
+  11) V3 MovenRunSettlement
+       player movement allocation
+         draws every season down from the same allocation and never exceeds it:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/02-settlement.test.ts:257:16)
+  
+
+  12) V3 MovenRunSettlement
+       toll: liquid, capped and zero-sum
+         refuses toll credits above two percent of the applicable reward base:
+     AssertionError: Expected transaction to be reverted with custom error 'TollCreditsExceedCap', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:297:7)
+
+  13) V3 MovenRunSettlement
+       toll: liquid, capped and zero-sum
+         refuses a toll base larger than the gross settlement it sits inside:
+     AssertionError: Expected transaction to be reverted with custom error 'TollBaseExceedsGross', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:326:7)
+
+  14) V3 MovenRunSettlement
+       toll: liquid, capped and zero-sum
+         refuses any settlement whose components do not add up to its gross:
+     AssertionError: Expected transaction to be reverted with custom error 'SettlementAccountingMismatch', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:342:7)
+
+  15) V3 MovenRunSettlement
+       toll: liquid, capped and zero-sum
+         mints nothing extra for the toll: a tolled day issues exactly what an untolled day issues:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/02-settlement.test.ts:366:9)
+  
+
+  16) V3 MovenRunSettlement
+       toll: liquid, capped and zero-sum
+         classifies the toll as liquid without consuming the liquid movement allowance:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/02-settlement.test.ts:403:9)
+  
+
+  17) V3 MovenRunSettlement
+       toll: liquid, capped and zero-sum
+         refuses newly created liquid movement rewards beyond the allowance:
+     AssertionError: Expected transaction to be reverted with custom error 'LiquidIssuanceAllowanceExceeded', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:424:7)
+
+  18) V3 MovenRunSettlement
+       automatic burn ceiling
+         caps the automatic day-close charge at sixty percent of the day's gross:
+     AssertionError: Expected transaction to be reverted with custom error 'AutomaticBurnExceedsCap', but it reverted with custom error 'DayNotYetClosed'
+      at async Context.<anonymous> (test/ledger/02-settlement.test.ts:480:7)
+
+  19) V3 MovenRunSettlement
+       publication pause
+         lets the guardian pause publication and only the timelock resume it:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/02-settlement.test.ts:521:9)
+  
+
+  20) V3 MovenRunRewards
+       finalizes the day with the locked and liquid allocation the settlement declared:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async finalizedDay (test/ledger/03-rewards.test.ts:28:5)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:47:20)
+  
+
+  21) V3 MovenRunRewards
+       pays a valid proof and classifies locked and liquid correctly:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async finalizedDay (test/ledger/03-rewards.test.ts:28:5)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:57:35)
+  
+
+  22) V3 MovenRunRewards
+       pays the committed account even when somebody else relays the claim:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async finalizedDay (test/ledger/03-rewards.test.ts:28:5)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:84:35)
+  
+
+  23) V3 MovenRunRewards
+       refuses a proof that does not belong to the leaf:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async finalizedDay (test/ledger/03-rewards.test.ts:28:5)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:94:35)
+  
+
+  24) V3 MovenRunRewards
+       refuses a duplicate claim of the same leaf:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async finalizedDay (test/ledger/03-rewards.test.ts:28:5)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:112:35)
+  
+
+  25) V3 MovenRunRewards
+       refuses a claim against a day that was never finalized:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async finalizedDay (test/ledger/03-rewards.test.ts:28:5)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:127:35)
+  
+
+  26) V3 MovenRunRewards
+       refuses aggregate claims beyond the day's declared allocation:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:145:7)
+  
+
+  27) V3 MovenRunRewards
+       refuses aggregate liquid claims beyond the day's liquid allocation:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:171:7)
+  
+
+  28) V3 MovenRunRewards
+       keeps claims available while settlement publication is paused:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async finalizedDay (test/ledger/03-rewards.test.ts:28:5)
+    at async Context.<anonymous> (test/ledger/03-rewards.test.ts:192:35)
+  
+
+  29) V3 MovenRunDeed and the per-holder city cap
+       cell validity
+         mints one deed whose token id is the resolution-8 cell itself:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:36:18)
+  
+
+  30) V3 MovenRunDeed and the per-holder city cap
+       cell validity
+         refuses any resolution other than eight:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:51:18)
+  
+
+  31) V3 MovenRunDeed and the per-holder city cap
+       cell validity
+         refuses values that are not canonical cell indexes:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:61:18)
+  
+
+  32) V3 MovenRunDeed and the per-holder city cap
+       cell validity
+         allows only one deed per cell:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:81:18)
+  
+
+  33) V3 MovenRunDeed and the per-holder city cap
+       cell validity
+         creates deeds only on behalf of the claims contract:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:91:18)
+  
+
+  34) V3 MovenRunDeed and the per-holder city cap
+       eligibility attestation
+         refuses ground that is not solid:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:100:18)
+  
+
+  35) V3 MovenRunDeed and the per-holder city cap
+       eligibility attestation
+         refuses ground whose related traffic was not excluded:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:107:18)
+  
+
+  36) V3 MovenRunDeed and the per-holder city cap
+       eligibility attestation
+         refuses ground below any of the three published thresholds:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:114:18)
+  
+
+  37) V3 MovenRunDeed and the per-holder city cap
+       eligibility attestation
+         refuses an attestation that is expired, replayed, redirected or unsigned by the eligibility signer:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:129:18)
+  
+
+  38) V3 MovenRunDeed and the per-holder city cap
+       claim fee
+         refuses a quoted fee above the caller's stated maximum:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:198:18)
+  
+
+  39) V3 MovenRunDeed and the per-holder city cap
+       claim fee
+         genuinely burns the claim fee rather than moving it to a treasury:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:213:18)
+  
+
+  40) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         refuses any claim in a city the timelock has not opened:
+     Error: missing value for component clusterId
+      at <path>:760:31
+      at Array.map (<anonymous>)
+      at ParamType.#walkAsync (<path>:757:37)
+      at ParamType.walkAsync (<path>:797:24)
+      at <path>:170:22
+      at Array.map (<anonymous>)
+      at resolveArgs (<path>:169:37)
+      at populateTransaction (<path>:294:36)
+      at staticCallResult (<path>:333:26)
+      at staticCall (<path>:303:30)
+
+  41) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         caps one holder at their own limit inside a city:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:241:18)
+  
+
+  42) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         leaves the city open to everybody else once one holder is at their cap:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:255:18)
+  
+
+  43) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         counts each city separately:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:277:18)
+  
+
+  44) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         frees a slot when a deed leaves a holder:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:290:18)
+  
+
+  45) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         holds a direct transfer to the same limit as a claim:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:307:18)
+  
+
+  46) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         refuses a voluntary transfer into the contest escrow contract:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:328:18)
+  
+
+  47) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         reports per-holder claim availability rather than a city-wide open or closed flag:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:357:18)
+  
+
+  48) V3 MovenRunDeed and the per-holder city cap
+       claim pause
+         lets the guardian pause claims without touching existing deeds:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async openSuite (test/ledger/04-deeds-cap.test.ts:25:3)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:369:18)
+  
+
+  49) V3 MovenRunContests
+       declaration and escrow
+         escrows the deed without ever consulting the defender's approval:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:63:18)
+  
+
+  50) V3 MovenRunContests
+       declaration and escrow
+         keeps the escrowed deed counted against its defender and never against the escrow contract:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:78:18)
+  
+
+  51) V3 MovenRunContests
+       declaration and escrow
+         allows one active contest per deed and refuses to overwrite it:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:89:18)
+  
+
+  52) V3 MovenRunContests
+       declaration and escrow
+         refuses a holder contesting their own deed:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:105:18)
+  
+
+  53) V3 MovenRunContests
+       declaration and escrow
+         burns the declaration entry fee and honours the caller's maximum:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:115:18)
+  
+
+  54) V3 MovenRunContests
+       declaration and escrow
+         refuses fortification above its fixed ceiling:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:140:18)
+  
+
+  55) V3 MovenRunContests
+       city capacity reservation
+         takes one of the challenger's city slots at declaration:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:152:18)
+  
+
+  56) V3 MovenRunContests
+       city capacity reservation
+         refuses a declaration from a challenger with no city capacity left:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:169:18)
+  
+
+  57) V3 MovenRunContests
+       city capacity reservation
+         holds the reservation for the whole escrow so the challenger cannot spend the capacity:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:185:18)
+  
+
+  58) V3 MovenRunContests
+       city capacity reservation
+         consumes the reservation when the challenger wins:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:204:18)
+  
+
+  59) V3 MovenRunContests
+       city capacity reservation
+         releases the reservation when the challenger loses:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:224:18)
+  
+
+  60) V3 MovenRunContests
+       city capacity reservation
+         settles a validly declared contest even when the city is full of other holders:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:245:18)
+  
+
+  61) V3 MovenRunContests
+       city capacity reservation
+         keeps separate reservations for separate contests in the same city:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:266:18)
+  
+
+  62) V3 MovenRunContests
+       city capacity reservation
+         reserves and settles city capacity only on behalf of the contests contract:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:293:18)
+  
+
+  63) V3 MovenRunContests
+       scoring
+         refuses scores outside the window, off the roster, past the last day or replayed:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:311:18)
+  
+
+  64) V3 MovenRunContests
+       scoring
+         refuses a score the contest signer did not sign:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:344:18)
+  
+
+  65) V3 MovenRunContests
+       scoring
+         counts only the best three days of the seven:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:370:18)
+  
+
+  66) V3 MovenRunContests
+       settlement
+         refuses to settle before the scoring window closes:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:386:18)
+  
+
+  67) V3 MovenRunContests
+       settlement
+         is settleable by anybody, without the loser's cooperation or approval:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:397:18)
+  
+
+  68) V3 MovenRunContests
+       settlement
+         refuses to settle the same contest twice:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:415:18)
+  
+
+  69) V3 MovenRunContests
+       settlement
+         leaves the deed with the current holder on a tie:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:429:18)
+  
+
+  70) V3 MovenRunContests
+       settlement
+         leaves the deed with the defender when nobody scores at all:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:445:18)
+  
+
+  71) V3 MovenRunContests
+       settlement
+         applies the home advantage and the defender's fortification:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:455:18)
+  
+
+  72) V3 MovenRunContests
+       cooldown and peace
+         puts a losing challenger in cooldown and gives the surviving deed a peace period:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:472:18)
+  
+
+  73) V3 MovenRunContests
+       cooldown and peace
+         lets the same challenger come back once the cooldown has run out:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:503:18)
+  
+
+  74) V3 MovenRunContests
+       pause and constants
+         pauses new declarations without stopping an active contest from settling:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:520:18)
+  
+
+  75) V3 MovenRunContests
+       pause and constants
+         fixes the contest timings and cooldowns in code with no setter for any of them:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:543:18)
+  
+
+  76) V3 MovenRunContests
+       pause and constants
+         keeps the home advantage inside its fixed bounds:
+     Error: VM Exception while processing transaction: reverted with custom error 'DayNotYetClosed(1, 1792747555)'
+    at MovenRunSettlement.reduceLiquidIssuanceAllowance (src/v3/MovenRunSettlement.sol:515)
+    at MovenRunSettlement.publishSettlement (src/v3/MovenRunSettlement.sol:220)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.publishSettlement (<path>:352:16)
+    at async fundLockedMove (test/v3/helpers.ts:588:5)
+    at async contestSuite (test/ledger/05-contests.test.ts:32:3)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:569:18)
+  
+
+
+
+done

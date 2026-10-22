@@ -1,0 +1,73 @@
+Compiled 53 Solidity files successfully (evm target: cancun).
+
+
+  G5 ledger proofs (c8262ec)
+    H1 settlement day not bound to time; pool absorbs the unissued budget
+      ✔ publishing day 90 straight after day 1 mints the whole remaining season budget in one call (4513ms)
+      ✔ the next season's whole budget follows immediately (day 180), and skipped days can never be published (63ms)
+      ✔ liquid extraction in that path is bounded by the allowance plus 2% tolls (allowance is zero here) (41ms)
+    H2 one contest signer decides declarations and every score
+      ✔ the signer alone hands any deed to a challenger in notice + window (~10 days) (154ms)
+      ✔ the declaration authorization does not bind the defender: a holder change before declaration is not detected
+    H3 / M1 one eligibility signer; cap per wallet and per signer-chosen city label
+      ✔ fresh wallets each take a deed in a city whose per-holder cap is 1 (53ms)
+      ✔ cityId is whatever the attestation says: one wallet exceeds a cap of 1 for cells in the same place (68ms)
+      ✔ a deed has no burn or revoke path: a wrongly attested deed is permanent
+    M2 cooldown is per challenger address across all deeds
+      ✔ losing on deed A locks the address out of deed B; a fresh address is not locked (106ms)
+    M3 rulesVersion is global, not per contest
+      ✔ a version change mid-contest voids already-signed scores; unrelayed contest goes to the defender 0-0 (57ms)
+    M4 / M5 toll credits are liquid outside the allowance; per-leaf split is off chain
+      ✔ with zero allowance, a non-holder account claims liquid MOVE from the toll bucket (64ms)
+    M6 stale listings revive
+      ✔ a listing survives the deed leaving and returning, and is bought at the old price (82ms)
+    M7 locked rewards pay the claim fee; the deed is then freely transferable
+      ✔ locked-only MOVE is burned for a deed which moves to another wallet with no MOVE involved
+    M8 / L1 token id is the public resolution-8 cell
+      ✔ tokenId equals the H3 index; a resolution-9 cell is refused
+    L2 timelock accepts a 1-second delay
+      ✔ deploys with minDelay = 1
+    L3 leaves are not summed on chain
+      ✔ an over-committed tree makes the later claimant revert
+    L4 a city cap of 0 freezes deeds already in the city
+      ✔ holders can no longer transfer and nobody can declare a contest there
+    L5 expiry has no upper bound
+      ✔ a settlement authorization valid until 2100 is accepted
+
+  G5 regression proofs [original: issue reproduced]
+    H1 settlement day bound to the clock, per-publication ceiling
+      ✔ day 90 straight after day 1 (397ms)
+      ✔ after a real 90-day gap, the backlog is not released in one call; skipped days are forfeited on the record
+      ✔ property: an attacker holding both settlement keys, over 25 random steps, stays within 2 x nominal x closed days
+      ✔ L5: an authorization valid until 2100
+    H2 contest scores need two keys, both sides per day, bound to the calendar
+      ✔ one key alone hands a deed to the challenger (74ms)
+      ✔ scoring days are bound to the calendar and posted for both sides at once (54ms)
+      ✔ scoring fails closed until a co-signer is set, and each daily score is bounded
+    H3 / M1 threshold attestation, city bound to cell, cluster and issuance caps
+      ✔ a single eligibility key mints a deed
+      ✔ the threshold can never be lowered below two
+      ✔ cityId is a signer-chosen label
+      ✔ on-chain parent computation matches h3-js for every test cell
+      ✔ a ring of three linked wallets labelled as one cluster
+      ✔ issuance limits: the sixth claim in one city on one day (130ms)
+      ✔ guardian pause stops claims only; unpause needs the timelock; voids and final transfers still work
+    N1 pending window, void, relinquish
+      ✔ a freshly minted deed moves and can be contested at once, and can never be voided
+      ✔ a wrongly attested deed is voided inside the window; counters are exact; the cell can be claimed again
+      ✔ after the window there is no administrative revoke; the holder alone may relinquish
+
+  G5 valve / fallback / emission (c8262ec)
+    ✔ FAILURE MODE V1: one timelocked action opens the valve to the whole 400M allocation; nothing links it to revenue
+    ✔ FAILURE MODE V2: unused allowance never expires; it is still spendable a year later
+    ✔ FAILURE MODE V3 (= M4): with the valve shut, toll credits are still issued liquid, so the all-locked legal fallback cannot be set by configuration
+    ✔ INVARIANT: the guardian can shut the valve at once (saturating at zero) but can never open it
+    ✔ INVARIANT: liquid issued never exceeds the allowance raised (plus tolls): a second draw on a spent valve is refused
+    ✔ INVARIANT: burning never frees lifetime mint capacity (cumulativeMinted is monotonic)
+    ✔ INVARIANT: the automatic day-close burn is capped at 60% of the day's gross
+    ✔ FAILURE MODE V4: locked balances cannot be transferred, but they are spendable on deed fees (see M7), which is the locked-to-liquid leak
+
+
+  43 passing (6s)
+
+done

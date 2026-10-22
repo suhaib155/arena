@@ -1,0 +1,18 @@
+{
+  "source": "docs/G5_CONTRACT_ISSUE_LEDGER.md section 7 of the contract-proof line: 'the branch's own test/v3 suite runs 29 passing and 76 failing' with the draft patches applied",
+  "reproduced": { "date": "2026-10-22", "command": "MODE=patched BRANCH_SUITE=1 bash reverify.sh", "branch_suite_passing": 29, "branch_suite_failing": 76, "regression_proofs_passing": 17, "note": "mocha total 46 passing / 76 failing" },
+  "stage_1_clock_shim": { "command": "TIME_SHIM=1", "newly_passing_of_76": 31, "remaining_failing_of_76": 45, "reason_remaining": "fixture claim attestation lacks clusterId/evidenceHash (patched ABI)" },
+  "stage_2_claim_port": { "command": "TIME_SHIM=1 PORT_SHIM=1", "newly_passing_of_76": 50, "remaining_failing_of_76": 26 },
+  "residual_26": {
+    "harness_shim_defect": { "count": 1, "tests": ["cell validity: refuses values that are not canonical / wrong-resolution cell (shim computes a res-5 parent of a wrong-resolution cell)"] },
+    "conceptual_cluster_cap": { "count": 9, "note": "a holder taking 2 deeds is now bounded by the per-cluster cap (default 1) before the per-holder cap; a fixture raising maxDeedsPerCluster through the timelock would show whether the per-holder assertions still hold" },
+    "conceptual_single_signer_claim_abi": { "count": 2, "note": "tests call claim() with the single-signature struct; the patch disables it" },
+    "conceptual_single_sided_scoring": { "count": 13, "note": "submitScore is disabled; scores are posted for both sides of a day by two keys (submitDayScores)" },
+    "conceptual_scoring_grace_day": { "count": 1, "note": "settlement waits one grace day after the window" }
+  },
+  "caveats": [
+    "the clock shim advances the in-process chain by dayId days plus 60 s before a settlement authorization is built; it is crude and can mask timing assertions",
+    "the claim shim waits 7 days after each claim so the deed is final; it therefore does not exercise the pending window (the regression proofs do)",
+    "two regression proofs fail under the shims by construction (they assert the unshimmed time and pending behaviour); they pass in the unshimmed run"
+  ]
+}

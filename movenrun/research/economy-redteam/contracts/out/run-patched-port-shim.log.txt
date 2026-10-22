@@ -1,0 +1,508 @@
+Compiled 53 Solidity files successfully (evm target: cancun).
+
+
+  V3 MovenRunToken
+    lifetime issuance cap
+      ✔ caps lifetime issuance at one billion MOVE (1021ms)
+      ✔ issues up to the cap and refuses the next wei
+      ✔ burning reduces supply without reopening mint capacity
+      ✔ charges the full gross against the cap even when part of it is burned at once
+      ✔ refuses a burn larger than the issuance it accompanies
+      ✔ accepts issuance only from the settlement contract
+    locked and liquid balances
+      ✔ refuses to transfer locked MOVE and allows liquid MOVE
+      ✔ refuses to move locked MOVE through an approved spender
+      ✔ burns the locked portion of a balance before the liquid portion
+      ✔ never lets a burn increase the transferable portion of a balance
+      ✔ releases locked balance only on behalf of the rewards contract
+    fee burning
+      ✔ lets a registered fee sink burn only within the holder's allowance
+      ✔ refuses a fee burn from an address without the fee burner role
+    bootstrap wiring
+      ✔ permanently freezes the wiring and discards the bootstrapper
+      ✔ refuses a second wiring even before it is frozen
+      ✔ refuses to freeze an incomplete wiring
+      ✔ refuses wiring from anybody but the bootstrapper
+
+  V3 MovenRunSettlement
+    dual independent authorization
+      ✔ publishes when both independent signers authorize the identical settlement (341ms)
+      ✔ refuses a settlement signed twice by the same key
+      ✔ refuses when either signature comes from the wrong key
+      ✔ refuses a deployment that reuses one key for both critical signers (56ms)
+      ✔ keeps the two critical signers distinct across rotations
+    authorization binding
+      ✔ refuses an expired authorization
+      ✔ refuses a replayed nonce (44ms)
+      ✔ refuses an authorization declaring the wrong rules version
+      ✔ refuses signatures bound to another chain or another contract
+    season and day boundaries
+      ✔ refuses day zero and any day that does not advance (45ms)
+      ✔ refuses a season that does not match the day it claims
+      ✔ refuses to skip a season so the decay chain cannot be jumped
+      ✔ keeps a finalized day immutable
+      ✔ holds each day inside the pool its season allows
+    player movement allocation
+      ✔ declares a four hundred million lifetime movement allocation
+      ✔ draws every season down from the same allocation and never exceeds it (277ms)
+    toll: liquid, capped and zero-sum
+      ✔ fixes the toll rate at two percent with no setter anywhere in the ABI
+      ✔ refuses toll credits above two percent of the applicable reward base
+      ✔ refuses a toll base larger than the gross settlement it sits inside
+      ✔ refuses any settlement whose components do not add up to its gross
+      ✔ mints nothing extra for the toll: a tolled day issues exactly what an untolled day issues (104ms)
+      ✔ classifies the toll as liquid without consuming the liquid movement allowance
+      ✔ refuses newly created liquid movement rewards beyond the allowance (38ms)
+      ✔ lets the guardian lower the liquid allowance but never raise it
+    automatic burn ceiling
+      ✔ caps the automatic day-close charge at sixty percent of the day's gross (99ms)
+    publication pause
+      ✔ lets the guardian pause publication and only the timelock resume it (47ms)
+
+  V3 MovenRunRewards
+    ✔ finalizes the day with the locked and liquid allocation the settlement declared
+    ✔ pays a valid proof and classifies locked and liquid correctly (42ms)
+    ✔ pays the committed account even when somebody else relays the claim
+    ✔ refuses a proof that does not belong to the leaf
+    ✔ refuses a duplicate claim of the same leaf
+    ✔ refuses a claim against a day that was never finalized
+    ✔ refuses aggregate claims beyond the day's declared allocation
+    ✔ refuses aggregate liquid claims beyond the day's liquid allocation
+    ✔ keeps claims available while settlement publication is paused
+    ✔ has no administrator, no pause and no withdrawal path
+    ✔ finalizes a day only on behalf of the settlement contract
+    ✔ binds a reward leaf to this chain and this rewards contract
+
+  V3 MovenRunDeed and the per-holder city cap
+    ✔ stores no geography beyond the cell identifier and the opaque city domain
+    cell validity
+      ✔ mints one deed whose token id is the resolution-8 cell itself (98ms)
+      ✔ refuses any resolution other than eight (129ms)
+      1) refuses values that are not canonical cell indexes
+      ✔ allows only one deed per cell (90ms)
+      ✔ creates deeds only on behalf of the claims contract (42ms)
+    eligibility attestation
+      ✔ refuses ground that is not solid (66ms)
+      ✔ refuses ground whose related traffic was not excluded (47ms)
+      ✔ refuses ground below any of the three published thresholds (83ms)
+      2) refuses an attestation that is expired, replayed, redirected or unsigned by the eligibility signer
+    claim fee
+      3) refuses a quoted fee above the caller's stated maximum
+      ✔ genuinely burns the claim fee rather than moving it to a treasury (56ms)
+    per-holder, per-city concentration
+      ✔ refuses any claim in a city the timelock has not opened
+      4) caps one holder at their own limit inside a city
+      5) leaves the city open to everybody else once one holder is at their cap
+      6) counts each city separately
+      7) frees a slot when a deed leaves a holder
+      8) holds a direct transfer to the same limit as a claim
+      ✔ refuses a voluntary transfer into the contest escrow contract (44ms)
+      ✔ lets only the timelock open or resize a city
+      9) reports per-holder claim availability rather than a city-wide open or closed flag
+    claim pause
+      ✔ lets the guardian pause claims without touching existing deeds (66ms)
+
+  V3 MovenRunContests
+    declaration and escrow
+      ✔ escrows the deed without ever consulting the defender's approval (45ms)
+      ✔ keeps the escrowed deed counted against its defender and never against the escrow contract (54ms)
+      ✔ allows one active contest per deed and refuses to overwrite it (43ms)
+      ✔ refuses a holder contesting their own deed (42ms)
+      ✔ burns the declaration entry fee and honours the caller's maximum (48ms)
+      ✔ refuses fortification above its fixed ceiling (44ms)
+    city capacity reservation
+      ✔ takes one of the challenger's city slots at declaration (56ms)
+      10) refuses a declaration from a challenger with no city capacity left
+      11) holds the reservation for the whole escrow so the challenger cannot spend the capacity
+      12) consumes the reservation when the challenger wins
+      13) releases the reservation when the challenger loses
+      14) settles a validly declared contest even when the city is full of other holders
+      15) keeps separate reservations for separate contests in the same city
+      ✔ reserves and settles city capacity only on behalf of the contests contract (76ms)
+    scoring
+      16) refuses scores outside the window, off the roster, past the last day or replayed
+      17) refuses a score the contest signer did not sign
+      18) counts only the best three days of the seven
+    settlement
+      ✔ refuses to settle before the scoring window closes (64ms)
+      19) is settleable by anybody, without the loser's cooperation or approval
+      20) refuses to settle the same contest twice
+      21) leaves the deed with the current holder on a tie
+      22) leaves the deed with the defender when nobody scores at all
+      23) applies the home advantage and the defender's fortification
+    cooldown and peace
+      24) puts a losing challenger in cooldown and gives the surviving deed a peace period
+      25) lets the same challenger come back once the cooldown has run out
+    pause and constants
+      26) pauses new declarations without stopping an active contest from settling
+      ✔ fixes the contest timings and cooldowns in code with no setter for any of them (53ms)
+      ✔ keeps the home advantage inside its fixed bounds (73ms)
+
+  G5 regression proofs [patched: fix holds]
+    H1 settlement day bound to the clock, per-publication ceiling
+      27) day 90 straight after day 1
+      ✔ after a real 90-day gap, the backlog is not released in one call; skipped days are forfeited on the record
+      ✔ property: an attacker holding both settlement keys, over 25 random steps, stays within 2 x nominal x closed days (62ms)
+      ✔ L5: an authorization valid until 2100
+    H2 contest scores need two keys, both sides per day, bound to the calendar
+      ✔ one key alone hands a deed to the challenger (124ms)
+      ✔ scoring days are bound to the calendar and posted for both sides at once (151ms)
+      28) scoring fails closed until a co-signer is set, and each daily score is bounded
+    H3 / M1 threshold attestation, city bound to cell, cluster and issuance caps
+      ✔ a single eligibility key mints a deed (106ms)
+      ✔ the threshold can never be lowered below two
+      ✔ cityId is a signer-chosen label (71ms)
+      ✔ on-chain parent computation matches h3-js for every test cell
+      ✔ a ring of three linked wallets labelled as one cluster (91ms)
+      ✔ issuance limits: the sixth claim in one city on one day (201ms)
+      ✔ guardian pause stops claims only; unpause needs the timelock; voids and final transfers still work (84ms)
+    N1 pending window, void, relinquish
+      ✔ a freshly minted deed moves and can be contested at once, and can never be voided (86ms)
+      ✔ a wrongly attested deed is voided inside the window; counters are exact; the cell can be claimed again (80ms)
+      ✔ after the window there is no administrative revoke; the holder alone may relinquish (72ms)
+
+
+  94 passing (8s)
+  28 failing
+
+  1) V3 MovenRunDeed and the per-holder city cap
+       cell validity
+         refuses values that are not canonical cell indexes:
+     Error: Cell arguments had incompatible resolutions (code: 12)
+      at createError (<path>:96:17)
+      at H3LibraryError (<path>:116:12)
+      at throwIfError (<path>:140:15)
+      at cellToParent (<path>:912:9)
+      at __parentOf (test/v3/helpers.ts:656:57)
+      at claimDeed (test/v3/helpers.ts:717:94)
+      at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:73:9)
+
+  2) V3 MovenRunDeed and the per-holder city cap
+       eligibility attestation
+         refuses an attestation that is expired, replayed, redirected or unsigned by the eligibility signer:
+     Error: missing value for component clusterId
+      at <path>:760:31
+      at Array.map (<anonymous>)
+      at ParamType.#walkAsync (<path>:757:37)
+      at ParamType.walkAsync (<path>:797:24)
+      at <path>:170:22
+      at Array.map (<anonymous>)
+      at resolveArgs (<path>:169:37)
+      at populateTransaction (<path>:294:36)
+      at staticCallResult (<path>:333:26)
+      at staticCall (<path>:303:30)
+
+  3) V3 MovenRunDeed and the per-holder city cap
+       claim fee
+         refuses a quoted fee above the caller's stated maximum:
+     Error: missing value for component clusterId
+      at <path>:760:31
+      at Array.map (<anonymous>)
+      at ParamType.#walkAsync (<path>:757:37)
+      at ParamType.walkAsync (<path>:797:24)
+      at <path>:170:22
+      at Array.map (<anonymous>)
+      at resolveArgs (<path>:169:37)
+      at populateTransaction (<path>:294:36)
+      at staticCallResult (<path>:333:26)
+      at staticCall (<path>:303:30)
+
+  4) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         caps one holder at their own limit inside a city:
+     Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:245:14)
+  
+
+  5) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         leaves the city open to everybody else once one holder is at their cap:
+     Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:259:14)
+  
+
+  6) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         counts each city separately:
+     Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:282:14)
+  
+
+  7) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         frees a slot when a deed leaves a holder:
+     Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:294:14)
+  
+
+  8) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         holds a direct transfer to the same limit as a claim:
+     Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:311:14)
+  
+
+  9) V3 MovenRunDeed and the per-holder city cap
+       per-holder, per-city concentration
+         reports per-holder claim availability rather than a city-wide open or closed flag:
+     Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/04-deeds-cap.test.ts:360:14)
+  
+
+  10) V3 MovenRunContests
+       city capacity reservation
+         refuses a declaration from a challenger with no city capacity left:
+     Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0x1e8d536adeac1ba8e3bdb5897eefe63a039c3aa8ce7f92ced778e8e584640948", 7)'
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:173:14)
+  
+
+  11) V3 MovenRunContests
+       city capacity reservation
+         holds the reservation for the whole escrow so the challenger cannot spend the capacity:
+     AssertionError: Expected transaction to be reverted with custom error 'HolderCityCapReached', but it reverted with custom error 'ClusterCapReached'
+      at async Context.<anonymous> (test/ledger/05-contests.test.ts:193:7)
+
+  12) V3 MovenRunContests
+       city capacity reservation
+         consumes the reservation when the challenger wins:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async waitForPendingTransaction (<path>:24:17)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:210:7)
+  
+
+  13) V3 MovenRunContests
+       city capacity reservation
+         releases the reservation when the challenger loses:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:231:9)
+  
+
+  14) V3 MovenRunContests
+       city capacity reservation
+         settles a validly declared contest even when the city is full of other holders:
+     Error: VM Exception while processing transaction: reverted with custom error 'ClusterCapReached("0xea54e9531a2e7edfed6ade2cb4b48323546c6836457c335ee482bd6894598c22", 7)'
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:219)
+    at MovenRunDeedClaims.claimWithThreshold (src/v3/MovenRunDeedClaims.sol:242)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.claimWithThreshold (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:253:14)
+  
+
+  15) V3 MovenRunContests
+       city capacity reservation
+         keeps separate reservations for separate contests in the same city:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:277:9)
+  
+
+  16) V3 MovenRunContests
+       scoring
+         refuses scores outside the window, off the roster, past the last day or replayed:
+     AssertionError: Expected transaction to be reverted with custom error 'ScoringNotOpen', but it reverted with custom error 'SingleSidedScoresDisabled'
+      at async Context.<anonymous> (test/ledger/05-contests.test.ts:316:7)
+
+  17) V3 MovenRunContests
+       scoring
+         refuses a score the contest signer did not sign:
+     AssertionError: Expected transaction to be reverted with custom error 'InvalidScoreSignature', but it reverted with custom error 'SingleSidedScoresDisabled'
+      at async Context.<anonymous> (test/ledger/05-contests.test.ts:364:7)
+
+  18) V3 MovenRunContests
+       scoring
+         counts only the best three days of the seven:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:377:16)
+  
+
+  19) V3 MovenRunContests
+       settlement
+         is settleable by anybody, without the loser's cooperation or approval:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:404:9)
+  
+
+  20) V3 MovenRunContests
+       settlement
+         refuses to settle the same contest twice:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:420:9)
+  
+
+  21) V3 MovenRunContests
+       settlement
+         leaves the deed with the current holder on a tie:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:437:9)
+  
+
+  22) V3 MovenRunContests
+       settlement
+         leaves the deed with the defender when nobody scores at all:
+     Error: VM Exception while processing transaction: reverted with custom error 'ScoringWindowNotFinished(1794331884)'
+    at MovenRunContests.settleContest (src/v3/MovenRunContests.sol:500)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async HardhatEthersSigner.sendTransaction (<path>:181:18)
+    at async send (<path>:313:20)
+    at async Proxy.settleContest (<path>:352:16)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:450:14)
+  
+
+  23) V3 MovenRunContests
+       settlement
+         applies the home advantage and the defender's fortification:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async waitForPendingTransaction (<path>:24:17)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:461:7)
+  
+
+  24) V3 MovenRunContests
+       cooldown and peace
+         puts a losing challenger in cooldown and gives the surviving deed a peace period:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:479:9)
+  
+
+  25) V3 MovenRunContests
+       cooldown and peace
+         lets the same challenger come back once the cooldown has run out:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:507:14)
+  
+
+  26) V3 MovenRunContests
+       pause and constants
+         pauses new declarations without stopping an active contest from settling:
+     Error: VM Exception while processing transaction: reverted with custom error 'SingleSidedScoresDisabled()'
+    at MovenRunContests.submitScore (src/v3/MovenRunContests.sol:383)
+    at EdrProviderWrapper.request (<path>:453:41)
+    at async staticCallResult (<path>:337:22)
+    at async staticCall (<path>:303:24)
+    at async Proxy.submitScore (<path>:351:41)
+    at async playOut (test/ledger/05-contests.test.ts:51:12)
+    at async Context.<anonymous> (test/ledger/05-contests.test.ts:533:9)
+  
+
+  27) G5 regression proofs [patched: fix holds]
+       H1 settlement day bound to the clock, per-publication ceiling
+         day 90 straight after day 1:
+     AssertionError: Expected transaction to be reverted with custom error 'DayNotYetClosed', but it didn't revert
+      at async Context.<anonymous> (test/ledger/regression.proof.ts:199:7)
+
+  28) G5 regression proofs [patched: fix holds]
+       H2 contest scores need two keys, both sides per day, bound to the calendar
+         scoring fails closed until a co-signer is set, and each daily score is bounded:
+
+      AssertionError: expected '0xFABB0ac9d68B0B445fB7357272Ff202C5651694a' to equal '0x0000000000000000000000000000000000000000'
+      + expected - actual
+
+      -0xFABB0ac9d68B0B445fB7357272Ff202C5651694a
+      +0x0000000000000000000000000000000000000000
+      
+      at Context.<anonymous> (test/ledger/regression.proof.ts:335:56)
+
+
+
+done

@@ -1,0 +1,444 @@
+{
+  "manifestVersion": 2,
+  "labVersion": "redteam-scenario-lab-1",
+  "status": "Hypotheses H1-H14 and thresholds were written in this file before the sweep and are unchanged, with one exception: the H2 metric was narrowed after seeing output of a development smoke run (seed 101, which is also in the sweep). Under the original H2 wording R1002 fails in every run. See the revision log and G2_G4_FAIRNESS_AND_ABUSE_RESULTS.md section 5.",
+  "geography": {
+    "kind": "SYNTHETIC",
+    "note": "Synthetic lattice of H3 resolution 10 cells around an arbitrary origin in open ocean. It is not a city, not a road network and not production-approved geography. Urban core, a small central business district and rural villages are generated discs.",
+    "origin": {
+      "latitude": 0.5,
+      "longitude": -30.5
+    },
+    "urbanShare": 0.75,
+    "villages": 4,
+    "cbdRadiusMeters": 600,
+    "areaPerUrbanParticipantKm2": {
+      "low": 0.8,
+      "med": 0.2,
+      "high": 0.05
+    }
+  },
+  "clock": {
+    "simDay0": 20000,
+    "dayOffsetMinutes": "taken from the rule object (0 = UTC) for D1 attribution",
+    "localOffsetsMinutes": [
+      0,
+      60
+    ],
+    "dstLikeSwitch": "participants on the +60 offset move to +0 on simulated day 20 (a DST-like change of local clock)",
+    "seasonDays": 90,
+    "seasonNote": "Ground persists across the season boundary (no reset is specified for holdings); season metrics are reported per 90-day window."
+  },
+  "seeds": {
+    "rule": "Each scenario cell runs every seed in its stage's list. Participants, routes and session timings are generated once per (cell, seed) and fed unchanged to every rule variant.",
+    "default": [
+      101,
+      202,
+      303
+    ],
+    "scale1000": [
+      101,
+      202
+    ],
+    "five": [
+      101,
+      202,
+      303,
+      404,
+      505
+    ]
+  },
+  "variants": [
+    {
+      "id": "R1001",
+      "what": "PILOT_PROPOSAL exactly (holding rules version 1001): immediate flip, no take budget, resolution 8 stored cells in unit id order."
+    },
+    {
+      "id": "R1001-res10",
+      "what": "PILOT_PROPOSAL object unchanged, but fed the same resolution 10 verified-steps path as 1002. Lab intervention that isolates the takeover rule from the unit size."
+    },
+    {
+      "id": "R1002",
+      "what": "SIM_PILOT_2_PROPOSAL exactly (holding rules version 1002): two-day challenge window 3, floor 50, immediate below 30, 20 h server-receipt gap, 13 takes per walker per day in walk order, resolution 10 units, resolution 9 zones."
+    },
+    {
+      "id": "R1002-nogap",
+      "what": "1002 with the second-push gap removed (takeover policyVersion 1). Isolates the 20 h protection."
+    },
+    {
+      "id": "R1002-gap24",
+      "what": "1002 with a 24 h server-receipt gap."
+    },
+    {
+      "id": "R1002-win2",
+      "what": "1002 with windowDays 2: the challenge must complete within three calendar days counting the opening day. Lab-local holding version 8102."
+    },
+    {
+      "id": "R1002-b5",
+      "what": "1002 with 5 takes per walker per day. Simulation only."
+    },
+    {
+      "id": "R1002-b20",
+      "what": "1002 with 20 takes per walker per day. Simulation only."
+    },
+    {
+      "id": "R1002-unitorder",
+      "what": "1002 with the take budget met in unit id order instead of walk order."
+    },
+    {
+      "id": "R1002-stepped",
+      "what": "1002 pushing stepped units only (path rule pushInterpolated false). Sensitivity for inferred ground."
+    },
+    {
+      "id": "R1002-ub150",
+      "what": "1002 with a 150 units per walker per day capacity guard instead of 300. Counterfactual."
+    },
+    {
+      "id": "R1002-ub450",
+      "what": "1002 with a 450 units per walker per day capacity guard. Counterfactual."
+    }
+  ],
+  "coreVariants": [
+    "R1001",
+    "R1001-res10",
+    "R1002",
+    "R1002-nogap"
+  ],
+  "allVariants": [
+    "R1001",
+    "R1001-res10",
+    "R1002",
+    "R1002-nogap",
+    "R1002-gap24",
+    "R1002-win2",
+    "R1002-b5",
+    "R1002-b20",
+    "R1002-unitorder",
+    "R1002-stepped",
+    "R1002-ub150",
+    "R1002-ub450"
+  ],
+  "stages": [
+    {
+      "id": "A-core",
+      "purpose": "Main rule comparison across malicious share",
+      "population": [
+        200
+      ],
+      "horizonDays": [
+        90
+      ],
+      "maliciousShare": [
+        0,
+        0.02,
+        0.1
+      ],
+      "density": [
+        "med"
+      ],
+      "timingNoise": [
+        true
+      ],
+      "variants": "allVariants",
+      "seeds": "default"
+    },
+    {
+      "id": "B-density",
+      "purpose": "Competition density and urban/rural disparity",
+      "population": [
+        200
+      ],
+      "horizonDays": [
+        90
+      ],
+      "maliciousShare": [
+        0.02
+      ],
+      "density": [
+        "low",
+        "high"
+      ],
+      "timingNoise": [
+        true
+      ],
+      "variants": [
+        "R1001",
+        "R1001-res10",
+        "R1002",
+        "R1002-nogap",
+        "R1002-b5",
+        "R1002-b20"
+      ],
+      "seeds": "default"
+    },
+    {
+      "id": "C-horizon",
+      "purpose": "Short horizons and two seasons",
+      "population": [
+        100
+      ],
+      "horizonDays": [
+        1,
+        7,
+        30,
+        180
+      ],
+      "maliciousShare": [
+        0.02
+      ],
+      "density": [
+        "med"
+      ],
+      "timingNoise": [
+        true
+      ],
+      "variants": [
+        "R1001",
+        "R1001-res10",
+        "R1002",
+        "R1002-nogap",
+        "R1002-win2"
+      ],
+      "seeds": "default"
+    },
+    {
+      "id": "D-scale",
+      "purpose": "1000 participants",
+      "population": [
+        1000
+      ],
+      "horizonDays": [
+        30
+      ],
+      "maliciousShare": [
+        0.02,
+        0.1
+      ],
+      "density": [
+        "med"
+      ],
+      "timingNoise": [
+        true
+      ],
+      "variants": "coreVariants",
+      "seeds": "scale1000"
+    },
+    {
+      "id": "E-small",
+      "purpose": "25 participants",
+      "population": [
+        25
+      ],
+      "horizonDays": [
+        90
+      ],
+      "maliciousShare": [
+        0,
+        0.1
+      ],
+      "density": [
+        "med"
+      ],
+      "timingNoise": [
+        true
+      ],
+      "variants": "allVariants",
+      "seeds": "five"
+    },
+    {
+      "id": "F-noise-off",
+      "purpose": "Timing noise switched off, to attribute failures to timing",
+      "population": [
+        100
+      ],
+      "horizonDays": [
+        30
+      ],
+      "maliciousShare": [
+        0.02
+      ],
+      "density": [
+        "med"
+      ],
+      "timingNoise": [
+        false
+      ],
+      "variants": [
+        "R1001",
+        "R1002",
+        "R1002-nogap"
+      ],
+      "seeds": "default"
+    }
+  ],
+  "omitted": [
+    {
+      "what": "Full factorial of population x horizon x malicious x density x noise x 12 variants",
+      "why": "About 4 x 5 x 3 x 3 x 2 x 12 = 4320 cells x 5 seeds. The staged design above varies one or two factors at a time around the A-core cell (population 100/200, 90 days, medium density)."
+    },
+    {
+      "what": "A-core at population 100; five seeds outside E-small",
+      "why": "Compute budget (manifest revision 2). Population 100 is covered by C-horizon and F-noise-off; 95% intervals with three seeds are wide and are reported as such."
+    },
+    {
+      "what": "1000 participants beyond 30 days, and all 12 variants at 1000",
+      "why": "Run time. Scale effects are checked on the four core variants only."
+    },
+    {
+      "what": "Horizons 1/7/30/180 at 200 or 1000 participants",
+      "why": "Run time; horizon effects are checked at 100 participants."
+    },
+    {
+      "what": "Land levels, fortification, deeds, masking, away protection, upkeep and credits",
+      "why": "Every unit stays at level 1, unfortified, undeeded; no economy. These are out of scope for the takeover comparison and would add unratified parameters."
+    },
+    {
+      "what": "Shade (enclosed ground) pushes",
+      "why": "Sealed loops are not derived; only stepped and interpolated path units push. Shade would be a separate study."
+    },
+    {
+      "what": "Adaptive behaviour (players reacting to losses, attackers reading the live map, real dropout)",
+      "why": "Behaviour is open-loop so that every variant sees identical participants and routes. Retention appears only as a separate post-hoc model."
+    },
+    {
+      "what": "Replication of the #123 churn study numbers",
+      "why": "Its exact fixture (368-player city world of shared/src/sim) is a different simulator and geography. Any comparison is labelled non-replication."
+    },
+    {
+      "what": "Real movement verification (anti-spoofing)",
+      "why": "Every uploaded session is treated as verified. Spoofed and replayed sessions therefore succeed by assumption; this is a worst case for the takeover rules, not a statement about the verifier."
+    }
+  ],
+  "assumptions": {
+    "cohortSharesOfLegit": {
+      "commuter": 0.18,
+      "recreational": 0.14,
+      "casual": 0.24,
+      "enthusiast": 0.09,
+      "accessibility": 0.05,
+      "runner": 0.08,
+      "household": 0.1,
+      "cowalker": 0.04,
+      "club": 0.04,
+      "centre_lunch": 0.04
+    },
+    "newJoinerShareOfLegit": 0.2,
+    "nightOwlShareOfLegit": 0.05,
+    "maliciousMix": {
+      "opportunist": 0.4,
+      "ring": 0.2,
+      "sybil": 0.15,
+      "replay": 0.1,
+      "spoofer": 0.15
+    },
+    "uploadDelay": {
+      "under5min": 0.85,
+      "10to90min": 0.1,
+      "2to10h": 0.04,
+      "retrySameSession": 0.02,
+      "secondDeviceCopy": 0.03
+    },
+    "gpsGapSessionShare": 0.08,
+    "sparseFixDeviceShare": 0.3,
+    "householdSharedDeviceShare": 0.05,
+    "reviewHeuristic": "Illustrative only, not a server feature: flag an account pair that shares a device, or that has 3 or more co-present sessions (start within 15 min, unit overlap Jaccard >= 0.8) within any 7-day window. 15 staff minutes per flagged pair.",
+    "retentionModel": "MODEL ASSUMPTION, post hoc, never fed back into play: daily dropout hazard 0.4% for every legit participant, times (1 + 3 x share of the walker's ground lost to others that day), plus 0.5 percentage points on a day with an inexplicable failure. Reported as modelled survival, never as observed retention."
+  },
+  "hypotheses": [
+    {
+      "id": "H1",
+      "metric": "attackerFlipsPer100HeldPerDay",
+      "cell": "A-core pop 200, 10% malicious",
+      "test": "R1002 mean <= 0.5 x R1001-res10 mean"
+    },
+    {
+      "id": "H2",
+      "metric": "straddleFlips: flips that complete a walker's challenge under 20 h (server receipt) after it opened, on ground at or above the immediate-take line (strength 30). Ground decayed below that line falls at once by design and is counted separately (straddleFlipsDecayedGround).",
+      "cell": "A-core all cells",
+      "test": "R1002 = 0 in every run; R1002-nogap > 0 in every run with malicious participants",
+      "originalMetric": "straddleFlips: every flip that completes a walker's challenge under 20 h after it opened (manifest version 1 wording). Under this wording R1002 fails in every A-core run (1 to 8 decayed-ground flips)."
+    },
+    {
+      "id": "H3",
+      "metric": "casualHoldingFracEnd",
+      "cell": "A-core pop 200, 10% malicious, day 90",
+      "test": "R1002 mean >= 0.6 and >= R1001-res10 mean"
+    },
+    {
+      "id": "H4",
+      "metric": "attackerShareOfHeldEnd",
+      "cell": "A-core pop 200, 10% malicious",
+      "test": "R1002 mean <= 0.20 (2 x attacker population share)"
+    },
+    {
+      "id": "H5",
+      "metric": "takeCapSessionRate (legit sessions with >= 1 take refused by the 13/day budget)",
+      "cell": "A-core pop 200, 2% malicious",
+      "test": "R1002: runner cohort <= 0.05 and all legit <= 0.01"
+    },
+    {
+      "id": "H6",
+      "metric": "zeroGainSessionRate and unexplainedDenialSessionRate (legit)",
+      "cell": "A-core all cells",
+      "test": "every variant: zero-gain <= 0.02 and unexplained denial <= 0.03"
+    },
+    {
+      "id": "H7",
+      "metric": "jointWalkFlipsPer100JointSessions (household/co-walker/club members taking each other's units on a shared walk)",
+      "cell": "A-core pop 200, 0% malicious",
+      "test": "R1002 <= 0.1 x R1001-res10"
+    },
+    {
+      "id": "H8",
+      "metric": "falsePositiveFlagsPer1000PerMonth (legit pairs flagged by the illustrative review heuristic)",
+      "cell": "A-core all cells",
+      "test": "<= 5"
+    },
+    {
+      "id": "H9",
+      "metric": "newJoinerHolding at join+1 and join+7 days, among joiners who had uploaded at least one session by that day",
+      "cell": "A-core pop 200, 10% malicious",
+      "test": "every variant: >= 0.8 at +1 and >= 0.7 at +7"
+    },
+    {
+      "id": "H10",
+      "metric": "giniLegit (holdings across legit participants, zeros included, end of run)",
+      "cell": "A-core pop 200, 2% malicious",
+      "test": "R1002 <= 0.8 and <= R1001-res10 + 0.05"
+    },
+    {
+      "id": "H11",
+      "metric": "legitVsLegitFlipsPerDay (competitiveness guard)",
+      "cell": "A-core pop 200, 0% malicious",
+      "test": "R1002 >= 0.25 x R1001-res10 (ground still changes hands between legitimate players)"
+    },
+    {
+      "id": "H12",
+      "metric": "ruralToUrbanHoldingRatio",
+      "cell": "B-density all, R1002",
+      "test": "between 0.8 and 1.25"
+    },
+    {
+      "id": "H13",
+      "metric": "attackerFlipsPer100HeldPerDay, walk order vs unit id order",
+      "cell": "A-core pop 200, 10% malicious",
+      "test": "|R1002-unitorder - R1002| / R1002 < 0.10"
+    },
+    {
+      "id": "H14",
+      "metric": "invariantViolations (two holders, budget exceeded, one-push rule, unitProblems)",
+      "cell": "every run",
+      "test": "0"
+    }
+  ],
+  "revisions": [
+    {
+      "version": 1,
+      "note": "Hypotheses H1-H14 and the first stage plan written before any run."
+    },
+    {
+      "version": 2,
+      "note": "Before the sweep, the stage plan was cut to fit the compute budget (seed counts lowered to 3 for most stages, A-core population 100 dropped, D-scale to 2 seeds). One development smoke run (population 100 and 200, 30/90 days, 10% malicious, seed 101) had been executed to check run time and correctness. The H9 metric wording was made conditional on joiners having uploaded a session (written before that smoke run). Hypotheses and thresholds are otherwise unchanged from version 1. The H2 metric was narrowed during that smoke run to exclude ground decayed below the 1002 immediate-take line, which the rule hands over at once by design; the excluded flips are reported in their own column."
+    }
+  ]
+}

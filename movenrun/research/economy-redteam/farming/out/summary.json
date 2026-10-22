@@ -1,0 +1,160 @@
+{
+  "seeds": [
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210,
+    211,
+    212,
+    213,
+    214,
+    215,
+    216,
+    217,
+    218,
+    219,
+    220,
+    221,
+    222,
+    223,
+    224,
+    225,
+    226,
+    227,
+    228,
+    229,
+    230
+  ],
+  "privacyPer1000Accounts": {
+    "100": {
+      "liveProximityPer1000": {
+        "mean": 4431.5,
+        "lo": 4397.9,
+        "hi": 4465
+      },
+      "liveLinkedPer1000": {
+        "mean": 844.3,
+        "lo": 770.3,
+        "hi": 918.3
+      },
+      "linkEdgesPer1000": {
+        "mean": 123.7,
+        "lo": 115.3,
+        "hi": 132.1
+      },
+      "falseLinkEdgesPer1000": {
+        "mean": 0,
+        "lo": 0,
+        "hi": 0
+      }
+    },
+    "200": {
+      "liveProximityPer1000": {
+        "mean": 4132.1,
+        "lo": 4102.3,
+        "hi": 4161.8
+      },
+      "liveLinkedPer1000": {
+        "mean": 716.8,
+        "lo": 685.6,
+        "hi": 748
+      },
+      "linkEdgesPer1000": {
+        "mean": 119,
+        "lo": 114.5,
+        "hi": 123.5
+      },
+      "falseLinkEdgesPer1000": {
+        "mean": 0.3,
+        "lo": -0.1,
+        "hi": 0.8
+      }
+    },
+    "1000": {
+      "liveProximityPer1000": {
+        "mean": 5236,
+        "lo": 5218.2,
+        "hi": 5253.8
+      },
+      "liveLinkedPer1000": {
+        "mean": 799.2,
+        "lo": 782.4,
+        "hi": 816
+      },
+      "linkEdgesPer1000": {
+        "mean": 142.2,
+        "lo": 140,
+        "hi": 144.4
+      },
+      "falseLinkEdgesPer1000": {
+        "mean": 1.1,
+        "lo": 0.7,
+        "hi": 1.5
+      }
+    }
+  },
+  "proximityOnlyCounterfactualReviewedShare": {
+    "100": {
+      "commute_corridor": 1,
+      "night_shift": 1,
+      "public_transit": 1,
+      "siblings": 1,
+      "shared_household": 1,
+      "guide_trainees": 1,
+      "organised_walk": 0.8,
+      "ring_linked": 1,
+      "ring_unlinked": 1,
+      "ring_linked_spaced": 1,
+      "dense_park": 0,
+      "gps_drift_neighbours": 0,
+      "group_event": 0,
+      "solo": 0,
+      "ring_linked_staggered": 0.0444
+    },
+    "200": {
+      "commute_corridor": 1,
+      "night_shift": 1,
+      "public_transit": 1,
+      "siblings": 1,
+      "shared_household": 1,
+      "guide_trainees": 1,
+      "organised_walk": 0.9333,
+      "ring_linked": 1,
+      "ring_unlinked": 1,
+      "ring_linked_spaced": 1,
+      "dense_park": 0,
+      "gps_drift_neighbours": 0,
+      "group_event": 0,
+      "solo": 0,
+      "ring_linked_staggered": 0
+    },
+    "1000": {
+      "commute_corridor": 1,
+      "night_shift": 1,
+      "public_transit": 0.973,
+      "siblings": 1,
+      "shared_household": 1,
+      "guide_trainees": 1,
+      "organised_walk": 0.9551,
+      "ring_linked": 1,
+      "ring_unlinked": 1,
+      "ring_linked_spaced": 1,
+      "dense_park": 0,
+      "gps_drift_neighbours": 0,
+      "group_event": 0,
+      "solo": 0,
+      "ring_linked_staggered": 0.0111
+    }
+  },
+  "slowTrustAvgWeight90d": {
+    "ramp14": 0.9277777777777778,
+    "ramp28": 0.85,
+    "ramp56": 0.6944444444444444
+  }
+}
