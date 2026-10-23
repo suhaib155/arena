@@ -166,3 +166,19 @@ test("no plaintext refresh token is persisted — only its keyed hash", async ()
   const secretHalf = issued.refreshToken.split(".")[1];
   assert.ok(!stored!.refreshTokenHash.includes(secretHalf));
 });
+
+test("last use is written at most once a minute, not on every request", async () => {
+  const h = createHarness();
+  const issued = await newUserSession(h);
+  let writes = 0;
+  const markUsed = h.stores.sessions.markUsed.bind(h.stores.sessions);
+  h.stores.sessions.markUsed = async (id, at) => { writes += 1; return markUsed(id, at); };
+  await h.sessions.verifyAccess(issued.accessToken);
+  for (let i = 0; i < 5; i++) await h.sessions.verifyAccess(issued.accessToken);
+  assert.equal(writes, 1);
+  h.advanceSeconds(61);
+  await h.sessions.verifyAccess(issued.accessToken);
+  assert.equal(writes, 2);
+  const stored = await h.stores.sessions.findById(issued.session.id);
+  assert.equal(stored?.lastUsedAt?.getTime(), h.now().getTime());
+});

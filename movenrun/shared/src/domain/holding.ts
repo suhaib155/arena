@@ -54,6 +54,36 @@ export interface HoldingRules {
   shadeDecayMultiplier: number;
   /** DECISION NEEDED D4: lowest strength of each stage, highest first. 0 is always "back on the map". */
   stageFloors: { held: number; atRisk: number; contested: number };
+  /**
+   * SIMULATION OPTION, not a decision: alternatives to ASSUMPTION A9 for the
+   * churn study (`docs/SIM_CHURN_STUDY.md`). Absent means A9 exactly as
+   * today: a push that reaches 0 flips the unit at once. Production rules
+   * never set it until the owner decides.
+   */
+  takeover?: TakeoverRule;
+}
+
+/**
+ * How someone else's ground changes hands, when not by A9's immediate flip.
+ * The owner rule (one push per walker per unit per day) applies unchanged
+ * under every setting; this only decides what a push that would flip does.
+ */
+export interface TakeoverRule {
+  /**
+   * Two-day challenge: a walker flips a unit only if they already pushed it
+   * on an earlier day within `windowDays`, and the holder has not stepped on
+   * it since. Any other would-be flip leaves the unit at `floor` (or where it
+   * was, if lower) and records the push as that walker's challenge. Ground
+   * below `immediateBelowStrength` (long unvisited) still falls at once.
+   * Null: no challenge. Shade stepped on is still taken at once (section 4).
+   */
+  challenge: { windowDays: number; floor: number; immediateBelowStrength: number } | null;
+  /**
+   * A unit changes hands at most this many times a day; a later push that
+   * would flip it erodes it to no lower than 1. Null: no cap. Shade stepped
+   * on is still taken at once (section 4) but counts toward the cap.
+   */
+  maxFlipsPerUnitPerDay: number | null;
 }
 
 /* ── state ────────────────────────────────────────────────────────────────── */
@@ -83,6 +113,10 @@ export interface UnitState {
    * Absent, or from an earlier day, means nobody has pushed it today.
    */
   pushedBy?: { day: number; walkerIds: string[] };
+  /** Only under a `TakeoverRule` challenge: each walker's first push of the open challenge, by day. */
+  challenges?: { walkerId: string; day: number }[];
+  /** Only under a `TakeoverRule` flip cap: times the unit changed hands on `day`. */
+  flips?: { day: number; count: number };
 }
 
 export type Push =
@@ -143,7 +177,23 @@ export function decayTo(state: UnitState, day: number, rules: HoldingRules): Uni
 
 function unheld(state: UnitState, day: number): UnitState {
   // Section 9: losing ground drops its level; how far, and the 14-day restore, are D16.
-  return { ...state, holderId: null, strength: 0, ground: "solid", level: 1, fortified: false, asOfDay: day };
+  return { ...withoutTakeoverMarks(state), holderId: null, strength: 0, ground: "solid", level: 1, fortified: false, asOfDay: day };
+}
+
+/**
+ * The state without challenge and flip-count marks. Returns the same object
+ * when it has none, so states under the default rules (A9, which never sets
+ * them) are built exactly as before.
+ */
+export function withoutTakeoverMarks(state: UnitState): UnitState {
+  if (state.challenges === undefined && state.flips === undefined) return state;
+  const { challenges: _c, flips: _f, ...rest } = state;
+  return rest;
+}
+
+function countFlip(state: UnitState, rule: TakeoverRule | undefined, day: number): Pick<UnitState, "flips"> {
+  if (!rule || rule.maxFlipsPerUnitPerDay === null) return {};
+  return { flips: { day, count: (state.flips?.day === day ? state.flips.count : 0) + 1 } };
 }
 
 export function stageOf(state: UnitState, rules: HoldingRules): Stage {
@@ -183,8 +233,10 @@ export function applyPush(input: { state: UnitState; walkerId: string; push: Pus
   }
 
   if (state.holderId === walkerId) {
+    // Under a challenge rule, stepping on your own ground answers every open challenge.
+    const visited = push.kind === "solid" && state.challenges !== undefined ? (({ challenges: _c, ...rest }) => rest)(state) : state;
     const next = push.kind === "solid"
-      ? { ...state, strength: MAX_STRENGTH, ground: "solid" as Ground }
+      ? { ...visited, strength: MAX_STRENGTH, ground: "solid" as Ground }
       : { ...state, strength: Math.max(state.strength, clampStrength(raw)) };
     return { state: { ...next, asOfDay: day }, outcome: "reinforced", removed: 0 };
   }
@@ -196,11 +248,13 @@ export function applyPush(input: { state: UnitState; walkerId: string; push: Pus
   // Shade falls to anyone who steps on it, whole.
   if (state.ground === "shade" && push.kind === "solid") {
     return {
-      state: { ...state, holderId: walkerId, strength: MAX_STRENGTH, ground: "solid", level: 1, fortified: false, asOfDay: day, pushedBy },
+      state: { ...withoutTakeoverMarks(state), holderId: walkerId, strength: MAX_STRENGTH, ground: "solid", level: 1, fortified: false, asOfDay: day, pushedBy, ...countFlip(state, rules.takeover, day) },
       outcome: "flipped",
       removed: state.strength,
     };
   }
+
+  if (rules.takeover !== undefined) return pushUnderTakeoverRule(state, walkerId, push, raw, day, rules.takeover, pushedBy);
 
   // Floor the push: a fractional point of erosion is not taken.
   const effective = Math.floor(raw * (1 - erosionResist(state.level, state.fortified)));
@@ -218,6 +272,47 @@ export function applyPush(input: { state: UnitState; walkerId: string; push: Pus
     outcome: "flipped",
     removed: state.strength,
   };
+}
+
+/**
+ * A push on someone else's solid-or-shade ground under a `TakeoverRule`
+ * (simulation option). The arithmetic is the same as A9; only whether a push
+ * that reaches 0 may flip the unit today changes.
+ */
+function pushUnderTakeoverRule(
+  state: UnitState,
+  walkerId: string,
+  push: Push,
+  raw: number,
+  day: number,
+  rule: TakeoverRule,
+  pushedBy: { day: number; walkerIds: string[] },
+): PushResult {
+  const effective = Math.floor(raw * (1 - erosionResist(state.level, state.fortified)));
+  const ch = rule.challenge;
+  const open = ch ? (state.challenges ?? []).filter((c) => day - c.day <= ch.windowDays) : [];
+  const mine = open.find((c) => c.walkerId === walkerId);
+  const challengeMet = ch === null || state.strength < ch.immediateBelowStrength || (mine !== undefined && mine.day < day);
+  const capped = rule.maxFlipsPerUnitPerDay !== null && state.flips?.day === day && state.flips.count >= rule.maxFlipsPerUnitPerDay;
+
+  if (effective >= state.strength && challengeMet && !capped) {
+    // A9 as written: the walker holds at the overflow, at least 1.
+    const overflow = Math.max(1, clampStrength(effective - state.strength));
+    return {
+      state: { ...withoutTakeoverMarks(state), holderId: walkerId, strength: overflow, ground: push.kind, level: 1, fortified: false, asOfDay: day, pushedBy, ...countFlip(state, rule, day) },
+      outcome: "flipped",
+      removed: state.strength,
+    };
+  }
+  // No flip today: erode, but never below the floor a blocked flip leaves.
+  const floor = effective >= state.strength && !challengeMet && ch ? ch.floor : 1;
+  const strength = Math.min(state.strength, Math.max(floor, state.strength - effective));
+  const next: UnitState = { ...state, strength, asOfDay: day, pushedBy };
+  if (ch) {
+    const kept = open.filter((c) => c.walkerId !== walkerId);
+    next.challenges = [...kept, { walkerId, day: mine ? mine.day : day }].sort((a, b) => (a.walkerId < b.walkerId ? -1 : a.walkerId > b.walkerId ? 1 : 0));
+  }
+  return { state: next, outcome: "eroded", removed: state.strength - strength };
 }
 
 /** A unit nobody holds yet. */
@@ -242,5 +337,12 @@ export function unitProblems(state: UnitState): string[] {
   if (state.ground === "shade" && state.strength > MAX_SHADE_STRENGTH && state.holderId !== null) problems.push("shade above 25");
   if (state.pushedBy && state.pushedBy.day > state.asOfDay) problems.push("push record is from a later day");
   if (state.pushedBy && new Set(state.pushedBy.walkerIds).size !== state.pushedBy.walkerIds.length) problems.push("walker pushed twice in one day");
+  if (state.challenges !== undefined) {
+    if (state.holderId === null) problems.push("unheld ground has challenges");
+    if (state.challenges.some((c) => c.day > state.asOfDay)) problems.push("challenge is from a later day");
+    if (state.challenges.some((c) => c.walkerId === state.holderId)) problems.push("holder challenges own ground");
+    if (new Set(state.challenges.map((c) => c.walkerId)).size !== state.challenges.length) problems.push("walker challenges twice");
+  }
+  if (state.flips !== undefined && (state.flips.day > state.asOfDay || !Number.isInteger(state.flips.count) || state.flips.count < 1)) problems.push("flip count is malformed");
   return problems;
 }

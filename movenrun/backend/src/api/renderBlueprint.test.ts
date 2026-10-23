@@ -31,9 +31,9 @@ test("deploys the reviewed deploy branch by hand only, never the pre-security re
   assert.equal(field("autoDeployTrigger"), "off");
 });
 
-test("installs immutably, builds the API, migrates before start, and checks readiness", () => {
+test("installs only the API's dependencies from the lockfile, builds it, migrates before start, and checks readiness", () => {
   assert.equal(field("rootDir"), "movenrun");
-  assert.match(field("buildCommand"), /yarn install --immutable && yarn workspace @movenrun\/backend build$/);
+  assert.match(field("buildCommand"), /yarn workspaces focus @movenrun\/backend && yarn workspace @movenrun\/backend build$/);
   assert.equal(field("startCommand"), "yarn workspace @movenrun/backend db:migrate && yarn workspace @movenrun/backend start");
   assert.equal(field("healthCheckPath"), "/ready");
 });
@@ -50,6 +50,7 @@ test("secrets are set in the dashboard only; public values are the agreed ones",
   assert.equal(env.get("CORS_ORIGINS"), "value=https://movenrun.xyz");
   assert.equal(env.get("IDENTITY_AUTH_DOMAIN"), "value=movenrun.xyz");
   assert.equal(env.get("TRUST_PROXY_HOPS"), 'value="1"');
+  assert.equal(env.get("TRUST_PROXY"), "value=render-cloudflare");
   assert.ok(!/RESEND|OTP_PEPPER|REVIEW_CODE|REVIEW_EMAIL/.test(blueprint), "no email-code settings");
   assert.ok(!/sb_secret_|service_role|postgres(ql)?:\/\/[^<\s]+@/.test(blueprint), "no key or connection string in the file");
 });

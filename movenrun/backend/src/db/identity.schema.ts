@@ -268,6 +268,20 @@ export const authUserCreations = pgTable("auth_user_creations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/** Supabase sessions from Google sign-in that have already been exchanged for
+ *  a MovenRun session. Only the session id and when the row may go (once the
+ *  session's exchange window has closed) are kept. */
+export const googleSignInExchanges = pgTable(
+  "google_sign_in_exchanges",
+  {
+    sessionId: text("session_id").primaryKey(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (t) => ({
+    expiresIdx: index("google_sign_in_exchanges_expires_idx").on(t.expiresAt),
+  })
+);
+
 /** A wallet sign-in message the server issued. The exact message text is kept
  *  so only that message, signed by that address, before it expires, and only
  *  once, can complete a sign-in. */

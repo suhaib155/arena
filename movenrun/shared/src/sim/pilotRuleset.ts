@@ -56,6 +56,47 @@ export interface ContributionRule {
   clubMatePushesCount: boolean;
 }
 
+/**
+ * Churn study levers (`docs/SIM_CHURN_STUDY.md`). Every field is a PILOT
+ * comparison option applied by the simulator, not a decision. A ruleset
+ * without `churn` behaves exactly as sim-pilot-1 does.
+ */
+export interface ChurnRule {
+  /**
+   * Daily take cap per walker: at most this many distinct units held by
+   * someone else (judged on the day's opening holder) may be pushed by one
+   * walker in a day; further pushes on other people's ground are refused
+   * before the ledger. Null: no cap.
+   */
+  walkerTakeCap: number | null;
+  /**
+   * Owner defence: a zone its holder stepped on within this many days counts
+   * as fortified (SOURCE §11: 30% off erosion and decay, inside the §9 caps).
+   * Free, not bought. Null: off.
+   */
+  homeDefenceDays: number | null;
+  /**
+   * D9 fortify purchases. A holder who steps on a zone they visited on at
+   * least `minVisits` days within `windowDays` buys a fortification for it
+   * at `costDayShares` × the previous day-share (burned, outside the models'
+   * books, like level spend), active for `durationDays`. Price and duration
+   * are D9 PILOT values. Null: nobody fortifies.
+   */
+  fortify: { costDayShares: number; durationDays: number; minVisits: number; windowDays: number } | null;
+  /**
+   * D5 zones: units are grouped into zones of about this edge (each unit's
+   * centre falls in one coarse hex) for upkeep, visits, levels and fortify.
+   * Null: a unit is a zone.
+   */
+  zoneEdgeMeters: number | null;
+  /**
+   * Route-farming lever (outside V3): a session whose stepped units were all
+   * stepped on by the same walker on each of the previous N days earns no
+   * credits (settled as unscored); it still moves ground. Null: off.
+   */
+  repeatRouteUnscoredDays: number | null;
+}
+
 export interface SimRuleset {
   /** Human name; "sim-" prefix marks it as a simulation ruleset. */
   name: string;
@@ -112,6 +153,8 @@ export interface SimRuleset {
     camp: { visits: number; windowDays: number; costDayShares: number };
     holding: { heldDays: number; costDayShares: number };
   };
+  /** Churn study levers. Absent in sim-pilot-1. */
+  churn?: ChurnRule;
 }
 
 /** The pilot. Every non-SOURCE value is a PILOT PROPOSAL, not a decision. */
@@ -189,6 +232,27 @@ export function rulesetProblems(r: SimRuleset): string[] {
   if (r.control.shadeWeight.numerator <= 0) p.push("D21: shade must count for more than 0 (SOURCE §4)");
   if (r.levelOnLoss.reclaimRestoreDays < 0) p.push("D16: restore days must be 0 or more");
   if (r.awayDays.perSeason !== 14) p.push("D17: fourteen away days per season (SOURCE §7)");
+  const t = r.holding.takeover;
+  if (t !== undefined) {
+    if (t.challenge !== null) {
+      const c = t.challenge;
+      if (!(Number.isInteger(c.windowDays) && c.windowDays >= 1)) p.push("A9 alternative: challenge window must be 1 day or more");
+      if (!(Number.isInteger(c.floor) && c.floor >= 1 && c.floor <= 100)) p.push("A9 alternative: challenge floor must be 1–100");
+      if (!(c.immediateBelowStrength >= 0 && c.immediateBelowStrength <= 100)) p.push("A9 alternative: immediate-take threshold must be 0–100");
+      // A challenged unit must not decay below the immediate-take line inside the window,
+      // or any passer-by could finish someone else's challenge.
+      if (c.floor - c.windowDays * r.holding.solidDecayPerDay < Math.max(1, c.immediateBelowStrength)) p.push("A9 alternative: the challenge floor must outlast the window's decay above the immediate-take line");
+    }
+    if (t.maxFlipsPerUnitPerDay !== null && !(Number.isInteger(t.maxFlipsPerUnitPerDay) && t.maxFlipsPerUnitPerDay >= 1)) p.push("flip cap must be a whole number, 1 or more");
+  }
+  const c = r.churn;
+  if (c !== undefined) {
+    if (c.walkerTakeCap !== null && !(Number.isInteger(c.walkerTakeCap) && c.walkerTakeCap >= 1)) p.push("walker take cap must be a whole number, 1 or more");
+    if (c.homeDefenceDays !== null && !(Number.isInteger(c.homeDefenceDays) && c.homeDefenceDays >= 1)) p.push("home defence days must be a whole number, 1 or more");
+    if (c.fortify !== null && !(c.fortify.costDayShares >= 0 && c.fortify.durationDays >= 1 && c.fortify.minVisits >= 1 && c.fortify.windowDays >= 1)) p.push("D9: fortify settings out of range");
+    if (c.zoneEdgeMeters !== null && !(c.zoneEdgeMeters > r.unitEdgeMeters)) p.push("D5: a zone must be larger than a unit");
+    if (c.repeatRouteUnscoredDays !== null && !(Number.isInteger(c.repeatRouteUnscoredDays) && c.repeatRouteUnscoredDays >= 1)) p.push("repeat-route days must be a whole number, 1 or more");
+  }
   return p;
 }
 
@@ -206,3 +270,59 @@ export function shadeStrength(rule: ShadeRule, loop: { shape: number; stepped: n
   const sprawl = ratio === null || loop.enclosed <= ratio * loop.stepped ? 1 : (ratio * loop.stepped) / loop.enclosed;
   return Math.min(rule.maxStrength, rule.maxStrength * Math.min(1, loop.shape) * sprawl);
 }
+
+/**
+ * `sim-pilot-2`: the churn study's combined credits-only proposal
+ * (`docs/SIM_CHURN_STUDY.md`). It is sim-pilot-1 with four changes, each a
+ * PILOT PROPOSAL and none final:
+ *
+ * 1. A9 alternative: a two-day challenge (window 3 days, a blocked flip
+ *    leaves 50, ground under 30 falls at once). The V3 numbers (push 100,
+ *    strength 100) and the owner's one-push rule are unchanged.
+ * 2. Daily take cap: each walker pushes at most 13 units held by someone
+ *    else a day (5 at the 201 m scale, scaled by edge length).
+ * 3. D5: 76 m units (H3 resolution 10 scale) grouped into 201 m zones
+ *    (resolution 9 scale) for upkeep, visits, levels and fortify.
+ * 4. Holding rules version 9002, so its ledger entries never mix with sim-pilot-1's.
+ *
+ * Every economy number (economy rules version 1) is V3's, unchanged.
+ */
+export const SIM_PILOT_2: Readonly<SimRuleset> = Object.freeze({
+  name: "sim-pilot-2",
+  rulesetVersion: 2,
+  status: SIM_ONLY,
+  economyRulesVersion: 1,
+  season: 1,
+  holding: {
+    rulesVersion: 9002,
+    solidDecayPerDay: 3,
+    shadeDecayMultiplier: 3,
+    stageFloors: { held: 60, atRisk: 30, contested: 10 },
+    takeover: { challenge: { windowDays: 3, floor: 50, immediateBelowStrength: 30 }, maxFlipsPerUnitPerDay: null },
+  },
+  pushesPerWalkerPerUnitPerDay: 1,
+  shade: { maxStrength: 25, fullStrengthEnclosedPerStepped: 12, minShape: 0.35 },
+  unitEdgeMeters: 76,
+  upkeepCondition: "proportional_strongest_first",
+  shadeCountsAsHeld: false,
+  levelOnLoss: { newHolder: "reset_to_1", reclaimRestoreDays: 14 },
+  awayDays: { perSeason: 14, mode: "auto" },
+  clubs: { maxActive: 1, changeEffective: "next_day" },
+  contributions: {
+    weights: { claimed: 1, flipped: 1, eroded: 0.5, reinforced: 0.25 },
+    oncePerUnitPerDay: true,
+    reinforceCooldownDays: 7,
+    shadeCounts: false,
+    clubMatePushesCount: false,
+  },
+  districts: { version: "sim-districts-v1", count: 12 },
+  control: { shadeWeight: { numerator: 1, denominator: 4 }, minShare: { numerator: 1, denominator: 3 } },
+  leaderboard: "club_district_days",
+  clubMateErosion: "erodes",
+  levels: {
+    enabled: true,
+    camp: { visits: 3, windowDays: 14, costDayShares: 2 },
+    holding: { heldDays: 14, costDayShares: 6 },
+  },
+  churn: { walkerTakeCap: 13, homeDefenceDays: null, fortify: null, zoneEdgeMeters: 201, repeatRouteUnscoredDays: null },
+} satisfies SimRuleset);

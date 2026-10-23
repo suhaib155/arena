@@ -1,0 +1,1367 @@
+/**
+ * Server-authoritative holding, settlement, clubs, districts and leaderboards
+ * (G3/G4 server preparation). Off unless MOVENRUN_GAMEPLAY_ENABLED is set; the
+ * tables it uses come from the PROPOSED migration
+ * drizzle-proposed/0011_gameplay_holdings.sql (revision 2), which is not
+ * applied anywhere live.
+ *
+ * Every rule lives in the shared reference models; this file only loads state,
+ * runs them and stores what they return:
+ *
+ * - `applySession`: a verified movement session becomes one stepped-on push
+ *   per traversed unit, run through `applyLedger`. The phone never names a
+ *   unit, a push or an outcome; the server derives all of it.
+ * - `settleDay`: a closed day through `holdingsAtDayClose`,
+ *   `settleCreditsDay`, `clubSnapshot`, `clubContributions` and
+ *   `districtControl`. A day with any problem is stored as refused. It also
+ *   writes one proof row per walker of the day.
+ * - reads: own holdings and credits, club and district aggregates, and a
+ *   season board through `seasonLeaderboard`, from settled days only.
+ *
+ * Storage (revision 2): units are stored as the H3 cell's bigint index,
+ * players in the high-volume tables as `gameplay_players.player_no`. Only
+ * accepted pushes are ledger rows; a refused push is a counter on the
+ * walker's day row (`gameplay_walker_days`), with one refused unit per zone
+ * kept so day close sees the same visits. The ledger and the day rows are in
+ * day partitions; the server creates them ahead of use.
+ *
+ * Idempotency: a source is applied once. A movement session is a source
+ * (`gameplay_applied_sessions`, keyed by the session and holding its
+ * receipt); so is a server batch key. A push's event id is
+ * "<source>:<cell>", stored as (source_no, unit, day), the ledger's primary
+ * key. Each day is settled once (primary key).
+ * Concurrency: pushes lock their unit rows in id order and hold a shared
+ * advisory lock on their day; settlement holds the exclusive one and runs
+ * SERIALIZABLE. The one-push-per-walker-per-unit-per-day rule is also a
+ * unique index, so the database refuses a second push even if this code
+ * were wrong.
+ *
+ * Rule sets (rules.ts): each day is pinned to one holding rules version in
+ * `gameplay_day_rules`; pushes, counters, proofs and the settlement of that
+ * day carry it. A batch locks its source, the day, then the walkers' day
+ * rows, then the units, always in that order. The take budget, the unit
+ * budget and the two-day challenge are applied in the same transaction as
+ * the pushes, and anything recorded under another or an unknown version
+ * fails closed.
+ *
+ * Capacity: every walker has a daily budget of verified units (default 300,
+ * `unitBudget`), counted on the server and spent once per applied push, so
+ * a retried session spends nothing. An optional `capacityGuard` is asked
+ * before any push is written; when it says stop, or fails, the push is
+ * refused with 503 `capacity_hard_stop` and nothing is written. Settlement,
+ * erasure and reads never ask it.
+ */
+import { createHash, randomUUID } from "node:crypto";
+import { sql, type SQL } from "drizzle-orm";
+import type { Db } from "../db/client.js";
+import { decayTo, stageOf, type Ground, type LandLevel, type PushOutcome, type UnitState } from "@movenrun/shared/holding";
+import { applyLedger, type LedgerEntry, type PushEvent } from "@movenrun/shared/holdingLedger";
+import { holdingsAtDayClose, settleCreditsDay, type CreditsDayResult, type CreditsPlayerInput } from "@movenrun/shared/holdingSettlement";
+import {
+  clubContributions, clubSnapshot, districtControl, seasonLeaderboard,
+  type DistrictControlResult, type DistrictStanding, type LeaderboardMetric, type Membership, type SeasonDay,
+} from "@movenrun/shared/clubsDistricts";
+import type { DaySettlement } from "@movenrun/shared/economy-v3";
+import {
+  dayOf, dayStartMs, isUnitUnder, lastClosedDay, rulesetConfig, rulesetDigest, rulesetFor, seasonOf, UnknownRulesVersionError, zoneOfUnder,
+  type GameplayRules,
+} from "./rules.js";
+import {
+  applyServerLedger, challengeKey, isRefused, REFUSED_OUTCOMES, SERVER_OUTCOMES,
+  type RefusedOutcome, type SecondPushInput, type ServerEventResult, type ServerLedgerEntry, type ServerOutcome, type ServerRejectReason,
+} from "./policy.js";
+import { DEFAULT_UNIT_BUDGET, type CapacityGuard } from "./capacity.js";
+import { cellToInt8, int8ToCell, isStorableCell } from "./cells.js";
+import { bitsToFlags, pushUnitsOf, steppedUnitsOf } from "./path.js";
+import { partitionProblems, withPartitionLevels, zonePartitions } from "./zones.js";
+
+/** Advisory lock namespace ("MRGP"); the second key is the day index. */
+export const GAMEPLAY_LOCK_NAMESPACE = 0x4d524750;
+/** Advisory lock namespace ("MRGS"); the second key is the season. Taken only to pin a new day. */
+export const GAMEPLAY_SEASON_LOCK_NAMESPACE = 0x4d524753;
+
+/** Server receipt time of a movement row, epoch ms, whatever the session time zone. */
+const RECEIVED_MS = sql.raw(`(extract(epoch FROM (created_at AT TIME ZONE current_setting('TimeZone'))) * 1000)::float8`);
+
+export class GameplayError extends Error {
+  constructor(readonly status: number, readonly code: string) {
+    super(code);
+  }
+}
+
+/** A day whose ledger partition does not exist yet; created outside the push transaction, then retried. */
+class MissingPartitionError extends Error {
+  constructor(readonly day: number) {
+    super(`no gameplay partition for day ${day}`);
+  }
+}
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Exec = Db | Tx;
+
+/** A whole array as one parameter (drizzle would otherwise spread it into a list). */
+const arr = (values: readonly unknown[]) => sql.param(values);
+
+async function rows<T = Record<string, unknown>>(exec: Exec, query: SQL): Promise<T[]> {
+  const result = await exec.execute(query);
+  return result.rows as T[];
+}
+
+function pgCode(err: unknown): string | undefined {
+  const e = err as { code?: unknown; cause?: { code?: unknown } } | null;
+  const code = e?.code ?? e?.cause?.code;
+  return typeof code === "string" ? code : undefined;
+}
+
+/** A deadlock (40P01) or serialization failure (40001): the transaction was aborted whole and is safe to rerun. */
+function isRetryableContention(err: unknown): boolean {
+  const code = pgCode(err);
+  return code === "40P01" || code === "40001";
+}
+
+function pgConstraint(err: unknown): string | undefined {
+  const e = err as { constraint?: unknown; cause?: { constraint?: unknown } } | null;
+  const c = e?.constraint ?? e?.cause?.constraint;
+  return typeof c === "string" ? c : undefined;
+}
+
+const OUTCOMES: readonly ServerOutcome[] = SERVER_OUTCOMES;
+const byString = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/** Ledger outcome codes (0011 revision 2): accepted pushes only. */
+const ACCEPTED_CODE: Partial<Record<ServerOutcome, number>> = { claimed: 1, reinforced: 2, eroded: 3, flipped: 4 };
+const ACCEPTED_OUTCOME: Record<number, PushOutcome> = { 1: "claimed", 2: "reinforced", 3: "eroded", 4: "flipped" };
+/** Columns of gameplay_walker_days that count each refusal. */
+const REFUSED_COLUMN: Record<RefusedOutcome, string> = {
+  refused_deeded: "refused_deeded", refused_masked: "refused_masked", refused_daily_limit: "refused_daily_limit", refused_take_budget: "refused_take_budget",
+};
+/** At most this many refused units are kept per walker and day (the column's check). */
+const MAX_VISIT_UNITS = 1000;
+
+export interface ApplySummary {
+  sessionId: string;
+  day: number;
+  /** True when this session had already been applied and nothing changed. */
+  replayed: boolean;
+  applied: number;
+  skipped: number;
+  rejected: number;
+  outcomes: Record<ServerOutcome, number>;
+  rejectedByReason: Partial<Record<ServerRejectReason, number>>;
+}
+
+export interface BatchResult {
+  applied: number;
+  skipped: number;
+  rejected: number;
+  outcomes: Record<ServerOutcome, number>;
+  rejectedByReason: Partial<Record<ServerRejectReason, number>>;
+}
+
+export interface DaySummary {
+  day: number;
+  season: number;
+  status: "settled" | "refused";
+  clubsStatus: "settled" | "refused" | "skipped";
+  players: number;
+  poolMicro: number;
+  mintedMicro: number;
+  creditedMicro: number;
+  burnedMicro: number;
+  returnedMicro: number;
+  /** True when this call settled the day; false when it already was. */
+  created: boolean;
+}
+
+interface UnitRow {
+  unit: string;
+  holder_id: string | null;
+  strength: number;
+  ground: Ground;
+  deeded: boolean;
+  masked: boolean;
+  level: number;
+  fortified: boolean;
+  as_of_day: number;
+}
+
+function toState(r: UnitRow, asOfDay = Number(r.as_of_day)): UnitState {
+  return {
+    unitId: int8ToCell(r.unit),
+    holderId: r.holder_id,
+    strength: Number(r.strength),
+    ground: r.ground,
+    deeded: r.deeded,
+    masked: r.masked,
+    level: Number(r.level) as LandLevel,
+    fortified: r.fortified,
+    asOfDay,
+  };
+}
+
+function emptyOutcomes(): Record<ServerOutcome, number> {
+  return Object.fromEntries(OUTCOMES.map((o) => [o, 0])) as Record<ServerOutcome, number>;
+}
+
+function emptyResult(): BatchResult {
+  return { applied: 0, skipped: 0, rejected: 0, outcomes: emptyOutcomes(), rejectedByReason: {} };
+}
+
+function count(result: BatchResult, r: ServerEventResult): void {
+  if (r.status === "applied") {
+    result.applied += 1;
+    result.outcomes[r.outcome] += 1;
+  } else if (r.status === "skipped") {
+    result.skipped += 1;
+  } else {
+    result.rejected += 1;
+    result.rejectedByReason[r.reason] = (result.rejectedByReason[r.reason] ?? 0) + 1;
+  }
+}
+
+function digest(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+/** The source half of a derived event id "<source>:<cell>", or null when the id is not of that form. */
+function sourceKeyOf(e: PushEvent): string | null {
+  if (typeof e.eventId !== "string" || typeof e.unitId !== "string" || e.unitId.length === 0) return null;
+  const suffix = `:${e.unitId}`;
+  if (!e.eventId.endsWith(suffix)) return null;
+  const key = e.eventId.slice(0, -suffix.length);
+  return key.length >= 1 && key.length <= 200 ? key : null;
+}
+
+/** A source this batch may write under: its number, or that it was applied already. */
+interface Source { sourceNo: number; applied: boolean }
+
+/** What the capacity guard allows this batch. */
+interface Allowance { factor: number }
+
+export interface GameplayServiceDeps {
+  db: Db;
+  rules: GameplayRules;
+  now?: () => number;
+  /**
+   * Verified units one walker may push a day, accepted or refused (default
+   * 300). A capacity guard, not a game rule; null turns it off (benchmarks).
+   */
+  unitBudget?: number | null;
+  /** Asked before any push is written. Absent: no guard. A stop, or a failure, refuses the push with 503. */
+  capacityGuard?: CapacityGuard;
+  /** work_mem for the settlement transaction, in kB (default 16 MiB), so the day's sorts stay in memory. */
+  settlementWorkMemKb?: number;
+}
+
+export class GameplayService {
+  private readonly db: Db;
+  readonly rules: GameplayRules;
+  private readonly now: () => number;
+  private readonly unitBudget: number | null;
+  private readonly capacityGuard: CapacityGuard | undefined;
+  private readonly settlementWorkMemKb: number;
+
+  constructor(deps: GameplayServiceDeps) {
+    this.db = deps.db;
+    this.rules = deps.rules;
+    this.now = deps.now ?? Date.now;
+    this.unitBudget = deps.unitBudget === undefined ? DEFAULT_UNIT_BUDGET : deps.unitBudget;
+    if (this.unitBudget !== null && !(Number.isInteger(this.unitBudget) && this.unitBudget >= 1)) throw new Error("unitBudget must be a whole number, 1 or more, or null");
+    this.capacityGuard = deps.capacityGuard;
+    this.settlementWorkMemKb = deps.settlementWorkMemKb ?? 16_384;
+    if (!(Number.isInteger(this.settlementWorkMemKb) && this.settlementWorkMemKb >= 64 && this.settlementWorkMemKb <= 1_048_576)) throw new Error("settlementWorkMemKb must be 64 to 1048576");
+  }
+
+  today(): number {
+    return dayOf(this.rules, this.now());
+  }
+
+  /* ── partitions ──────────────────────────────────────────────────────── */
+
+  /**
+   * Create the ledger and day-row partitions for `fromDay` to `toDay` that do
+   * not exist yet. Its own short transaction, never inside a push. Run by the
+   * maintenance loop for the coming days, and by the push path for a day
+   * that has none.
+   */
+  async ensurePartitions(fromDay: number, toDay: number): Promise<number> {
+    const [r] = await rows<{ made: number }>(this.db, sql`SELECT public.gameplay_ensure_day_partitions(${fromDay}::int, ${toDay}::int) AS made`);
+    return Number(r?.made ?? 0);
+  }
+
+  /**
+   * Run a push transaction, creating a missing day partition first when it
+   * asks for one. Creating a partition is DDL: it locks the partitioned
+   * parent and the tables its foreign keys reference, so it can deadlock
+   * with pushes already in flight (PostgreSQL then aborts one side with
+   * 40P01; a serialization failure is 40001). Both sides are whole transactions and the aborted one wrote
+   * nothing, so the victim is retried, a bounded number of times. When the
+   * retries run out the push is refused with 409 `concurrent_push_retry`
+   * (the transaction is already rolled back) instead of a raw driver error.
+   */
+  private async withPartitions<T>(fn: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        const last = attempt >= 4;
+        if (err instanceof MissingPartitionError && !last) {
+          await this.ensurePartitionsRetrying(err.day, err.day + 1);
+          continue;
+        }
+        if (isRetryableContention(err)) {
+          if (!last) continue;
+          // Retries exhausted: every attempt rolled back whole, so the client may simply push again.
+          throw new GameplayError(409, "concurrent_push_retry");
+        }
+        throw err;
+      }
+    }
+  }
+
+  private async ensurePartitionsRetrying(fromDay: number, toDay: number): Promise<void> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.ensurePartitions(fromDay, toDay);
+        return;
+      } catch (err) {
+        if (!isRetryableContention(err)) throw err;
+        if (attempt >= 4) throw new GameplayError(409, "concurrent_push_retry");
+      }
+    }
+  }
+
+  private async requirePartitions(tx: Tx, day: number): Promise<void> {
+    const [p] = await rows<{ ok: boolean }>(tx, sql`
+      SELECT to_regclass(${`gameplay_partitions.gameplay_push_events_d${day}`}) IS NOT NULL
+         AND to_regclass(${`gameplay_partitions.gameplay_walker_days_d${day}`}) IS NOT NULL AS ok`);
+    if (!p?.ok) throw new MissingPartitionError(day);
+  }
+
+  /* ── capacity ────────────────────────────────────────────────────────── */
+
+  private async allowance(): Promise<Allowance> {
+    if (!this.capacityGuard) return { factor: 1 };
+    let decision;
+    try {
+      decision = await this.capacityGuard();
+    } catch {
+      throw new GameplayError(503, "capacity_hard_stop");
+    }
+    const factor = Number(decision?.pushBudgetFactor);
+    if (!decision || decision.acceptPushes !== true || !(factor > 0 && factor <= 1)) throw new GameplayError(503, "capacity_hard_stop");
+    return { factor };
+  }
+
+  /* ── players ─────────────────────────────────────────────────────────── */
+
+  /** Player numbers for these users, created for the ones that have none. */
+  private async playerNos(tx: Tx, userIds: readonly string[]): Promise<Map<string, number>> {
+    const ids = [...new Set(userIds)].sort(byString);
+    const out = new Map<string, number>();
+    if (ids.length === 0) return out;
+    const read = async () => {
+      for (const r of await rows<{ player_no: number; user_id: string }>(tx, sql`
+        SELECT player_no, user_id FROM gameplay_players WHERE user_id = ANY(${arr(ids)}::text[])`)) out.set(r.user_id, Number(r.player_no));
+    };
+    await read();
+    const missing = ids.filter((u) => !out.has(u));
+    if (missing.length > 0) {
+      await tx.execute(sql`
+        INSERT INTO gameplay_players (user_id) SELECT u FROM unnest(${arr(missing)}::text[]) WITH ORDINALITY AS t(u, n) ORDER BY n
+        ON CONFLICT (user_id) DO NOTHING`);
+      await read();
+    }
+    return out;
+  }
+
+  /* ── pushes ──────────────────────────────────────────────────────────── */
+
+  /**
+   * Turn one of the caller's verified movement sessions into pushes. Keyed by
+   * the authenticated user and the client's own session id, so a retry (or a
+   * guess at someone else's id) can never apply anything twice or for anyone
+   * else. Every traversed unit is a stepped-on push: the traversed cells are
+   * the cells that contain a verified fix (assumption A1), never cells
+   * inferred between fixes. Shade needs D2 and is not derived here.
+   */
+  async applySession(userId: string, clientSessionId: string): Promise<ApplySummary> {
+    const now = this.now();
+    try {
+      return await this.withPartitions(() => this.db.transaction(async (tx) => {
+        const [mv] = await rows<{ id: string; status: string; end_time: string; traversed_hex_ids: string[] | null; received_ms: number }>(tx, sql`
+          SELECT id, status, end_time, traversed_hex_ids, ${RECEIVED_MS} AS received_ms FROM movement_verifications
+           WHERE user_id = ${userId} AND client_session_id = ${clientSessionId}
+           FOR UPDATE`);
+        if (!mv) throw new GameplayError(404, "session_not_found");
+        const [done] = await rows<{ day: number; applied: number; skipped: number; rejected: number; outcome_counts: number[]; rejected_by_reason: Partial<Record<ServerRejectReason, number>> | null }>(tx, sql`
+          SELECT day, applied, skipped, rejected, outcome_counts, rejected_by_reason FROM gameplay_applied_sessions WHERE movement_verification_id = ${mv.id}`);
+        if (done) {
+          const outcomes = emptyOutcomes();
+          OUTCOMES.forEach((o, i) => { outcomes[o] = Number(done.outcome_counts[i] ?? 0); });
+          return {
+            sessionId: clientSessionId, day: Number(done.day), replayed: true,
+            applied: done.applied, skipped: done.skipped, rejected: done.rejected,
+            outcomes, rejectedByReason: done.rejected_by_reason ?? {},
+          };
+        }
+        if (mv.status !== "verified") throw new GameplayError(409, "session_not_verified");
+        const day = dayOf(this.rules, Number(mv.end_time));
+        if (day > dayOf(this.rules, now)) throw new GameplayError(409, "session_in_future");
+        if (seasonOf(this.rules, day) === null) throw new GameplayError(409, "season_not_started");
+        // 1001: the stored cells, in unit id order. 1002: the canonical path the
+        // server derived from the verified fixes, in walk order.
+        const source = this.rules.units.source;
+        const unitIds = source ? await this.sessionPathUnits(tx, mv.id) : [...new Set(mv.traversed_hex_ids ?? [])].sort(byString);
+        if (unitIds.length > this.rules.maxUnitsPerSession) throw new GameplayError(422, "too_many_units");
+        // D5: a session whose cells are not units under the running rule set
+        // (for example resolution 8 cells under resolution 10 units) is refused
+        // whole, as is anything that is not a canonical H3 cell (the store's unit).
+        if (unitIds.some((u) => !isUnitUnder(this.rules.units, u) || !isStorableCell(u))) throw new GameplayError(422, "unit_resolution_mismatch");
+        const allowance = await this.allowance();
+        const [{ n: sourceNo }] = await rows<{ n: number }>(tx, sql`SELECT nextval('gameplay_source_no_seq')::int AS n`) as [{ n: number }];
+        const key = `mv:${mv.id}`;
+        const events: PushEvent[] = unitIds.map((unitId) => ({ eventId: `${key}:${unitId}`, unitId, walkerId: userId, push: { kind: "solid" }, day }));
+        // 1002 orders the session's pushes by walk position and times its
+        // day-boundary guard by the server's receipt of the session row.
+        const walkOrder = source ? new Map(events.map((e, i) => [e.eventId, i])) : undefined;
+        const { result } = await this.applyBatch(tx, events, day, new Map([[key, { sourceNo: Number(sourceNo), applied: false }]]), now, allowance,
+          { walkOrder, receivedMs: Number(mv.received_ms) });
+        await tx.execute(sql`
+          INSERT INTO gameplay_applied_sessions (source_no, movement_verification_id, user_id, day, applied, skipped, rejected, outcome_counts, rejected_by_reason, holding_rules_version)
+          VALUES (${Number(sourceNo)}, ${mv.id}, ${userId}, ${day}, ${result.applied}, ${result.skipped}, ${result.rejected},
+                  ${arr(OUTCOMES.map((o) => result.outcomes[o]))}::int[],
+                  ${Object.keys(result.rejectedByReason).length === 0 ? null : JSON.stringify(result.rejectedByReason)}::jsonb, ${this.rules.holding.rulesVersion})`);
+        return { sessionId: clientSessionId, day, replayed: false, ...result };
+      }));
+    } catch (err) {
+      throw this.mapPushError(err);
+    }
+  }
+
+  /**
+   * Apply a batch of pushes, all for one day, in its own transaction. The
+   * server-side entry for pushes that do not come from one movement session
+   * (for example shade, once D2 exists). Not reachable over HTTP.
+   *
+   * Every event id must be "<source key>:<unitId>". Each source key is
+   * applied once: a later batch under the same key is skipped whole. A key
+   * of a movement session ("mv:<id>") is skipped once that session is
+   * applied and otherwise refused, so a session is only ever applied by
+   * `applySession`.
+   */
+  async applyPushes(events: readonly PushEvent[]): Promise<BatchResult> {
+    // Server batches have no session: their receipt time is now.
+    const days = [...new Set(events.map((e) => e.day))];
+    if (days.length !== 1) throw new GameplayError(400, "one_day_per_batch");
+    const day = days[0]!;
+    const now = this.now();
+    try {
+      return await this.withPartitions(() => this.db.transaction(async (tx) => {
+        const allowance = await this.allowance();
+        const keys = [...new Set(events.map(sourceKeyOf).filter((k): k is string => k !== null))].sort(byString);
+        const sources = new Map<string, Source>();
+        const sessionKeys = keys.filter((k) => k.startsWith("mv:"));
+        if (sessionKeys.length > 0) {
+          for (const r of await rows<{ movement_verification_id: string; source_no: number }>(tx, sql`
+            SELECT movement_verification_id, source_no FROM gameplay_applied_sessions
+             WHERE movement_verification_id = ANY(${arr(sessionKeys.map((k) => k.slice(3)))}::text[])`)) {
+            sources.set(`mv:${r.movement_verification_id}`, { sourceNo: Number(r.source_no), applied: true });
+          }
+        }
+        // A new key's receipt row is written first, so a concurrent batch
+        // under the same key waits for this one and then finds it applied.
+        const batchKeys = keys.filter((k) => !k.startsWith("mv:"));
+        const owned = new Map<string, number>();
+        if (batchKeys.length > 0) {
+          const hv = this.rules.holding.rulesVersion;
+          for (const r of await rows<{ batch_key: string; source_no: number }>(tx, sql`
+            INSERT INTO gameplay_applied_sessions (batch_key, day, applied, skipped, rejected, outcome_counts, holding_rules_version)
+            SELECT k, ${day}::int, 0, 0, 0, '{0,0,0,0,0,0,0,0}'::int[], ${hv}::int FROM unnest(${arr(batchKeys)}::text[]) WITH ORDINALITY AS t(k, n) ORDER BY n
+            ON CONFLICT (batch_key) DO NOTHING RETURNING batch_key, source_no`)) owned.set(r.batch_key, Number(r.source_no));
+          for (const k of batchKeys) {
+            sources.set(k, owned.has(k) ? { sourceNo: owned.get(k)!, applied: false } : { sourceNo: 0, applied: true });
+          }
+        }
+        const { result, perEvent } = await this.applyBatch(tx, events, day, sources, now, allowance);
+        // Each new key's receipt: what its own events did.
+        for (const [k, sourceNo] of owned) {
+          const mine = emptyResult();
+          for (const r of perEvent) if (r.key === k) count(mine, r.result);
+          await tx.execute(sql`
+            UPDATE gameplay_applied_sessions SET applied = ${mine.applied}, skipped = ${mine.skipped}, rejected = ${mine.rejected},
+              outcome_counts = ${arr(OUTCOMES.map((o) => mine.outcomes[o]))}::int[],
+              rejected_by_reason = ${Object.keys(mine.rejectedByReason).length === 0 ? null : JSON.stringify(mine.rejectedByReason)}::jsonb
+             WHERE source_no = ${sourceNo}`);
+        }
+        return result;
+      }));
+    } catch (err) {
+      throw this.mapPushError(err);
+    }
+  }
+
+  /**
+   * The units of a session's stored path (1002), in walk order. Fails closed:
+   * a session verified without a path (before the path existed, or while
+   * gameplay was off) or under another path rule is never guessed at.
+   */
+  private async sessionPathUnits(tx: Tx, movementId: string): Promise<string[]> {
+    const rule = this.rules.units.source!.rule;
+    const [path] = await rows<{ path_version: number; resolution: number; unit_ids: string[]; interpolated: string }>(tx, sql`
+      SELECT path_version, resolution, unit_ids::text[] AS unit_ids, interpolated::text AS interpolated
+        FROM gameplay_session_paths WHERE movement_verification_id = ${movementId}`);
+    if (!path) throw new GameplayError(409, "session_path_unavailable");
+    if (Number(path.path_version) !== rule.version || Number(path.resolution) !== rule.resolution) throw new GameplayError(409, "session_path_version_mismatch");
+    const units = path.unit_ids.map(int8ToCell);
+    return pushUnitsOf({ units, interpolated: bitsToFlags(path.interpolated, units.length) }, rule);
+  }
+
+  private mapPushError(err: unknown): unknown {
+    if (err instanceof GameplayError) return err;
+    // The one-push index, or a concurrent writer of the same event id: the
+    // whole batch rolled back and a retry will re-read the winner's rows.
+    if (pgCode(err) === "23505") return new GameplayError(409, "concurrent_push_retry");
+    return err;
+  }
+
+  private async applyBatch(
+    tx: Tx, events: readonly PushEvent[], day: number, sources: ReadonlyMap<string, Source>, now: number, allowance: Allowance,
+    opts: { walkOrder?: ReadonlyMap<string, number>; receivedMs?: number } = {},
+  ): Promise<{ result: BatchResult; perEvent: { key: string | null; result: ServerEventResult }[] }> {
+    const rules = this.rules;
+    const hv = rules.holding.rulesVersion;
+    // Pushes share the day; its settlement takes the exclusive lock, so a day
+    // is never settled while a push for it is in flight.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock_shared(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
+    const [closed] = await rows(tx, sql`SELECT 1 FROM gameplay_day_settlements WHERE day = ${day}`);
+    if (closed || day <= lastClosedDay(this.rules, now)) throw new GameplayError(409, "day_closed");
+    await this.requirePartitions(tx, day);
+    // The day runs under exactly one rule set, pinned by its first write.
+    await this.pinDayRules(tx, day);
+
+    const result = emptyResult();
+    const perEvent: { key: string | null; result: ServerEventResult }[] = [];
+    const record = (key: string | null, r: ServerEventResult) => {
+      perEvent.push({ key, result: r });
+      count(result, r);
+    };
+    // Sources first: an event of an applied source is skipped, one with no
+    // usable source is the model's invalid event.
+    const live: PushEvent[] = [];
+    const keyOf = new Map<PushEvent, string>();
+    for (const e of events) {
+      const key = sourceKeyOf(e);
+      const source = key === null ? undefined : sources.get(key);
+      if (key === null || !source) {
+        record(key, { eventId: String(e.eventId), unitId: String(e.unitId), status: "rejected", reason: "invalid_event", detail: "event id is not <source>:<unit>" });
+      } else if (source.applied) {
+        record(key, { eventId: e.eventId, unitId: e.unitId, status: "skipped", reason: "already_applied" });
+      } else {
+        live.push(e);
+        keyOf.set(e, key);
+      }
+    }
+
+    const unitIds = [...new Set(live.map((e) => e.unitId).filter((u) => typeof u === "string" && u.length > 0 && u.length <= 64))].sort(byString);
+    if (unitIds.length === 0) {
+      // Nothing to lock: the model rejects every event on its own.
+      for (const r of applyLedger({ states: new Map(), events: live, rules: this.rules.holding }).results) {
+        if (r.status === "rejected") record(null, r);
+      }
+      return { result, perEvent };
+    }
+    if (unitIds.some((u) => !isUnitUnder(rules.units, u) || !isStorableCell(u))) throw new GameplayError(422, "unit_resolution_mismatch");
+    const unitInts = unitIds.map(cellToInt8);
+
+    // Lock order, the same for every batch so none can deadlock: the day
+    // (shared), then walker day rows by player number, then units by unit.
+    const walkers = [...new Set(live.map((e) => e.walkerId).filter((w) => typeof w === "string" && w.length > 0))].sort(byString);
+    const playerNo = await this.playerNos(tx, walkers);
+    const walkerNos = walkers.map((w) => playerNo.get(w)!).sort((a, b) => a - b);
+    if (walkerNos.length > 0) {
+      await tx.execute(sql`
+        INSERT INTO gameplay_walker_days (walker_no, day, holding_rules_version)
+        SELECT w, ${day}::int, ${hv}::int FROM unnest(${arr(walkerNos)}::int[]) WITH ORDINALITY AS t(w, n) ORDER BY n
+        ON CONFLICT (walker_no, day) DO NOTHING`);
+    }
+    // The day's take budget is the pinned rule set's (gameplay_day_rules.take_budget);
+    // the database checks the take counters against it at commit.
+    const counters = walkerNos.length === 0 ? [] : await rows<{ walker_no: number; takes_used: number; units_used: number; visit_units: string[] }>(tx, sql`
+      SELECT walker_no, takes_used, units_used, visit_units::text[] AS visit_units FROM gameplay_walker_days
+       WHERE day = ${day} AND walker_no = ANY(${arr(walkerNos)}::int[]) ORDER BY walker_no FOR UPDATE`);
+    const userOf = new Map([...playerNo].map(([u, n]) => [n, u]));
+    const takesUsed = new Map(counters.map((c) => [userOf.get(Number(c.walker_no))!, Number(c.takes_used)]));
+    const unitsUsedBefore = new Map(counters.map((c) => [userOf.get(Number(c.walker_no))!, Number(c.units_used)]));
+    const visitsBefore = new Map(counters.map((c) => [userOf.get(Number(c.walker_no))!, (c.visit_units ?? []).map(String)]));
+    // Server-side unit budget, scaled by the capacity guard; spent once per applied push.
+    const unitsRemaining = this.unitBudget === null ? undefined : new Map(walkers.map((w) => {
+      const budget = Math.floor(this.unitBudget! * allowance.factor);
+      return [w, Math.max(0, budget - (unitsUsedBefore.get(w) ?? 0))] as const;
+    }));
+
+    // A unit row must exist to be locked: create the missing ones unheld, as
+    // the model's newUnit() would. Sorted, so concurrent batches insert and
+    // lock in the same order and cannot deadlock.
+    await tx.execute(sql`
+      INSERT INTO gameplay_units (unit, as_of_day, holding_rules_version)
+      SELECT u, ${day}::int, ${hv}::int FROM unnest(${arr(unitInts)}::bigint[]) WITH ORDINALITY AS t(u, n) ORDER BY n
+      ON CONFLICT (unit) DO NOTHING`);
+    const locked = await rows<UnitRow & { holding_rules_version: number }>(tx, sql`
+      SELECT unit::text AS unit, holder_id, strength, ground, deeded, masked, level, fortified, as_of_day, holding_rules_version
+        FROM gameplay_units WHERE unit = ANY(${arr(unitInts)}::bigint[]) ORDER BY unit FOR UPDATE`);
+    // No silent migration: held ground written under another rule set is
+    // never re-read under this one. Unheld ground carries no rule-dependent
+    // state and is adopted.
+    if (locked.some((r) => r.holder_id !== null && Number(r.holding_rules_version) !== hv)) throw new GameplayError(409, "unit_rules_version_mismatch");
+    // Read after the locks, so pushes committed by a batch we waited for are seen.
+    const pushedToday = await rows<{ unit: string; walker_id: string }>(tx, sql`
+      SELECT e.unit::text AS unit, p.user_id AS walker_id FROM gameplay_push_events e JOIN gameplay_players p ON p.player_no = e.walker_no
+       WHERE e.day = ${day} AND e.unit = ANY(${arr(unitInts)}::bigint[]) AND e.outcome IN (3, 4)
+       ORDER BY e.unit, p.user_id`);
+    // opened_received_at: the server's receipt time of the push that opened
+    // the challenge (never a client clock).
+    const challengeRows = await rows<{ unit: string; walker_id: string; first_day: number; opened_ms: number }>(tx, sql`
+      SELECT unit::text AS unit, walker_id, first_day, (extract(epoch FROM opened_received_at) * 1000)::float8 AS opened_ms
+        FROM gameplay_unit_challenges
+       WHERE unit = ANY(${arr(unitInts)}::bigint[]) ORDER BY unit, walker_id`);
+    const openedBefore = new Map(challengeRows.map((c) => [challengeKey(int8ToCell(c.unit), c.walker_id), Number(c.opened_ms)]));
+    const receivedAt = opts.receivedMs ?? now;
+
+    // 1002's day-boundary guard: when the server received the session that opened each open challenge.
+    const takeover = rules.takeover;
+    let secondPush: SecondPushInput | undefined;
+    if (takeover.name === "two-day-challenge" && takeover.policyVersion === 2) {
+      secondPush = {
+        minElapsedMs: takeover.secondPush.minElapsedMs,
+        windowDays: takeover.windowDays,
+        eventReceivedMs: new Map(live.map((e) => [e.eventId, receivedAt])),
+        challengeOpenedMs: new Map(openedBefore),
+      };
+    }
+
+    const pushers = new Map<string, string[]>();
+    for (const p of pushedToday) {
+      const u = int8ToCell(p.unit);
+      pushers.set(u, [...(pushers.get(u) ?? []), p.walker_id]);
+    }
+    const challenges = new Map<string, { walkerId: string; day: number }[]>();
+    for (const c of challengeRows) {
+      const u = int8ToCell(c.unit);
+      challenges.set(u, [...(challenges.get(u) ?? []), { walkerId: c.walker_id, day: Number(c.first_day) }]);
+    }
+    const states = new Map<string, UnitState>();
+    for (const r of locked) {
+      const state = toState(r);
+      const walkersToday = pushers.get(state.unitId);
+      if (walkersToday && state.asOfDay === day) state.pushedBy = { day, walkerIds: walkersToday };
+      const open = challenges.get(state.unitId);
+      if (open) state.challenges = open;
+      states.set(state.unitId, state);
+    }
+
+    const ledger = applyServerLedger({
+      states, events: live, holding: rules.holding, takesUsed, budget: rules.takeBudget, unitsRemaining,
+      walkOrder: opts.walkOrder, secondPush,
+    });
+    const keyOfId = new Map(live.map((e) => [e.eventId, keyOf.get(e)!]));
+    for (const r of ledger.results) record(keyOfId.get(r.eventId) ?? null, r);
+    if (ledger.entries.length === 0) return { result, perEvent };
+
+    // Everyone the rows below name gets a player number.
+    const named = ledger.entries.flatMap((e) => [e.previousHolderId, e.newHolderId]).filter((x): x is string => typeof x === "string");
+    const touchedHolders = [...ledger.states.values()].map((s) => s.holderId).filter((x): x is string => typeof x === "string");
+    for (const [u, n] of await this.playerNos(tx, [...named, ...touchedHolders].filter((x) => !playerNo.has(x)))) playerNo.set(u, n);
+    const no = (u: string | null) => (u === null ? null : playerNo.get(u)!);
+
+    const changed = ledger.entries.filter((e) => e.outcome !== "refused_take_budget");
+    const touched = [...new Set(changed.map((e) => e.unitId))].sort(byString);
+    const next = touched.map((u) => ledger.states.get(u)!);
+    if (next.length > 0) {
+      const cols = {
+        unit: next.map((s) => cellToInt8(s.unitId)),
+        holder: next.map((s) => s.holderId),
+        holderNo: next.map((s) => no(s.holderId)),
+        strength: next.map((s) => s.strength),
+        ground: next.map((s) => s.ground),
+        shade: next.map((s) => s.ground === "shade"),
+        deeded: next.map((s) => s.deeded),
+        masked: next.map((s) => s.masked),
+        level: next.map((s) => s.level),
+        fortified: next.map((s) => s.fortified),
+        asOf: next.map((s) => s.asOfDay),
+      };
+      await tx.execute(sql`
+        UPDATE gameplay_units u SET
+          holder_id = v.holder_id, strength = v.strength, ground = v.ground, deeded = v.deeded, masked = v.masked,
+          level = v.level, fortified = v.fortified, as_of_day = v.as_of_day, holding_rules_version = ${hv}::int,
+          version = u.version + 1, updated_at = now()
+        FROM unnest(${arr(cols.unit)}::bigint[], ${arr(cols.holder)}::text[], ${arr(cols.strength)}::int[], ${arr(cols.ground)}::text[],
+                    ${arr(cols.deeded)}::boolean[], ${arr(cols.masked)}::boolean[], ${arr(cols.level)}::int[], ${arr(cols.fortified)}::boolean[], ${arr(cols.asOf)}::int[])
+          AS v(unit, holder_id, strength, ground, deeded, masked, level, fortified, as_of_day)
+        WHERE u.unit = v.unit`);
+      await tx.execute(sql`
+        INSERT INTO gameplay_unit_day_states (unit, day, holder_no, holding_rules_version, strength, level, shade, deeded, masked, fortified)
+        SELECT v.unit, v.as_of_day, v.holder_no, ${hv}::int, v.strength, v.level, v.shade, v.deeded, v.masked, v.fortified
+          FROM unnest(${arr(cols.unit)}::bigint[], ${arr(cols.holderNo)}::int[], ${arr(cols.strength)}::int[], ${arr(cols.shade)}::boolean[],
+                      ${arr(cols.deeded)}::boolean[], ${arr(cols.masked)}::boolean[], ${arr(cols.level)}::int[], ${arr(cols.fortified)}::boolean[], ${arr(cols.asOf)}::int[])
+            AS v(unit, holder_no, strength, shade, deeded, masked, level, fortified, as_of_day)
+        ON CONFLICT (unit, day) DO UPDATE SET
+          holder_no = EXCLUDED.holder_no, strength = EXCLUDED.strength, shade = EXCLUDED.shade, deeded = EXCLUDED.deeded,
+          masked = EXCLUDED.masked, level = EXCLUDED.level, fortified = EXCLUDED.fortified, holding_rules_version = EXCLUDED.holding_rules_version`);
+      // The touched units' open challenges, replaced as the model left them.
+      await tx.execute(sql`DELETE FROM gameplay_unit_challenges WHERE unit = ANY(${arr(cols.unit)}::bigint[])`);
+      // A challenge that was already open keeps its receipt time; a new one
+      // takes this batch's server receipt time.
+      const openedAt = (unitId: string, walkerId: string): number => {
+        const k = challengeKey(unitId, walkerId);
+        if (openedBefore.has(k)) return openedBefore.get(k)!;
+        return ledger.challengeOpenedMs.get(k) ?? receivedAt;
+      };
+      const open = next.flatMap((s) => (s.challenges ?? []).map((c) => ({
+        unit: cellToInt8(s.unitId), walkerId: c.walkerId, day: c.day, openedMs: openedAt(s.unitId, c.walkerId),
+      })));
+      if (open.length > 0) {
+        await tx.execute(sql`
+          INSERT INTO gameplay_unit_challenges (unit, walker_id, first_day, holding_rules_version, opened_received_at)
+          SELECT v.unit, v.walker_id, v.first_day, ${hv}::int, to_timestamp(v.opened_ms / 1000.0)
+            FROM unnest(${arr(open.map((c) => c.unit))}::bigint[], ${arr(open.map((c) => c.walkerId))}::text[], ${arr(open.map((c) => c.day))}::int[],
+                        ${arr(open.map((c) => c.openedMs))}::float8[])
+              AS v(unit, walker_id, first_day, opened_ms)`);
+      }
+    }
+
+    // Accepted pushes are ledger rows; WITH ORDINALITY … ORDER BY: seq follows the order they were applied.
+    const accepted = ledger.entries.filter((e) => ACCEPTED_CODE[e.outcome] !== undefined);
+    if (accepted.length > 0) {
+      const src = (e: ServerLedgerEntry) => sources.get(keyOfId.get(e.eventId)!)!.sourceNo;
+      await tx.execute(sql`
+        INSERT INTO gameplay_push_events (unit, day, source_no, walker_no, previous_holder_no, new_holder_no, holding_rules_version,
+          strength_before, strength_after, outcome, shade_strength)
+        SELECT v.unit, v.day, v.source_no, v.walker_no, v.previous_holder_no, v.new_holder_no, v.rules_version,
+               v.strength_before, v.strength_after, v.outcome, v.shade_strength
+          FROM unnest(${arr(accepted.map((e) => cellToInt8(e.unitId)))}::bigint[], ${arr(accepted.map((e) => e.day))}::int[], ${arr(accepted.map(src))}::int[],
+                      ${arr(accepted.map((e) => no(e.walkerId)))}::int[], ${arr(accepted.map((e) => no(e.previousHolderId)))}::int[], ${arr(accepted.map((e) => no(e.newHolderId)))}::int[],
+                      ${arr(accepted.map((e) => e.rulesVersion))}::int[], ${arr(accepted.map((e) => e.strengthBefore))}::int[], ${arr(accepted.map((e) => e.strengthAfter))}::int[],
+                      ${arr(accepted.map((e) => ACCEPTED_CODE[e.outcome]!))}::int[], ${arr(accepted.map((e) => e.shadeStrength ?? 0))}::int[])
+            WITH ORDINALITY AS v(unit, day, source_no, walker_no, previous_holder_no, new_holder_no, rules_version, strength_before, strength_after, outcome, shade_strength, n)
+         ORDER BY v.n`);
+    }
+
+    // Refusals change nothing: they are counted on the walker's day row, with
+    // the first refused stepped-on unit of each zone kept for day close's visits.
+    const zoneOf = zoneOfUnder(rules.units);
+    const zoneOrNull = (cell: string) => {
+      try {
+        return zoneOf(cell);
+      } catch {
+        return null;
+      }
+    };
+    const refusedBy = new Map<string, Record<RefusedOutcome, number>>();
+    const visits = new Map<string, string[]>();
+    for (const e of ledger.entries) {
+      if (!isRefused(e.outcome)) continue;
+      const c = refusedBy.get(e.walkerId) ?? Object.fromEntries(REFUSED_OUTCOMES.map((o) => [o, 0])) as Record<RefusedOutcome, number>;
+      c[e.outcome] += 1;
+      refusedBy.set(e.walkerId, c);
+      if (e.pushKind !== "solid") continue;
+      let list = visits.get(e.walkerId);
+      if (!list) {
+        list = [...(visitsBefore.get(e.walkerId) ?? [])];
+        visits.set(e.walkerId, list);
+      }
+      const zone = zoneOrNull(e.unitId);
+      if (zone === null || list.length >= MAX_VISIT_UNITS) continue;
+      if (list.some((v) => zoneOrNull(int8ToCell(v)) === zone)) continue;
+      list.push(cellToInt8(e.unitId));
+    }
+
+    // Day counters, in the same transaction as the pushes they count.
+    const usedNow = walkers.filter((w) => (ledger.takesUsed.get(w) ?? 0) !== (takesUsed.get(w) ?? 0)
+      || (ledger.unitsUsed.get(w) ?? 0) > 0 || refusedBy.has(w) || visits.has(w));
+    if (usedNow.length > 0) {
+      const z = (w: string, o: RefusedOutcome) => refusedBy.get(w)?.[o] ?? 0;
+      await tx.execute(sql`
+        UPDATE gameplay_walker_days d SET
+          takes_used = v.takes, units_used = d.units_used + v.units,
+          ${sql.raw(REFUSED_OUTCOMES.map((o) => `${REFUSED_COLUMN[o]} = d.${REFUSED_COLUMN[o]} + v.${o}`).join(", "))},
+          visit_units = CASE WHEN v.has_visits THEN string_to_array(v.visits, ',')::bigint[] ELSE d.visit_units END
+          FROM unnest(${arr(usedNow.map((w) => playerNo.get(w)!))}::int[], ${arr(usedNow.map((w) => ledger.takesUsed.get(w) ?? takesUsed.get(w) ?? 0))}::int[],
+                      ${arr(usedNow.map((w) => ledger.unitsUsed.get(w) ?? 0))}::int[],
+                      ${arr(usedNow.map((w) => z(w, "refused_deeded")))}::int[], ${arr(usedNow.map((w) => z(w, "refused_masked")))}::int[],
+                      ${arr(usedNow.map((w) => z(w, "refused_daily_limit")))}::int[], ${arr(usedNow.map((w) => z(w, "refused_take_budget")))}::int[],
+                      ${arr(usedNow.map((w) => visits.has(w)))}::boolean[], ${arr(usedNow.map((w) => (visits.get(w) ?? []).join(",")))}::text[])
+            AS v(walker_no, takes, units, refused_deeded, refused_masked, refused_daily_limit, refused_take_budget, has_visits, visits)
+         WHERE d.walker_no = v.walker_no AND d.day = ${day}`);
+    }
+    return { result, perEvent };
+  }
+
+  /**
+   * Pin the rule set a day runs under, once, by its first write (a push or
+   * its settlement). A day already pinned to another version or config
+   * fails closed: no push is applied and nothing is settled under a rule set
+   * other than the one recorded.
+   */
+  private async pinDayRules(tx: Tx, day: number): Promise<void> {
+    const rules = this.rules;
+    const digest = rulesetDigest(rules);
+    const season = seasonOf(rules, day);
+    if (season === null) throw new GameplayError(409, "season_not_started");
+    const [already] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+      SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    if (already) {
+      if (Number(already.holding_rules_version) !== rules.holding.rulesVersion || already.config_digest !== digest) throw new GameplayError(409, "rules_version_mismatch");
+      return;
+    }
+    // A new day: the season keeps one rule set. Serialised per season, so two
+    // instances running different rule sets cannot pin two days of one season
+    // at once. Taken after the day's lock and before any counter or unit lock,
+    // and nothing waits on a day lock while holding it, so it adds no cycle.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_SEASON_LOCK_NAMESPACE}::int, ${season}::int)`);
+    const [other] = await rows<{ day: number }>(tx, sql`
+      SELECT day FROM gameplay_day_rules
+       WHERE season = ${season} AND day <> ${day} AND (holding_rules_version <> ${rules.holding.rulesVersion} OR config_digest <> ${digest})
+       ORDER BY day LIMIT 1`);
+    if (other) throw new GameplayError(409, "season_rules_changed");
+    await tx.execute(sql`
+      INSERT INTO gameplay_day_rules (day, season, ruleset, holding_rules_version, takeover_policy, take_budget, unit_zone_rule, config, config_digest)
+      VALUES (${day}, ${season}, ${rules.ruleset}, ${rules.holding.rulesVersion}, ${rules.takeover.name}, ${rules.takeBudget?.perWalkerPerDay ?? null},
+              ${`${rules.units.zone.kind}/${rules.units.mixedHolderZone}`}, ${JSON.stringify(rulesetConfig(rules))}::jsonb, ${digest})
+      ON CONFLICT (day) DO NOTHING`);
+    const [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+      SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    if (!pinned || Number(pinned.holding_rules_version) !== rules.holding.rulesVersion || pinned.config_digest !== digest) {
+      throw new GameplayError(409, "rules_version_mismatch");
+    }
+  }
+
+  /* ── day close ───────────────────────────────────────────────────────── */
+
+  /**
+   * Settle every closed day not yet settled, oldest first, at most
+   * `maxDaysPerRun` per call, after making sure today's and the next two
+   * days' partitions exist. Run from the API's maintenance loop, so a free
+   * instance that slept catches up when it wakes; no paid scheduler.
+   */
+  async settleDueDays(): Promise<number> {
+    const today = this.today();
+    if (today + 2 >= this.rules.seasonOneStartDay) await this.ensurePartitions(Math.max(this.rules.seasonOneStartDay, today), today + 2);
+    const last = lastClosedDay(this.rules, this.now());
+    if (last < this.rules.seasonOneStartDay) return 0;
+    // Every unsettled closed day since season 1 began, including one whose
+    // refused header an operator removed so it can be settled again.
+    const due = await rows<{ d: number }>(this.db, sql`
+      SELECT d FROM generate_series(${this.rules.seasonOneStartDay}::int, ${last}::int) AS d
+       WHERE NOT EXISTS (SELECT 1 FROM gameplay_day_settlements s WHERE s.day = d)
+       ORDER BY d LIMIT ${this.rules.maxDaysPerRun}`);
+    for (const { d } of due) await this.settleDay(Number(d));
+    return due.length;
+  }
+
+  /** Settle one closed day. Idempotent: a settled (or refused) day is returned as stored. */
+  async settleDay(day: number): Promise<DaySummary> {
+    if (!Number.isInteger(day) || day < 0) throw new GameplayError(400, "invalid_day");
+    if (day > lastClosedDay(this.rules, this.now())) throw new GameplayError(409, "day_not_closed");
+    const season = seasonOf(this.rules, day);
+    if (season === null) throw new GameplayError(409, "season_not_started");
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.db.transaction((tx) => this.settleInTx(tx, day, season), { isolationLevel: "serializable" });
+      } catch (err) {
+        const code = pgCode(err);
+        if ((code === "40001" || code === "40P01") && attempt < 4) continue;
+        throw err;
+      }
+    }
+  }
+
+  private async settleInTx(tx: Tx, day: number, season: number): Promise<DaySummary> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
+    const existing = await this.daySummary(tx, day);
+    if (existing) return { ...existing, created: false };
+    // The day's sorts (entries, the session week, the latest unit states) in memory, not on disk.
+    await tx.execute(sql.raw(`SET LOCAL work_mem = '${this.settlementWorkMemKb}kB'`));
+
+    // The day settles under the rule set it was pinned to, whatever this
+    // instance runs now. A version this build does not know, or whose config
+    // differs from the one recorded, fails closed: nothing is written and the
+    // day stays unsettled.
+    let [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+      SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    if (!pinned) {
+      await this.pinDayRules(tx, day);
+      [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+        SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    }
+    let dayRules;
+    try {
+      dayRules = rulesetFor(Number(pinned!.holding_rules_version));
+    } catch (err) {
+      if (err instanceof UnknownRulesVersionError) throw new GameplayError(409, "unknown_rules_version");
+      throw err;
+    }
+    if (rulesetDigest(dayRules) !== pinned!.config_digest) throw new GameplayError(409, "rules_config_mismatch");
+    const rules: GameplayRules = { ...dayRules, seasonOneStartDay: this.rules.seasonOneStartDay };
+
+    // Each unit as it stood at the end of its last change on or before the day.
+    const stateRows = await rows<{ unit: string; day: number; holder_id: string; strength: number; shade: boolean; deeded: boolean; masked: boolean;
+      level: number; fortified: boolean; holding_rules_version: number }>(tx, sql`
+      SELECT latest.unit::text AS unit, latest.day, p.user_id AS holder_id, latest.strength, latest.shade, latest.deeded, latest.masked,
+             latest.level, latest.fortified, latest.holding_rules_version
+        FROM (
+          SELECT DISTINCT ON (unit) unit, day, holder_no, strength, shade, deeded, masked, level, fortified, holding_rules_version
+            FROM gameplay_unit_day_states WHERE day <= ${day} ORDER BY unit, day DESC
+        ) latest JOIN gameplay_players p ON p.player_no = latest.holder_no
+       ORDER BY latest.unit`);
+    const states = new Map(stateRows.map((r) => {
+      const s = toState({ unit: r.unit, holder_id: r.holder_id, strength: r.strength, ground: r.shade ? "shade" : "solid", deeded: r.deeded, masked: r.masked,
+        level: r.level, fortified: r.fortified, as_of_day: r.day }, Number(r.day));
+      return [s.unitId, s] as const;
+    }));
+    // No silent migration: held ground recorded under another rule set refuses the day.
+    const versionProblems = stateRows
+      .filter((r) => Number(r.holding_rules_version) !== rules.holding.rulesVersion)
+      .map((r) => `unit ${int8ToCell(r.unit)}: held under holding rules version ${r.holding_rules_version}, settling under ${rules.holding.rulesVersion}`);
+
+    // The day's accepted pushes (the ledger) and its refusals (the walkers' day rows).
+    const entryRows = await rows<{
+      source_no: number; unit: string; walker_no: number; walker_id: string; previous_holder_no: number | null; previous_holder_id: string | null;
+      new_holder_no: number | null; new_holder_id: string | null; outcome: number; strength_before: number; strength_after: number; shade_strength: number;
+      holding_rules_version: number;
+    }>(tx, sql`
+      SELECT e.source_no, e.unit::text AS unit, e.walker_no, w.user_id AS walker_id, e.previous_holder_no, ph.user_id AS previous_holder_id,
+             e.new_holder_no, nh.user_id AS new_holder_id, e.outcome, e.strength_before, e.strength_after, e.shade_strength, e.holding_rules_version
+        FROM gameplay_push_events e JOIN gameplay_players w ON w.player_no = e.walker_no
+        LEFT JOIN gameplay_players ph ON ph.player_no = e.previous_holder_no
+        LEFT JOIN gameplay_players nh ON nh.player_no = e.new_holder_no
+       WHERE e.day = ${day} ORDER BY e.seq`);
+    const refusalRows = await rows<{ walker_no: number; walker_id: string; units_used: number; visit_units: string[]; holding_rules_version: number }
+      & Record<RefusedOutcome, number>>(tx, sql`
+      SELECT d.walker_no, p.user_id AS walker_id, d.units_used, d.refused_deeded, d.refused_masked, d.refused_daily_limit, d.refused_take_budget,
+             d.visit_units::text[] AS visit_units, d.holding_rules_version
+        FROM gameplay_walker_days d JOIN gameplay_players p ON p.player_no = d.walker_no
+       WHERE d.day = ${day} ORDER BY p.user_id`);
+    const accepted: LedgerEntry[] = entryRows.map((e) => ({
+      eventId: `${e.source_no}:${int8ToCell(e.unit)}`, unitId: int8ToCell(e.unit), walkerId: e.walker_id, day,
+      pushKind: Number(e.shade_strength) > 0 ? "shade" : "solid", outcome: ACCEPTED_OUTCOME[Number(e.outcome)]!,
+      previousHolderId: e.previous_holder_id, newHolderId: e.new_holder_id, strengthBefore: Number(e.strength_before),
+      strengthAfter: Number(e.strength_after), rulesVersion: Number(e.holding_rules_version),
+    }));
+    // A refused stepped-on push is still a visit (as the model's own refusals
+    // are): one kept unit per zone gives day close the same visits. Budget
+    // refusals are not model outcomes, so the club count leaves them out.
+    const visitEntries: LedgerEntry[] = refusalRows.flatMap((r) => (r.visit_units ?? []).map((v, i) => ({
+      eventId: `visit:${r.walker_no}:${i}`, unitId: int8ToCell(v), walkerId: r.walker_id, day, pushKind: "solid" as const,
+      outcome: "refused_daily_limit" as const, previousHolderId: null, newHolderId: null, strengthBefore: 0, strengthAfter: 0,
+      rulesVersion: Number(r.holding_rules_version),
+    })));
+    const refusalEntries: LedgerEntry[] = refusalRows.flatMap((r) => (["refused_deeded", "refused_masked", "refused_daily_limit"] as const)
+      .flatMap((o) => Array.from({ length: Number(r[o]) }, (_, i) => ({
+        eventId: `${o}:${r.walker_no}:${i}`, unitId: "", walkerId: r.walker_id, day, pushKind: "solid" as const, outcome: o,
+        previousHolderId: null, newHolderId: null, strengthBefore: 0, strengthAfter: 0, rulesVersion: Number(r.holding_rules_version),
+      }))));
+
+    // Players who moved: verified sessions whose last fix falls on the day (D1),
+    // and the week before it for consistency (section 17).
+    const sessionRows = await rows<{ id: string; user_id: string; end_time: string; duration_seconds: number | null; distance_meters: number | null; traversed_hex_ids: string[] | null }>(tx, sql`
+      SELECT id, user_id, end_time, duration_seconds, distance_meters, traversed_hex_ids FROM movement_verifications
+       WHERE status = 'verified' AND end_time >= ${dayStartMs(rules, day - 6)} AND end_time < ${dayStartMs(rules, day + 1)}
+       ORDER BY user_id, end_time, id`);
+    // 1002: a session's crossed cells (the toll's input, economy V3 §20) are the
+    // stepped units of its stored path, never interpolated ones and never the
+    // resolution 8 cells. A session without a path crosses nothing here.
+    const steppedBySession = new Map<string, string[]>();
+    if (rules.units.source) {
+      const ids = sessionRows.filter((s) => dayOf(rules, Number(s.end_time)) === day).map((s) => s.id);
+      const paths = ids.length === 0 ? [] : await rows<{ movement_verification_id: string; unit_ids: string[]; interpolated: string }>(tx, sql`
+        SELECT movement_verification_id, unit_ids::text[] AS unit_ids, interpolated::text AS interpolated
+          FROM gameplay_session_paths WHERE movement_verification_id = ANY(${arr(ids)}::text[])
+           AND path_version = ${rules.units.source.rule.version} AND resolution = ${rules.units.source.rule.resolution}
+         ORDER BY movement_verification_id`);
+      for (const p of paths) {
+        const units = p.unit_ids.map(int8ToCell);
+        steppedBySession.set(p.movement_verification_id, steppedUnitsOf({ units, interpolated: bitsToFlags(p.interpolated, units.length) }));
+      }
+    }
+    const activeDays = new Map<string, Set<number>>();
+    const sessions = new Map<string, CreditsPlayerInput["sessions"][number][]>();
+    for (const s of sessionRows) {
+      if (s.duration_seconds === null || s.distance_meters === null) continue;
+      const d = dayOf(rules, Number(s.end_time));
+      activeDays.set(s.user_id, (activeDays.get(s.user_id) ?? new Set()).add(d));
+      if (d !== day) continue;
+      const list = sessions.get(s.user_id) ?? [];
+      sessions.set(s.user_id, list);
+      const crossed = rules.units.source ? steppedBySession.get(s.id) ?? [] : s.traversed_hex_ids ?? [];
+      list.push({ minutes: s.duration_seconds / 60, meters: s.distance_meters, crossedCells: [...new Set(crossed)].sort(byString) });
+    }
+    const players: CreditsPlayerInput[] = [...sessions.keys()].sort(byString).map((playerId) => ({
+      playerId,
+      sessions: sessions.get(playerId)!,
+      // Rolling seven days ending on the day (D1 pilot reading of "this week").
+      activeDaysThisWeek: Math.min(7, Math.max(1, activeDays.get(playerId)!.size)),
+      trustWeight: rules.trustWeight,
+      kitLevel: rules.kitLevel,
+    }));
+
+    // D5: 1001 makes a unit its own zone; 1002 maps resolution 10 units to
+    // their resolution 9 parent, split into one partition per holder (zones.ts).
+    const zoneOf = zoneOfUnder(rules.units);
+    let partitions: ReturnType<typeof zonePartitions> | null = null;
+    const partitionErrors: string[] = [];
+    if (rules.units.partition) {
+      try {
+        partitions = zonePartitions({ day, states, holding: rules.holding, zoneOf, shadeCountsAsHeld: rules.shadeCountsAsHeld });
+      } catch (err) {
+        partitionErrors.push(`zone partitions: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    const holdings = holdingsAtDayClose({
+      day, states: partitions ? withPartitionLevels(states, partitions) : states, entries: [...accepted, ...visitEntries], holdingRules: rules.holding, zoneOf,
+      shadeCountsAsHeld: rules.shadeCountsAsHeld,
+    });
+    holdings.problems.push(...versionProblems, ...partitionErrors);
+    if (partitions && holdings.problems.length === 0) holdings.problems.push(...partitionProblems({ partitions, holdings }));
+    let credits = settleCreditsDay({ rulesVersion: rules.economyRulesVersion, season, day, players, holdings });
+    if (partitions && credits.status === "settled") {
+      const lineProblems = partitionProblems({ partitions, holdings, lines: credits.lines });
+      if (lineProblems.length > 0) credits = { status: "refused", rulesVersion: credits.rulesVersion, season, day, problems: lineProblems };
+    }
+
+    const membershipRows = await rows<{ walker_id: string; club_id: string; from_day: number; to_day: number | null }>(tx, sql`
+      SELECT walker_id, club_id, from_day, to_day FROM gameplay_club_memberships
+       WHERE from_day <= ${day} AND (to_day IS NULL OR to_day > ${day}) ORDER BY walker_id, club_id, from_day`);
+    const memberships: Membership[] = membershipRows.map((m) => ({ walkerId: m.walker_id, clubId: m.club_id, fromDay: Number(m.from_day), toDay: m.to_day === null ? null : Number(m.to_day) }));
+    const heldIds = [...holdings.states.values()].filter((s) => s.holderId !== null).map((s) => s.unitId);
+    const districtRows = heldIds.length === 0 ? [] : await rows<{ unit: string; district_id: string; districts_version: string }>(tx, sql`
+      SELECT unit::text AS unit, district_id, districts_version FROM gameplay_unit_districts WHERE unit = ANY(${arr(heldIds.map(cellToInt8))}::bigint[]) ORDER BY unit`);
+    const districtOfUnit = new Map(districtRows.map((d) => [int8ToCell(d.unit), d.district_id]));
+
+    let clubsStatus: "settled" | "refused" | "skipped" = "skipped";
+    let clubsProblems: string[] = [];
+    let contributions: ReturnType<typeof clubContributions> | null = null;
+    let control: DistrictControlResult | null = null;
+    const snapshot = clubSnapshot(memberships, day);
+    if (credits.status === "settled") {
+      contributions = clubContributions({ day, entries: [...accepted, ...refusalEntries], snapshot, holdingRulesVersion: rules.holding.rulesVersion });
+      control = districtControl({
+        holdings, snapshot, rule: rules.districtControl,
+        districtOf: (unitId) => {
+          const d = districtOfUnit.get(unitId);
+          if (d === undefined) throw new Error("not in the district map (D20)");
+          return d;
+        },
+      });
+      clubsProblems = [...new Set([...contributions.problems, ...control.problems])];
+      clubsStatus = clubsProblems.length === 0 ? "settled" : "refused";
+    }
+
+    const inputDigest = digest({
+      ruleset: rules.ruleset, economy: rules.economyRulesVersion, holding: rules.holding, config: rulesetDigest(rules), day, season,
+      states: stateRows.map((r) => [int8ToCell(r.unit), Number(r.day), r.holder_id, Number(r.strength), r.shade ? "shade" : "solid", r.deeded, r.masked, Number(r.level), r.fortified]),
+      entries: accepted.map((e) => [e.eventId, e.outcome, e.walkerId, e.previousHolderId, e.newHolderId]),
+      refusals: refusalRows.map((r) => [r.walker_id, ...REFUSED_OUTCOMES.map((o) => Number(r[o])), (r.visit_units ?? []).map(String)]),
+      players, memberships, districts: districtRows.map((d) => [int8ToCell(d.unit), d.district_id, d.districts_version]),
+    });
+
+    if (credits.status === "refused") {
+      await tx.execute(sql`
+        INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, problems, clubs_status, input_digest)
+        VALUES (${day}, ${season}, 'refused', ${rules.ruleset}, ${rules.economyRulesVersion}, ${rules.holding.rulesVersion},
+                ${JSON.stringify(credits.problems)}::jsonb, 'skipped', ${inputDigest})`);
+    } else {
+      const b = credits.settlement.books;
+      await tx.execute(sql`
+        INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version,
+          pool_micro, minted_micro, credited_micro, toll_paid_micro, toll_received_micro, burned_micro, returned_micro,
+          day_share_micro, players, clubs_status, clubs_problems, input_digest)
+        VALUES (${day}, ${season}, 'settled', ${rules.ruleset}, ${rules.economyRulesVersion}, ${rules.holding.rulesVersion},
+          ${b.poolMicro}, ${b.mintedMicro}, ${b.creditedMicro}, ${b.tollPaidMicro}, ${b.tollReceivedMicro}, ${b.burnedMicro},
+          ${b.returnedToSeasonPoolMicro}, ${credits.settlement.dayShareMicro}, ${credits.lines.length}, ${clubsStatus},
+          ${JSON.stringify(clubsProblems)}::jsonb, ${inputDigest})`);
+      const l = credits.lines;
+      if (l.length > 0) {
+        await tx.execute(sql`
+          INSERT INTO gameplay_credit_lines (day, player_id, earned_micro, toll_paid_micro, toll_received_micro, recharge_micro,
+            upkeep_taken_micro, upkeep_in_condition_micro, zones_held, net_micro)
+          SELECT ${day}::int, v.* FROM unnest(${arr(l.map((x) => x.playerId))}::text[], ${arr(l.map((x) => x.earnedMicro))}::bigint[],
+            ${arr(l.map((x) => x.tollPaidMicro))}::bigint[], ${arr(l.map((x) => x.tollReceivedMicro))}::bigint[], ${arr(l.map((x) => x.rechargeMicro))}::bigint[],
+            ${arr(l.map((x) => x.upkeepTakenMicro))}::bigint[], ${arr(l.map((x) => x.upkeepPaidInConditionMicro))}::bigint[],
+            ${arr(l.map((x) => x.zonesHeld))}::int[], ${arr(l.map((x) => x.netMicro))}::bigint[]) AS v`);
+      }
+      if (clubsStatus === "settled" && contributions && control) {
+        const netOf = new Map(l.map((x) => [x.playerId, x.netMicro]));
+        const clubs = contributions.clubs;
+        if (clubs.length > 0) {
+          const credit = clubs.map((c) => c.members.reduce((a, m) => a + (netOf.get(m.walkerId) ?? 0), 0));
+          await tx.execute(sql`
+            INSERT INTO gameplay_club_days (day, club_id, members, contributions, credits_micro)
+            SELECT ${day}::int, v.club_id, v.members, v.contributions::jsonb, v.credits
+              FROM unnest(${arr(clubs.map((c) => c.clubId))}::text[], ${arr(clubs.map((c) => c.members.length))}::int[],
+                          ${arr(clubs.map((c) => JSON.stringify(c.totals)))}::text[], ${arr(credit)}::bigint[]) AS v(club_id, members, contributions, credits)`);
+        }
+        const ds = control.districts;
+        if (ds.length > 0) {
+          await tx.execute(sql`
+            INSERT INTO gameplay_district_days (day, district_id, status, controller_club_id, held_weight, standings)
+            SELECT ${day}::int, v.district_id, v.status, v.controller, v.weight, v.standings::jsonb
+              FROM unnest(${arr(ds.map((d) => d.districtId))}::text[], ${arr(ds.map((d) => d.status))}::text[], ${arr(ds.map((d) => d.controllerClubId))}::text[],
+                          ${arr(ds.map((d) => d.held.weight))}::bigint[],
+                          ${arr(ds.map((d) => JSON.stringify({ held: d.held, clubs: d.clubs, unclubbed: d.unclubbed })))}::text[])
+                AS v(district_id, status, controller, weight, standings)`);
+        }
+      }
+    }
+
+    // One proof per walker of the day, whatever the books said: counts and the
+    // sha256 of their accepted rows (seq order) and refusal counters. Player
+    // numbers only; it outlives the raw partitions (retention, owner decision).
+    const proofs = new Map<number, { accepted: number; takes: number; refused: number; unitsUsed: number; lines: string[]; hv: number }>();
+    const proofOf = (walkerNo: number, hv: number) => {
+      let p = proofs.get(walkerNo);
+      if (!p) { p = { accepted: 0, takes: 0, refused: 0, unitsUsed: 0, lines: [], hv }; proofs.set(walkerNo, p); }
+      return p;
+    };
+    for (const e of entryRows) {
+      const p = proofOf(Number(e.walker_no), Number(e.holding_rules_version));
+      p.accepted += 1;
+      if (Number(e.outcome) === 3 || Number(e.outcome) === 4) p.takes += 1;
+      p.lines.push([e.source_no, e.unit, e.outcome, e.previous_holder_no ?? "", e.new_holder_no ?? "", `${e.strength_before}>${e.strength_after}`, e.shade_strength].join(":"));
+    }
+    for (const r of refusalRows) {
+      const p = proofOf(Number(r.walker_no), Number(r.holding_rules_version));
+      p.refused = REFUSED_OUTCOMES.reduce((a, o) => a + Number(r[o]), 0);
+      p.unitsUsed = Number(r.units_used);
+      p.lines.push(["refused", ...REFUSED_OUTCOMES.map((o) => Number(r[o])), (r.visit_units ?? []).join(",")].join(":"));
+    }
+    const proofList = [...proofs.entries()].filter(([, p]) => p.accepted + p.refused > 0).sort((a, b) => a[0] - b[0]);
+    if (proofList.length > 0) {
+      await tx.execute(sql`
+        INSERT INTO gameplay_player_day_proofs (player_no, day, holding_rules_version, accepted, takes, refused, units_used, events_sha256)
+        SELECT v.player_no, ${day}::int, v.hv, v.accepted, v.takes, v.refused, v.units_used, decode(v.sha, 'hex')
+          FROM unnest(${arr(proofList.map(([n]) => n))}::int[], ${arr(proofList.map(([, p]) => p.hv))}::int[], ${arr(proofList.map(([, p]) => p.accepted))}::int[],
+                      ${arr(proofList.map(([, p]) => p.takes))}::int[], ${arr(proofList.map(([, p]) => p.refused))}::int[], ${arr(proofList.map(([, p]) => p.unitsUsed))}::int[],
+                      ${arr(proofList.map(([, p]) => createHash("sha256").update(p.lines.join("\n")).digest("hex")))}::text[])
+            AS v(player_no, hv, accepted, takes, refused, units_used, sha)
+        ON CONFLICT (player_no, day) DO NOTHING`);
+    }
+    const summary = await this.daySummary(tx, day);
+    return { ...summary!, created: true };
+  }
+
+  private async daySummary(exec: Exec, day: number): Promise<Omit<DaySummary, "created"> | null> {
+    const [r] = await rows<{ day: number; season: number; status: "settled" | "refused"; clubs_status: DaySummary["clubsStatus"]; players: number;
+      pool_micro: string; minted_micro: string; credited_micro: string; burned_micro: string; returned_micro: string }>(exec, sql`
+      SELECT day, season, status, clubs_status, players, pool_micro, minted_micro, credited_micro, burned_micro, returned_micro
+        FROM gameplay_day_settlements WHERE day = ${day}`);
+    if (!r) return null;
+    return {
+      day: Number(r.day), season: Number(r.season), status: r.status, clubsStatus: r.clubs_status, players: Number(r.players),
+      poolMicro: Number(r.pool_micro), mintedMicro: Number(r.minted_micro), creditedMicro: Number(r.credited_micro),
+      burnedMicro: Number(r.burned_micro), returnedMicro: Number(r.returned_micro),
+    };
+  }
+
+/* ── clubs ───────────────────────────────────────────────────────────── */
+
+  /** Create a club under a client-chosen id and join it. Repeating the same request is a no-op. */
+  async createClub(userId: string, clubId: string, name: string): Promise<{ clubId: string; name: string; created: boolean; fromDay: number }> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const inserted = await rows(tx, sql`
+          INSERT INTO gameplay_clubs (club_id, name, created_by) VALUES (${clubId}, ${name}, ${userId})
+          ON CONFLICT (club_id) DO NOTHING RETURNING club_id`);
+        if (inserted.length === 0) {
+          const [club] = await rows<{ name: string; created_by: string | null }>(tx, sql`SELECT name, created_by FROM gameplay_clubs WHERE club_id = ${clubId}`);
+          if (!club || club.created_by !== userId || club.name !== name) throw new GameplayError(409, "club_id_taken");
+        }
+        const joined = await this.joinInTx(tx, userId, clubId);
+        return { clubId, name, created: inserted.length > 0, fromDay: joined.fromDay };
+      });
+    } catch (err) {
+      if (pgCode(err) === "23505" && pgConstraint(err) === "gameplay_clubs_name_unique") throw new GameplayError(409, "club_name_taken");
+      if (pgCode(err) === "23505" && pgConstraint(err) === "gameplay_club_memberships_one_open") throw new GameplayError(409, "already_in_club");
+      throw err;
+    }
+  }
+
+  async joinClub(userId: string, clubId: string): Promise<{ clubId: string; fromDay: number; changed: boolean }> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const [club] = await rows(tx, sql`SELECT 1 FROM gameplay_clubs WHERE club_id = ${clubId}`);
+        if (!club) throw new GameplayError(404, "club_not_found");
+        return { clubId, ...(await this.joinInTx(tx, userId, clubId)) };
+      });
+    } catch (err) {
+      if (pgCode(err) === "23505" && pgConstraint(err) === "gameplay_club_memberships_one_open") throw new GameplayError(409, "already_in_club");
+      if (pgCode(err) === "23503") throw new GameplayError(404, "club_not_found");
+      throw err;
+    }
+  }
+
+  private async joinInTx(tx: Tx, userId: string, clubId: string): Promise<{ fromDay: number; changed: boolean }> {
+    const [open] = await rows<{ club_id: string; from_day: number }>(tx, sql`
+      SELECT club_id, from_day FROM gameplay_club_memberships WHERE walker_id = ${userId} AND to_day IS NULL FOR UPDATE`);
+    if (open) {
+      if (open.club_id === clubId) return { fromDay: Number(open.from_day), changed: false };
+      throw new GameplayError(409, "already_in_club");
+    }
+    // D18 PILOT PROPOSAL: effective the next day. A club left today stays
+    // counted until tomorrow, so the spans never overlap.
+    const fromDay = this.today() + this.rules.clubChangeDelayDays;
+    await tx.execute(sql`
+      INSERT INTO gameplay_club_memberships (id, club_id, walker_id, from_day) VALUES (${randomUUID()}, ${clubId}, ${userId}, ${fromDay})`);
+    return { fromDay, changed: true };
+  }
+
+  /** Leave the current club. Idempotent: leaving with no club succeeds and changes nothing. */
+  async leaveClub(userId: string): Promise<{ left: boolean; toDay: number | null }> {
+    return this.db.transaction(async (tx) => {
+      const [open] = await rows<{ id: string; from_day: number }>(tx, sql`
+        SELECT id, from_day FROM gameplay_club_memberships WHERE walker_id = ${userId} AND to_day IS NULL FOR UPDATE`);
+      if (!open) return { left: false, toDay: null };
+      const toDay = this.today() + this.rules.clubChangeDelayDays;
+      if (toDay <= Number(open.from_day)) {
+        // Never took effect: remove it rather than store an empty span.
+        await tx.execute(sql`DELETE FROM gameplay_club_memberships WHERE id = ${open.id}`);
+      } else {
+        await tx.execute(sql`UPDATE gameplay_club_memberships SET to_day = ${toDay} WHERE id = ${open.id}`);
+      }
+      return { left: true, toDay };
+    });
+  }
+
+  /* ── reads ───────────────────────────────────────────────────────────── */
+
+  /** The caller's own ground today, as counts by stage. No unit ids: the map comes from the region endpoint (G1). */
+  async myHoldings(userId: string): Promise<{ day: number; unitsHeld: number; solid: number; shade: number; byStage: Record<"held" | "at_risk" | "contested" | "dormant", number> }> {
+    const today = this.today();
+    const held = await rows<UnitRow>(this.db, sql`
+      SELECT unit::text AS unit, holder_id, strength, ground, deeded, masked, level, fortified, as_of_day FROM gameplay_units WHERE holder_id = ${userId}`);
+    const byStage = { held: 0, at_risk: 0, contested: 0, dormant: 0 };
+    let solid = 0;
+    let shade = 0;
+    for (const r of held) {
+      const s = decayTo(toState(r), Math.max(today, Number(r.as_of_day)), this.rules.holding);
+      const stage = stageOf(s, this.rules.holding);
+      if (stage === "unheld") continue;
+      byStage[stage] += 1;
+      if (s.ground === "solid") solid += 1;
+      else shade += 1;
+    }
+    return { day: today, unitsHeld: solid + shade, solid, shade, byStage };
+  }
+
+  /** The caller's own credit lines for a season, settled days only. */
+  async myCredits(userId: string, season: number) {
+    const lines = await rows<{ day: number; earned_micro: string; toll_paid_micro: string; toll_received_micro: string; recharge_micro: string;
+      upkeep_taken_micro: string; upkeep_in_condition_micro: string; zones_held: number; net_micro: string }>(this.db, sql`
+      SELECT l.day, l.earned_micro, l.toll_paid_micro, l.toll_received_micro, l.recharge_micro, l.upkeep_taken_micro,
+             l.upkeep_in_condition_micro, l.zones_held, l.net_micro
+        FROM gameplay_credit_lines l JOIN gameplay_day_settlements s ON s.day = l.day
+       WHERE l.player_id = ${userId} AND s.season = ${season} AND s.status = 'settled' ORDER BY l.day`);
+    const days = lines.map((r) => ({
+      day: Number(r.day), earnedMicro: Number(r.earned_micro), tollPaidMicro: Number(r.toll_paid_micro), tollReceivedMicro: Number(r.toll_received_micro),
+      rechargeMicro: Number(r.recharge_micro), upkeepTakenMicro: Number(r.upkeep_taken_micro), upkeepInConditionMicro: Number(r.upkeep_in_condition_micro),
+      zonesHeld: Number(r.zones_held), netMicro: Number(r.net_micro),
+    }));
+    return { season, kind: "off_chain_credits" as const, days, netMicro: days.reduce((a, d) => a + d.netMicro, 0) };
+  }
+
+  /** A club's aggregate for one settled day: members counted, contributions totalled, never listed per member. */
+  async clubDay(clubId: string, day: number) {
+    const [r] = await rows<{ name: string; members: number; contributions: unknown; credits_micro: string }>(this.db, sql`
+      SELECT c.name, d.members, d.contributions, d.credits_micro
+        FROM gameplay_club_days d JOIN gameplay_clubs c ON c.club_id = d.club_id
+       WHERE d.club_id = ${clubId} AND d.day = ${day}`);
+    if (!r) throw new GameplayError(404, "not_found");
+    return { clubId, name: r.name, day, members: Number(r.members), contributions: r.contributions, creditsMicro: Number(r.credits_micro) };
+  }
+
+  /** District standings for one settled day. */
+  async districtsDay(day: number) {
+    const [header] = await rows<{ status: string; clubs_status: string }>(this.db, sql`SELECT status, clubs_status FROM gameplay_day_settlements WHERE day = ${day}`);
+    if (!header || header.status !== "settled") throw new GameplayError(404, "not_found");
+    if (header.clubs_status !== "settled") return { day, status: header.clubs_status, districts: [] };
+    const ds = await rows<{ district_id: string; status: string; controller_club_id: string | null; held_weight: string; standings: unknown }>(this.db, sql`
+      SELECT district_id, status, controller_club_id, held_weight, standings FROM gameplay_district_days WHERE day = ${day} ORDER BY district_id`);
+    return {
+      day, status: "settled",
+      districts: ds.map((d) => ({ districtId: d.district_id, status: d.status, controllerClubId: d.controller_club_id, heldWeight: Number(d.held_weight), standings: d.standings })),
+    };
+  }
+
+  /**
+   * A season board from settled days only, through `seasonLeaderboard`. Any
+   * refused day refuses the board. Player rows carry no ids: only a rank, a
+   * score and whether the row is the caller's.
+   */
+  async leaderboard(userId: string, season: number, metric: LeaderboardMetric) {
+    const rules = this.rules;
+    const headers = await rows<{ day: number; status: "settled" | "refused"; economy_rules_version: number; pool_micro: string; minted_micro: string;
+      credited_micro: string; toll_paid_micro: string; toll_received_micro: string; burned_micro: string; returned_micro: string; day_share_micro: string;
+      clubs_status: string }>(this.db, sql`
+      SELECT day, status, economy_rules_version, pool_micro, minted_micro, credited_micro, toll_paid_micro, toll_received_micro,
+             burned_micro, returned_micro, day_share_micro, clubs_status
+        FROM gameplay_day_settlements WHERE season = ${season} ORDER BY day`);
+    const dayList = headers.map((h) => Number(h.day));
+    const lineRows = dayList.length === 0 ? [] : await rows<{ day: number; player_id: string; net_micro: string; earned_micro: string; toll_paid_micro: string;
+      toll_received_micro: string; recharge_micro: string; upkeep_taken_micro: string; upkeep_in_condition_micro: string; zones_held: number }>(this.db, sql`
+      SELECT day, player_id, net_micro, earned_micro, toll_paid_micro, toll_received_micro, recharge_micro, upkeep_taken_micro, upkeep_in_condition_micro, zones_held
+        FROM gameplay_credit_lines WHERE day = ANY(${arr(dayList)}::int[]) ORDER BY day, player_id`);
+    const memberships = metric === "player_credits" ? [] : (await rows<{ walker_id: string; club_id: string; from_day: number; to_day: number | null }>(this.db, sql`
+      SELECT walker_id, club_id, from_day, to_day FROM gameplay_club_memberships ORDER BY walker_id, club_id, from_day`))
+      .map((m): Membership => ({ walkerId: m.walker_id, clubId: m.club_id, fromDay: Number(m.from_day), toDay: m.to_day === null ? null : Number(m.to_day) }));
+    const districtRows = metric !== "club_district_days" || dayList.length === 0 ? [] : await rows<{ day: number; district_id: string; status: string; controller_club_id: string | null }>(this.db, sql`
+      SELECT day, district_id, status, controller_club_id FROM gameplay_district_days WHERE day = ANY(${arr(dayList)}::int[]) ORDER BY day, district_id`);
+
+    const days: SeasonDay[] = headers.map((h) => {
+      const day = Number(h.day);
+      if (h.status !== "settled") {
+        return { credits: { status: "refused", rulesVersion: Number(h.economy_rules_version), season, day, problems: ["day was refused"] } };
+      }
+      const lines = lineRows.filter((l) => Number(l.day) === day).map((l) => ({
+        playerId: l.player_id, earnedMicro: Number(l.earned_micro), tollPaidMicro: Number(l.toll_paid_micro), tollReceivedMicro: Number(l.toll_received_micro),
+        rechargeMicro: Number(l.recharge_micro), upkeepTakenMicro: Number(l.upkeep_taken_micro), upkeepPaidInConditionMicro: Number(l.upkeep_in_condition_micro),
+        zonesHeld: Number(l.zones_held), unvisitedZoneIds: [], netMicro: Number(l.net_micro),
+      }));
+      const settlement: DaySettlement = {
+        totalPoints: 0, dayShareMicro: Number(h.day_share_micro), players: [],
+        books: {
+          poolMicro: Number(h.pool_micro), mintedMicro: Number(h.minted_micro), creditedMicro: Number(h.credited_micro), tollPaidMicro: Number(h.toll_paid_micro),
+          tollReceivedMicro: Number(h.toll_received_micro), burnedMicro: Number(h.burned_micro), returnedToSeasonPoolMicro: Number(h.returned_micro),
+        },
+      };
+      const credits: CreditsDayResult = { status: "settled", rulesVersion: Number(h.economy_rules_version), season, day, poolMicro: Number(h.pool_micro), settlement, lines };
+      if (metric === "player_credits") return { credits };
+      const snapshot = clubSnapshot(memberships, day);
+      if (metric === "club_credits") return { credits, snapshot };
+      const districts: DistrictControlResult = h.clubs_status === "settled"
+        ? {
+          day, problems: [],
+          districts: districtRows.filter((d) => Number(d.day) === day).map((d) => ({
+            districtId: d.district_id, status: d.status as DistrictStanding["status"], controllerClubId: d.controller_club_id,
+            held: { solidUnits: 0, shadeUnits: 0, weight: 0 }, clubs: [], unclubbed: { solidUnits: 0, shadeUnits: 0, weight: 0 },
+          })),
+        }
+        : { day, districts: [], problems: [`club and district day was ${h.clubs_status}`] };
+      return { credits, snapshot, districts };
+    });
+
+    const board = seasonLeaderboard({ rulesVersion: rules.economyRulesVersion, season, days, metric });
+    if (board.status !== "settled") {
+      // Problem text can name players; only the count leaves the server.
+      return { status: "refused" as const, season, metric, problemCount: board.problems.length };
+    }
+    const base = { status: "settled" as const, basis: board.basis, season, metric, daysSettled: board.daysSettled, throughDay: board.throughDay, seasonComplete: board.seasonComplete };
+    if (metric === "player_credits") {
+      return { ...base, rows: board.rows.map((r) => ({ rank: r.rank, score: r.score, self: r.id === userId })) };
+    }
+    const ids = board.rows.map((r) => r.id);
+    const names = ids.length === 0 ? [] : await rows<{ club_id: string; name: string }>(this.db, sql`SELECT club_id, name FROM gameplay_clubs WHERE club_id = ANY(${arr(ids)}::text[])`);
+    const nameOf = new Map(names.map((n) => [n.club_id, n.name]));
+    return { ...base, rows: board.rows.map((r) => ({ rank: r.rank, clubId: r.id, name: nameOf.get(r.id) ?? null, score: r.score })) };
+  }
+}

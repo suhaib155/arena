@@ -12,11 +12,13 @@ import express from "express";
 import type { AddressInfo } from "node:net";
 import {
   InMemoryMovementVerificationRepository,
+  MovementDailyLimitError,
   MovementSessionConflictError,
   type CreateMovementVerificationInput,
+  type DailyAdmission,
   type MovementVerificationRepository,
 } from "./repositories/interfaces.js";
-import { MovementVerificationService } from "./services/movementVerification.service.js";
+import { MAX_NEW_VERIFICATIONS_PER_DAY, MovementVerificationService } from "./services/movementVerification.service.js";
 import { createMovementRouter } from "./http/router.js";
 import { structuralRejections, verifyMovement } from "./domain/verification.js";
 import { submitMovementSchema } from "./http/validation.js";
@@ -185,8 +187,9 @@ test("two concurrent retries converge on one row via the DB constraint", async (
       if (lookups <= 2) return null;
       return inner.findByUserSession(userId, sessionId);
     },
-    create: (input: CreateMovementVerificationInput) => inner.create(input),
+    create: (input: CreateMovementVerificationInput, admission?: DailyAdmission) => inner.create(input, admission),
     listByUser: (userId, limit) => inner.listByUser(userId, limit),
+    countCreatedSince: (userId, since) => inner.countCreatedSince(userId, since),
   };
   let verifications = 0;
   const service = new MovementVerificationService({
@@ -243,6 +246,7 @@ test("a conflict with no readable winner fails closed rather than verifying twic
     async findByUserSession() { return null; },
     async create() { throw new MovementSessionConflictError(); },
     async listByUser() { return []; },
+    async countCreatedSince() { return 0; },
   };
   const service = buildService(lying);
   await assert.rejects(
@@ -433,4 +437,60 @@ test("HTTP: a malformed body is a stable 400 that does not echo the payload", as
       assert.ok(!text.includes("51.5"), "the error must not echo submitted coordinates");
     }
   });
+});
+
+/* ── storage bound ─────────────────────────────────────────────────────────── */
+
+test("one user stores at most the daily allowance of new sessions; retries still answer", async () => {
+  const service = buildService();
+  for (let i = 0; i < MAX_NEW_VERIFICATIONS_PER_DAY; i++) {
+    const r = await service.submit({ userId: "usr_daily", clientSessionId: `session-day${String(i).padStart(5, "0")}`, observation: observation() });
+    assert.equal(r.created, true);
+  }
+  await assert.rejects(
+    () => service.submit({ userId: "usr_daily", clientSessionId: "session-overlimit", observation: observation() }),
+    MovementDailyLimitError,
+  );
+  // A retry of a stored session is not a new row and is still answered.
+  const retry = await service.submit({ userId: "usr_daily", clientSessionId: "session-day00000", observation: observation() });
+  assert.equal(retry.created, false);
+  // Another player is unaffected.
+  const other = await service.submit({ userId: "usr_other", clientSessionId: "session-other001", observation: observation() });
+  assert.equal(other.created, true);
+});
+
+test("a concurrent burst of new sessions cannot pass the daily allowance", async () => {
+  const service = buildService();
+  const results = await Promise.allSettled(Array.from({ length: MAX_NEW_VERIFICATIONS_PER_DAY + 10 }, (_, i) =>
+    service.submit({ userId: "usr_burst", clientSessionId: `session-burst${String(i).padStart(5, "0")}`, observation: observation() })));
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, MAX_NEW_VERIFICATIONS_PER_DAY);
+  for (const r of results.filter((r) => r.status === "rejected")) {
+    assert.ok((r as PromiseRejectedResult).reason instanceof MovementDailyLimitError);
+  }
+  assert.equal((await service.list("usr_burst", 100)).length, MAX_NEW_VERIFICATIONS_PER_DAY);
+});
+
+test("HTTP: over the daily allowance is a 429 that names the limit and stores nothing", async () => {
+  const service = buildService();
+  for (let i = 0; i < MAX_NEW_VERIFICATIONS_PER_DAY; i++) {
+    await service.submit({ userId: "usr_http_daily", clientSessionId: `session-http${String(i).padStart(4, "0")}`, observation: observation() });
+  }
+  const app = express();
+  app.use(express.json({ limit: "2mb" }));
+  app.use("/movement", createMovementRouter({ service, verifyBearer: async () => ({ userId: "usr_http_daily" }) }));
+  const server = app.listen(0);
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/movement/verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer t" },
+      body: body("session-http-over"),
+    });
+    assert.equal(res.status, 429);
+    assert.deepEqual(await res.json(), { error: "daily_limit_reached" });
+    assert.equal(await service.get("usr_http_daily", "session-http-over"), null);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

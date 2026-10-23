@@ -1,6 +1,6 @@
 # Execution status
 
-**Updated:** 2026-10-14 (X-06 live verified; G0 started; frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at dd8306588667342fab2db0ebd4d55632acadb57a (X-06 LIVE VERIFIED 14 Oct, E-41. Code head f6ce3c5 waits on X-24) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
+**Updated:** 2026-10-17 (X-27: #112 and migration 0010 LIVE VERIFIED on staging at 2192de6, E-62; X-24 LIVE VERIFIED at 7f4c0d4, E-55; X-26 closed 16 Oct; X-07 attached, X-07b waits on X-05; #112 fixed for the sign-in time finding at 2192de6, waits on the owner with migration 0010; frontend on hold) · **Release branch:** `release/android-v1-cxfdbd` at 991ac6a (not merged) · **Working branch:** `chore/post-security-launch-prep` · **Deploy branch:** `deploy/render-free-staging` at 2192de6930be18d7e4bc07a94b93828d46b0a7d5 (X-27, fast-forwarded from 7f4c0d4 on 17 Oct with the owner's grant; LIVE VERIFIED, E-62. Before that 7f4c0d4, X-24, fast-forwarded from dd83065 on 17 Oct with the owner's grant; LIVE VERIFIED, E-55. X-06 LIVE VERIFIED 14 Oct, E-41) · **Engineering and pre-listing target:** 2 Nov 2026 (not a Play date, D-24)
 **Security gate:** SECURITY REVIEWED LOCALLY (`AUTH_SECURITY_REVIEW.md`, rounds 1–3) · **Release gate:** STOP — LIVE AUTH AND ANDROID DEVICE GATES PENDING (Play account not created)
 **Frontend:** on owner hold (D-25). **Play developer account:** NOT CREATED (X-01). **Separate accounts:** accepted 2026-10-13 (X-20).
 
@@ -8,11 +8,11 @@
 
 | | Items |
 |---|---|
-| **DONE** | Google + wallet sign-in code, cap, quota, deletion, sweep (locally tested); security review rounds 1–3; hook contract on PostgreSQL; migration checksums; secret scan in CI; operator guide; Play registration checklist; device gate plan; X-20 accepted; device list fix F-17; session clean-up F-18; database size measured for 1,000 accounts (E-39) |
-| **BLOCKED — OWNER** | X-01a/b/c Play account (type, US$25, verification, closed test if Personal); X-07 → X-05 → X-21 live setup; X-08, X-04 build; X-10 phone by 24 Oct; X-22 mailbox |
+| **DONE** | Google + wallet sign-in code, cap, quota, deletion, sweep (locally tested); security review rounds 1–3; hook contract on PostgreSQL; migration checksums; secret scan in CI; operator guide; Play registration checklist; device gate plan; X-20 accepted; device list fix F-17; session clean-up F-18; database size measured for 1,000 accounts (E-39); X-26 closed and X-07 attached 16 Oct (E-45); 15 Oct audit fixes and the 17 Oct admission-race and client-address fixes on #111 (E-46–E-48); **X-24 deployed and LIVE VERIFIED 17 Oct (E-55)**; **X-27 #112 with migration 0010 deployed and LIVE VERIFIED 17 Oct (E-62)** |
+| **BLOCKED — OWNER** | X-01a/b/c Play account (type, US$25, verification, closed test if Personal); X-05 (then X-07b) → X-21 live setup; X-08, X-04 build; X-10 phone by 24 Oct; X-22 mailbox |
 | **BLOCKED — EXTERNAL** | Google's account verification and (Personal) production-access review; whether wallet browsers return to the app (phone only); 64-bit and 16 KB confirmation in the App bundle explorer |
-| **NEEDS APPROVAL** | X-07 hook (next); deploy commit f6ce3c5 (X-24); security log retention (X-25, undecided); legacy JWT secret rotation (X-26); enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
-| **OPEN** | F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
+| **NEEDS APPROVAL** | repository visibility (`OWNER_DECISIONS_PRIVACY_REPO_DOMAIN.md`); security log retention (X-25, undecided); enabling providers (X-05), DNS (X-21), EAS build (X-04), US$25 fee (X-01b), merge (X-14), Play Console and publish (X-11, X-12, X-16), App Link return (X-23) |
+| **OPEN** | the two-network client-address check before X-05 (X-27 SQL check done, E-63); F-06 residual (phone step 15h, then X-23); hosted proof that Supabase calls the hook (X-07b) |
 
 Start here when resuming. Then read `TASK_REGISTER.md` and `EXTERNAL_ACTIONS.md`. The whole-product board (L0–L3, W1, G0–G7, UX0, QA0) is `../product-roadmap/PR_QUEUE.md`; the owner's design rules are `../product-roadmap/DESIGN_CONSTRAINTS.md`.
 
@@ -181,6 +181,80 @@ app CTAs (D-35). Done:
   anywhere in the repository, but it has passed through the connector's logs.
   Proposed X-26: rotate it (move to JWT signing keys) after checking the
   backend does not depend on it.
+
+## Checkpoint 2026-10-17 (X-24 live, #112 sign-in time fix)
+
+- **X-24 LIVE VERIFIED** (E-55). The owner granted X-24 only; the deploy
+  branch was fast-forwarded dd83065 → 7f4c0d4 (05:53 UTC) and the owner's
+  operator deployed it (Render deploy `dep-db9gqfrbc2fs73do581g`, auto-deploy
+  off, as reported in the owner's continuation document). Read-only checks
+  from here: `/health` and `/ready` 200, one rate-limit bucket across
+  requests, CORS for `https://movenrun.xyz` only. Still open: the same check
+  from two independent client networks (a phone on mobile data and one other
+  network), which this workspace cannot do because all its tools leave from
+  one address.
+- Correction: statements dated before 17 Oct that say "X-24 not approved" or
+  "deploy branch at dd83065" were true when written and are superseded here.
+- **#112** (B1): the sign-in time now comes only from the single `oauth` entry
+  of `amr`, never a `token_refresh` entry, `iat` or the newest time; spent
+  records are kept 30 days. Pushed as 2192de6 (E-56). Migration 0010 is
+  unchanged and still needs its own approval. Nothing deployed.
+- **A2** Android backup and device transfer off: draft #115 at 770042a (E-57),
+  native config only. Phone check added to the device gate.
+- **A3** GitHub Pages: still serving the old prototype, nothing depends on
+  it (E-58). Unpublishing is a repository-admin click for the owner.
+- **A4** apex domain: live apex redirects to `www` (E-59). The Vercel steps,
+  checks and rollback are in `X21A_APEX_DOMAIN_PREP.md`; nothing changed.
+- **A5** website copy repairs: draft #116 at bca2692 (E-60). Not published.
+
+## Checkpoint 2026-10-17 (X-27: #112 live on staging)
+
+- **X-27 LIVE VERIFIED** (E-62). Owner approved one staging deploy of #112
+  at 2192de6 with migration 0010. Preflight passed; the deploy branch was
+  fast-forwarded 7f4c0d4 → 2192de6 and deployed once (Render
+  `dep-db9m51qjnfac73cqh6eg`). Health, ready, boot log, token rejection,
+  CORS and rate limits checked. The SQL count and RLS check is left to the
+  owner. Report: `reports/MOVENRUN_2026-10-17_X27_GOOGLE_EXCHANGE_STAGING_LIVE_FINAL_REPORT_2192de6.md`.
+- Correction: statements above that say #112 or migration 0010 wait on the
+  owner were true when written and are superseded here.
+
+## Checkpoint 2026-10-17 (X-27 closed out, Pages off, apex primary)
+
+- X-27 SQL close-out (E-63): 11 migrations, no table without RLS, caps
+  1,000 and 50 per hour, hook privileges as designed, no errors since deploy.
+- A3 done: GitHub Pages returns 404 (E-64).
+- X-21a done: apex serves the site and `www` redirects to it with 308
+  (E-64). No DNS change was made from here. The reviewed site is still not
+  published (X-21).
+
+## Checkpoint 2026-10-17 (website checked, X-05 preflight, G2 ledger)
+
+- Website PRs #108, #113 and #116 already treat the apex as canonical; no
+  change was needed (E-66).
+- X-05 preflight written (`X05_PROVIDER_ENABLEMENT_PREFLIGHT.md`, 9f1f45a):
+  preconditions, Google and wallet dashboard steps, checks C1–C5, rollback.
+  Nothing was enabled. Open: which client signs in for the checks (X-21
+  first, or an app build), and the owner's two-network check.
+- G2 event ledger, draft #117 at 9a272f7 (E-65).
+- G3 settlement, draft #118 at 493b3fa (E-67); new decisions D14–D17.
+- G4 clubs, districts and leaderboards, draft #119 at d7a58b2 (E-68); new
+  decisions D18–D23.
+- Vercel free plan hit its 100 deployments per day limit at 12:43 UTC, so
+  preview builds fail for about 24 hours. GitHub checks are unaffected.
+
+## Checkpoint 2026-10-17 (X-05 and G2–G4 packet)
+
+- Pages URL 404 confirmed; apex and www unchanged (E-69).
+- X-05 prerequisites reconfirmed read only (E-69). Two-network rate-limit
+  check PASS (E-70).
+- Website release candidate #116 at a8586c9 (E-73). Not published; X-21
+  needs the owner's approval of that SHA, the publishable key, a mail test
+  and the Vercel quota.
+- X-05 decision: **BLOCKED** until X-21 is published, because the pilot's
+  web checks need the live sign-in and deletion pages. Nothing enabled.
+- G2–G4 stack fixed and #120 simulation ruleset added (E-72). Not
+  production; D1–D23 stay open.
+- #115 at 058c27c with QA0 and free EAS prep (E-71). No build run.
 
 ## Open owner decisions
 
