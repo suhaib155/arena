@@ -58,7 +58,7 @@ export const SHORT_ROUTE_EVIDENCE = Object.freeze({
   /** The app's own usable-signal ceiling; weaker fixes need the legacy count. */
   maxAccuracyMeters: 25,
   minObservedSeconds: 30,
-  /** Furthest fix from the start must clear this and a multiple of the worst accuracy. */
+  /** Furthest fix from the start of its continuous stretch must clear this and a multiple of the worst accuracy. */
   minExtentMeters: 40,
   extentAccuracyMultiple: 3,
 });
@@ -77,11 +77,15 @@ export function shortRouteEvidenceProblems(points: readonly ShortRouteFix[],
     return [`Too few accepted GPS fixes for a short route: ${points.length} (needs ${policy.minFixes})`];
   }
   const problems: string[] = [];
-  let segments = 0, observedMs = 0;
+  let segments = 0, observedMs = 0, extent = 0;
+  // Extent is measured from the start of each continuous stretch, so ground
+  // covered across a pause or break never stands in for observed movement.
+  let stretchStart = points[0]!;
   for (let i = 1; i < points.length; i++) {
-    if (hasEvidenceBreak(points[i - 1]!, points[i]!, pauses)) continue;
+    if (hasEvidenceBreak(points[i - 1]!, points[i]!, pauses)) { stretchStart = points[i]!; continue; }
     segments += 1;
     observedMs += Math.max(0, points[i]!.timestamp - points[i - 1]!.timestamp);
+    extent = Math.max(extent, haversineMeters(stretchStart, points[i]!));
   }
   if (segments < policy.minContinuousSegments) {
     problems.push(`Too few continuous GPS segments for a short route: ${segments} (needs ${policy.minContinuousSegments})`);
@@ -96,7 +100,6 @@ export function shortRouteEvidenceProblems(points: readonly ShortRouteFix[],
     problems.push(`Short route covers only ${Math.round(observedMs / 1000)} s of continuous observation (needs ${policy.minObservedSeconds} s)`);
   }
   const worst = Math.max(...(accuracies as number[]));
-  const extent = Math.max(...points.map((p) => haversineMeters(points[0]!, p)));
   if (extent < Math.max(policy.minExtentMeters, policy.extentAccuracyMultiple * worst)) {
     problems.push("Short route stays too close to its start to rule out GPS drift");
   }

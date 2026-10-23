@@ -65,3 +65,15 @@ test("drift that never leaves the start fails; the bar scales with the worst acc
   assert.deepEqual(shortRouteEvidenceProblems(walk(5, 15, 25, 15)), []);
   assert.ok(shortRouteEvidenceProblems(walk(5, 15, 25, 25)).some((p) => /GPS drift/.test(p)));
 });
+
+test("a far fix across a break or pause does not satisfy the drift guard", () => {
+  const drift: ShortRouteFix[] = [[0, 0], [12, 0], [12, 12], [0, 12], [-6, 2], [6, 5]].map(([e, n], i) => ({
+    latitude: 0.25 + n! / 111_320, longitude: east(e!), timestamp: T0 + i * 20_000, accuracy: 5,
+  }));
+  const far = { latitude: 0.25, longitude: east(60), timestamp: T0 + 6 * 20_000, accuracy: 5 };
+  // Displacement gained while the evidence was interrupted was never observed.
+  assert.ok(shortRouteEvidenceProblems([...drift, { ...far, breakBefore: true }])
+    .some((p) => /GPS drift/.test(p)));
+  const pauses = [{ startedAt: far.timestamp - 15_000, endedAt: far.timestamp - 5_000 }];
+  assert.ok(shortRouteEvidenceProblems([...drift, far], pauses).some((p) => /GPS drift/.test(p)));
+});

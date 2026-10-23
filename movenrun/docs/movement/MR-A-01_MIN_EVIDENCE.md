@@ -40,7 +40,8 @@ accepted fixes are >30 m apart and a 220 m walk yields 7 points.
   - every reported accuracy between 1 m and 25 m (25 m is the app's own
     usable-signal ceiling; < 1 m is not a phone GNSS estimate);
   - ≥ 30 s of continuous observed time;
-  - furthest fix from the start ≥ max(40 m, 3 × worst accuracy) (drift guard).
+  - furthest fix from the start of its continuous stretch ≥ max(40 m, 3 × worst
+    accuracy) (drift guard; ground gained across a pause or break does not count).
   The domain still re-checks every pair with `inspectFix` (monotonic time,
   speed ≤ 12 m/s, disjoint circles, accuracy ≤ 40 m).
 
