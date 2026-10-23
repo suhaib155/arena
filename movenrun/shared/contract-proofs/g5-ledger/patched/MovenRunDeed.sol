@@ -7,6 +7,12 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IMovenRunDeed} from "./interfaces/IMovenRunDeed.sol";
 import {MovenRunH3} from "./libraries/MovenRunH3.sol";
 
+/// @notice Hook the claims contract exposes so a void can settle claim counters (G5 patch,
+///         RESEARCH/PROPOSED, unaudited). See docs/contracts/DEED_VOID_LIFECYCLE.md.
+interface IMovenRunDeedVoidHook {
+    function onDeedVoided(uint256 tokenId, address holder, bool administrative) external;
+}
+
 /// @title MovenRunDeed
 /// @notice Permanent ERC-721 ownership of a single eligible solid H3 resolution-8 cell.
 /// @dev The token id is the canonical H3 cell identifier itself, so one cell can only ever
@@ -40,6 +46,13 @@ import {MovenRunH3} from "./libraries/MovenRunH3.sol";
 ///      - after the window there is deliberately no administrative revoke (seizure risk); the
 ///        only path out is the holder's own relinquish();
 ///      - burns keep every counter exact (city count, holder count, total).
+///
+///      G5 DRAFT PATCH (void lifecycle, RESEARCH/PROPOSED, unaudited): a void is either a
+///      FAULT void (voidPendingDeed: attestation abuse, ring, fraud; claim counters stay
+///      spent) or an ADMINISTRATIVE void (voidPendingDeedAdministrative: operator error such
+///      as a wrong region map or a signer bug; irrevocable, and the claims contract restores
+///      the cluster slot once per cluster per city after a cooldown). Either way the claims
+///      contract is told through IMovenRunDeedVoidHook so it can record the outcome.
 contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     using MovenRunH3 for uint64;
 
@@ -85,6 +98,7 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     event BaseTokenURIUpdated(string baseTokenURI);
     event DeedVoided(uint256 indexed tokenId, address indexed holder, uint8 reasonCode, address voidedBy);
     event DeedRelinquished(uint256 indexed tokenId, address indexed holder);
+    event DeedVoidClassified(uint256 indexed tokenId, bool administrative);
 
     error ZeroAddress();
     error NotBootstrapper();
@@ -316,11 +330,29 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     // ---------------------------------------------------------------------
 
     /// @notice Voids a deed that is still pending. VOIDER_ROLE only.
+    /// @dev FAULT class: the claim counters it consumed stay spent (see DEED_VOID_LIFECYCLE.md).
     function voidPendingDeed(uint256 tokenId, uint8 reasonCode) external onlyRole(VOIDER_ROLE) {
+        _voidPending(tokenId, reasonCode, false);
+    }
+
+    /// @notice G5 patch: irrevocable administrative void of a pending deed (operator error, not
+    ///         the claimant's fault). VOIDER_ROLE only, inside the pending window only.
+    function voidPendingDeedAdministrative(uint256 tokenId, uint8 reasonCode) external onlyRole(VOIDER_ROLE) {
+        _voidPending(tokenId, reasonCode, true);
+    }
+
+    function _voidPending(uint256 tokenId, uint8 reasonCode, bool administrative) private {
         address holder = ownerOf(tokenId);
         if (block.timestamp >= finalAt[tokenId]) revert DeedAlreadyFinal(tokenId);
         _burn(tokenId);
         emit DeedVoided(tokenId, holder, reasonCode, msg.sender);
+        emit DeedVoidClassified(tokenId, administrative);
+        address claims = claimsContract;
+        // The claims contract is always a contract in a real wiring; the code-length guard
+        // only keeps a fixture that wires an EOA as the claims contract working.
+        if (claims.code.length > 0) {
+            IMovenRunDeedVoidHook(claims).onDeedVoided(tokenId, holder, administrative);
+        }
     }
 
     /// @notice The holder gives a deed up for good. Not possible while the deed is escrowed.

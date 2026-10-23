@@ -124,6 +124,8 @@ async function patchedSuite(): Promise<Patched> {
   if (PATCHED) {
     const run = (target: string, iface: any, fn: string, args: any[], salt: string) =>
       execViaTimelock(f, target, iface.encodeFunctionData(fn, args), ethers.id(salt));
+    // Fixture adjustment (signer roles patch): the guardian holds SIGNER_APPROVER_ROLE initially.
+    await (await f.deedClaims.connect(f.guardian).approveEligibilitySignerAddition(eligibilityCoSigner.address)).wait();
     await run(f.addresses.deedClaims, f.deedClaims.interface, "setEligibilitySignerRegistered", [eligibilityCoSigner.address, true], "co");
     await run(f.addresses.deedClaims, f.deedClaims.interface, "setCityRegionRoot", [tree.root], "root");
     await run(f.addresses.deedClaims, f.deedClaims.interface, "setCityWideCap", [CITY, 50], "citycap");
