@@ -234,14 +234,17 @@ test("degrading the chip changes nothing about what counts as evidence", () => {
      distance, preview or route work. */
   const rejected = screen.slice(screen.indexOf("if (!decision.accepted) {"));
   const branch = rejected.slice(0, rejected.indexOf("\n        }"));
-  assert.match(branch, /if \(degradesSignal\(decision\.reason\)\) setSignal\("degraded"\)/);
+  /* Health is read from the age of the last accepted fix (lib/fixHealth.ts),
+     which still degrades at once on `degradesSignal` reasons. */
+  assert.match(branch, /healthRef\.current\?\.observe\(decision, p\.accuracy, now\);\s*refreshSignal\(now\);/);
   assert.match(branch, /return;/);
   for (const forbidden of ["pushPoint", "setDistanceM", "distanceRef.current =", "previewRef.current?.push", "showLocation"]) {
     assert.ok(!branch.includes(forbidden), `a rejected fix must not ${forbidden}`);
   }
   /* A later accepted fix restores the good state — the accepted branch is the
      only other writer. */
-  assert.match(screen, /setSignal\(p\.accuracy != null && p\.accuracy > 25 \? "degraded" : "usable"\)/);
+  const accepted = screen.slice(screen.indexOf("showLocation(p);\n        healthRef"));
+  assert.match(accepted, /^showLocation\(p\);\s*healthRef\.current\?\.observe\(decision, p\.accuracy, now\);\s*refreshSignal\(now\);/);
 });
 
 /* ── large text ───────────────────────────────────────────────────────────── */
