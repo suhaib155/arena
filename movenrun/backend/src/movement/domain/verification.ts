@@ -12,7 +12,7 @@
 import { inspectFix } from "@movenrun/shared/measurement";
 import { sessionMetadataProblems } from "@movenrun/shared/session";
 import { evaluateSealing } from "@movenrun/shared/sealing";
-import { hasEvidenceBreak, hasExplicitBreak } from "@movenrun/shared/evidence";
+import { hasEvidenceBreak, hasExplicitBreak, stationaryDriftProblems } from "@movenrun/shared/evidence";
 
 import type {
   MovementObservation,
@@ -258,7 +258,11 @@ function onFootQualityProblems(observation: MovementObservation): string[] {
     const decision = inspectFix(broken ? null : previous, current);
     if (!decision.accepted) return ["Route measurement quality needs review"];
   }
-  return [];
+  /* MR-C: replay the phone's wandering-in-place check on what was uploaded,
+     with a looser ratio, so an older or modified client cannot bank a
+     stationary error cloud (Track A S03) as walked distance. */
+  return stationaryDriftProblems(observation.points.map((p) => ({ latitude: p.lat, longitude: p.lng,
+    timestamp: p.timestamp, accuracy: p.accuracy, breakBefore: p.breakBefore })), observation.session.pauses);
 }
 
 /** Observation coverage, not declared wall-clock time. A pause/background

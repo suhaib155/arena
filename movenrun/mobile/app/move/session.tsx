@@ -23,6 +23,7 @@ import {
   type TrackPoint,
 } from "@/lib/geo";
 import { inspectFix, type FixDecision } from "@movenrun/shared/measurement";
+import { createStationaryDriftGuard } from "@movenrun/shared/evidence";
 import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
 import { createTracker, TrackerStartError, type TrackerMode } from "@/services/moveTracker";
 import {
@@ -149,6 +150,12 @@ export default function MoveSessionScreen() {
   /* Stable (no dependencies), so the start effect calls it without listing it
      and without re-subscribing the tracker. */
   const healthRef = useRef<FixHealth | null>(null);
+  /**
+   * Stationary-drift guard (shared `createStationaryDriftGuard`): withholds a
+   * fix `inspectFix` accepted when the receiver's own scatter says the
+   * displacement is error and not movement. It only ever withholds.
+   */
+  const driftRef = useRef<ReturnType<typeof createStationaryDriftGuard> | null>(null);
   const refreshSignal = useCallback((at: number) => {
     const health = healthRef.current;
     if (health) setSignal(health.signal(at));
@@ -218,6 +225,7 @@ export default function MoveSessionScreen() {
       backgroundedAtRef.current = null;
       trackerGapAtRef.current = null;
       continuityBrokenRef.current = false;
+      driftRef.current = null;
     };
     const unsubscribePrivacyReset = onVerificationPrivacyReset(() => {
       // Sign-out/reset/account replacement explicitly ends this evidence owner.
@@ -246,10 +254,14 @@ export default function MoveSessionScreen() {
            sessionClock.ts); a fix's own time lets it catch up, within budget. */
         clockRef.current.catchUp(p.timestamp);
         const now = clockRef.current.now();
-        const decision: FixDecision = p.timestamp <= lastFixTimestampRef.current ||
+        const inspected: FixDecision = p.timestamp <= lastFixTimestampRef.current ||
           p.timestamp < (lifecycleRef.current.startedAt ?? now)
           ? { accepted: false, reason: "non_increasing_time", segmentMeters: 0 }
           : inspectFix(prev, p, now);
+        driftRef.current?.observe(p);
+        const decision: FixDecision = inspected.accepted && driftRef.current?.withholds(prev, p)
+          ? { accepted: false, reason: "within_uncertainty", segmentMeters: inspected.segmentMeters }
+          : inspected;
         if (Number.isFinite(p.timestamp) && p.timestamp <= now) {
           lastFixTimestampRef.current = Math.max(lastFixTimestampRef.current, p.timestamp);
         }
@@ -336,6 +348,7 @@ export default function MoveSessionScreen() {
         });
         if (started.outcome !== "ok") return;
         healthRef.current = createFixHealth(startedAt);
+        driftRef.current = createStationaryDriftGuard();
         distanceDiagnostics.bind(started.lifecycle.clientSessionId);
         /* Built here and nowhere earlier: a preview needs a session, and the
            session's own rules version is what decides how sealing is read. The
