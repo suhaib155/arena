@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import { execFile } from "node:child_process";
 import { resolveApiConfig } from "./config.js";
 
 const env = () => ({
@@ -44,4 +45,27 @@ test("V3 requires explicit HTTPS origins and bounded proxy/rate-limit settings",
   for (const [key, value] of [["TRUST_PROXY_HOPS", "4"], ["TRUST_PROXY", "all"], ["TRUST_PROXY_HOPS", "-1"], ["RATE_LIMIT_MAX", "0"], ["DATABASE_URL", "https://example.com"]]) {
     assert.throws(() => resolveApiConfig({ ...env(), [key]: value }));
   }
+});
+
+test("V3 refuses to start with a legacy JWT shared-secret variable in every environment", () => {
+  for (const NODE_ENV of ["production", "development", "test"]) {
+    for (const name of ["SUPABASE_LEGACY_JWT_SECRET", "SUPABASE_JWT_SECRET"]) {
+      assert.throws(() => resolveApiConfig({ ...env(), NODE_ENV, [name]: randomBytes(48).toString("base64url") }), (err: unknown) => err instanceof Error && err.message.includes(name), `${NODE_ENV} ${name}`);
+      assert.throws(() => resolveApiConfig({ ...env(), NODE_ENV, [name]: "" }), (err: unknown) => err instanceof Error && err.message.includes(name), `${NODE_ENV} ${name} empty`);
+    }
+    assert.doesNotThrow(() => resolveApiConfig({ ...env(), NODE_ENV }));
+  }
+});
+
+test("the API process exits at startup with a legacy JWT shared-secret variable, without echoing it", async () => {
+  const value = randomBytes(48).toString("base64url");
+  const result = await new Promise<{ code: number | null; output: string }>((resolve) => {
+    const child = execFile(process.execPath, ["--import", "tsx", "src/api/server.ts"], {
+      env: { PATH: process.env.PATH, ...env(), PORT: "1", SUPABASE_LEGACY_JWT_SECRET: value },
+      timeout: 30_000,
+    }, (_err, stdout, stderr) => resolve({ code: child.exitCode, output: `${stdout}${stderr}` }));
+  });
+  assert.equal(result.code, 1, "startup is refused");
+  assert.ok(!result.output.includes("listening"), "the API never listens");
+  assert.ok(!result.output.includes(value), "the value is never printed");
 });

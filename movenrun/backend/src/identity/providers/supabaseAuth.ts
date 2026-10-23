@@ -2,16 +2,17 @@
  * Supabase Auth adapter: the server's only contact with the auth provider.
  *
  * - `SupabaseTokenVerifier` verifies a Supabase access token locally: signature
- *   against the project's published JWKS (ES256 / RS256), or the legacy shared
- *   secret (HS256) only when one is configured; then issuer, audience, role,
- *   expiry and subject. Nothing from an unverified token is ever trusted.
+ *   against the project's published JWKS (ES256 / RS256) only; then issuer,
+ *   audience, role, expiry and subject. Nothing from an unverified token is
+ *   ever trusted. Tokens signed with the revoked legacy shared secret are never
+ *   accepted, and the API refuses to start if that secret is configured.
  * - `SupabaseAuthClient` makes the three server-side calls MovenRun needs: the
  *   Web3 (EIP-4361) token grant for wallet sign-in, deleting an auth user when
  *   a MovenRun account is erased, and looking a user up for reconciliation.
  *
  * Tokens, keys and signatures never appear in errors or logs.
  */
-import { createHmac, createPublicKey, timingSafeEqual, verify as verifySignature, type JsonWebKey, type KeyObject } from "node:crypto";
+import { createPublicKey, verify as verifySignature, type JsonWebKey, type KeyObject } from "node:crypto";
 
 const TIMEOUT_MS = 10_000;
 const JWKS_TTL_MS = 10 * 60 * 1000;
@@ -35,9 +36,14 @@ export interface SupabaseAuthConfig {
   publishableKey: string;
   /** Secret key (`sb_secret_…`): admin calls only. Never leaves the server. */
   secretKey: string;
-  /** Legacy HS256 JWT secret. Only for projects that have not moved to signing keys. */
-  legacyJwtSecret?: string | null;
 }
+
+/**
+ * Environment names under which the revoked legacy JWT shared secret could be
+ * handed to this API. Setting any of them, even empty, stops startup: the
+ * secret is never used, and its presence means the deploy is misconfigured.
+ */
+export const LEGACY_JWT_SECRET_VARIABLES: readonly string[] = ["SUPABASE_LEGACY_JWT_SECRET", "SUPABASE_JWT_SECRET"];
 
 /** What MovenRun takes from a verified Supabase access token. */
 export interface VerifiedSupabaseUser {
@@ -77,7 +83,7 @@ export class SupabaseTokenVerifier {
   private inflight: Promise<void> | null = null;
 
   constructor(
-    private readonly config: Pick<SupabaseAuthConfig, "url" | "legacyJwtSecret">,
+    private readonly config: Pick<SupabaseAuthConfig, "url">,
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly now: () => Date = () => new Date(),
   ) {
@@ -100,14 +106,9 @@ export class SupabaseTokenVerifier {
     const signed = Buffer.from(`${parts[0]}.${parts[1]}`);
     const signature = Buffer.from(parts[2], "base64url");
 
-    if (header.alg === "HS256") {
-      // Only a project still on the legacy shared secret issues HS256 tokens.
-      // Without a configured secret an HS256 token is refused outright.
-      const secret = this.config.legacyJwtSecret;
-      if (!secret) throw new SupabaseAuthError("bad_signature");
-      const expected = createHmac("sha256", secret).update(signed).digest();
-      if (expected.length !== signature.length || !timingSafeEqual(expected, signature)) throw new SupabaseAuthError("bad_signature");
-    } else if (header.alg === "ES256" || header.alg === "RS256") {
+    // Only the project's asymmetric signing keys are trusted. A shared-secret
+    // (HMAC) token, `none`, or any other algorithm is refused outright.
+    if (header.alg === "ES256" || header.alg === "RS256") {
       if (typeof header.kid !== "string" || !header.kid) throw new SupabaseAuthError("bad_signature");
       const entry = await this.keyFor(header.kid);
       // The key decides the algorithm; a header naming another one is refused.
@@ -311,23 +312,26 @@ export class SupabaseAuthClient {
   }
 }
 
-/**
- * Which keys this API trusts for Supabase access tokens, for the startup log.
- * Says only whether a legacy secret is configured, never anything about it.
- */
-export function tokenTrustSummary(config: Pick<SupabaseAuthConfig, "legacyJwtSecret">): string {
-  return config.legacyJwtSecret ? "signing keys and legacy secret" : "signing keys only";
+/** Which keys this API trusts for Supabase access tokens, for the startup log. */
+export function tokenTrustSummary(): string {
+  return "signing keys only";
 }
 
 /**
  * Read Supabase settings from the environment. Nothing set → null (sign-in
  * fails closed). Partly set or malformed → startup error, never a silent fallback.
+ * A legacy JWT shared-secret variable → startup error in every environment.
  */
 export function supabaseAuthConfigFrom(env: Record<string, string | undefined>): SupabaseAuthConfig | null {
+  // Checked first and by name only: the value is never read or reported.
+  for (const name of LEGACY_JWT_SECRET_VARIABLES) {
+    if (env[name] !== undefined) {
+      throw new Error(`Invalid Supabase configuration: ${name} is set; legacy shared-secret tokens are never accepted, remove the variable`);
+    }
+  }
   const url = env.SUPABASE_URL;
   const publishableKey = env.SUPABASE_PUBLISHABLE_KEY;
   const secretKey = env.SUPABASE_SECRET_KEY;
-  const legacyJwtSecret = env.SUPABASE_LEGACY_JWT_SECRET || null;
   if (url === undefined && publishableKey === undefined && secretKey === undefined) return null;
   if (!url || !/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(url.replace(/\/$/, "")) || !publishableKey || !secretKey) {
     throw new Error("Invalid Supabase configuration: SUPABASE_URL (https), SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY are required together");
@@ -338,6 +342,5 @@ export function supabaseAuthConfigFrom(env: Record<string, string | undefined>):
   // new keys are accepted, which keeps revoking it safe for this service.
   if (!publishableKey.startsWith("sb_publishable_")) throw new Error("Invalid Supabase configuration: SUPABASE_PUBLISHABLE_KEY must be an sb_publishable_ key");
   if (!secretKey.startsWith("sb_secret_")) throw new Error("Invalid Supabase configuration: SUPABASE_SECRET_KEY must be an sb_secret_ key");
-  if (legacyJwtSecret !== null && legacyJwtSecret.length < 32) throw new Error("Invalid Supabase configuration: SUPABASE_LEGACY_JWT_SECRET is too short");
-  return { url: url.replace(/\/$/, ""), publishableKey, secretKey, legacyJwtSecret };
+  return { url: url.replace(/\/$/, ""), publishableKey, secretKey };
 }
