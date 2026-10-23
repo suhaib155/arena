@@ -881,6 +881,8 @@ export class GameplayService {
    * instance that slept catches up when it wakes; no paid scheduler.
    */
   async settleDueDays(): Promise<number> {
+    // An operator or reconciler halt: settle nothing, quietly (the loop keeps running).
+    if ((await this.settlementStatus()).halted) return 0;
     const today = this.today();
     if (today + 2 >= this.rules.seasonOneStartDay) await this.ensurePartitions(Math.max(this.rules.seasonOneStartDay, today), today + 2);
     const last = lastClosedDay(this.rules, this.now());
@@ -916,6 +918,8 @@ export class GameplayService {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
     const existing = await this.daySummary(tx, day);
     if (existing) return { ...existing, created: false };
+    // Halted: nothing is written; the day stays unsettled until a resume.
+    if (await this.haltedIn(tx)) throw new GameplayError(503, "settlement_halted");
     // The day's sorts (entries, the session week, the latest unit states) in memory, not on disk.
     await tx.execute(sql.raw(`SET LOCAL work_mem = '${this.settlementWorkMemKb}kB'`));
 
@@ -1154,6 +1158,66 @@ export class GameplayService {
       poolMicro: String(total.pool), mintedMicro: String(total.minted), creditedMicro: String(total.credited), burnedMicro: String(total.burned),
       returnedMicro: String(total.returned), seasonPoolMicro: String(seasonPool),
     };
+  }
+
+  /* ── operator halt (halt-only) ──────────────────────────────────────── */
+
+  private async haltedIn(exec: Exec): Promise<boolean> {
+    const [r] = await rows<{ action: string }>(exec, sql`SELECT action FROM gameplay_settlement_halts ORDER BY id DESC LIMIT 1`);
+    return r?.action === "halt";
+  }
+
+  /** The current halt status: the latest audited halt or resume, if any. */
+  async settlementStatus(): Promise<{ halted: boolean; actor: string | null; reason: string | null; day: number | null; sinceMs: number | null }> {
+    const [r] = await rows<{ action: string; actor: string; reason: string; day: number | null; at_ms: number }>(this.db, sql`
+      SELECT action, actor, reason, day, (extract(epoch FROM created_at) * 1000)::float8 AS at_ms FROM gameplay_settlement_halts ORDER BY id DESC LIMIT 1`);
+    if (!r) return { halted: false, actor: null, reason: null, day: null, sinceMs: null };
+    return { halted: r.action === "halt", actor: r.actor, reason: r.reason, day: r.day === null ? null : Number(r.day), sinceMs: Number(r.at_ms) };
+  }
+
+  /**
+   * Halt settlement: no day closes until a resume. Halt-only by design: it
+   * stores one audit row and nothing else; it cannot settle, re-settle,
+   * repair, credit or override anything, and it does not bypass any other
+   * authorization. A day already being settled when the halt commits
+   * completes under the normal rules. Halting while halted changes nothing.
+   */
+  async haltSettlement(input: { actor: string; reason: string; day?: number }): Promise<{ halted: true; changed: boolean }> {
+    return { halted: true, changed: await this.recordHalt("halt", input) };
+  }
+
+  /** Resume settlement. It settles nothing itself; the next day-close run does, under the normal rules. */
+  async resumeSettlement(input: { actor: string; reason: string }): Promise<{ halted: false; changed: boolean }> {
+    return { halted: false, changed: await this.recordHalt("resume", input) };
+  }
+
+  private async recordHalt(action: "halt" | "resume", input: { actor: string; reason: string; day?: number }): Promise<boolean> {
+    if (typeof input.actor !== "string" || !/^[a-z0-9][a-z0-9_.:-]{0,63}$/.test(input.actor)) throw new GameplayError(400, "invalid_actor");
+    if (typeof input.reason !== "string" || input.reason.length < 1 || input.reason.length > 500) throw new GameplayError(400, "invalid_reason");
+    if (input.day !== undefined && !(Number.isSafeInteger(input.day) && input.day >= 0)) throw new GameplayError(400, "invalid_day");
+    return this.db.transaction(async (tx) => {
+      // One writer at a time, so two operators never interleave halt and resume.
+      await tx.execute(sql`LOCK TABLE gameplay_settlement_halts IN SHARE ROW EXCLUSIVE MODE`);
+      if ((await this.haltedIn(tx)) === (action === "halt")) return false;
+      await tx.execute(sql`INSERT INTO gameplay_settlement_halts (action, actor, reason, day) VALUES (${action}, ${input.actor}, ${input.reason}, ${input.day ?? null})`);
+      return true;
+    });
+  }
+
+  /**
+   * The reconciler's check of a closed day (`verifyDay`); on a replay
+   * mismatch or invalid stored books it halts settlement (actor
+   * "reconciler", the day recorded) and rethrows. It never repairs the day.
+   */
+  async verifyDayOrHalt(day: number): Promise<{ day: number; inputDigest: string }> {
+    try {
+      return await this.verifyDay(day);
+    } catch (err) {
+      if (err instanceof GameplayError && (err.code === "closed_day_replay_mismatch" || err.code === "closed_day_books_invalid")) {
+        await this.haltSettlement({ actor: "reconciler", reason: `${err.code} on day ${day}`, day });
+      }
+      throw err;
+    }
   }
 
   /** The rule set a pinned day settles under. Unknown or changed fails closed. */
