@@ -88,6 +88,8 @@ export default function MoveSummaryScreen() {
   const completeQuest = useGameStore((s) => s.completeQuest);
   const captureZone = useGameStore((s) => s.captureZone);
   const recordMovementVerification = useGameStore((s) => s.recordMovementVerification);
+  const recordMovementXpEstimate = useGameStore((s) => s.recordMovementXpEstimate);
+  const settleMovementXp = useGameStore((s) => s.settleMovementXp);
   const defendZones = useGameStore((s) => s.defendZones);
   const ownedZones = useGameStore((s) => s.zones);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
@@ -302,7 +304,11 @@ export default function MoveSummaryScreen() {
        that recorded no route is saved without it: it still gets its
        route-history record below, and Home's movement task — which filters
        history by SESSION_QUEST_ID — correctly stays unsatisfied. */
-    if (movedOverGround) completeQuest(sessionQuest);
+    if (movedOverGround) {
+      /* Banked now as an estimate; the server's verdict settles it (MR-C). */
+      const outcome = completeQuest(sessionQuest);
+      recordMovementXpEstimate(session.clientSessionId, outcome.xpGained, Boolean(movementClient) && willSubmit);
+    }
     /* Server verification of the completed route.
        Saving is the user's deliberate act of turning this session into
        progress, and it is the only path that is already gated to real GPS
@@ -329,7 +335,10 @@ export default function MoveSummaryScreen() {
            answer. Nothing here captures a zone or awards anything — the store
            action only appends what the server said. */
         const record = toVerifiedRecord(session.clientSessionId, state);
-        if (record) recordMovementVerification(record);
+        if (record) {
+          recordMovementVerification(record);
+          settleMovementXp(record);
+        }
       });
     }
     /* Persist the route-trust *preview* summary only (score + label) — never
