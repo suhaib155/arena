@@ -87,6 +87,7 @@
     "src/store/__tests__/authLifecycle.test.ts",
     "src/store/__tests__/bootstrapRecovery.test.ts",
     "src/store/__tests__/loginCommit.test.ts",
+    "src/store/__tests__/movementXpStatus.test.ts",
     "src/store/__tests__/questCompletion.test.ts",
     "src/store/__tests__/sessionManagement.test.ts",
     "src/store/__tests__/signInMethods.test.ts"
