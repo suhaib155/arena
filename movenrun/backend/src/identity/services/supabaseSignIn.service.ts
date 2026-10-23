@@ -308,9 +308,17 @@ export class SupabaseSignInService {
     const expired = [...new Set(await this.deps.signIn.walletHandoffs.takeExpired(now, limit))];
     // The same wallet always maps to the same provider user, so a newer code
     // (or one already spent) for that user keeps it.
-    const abandoned: string[] = [];
-    for (const subject of expired) if (!(await this.deps.signIn.walletHandoffs.inUse(subject, now))) abandoned.push(subject);
-    return (await this.removeProviderUsers(abandoned)).removed.length;
+    // An expired code was made more than one code lifetime ago, right after
+    // its wallet signed in. A provider sign-in since then is the person back
+    // (a direct sign-in whose account may not be committed yet), so the user
+    // is kept and left to the orphan sweep.
+    const signedInAfter = new Date(now.getTime() - WALLET_HANDOFF_TTL_MS);
+    let removed = 0;
+    for (const subject of expired) {
+      if (await this.deps.signIn.walletHandoffs.inUse(subject, now)) continue;
+      if ((await this.deleteProviderUser(subject, { signedInAfter })) === "removed") removed += 1;
+    }
+    return removed;
   }
 
   /**

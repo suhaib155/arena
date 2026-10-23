@@ -252,6 +252,23 @@ for (const backend of backends) {
     assert.equal(await errorCode(h.service.adoptPendingDeletion(R)), "ok");
   });
 
+  t("an expired wallet code does not delete a wallet that is signing in directly right now", async () => {
+    const h = await harness(backend);
+    const S = sub(9);
+    // The wallet signed in for a browser handoff and the code was never collected.
+    h.provider.create(S);
+    await h.signIn.walletHandoffs.create({ codeHash: "a".repeat(64), codeChallenge: "c".repeat(43), subject: S, expiresAt: new Date(h.now().getTime() + 5 * MIN) });
+    // Six minutes on, the same wallet signs in directly in the app. Supabase has
+    // the sign-in, the API has passed adoption and is creating the account.
+    h.advance(6 * MIN);
+    h.provider.signIn(S);
+    assert.equal(await errorCode(h.service.adoptPendingDeletion(S)), "ok");
+    // Maintenance runs before that account is committed.
+    await h.service.expireHandoffs();
+    await h.mapAccount(S);
+    assert.deepEqual(h.provider.deleted, [], "the provider user behind a sign-in in progress was deleted");
+  });
+
   t("a lost response after the provider deleted the user converges without a second account effect", async () => {
     const h = await harness(backend);
     const S = sub(5);
