@@ -65,6 +65,14 @@ export interface GameplayRules {
    */
   dayAttribution?: DayAttribution;
   /**
+   * Which sessions a closed day's settlement counts, by the server's receipt
+   * time (see `ReceiptCutoff`). Absent means `RECEIPT_CUTOFF_V1`, unnamed,
+   * which keeps the recorded identity (config digest) of 1001 and 1002
+   * exactly as it was; the cutoff in force is bound into every settled day's
+   * input digest either way.
+   */
+  receiptCutoff?: ReceiptCutoff;
+  /**
    * D1: the day index (days since 1970-01-01 on the clock above) on which
    * season 1 starts. No default: required when gameplay is enabled.
    */
@@ -143,6 +151,24 @@ export interface DayAttribution {
   rule: "d1-last-verified-fix";
   version: 1;
 }
+
+/**
+ * Late uploads (Track B finding 1; CONSERVATIVE DRAFT, D1 stays an owner
+ * decision). `server-receipt-before-day-close` v1: a verified session counts
+ * toward its D1 day's credits, and toward any day's active-day count, only
+ * if the server received it (`movement_verifications.created_at`, set by the
+ * database at insert and never by the phone) strictly before that day's
+ * close: midnight on the rules' clock after the day, plus `dayCloseGraceMs`.
+ * A session received at or after the close earns nothing for any day, so
+ * when settlement runs (on time, late, or again) never changes what it
+ * counts. Route history and verification are untouched.
+ */
+export interface ReceiptCutoff {
+  rule: "server-receipt-before-day-close";
+  version: 1;
+}
+
+export const RECEIPT_CUTOFF_V1: Readonly<ReceiptCutoff> = Object.freeze({ rule: "server-receipt-before-day-close", version: 1 });
 
 /**
  * Per-walker daily budget of takes (SIMULATION-PILOT PROPOSAL, sim-pilot-2:
@@ -304,6 +330,8 @@ export function rulesetConfig(rules: Omit<GameplayRules, "seasonOneStartDay">) {
     districtControl: rules.districtControl, trustWeight: rules.trustWeight, kitLevel: rules.kitLevel,
     // Absent in 1001, so its canonical form (and digest) is unchanged.
     dayAttribution: rules.dayAttribution,
+    // Absent in 1001 and 1002 (the v1 cutoff, unnamed), so their digests are unchanged.
+    receiptCutoff: rules.receiptCutoff,
   };
 }
 
@@ -348,6 +376,8 @@ export function rulesetProblems(r: Omit<GameplayRules, "seasonOneStartDay">): st
     if (r.takeBudget.counting !== "takes-v1") p.push("unknown take counting rule");
     if (r.takeBudget.order !== undefined && r.takeBudget.order !== "walk-order-v1") p.push("unknown take order");
   }
+  if (r.receiptCutoff !== undefined && (r.receiptCutoff.rule !== "server-receipt-before-day-close" || r.receiptCutoff.version !== 1)) p.push("unknown receipt cutoff rule");
+  if (!(Number.isInteger(r.dayCloseGraceMs) && r.dayCloseGraceMs >= 0 && r.dayCloseGraceMs < DAY_MS)) p.push("day close grace must be 0 to under a day");
   if (r.dayAttribution !== undefined && (r.dayAttribution.rule !== "d1-last-verified-fix" || r.dayAttribution.version !== 1)) p.push("unknown day attribution rule");
   const u = r.units;
   if (u.unit.kind === "h3" && !(Number.isInteger(u.unit.resolution) && u.unit.resolution >= 0 && u.unit.resolution <= 15)) p.push("unit resolution must be 0-15");
@@ -409,6 +439,25 @@ export function seasonOf(rules: Pick<GameplayRules, "seasonOneStartDay">, day: n
 /** The last day whose close (midnight plus grace) has passed at `nowMs`. */
 export function lastClosedDay(rules: Pick<GameplayRules, "dayOffsetMinutes" | "dayCloseGraceMs">, nowMs: number): number {
   return dayOf(rules, nowMs - rules.dayCloseGraceMs) - 1;
+}
+
+/** The instant (epoch ms) a day closes: midnight after it on the rules' clock, plus the grace window. */
+export function dayCloseMs(rules: Pick<GameplayRules, "dayOffsetMinutes" | "dayCloseGraceMs">, day: number): number {
+  return dayStartMs(rules, day + 1) + rules.dayCloseGraceMs;
+}
+
+/**
+ * The receipt cutoff a day settles under, as bound into its input digest:
+ * the rule, the clock and grace it reads, and the day's close instant.
+ */
+export function receiptCutoffOf(rules: Pick<GameplayRules, "receiptCutoff" | "dayOffsetMinutes" | "dayCloseGraceMs">, day: number) {
+  const c = rules.receiptCutoff ?? RECEIPT_CUTOFF_V1;
+  return { rule: c.rule, version: c.version, dayOffsetMinutes: rules.dayOffsetMinutes, dayCloseGraceMs: rules.dayCloseGraceMs, closeMs: dayCloseMs(rules, day) };
+}
+
+/** Whether a session received at `receivedMs` counts for its D1 day `day` (strictly before the close). */
+export function receivedInTime(rules: Pick<GameplayRules, "dayOffsetMinutes" | "dayCloseGraceMs">, day: number, receivedMs: number): boolean {
+  return Number.isFinite(receivedMs) && receivedMs < dayCloseMs(rules, day);
 }
 
 /**

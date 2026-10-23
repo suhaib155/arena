@@ -3,8 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import {
-  DAY_MS, DEFAULT_RULES_VERSION, PILOT_PROPOSAL, RULESETS, SIM_PILOT_2_PROPOSAL, UnknownRulesVersionError, dayOf, dayStartMs, gameplayRulesFromEnv,
-  isUnitUnder, lastClosedDay, rulesetDigest, rulesetFor, rulesetProblems, seasonOf, takeoverRuleOf,
+  DAY_MS, DEFAULT_RULES_VERSION, PILOT_PROPOSAL, RECEIPT_CUTOFF_V1, RULESETS, SIM_PILOT_2_PROPOSAL, UnknownRulesVersionError, dayCloseMs, dayOf, dayStartMs,
+  gameplayRulesFromEnv, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, rulesetProblems, seasonOf, takeoverRuleOf,
 } from "./rules.js";
 import { VERIFIED_STEPS_V1 } from "./path.js";
 
@@ -41,6 +41,29 @@ test("day attribution, seasons and day close follow the pilot clock", () => {
   // Day 100 closes at midnight plus the two-hour grace.
   assert.equal(lastClosedDay(rules, 101 * DAY_MS + rules.dayCloseGraceMs - 1), 99);
   assert.equal(lastClosedDay(rules, 101 * DAY_MS + rules.dayCloseGraceMs), 100);
+});
+
+test("receipt cutoff (v1, unnamed in 1001 and 1002): a session counts only if received strictly before its day's close, the instant the day is closed", () => {
+  const rules = { ...PILOT_PROPOSAL, seasonOneStartDay: 100 };
+  const close = dayCloseMs(rules, 100);
+  assert.equal(close, 101 * DAY_MS + 2 * 3_600_000);
+  assert.ok(receivedInTime(rules, 100, close - 1));
+  assert.ok(!receivedInTime(rules, 100, close), "on the cutoff is late");
+  assert.ok(!receivedInTime(rules, 100, Number.NaN));
+  // The same instant closes the day for settlement and for pushes.
+  assert.equal(lastClosedDay(rules, close - 1), 99);
+  assert.equal(lastClosedDay(rules, close), 100);
+  // With a clock offset the close moves with the day.
+  const shifted = { ...rules, dayOffsetMinutes: 330 };
+  assert.equal(dayCloseMs(shifted, 100), dayStartMs(shifted, 101) + rules.dayCloseGraceMs);
+  // What a settled day binds into its input digest: rule, version, clock, grace and the close.
+  assert.deepEqual(receiptCutoffOf(rules, 100), { ...RECEIPT_CUTOFF_V1, dayOffsetMinutes: 0, dayCloseGraceMs: 7_200_000, closeMs: close });
+  assert.notDeepEqual(receiptCutoffOf({ ...rules, dayCloseGraceMs: 3_600_000 }, 100), receiptCutoffOf(rules, 100), "a different grace is a different proof");
+  // Unnamed in both known rule sets, so their recorded identities are unchanged; naming it is a new identity.
+  for (const r of RULESETS.values()) assert.equal(rulesetConfig(r).receiptCutoff, undefined);
+  assert.notEqual(rulesetDigest({ ...PILOT_PROPOSAL, receiptCutoff: RECEIPT_CUTOFF_V1 }), rulesetDigest(PILOT_PROPOSAL));
+  assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, receiptCutoff: { rule: "x", version: 1 } as never }).includes("unknown receipt cutoff rule"));
+  assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, dayCloseGraceMs: DAY_MS }).some((x) => x.includes("grace")));
 });
 
 test("the pilot proposal keeps the owner's push rule and the source's fixed numbers", () => {

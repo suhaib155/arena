@@ -63,7 +63,8 @@ import {
 } from "@movenrun/shared/clubsDistricts";
 import type { DaySettlement } from "@movenrun/shared/economy-v3";
 import {
-  dayOf, dayStartMs, isUnitUnder, lastClosedDay, rulesetConfig, rulesetDigest, rulesetFor, seasonOf, UnknownRulesVersionError, zoneOfUnder,
+  dayCloseMs, dayOf, dayStartMs, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, seasonOf,
+  UnknownRulesVersionError, zoneOfUnder,
   type GameplayRules,
 } from "./rules.js";
 import {
@@ -408,6 +409,9 @@ export class GameplayService {
         if (mv.status !== "verified") throw new GameplayError(409, "session_not_verified");
         const day = dayOf(this.rules, Number(mv.end_time));
         if (day > dayOf(this.rules, now)) throw new GameplayError(409, "session_in_future");
+        // Received (by the database's clock) at or after its day's close: late,
+        // whatever this instance's clock says. It changes nothing on that day.
+        if (!receivedInTime(this.rules, day, Number(mv.received_ms))) throw new GameplayError(409, "day_closed");
         if (seasonOf(this.rules, day) === null) throw new GameplayError(409, "season_not_started");
         // 1001: the stored cells, in unit id order. 1002: the canonical path the
         // server derived from the verified fixes, in walk order.
@@ -888,23 +892,141 @@ export class GameplayService {
     // instance runs now. A version this build does not know, or whose config
     // differs from the one recorded, fails closed: nothing is written and the
     // day stays unsettled.
-    let [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
-      SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
-    if (!pinned) {
-      await this.pinDayRules(tx, day);
-      [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
-        SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    const [already] = await rows(tx, sql`SELECT 1 FROM gameplay_day_rules WHERE day = ${day}`);
+    if (!already) await this.pinDayRules(tx, day);
+    const rules = await this.pinnedRules(tx, day);
+    const { cutoff, entryRows, refusalRows, credits, clubsStatus, clubsProblems, contributions, control, inputDigest } = await this.dayInputs(tx, day, season, rules);
+    if (credits.status === "refused") {
+      await tx.execute(sql`
+        INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, problems, clubs_status, input_digest, receipt_cutoff_at)
+        VALUES (${day}, ${season}, 'refused', ${rules.ruleset}, ${rules.economyRulesVersion}, ${rules.holding.rulesVersion},
+                ${JSON.stringify(credits.problems)}::jsonb, 'skipped', ${inputDigest}, to_timestamp(${cutoff.closeMs}::float8 / 1000))`);
+    } else {
+      const b = credits.settlement.books;
+      await tx.execute(sql`
+        INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version,
+          pool_micro, minted_micro, credited_micro, toll_paid_micro, toll_received_micro, burned_micro, returned_micro,
+          day_share_micro, players, clubs_status, clubs_problems, input_digest, receipt_cutoff_at)
+        VALUES (${day}, ${season}, 'settled', ${rules.ruleset}, ${rules.economyRulesVersion}, ${rules.holding.rulesVersion},
+          ${b.poolMicro}, ${b.mintedMicro}, ${b.creditedMicro}, ${b.tollPaidMicro}, ${b.tollReceivedMicro}, ${b.burnedMicro},
+          ${b.returnedToSeasonPoolMicro}, ${credits.settlement.dayShareMicro}, ${credits.lines.length}, ${clubsStatus},
+          ${JSON.stringify(clubsProblems)}::jsonb, ${inputDigest}, to_timestamp(${cutoff.closeMs}::float8 / 1000))`);
+      const l = credits.lines;
+      if (l.length > 0) {
+        await tx.execute(sql`
+          INSERT INTO gameplay_credit_lines (day, player_id, earned_micro, toll_paid_micro, toll_received_micro, recharge_micro,
+            upkeep_taken_micro, upkeep_in_condition_micro, zones_held, net_micro)
+          SELECT ${day}::int, v.* FROM unnest(${arr(l.map((x) => x.playerId))}::text[], ${arr(l.map((x) => x.earnedMicro))}::bigint[],
+            ${arr(l.map((x) => x.tollPaidMicro))}::bigint[], ${arr(l.map((x) => x.tollReceivedMicro))}::bigint[], ${arr(l.map((x) => x.rechargeMicro))}::bigint[],
+            ${arr(l.map((x) => x.upkeepTakenMicro))}::bigint[], ${arr(l.map((x) => x.upkeepPaidInConditionMicro))}::bigint[],
+            ${arr(l.map((x) => x.zonesHeld))}::int[], ${arr(l.map((x) => x.netMicro))}::bigint[]) AS v`);
+      }
+      if (clubsStatus === "settled" && contributions && control) {
+        const netOf = new Map(l.map((x) => [x.playerId, x.netMicro]));
+        const clubs = contributions.clubs;
+        if (clubs.length > 0) {
+          const credit = clubs.map((c) => c.members.reduce((a, m) => a + (netOf.get(m.walkerId) ?? 0), 0));
+          await tx.execute(sql`
+            INSERT INTO gameplay_club_days (day, club_id, members, contributions, credits_micro)
+            SELECT ${day}::int, v.club_id, v.members, v.contributions::jsonb, v.credits
+              FROM unnest(${arr(clubs.map((c) => c.clubId))}::text[], ${arr(clubs.map((c) => c.members.length))}::int[],
+                          ${arr(clubs.map((c) => JSON.stringify(c.totals)))}::text[], ${arr(credit)}::bigint[]) AS v(club_id, members, contributions, credits)`);
+        }
+        const ds = control.districts;
+        if (ds.length > 0) {
+          await tx.execute(sql`
+            INSERT INTO gameplay_district_days (day, district_id, status, controller_club_id, held_weight, standings)
+            SELECT ${day}::int, v.district_id, v.status, v.controller, v.weight, v.standings::jsonb
+              FROM unnest(${arr(ds.map((d) => d.districtId))}::text[], ${arr(ds.map((d) => d.status))}::text[], ${arr(ds.map((d) => d.controllerClubId))}::text[],
+                          ${arr(ds.map((d) => d.held.weight))}::bigint[],
+                          ${arr(ds.map((d) => JSON.stringify({ held: d.held, clubs: d.clubs, unclubbed: d.unclubbed })))}::text[])
+                AS v(district_id, status, controller, weight, standings)`);
+        }
+      }
     }
+
+    // One proof per walker of the day, whatever the books said: counts and the
+    // sha256 of their accepted rows (seq order) and refusal counters. Player
+    // numbers only; it outlives the raw partitions (retention, owner decision).
+    const proofs = new Map<number, { accepted: number; takes: number; refused: number; unitsUsed: number; lines: string[]; hv: number }>();
+    const proofOf = (walkerNo: number, hv: number) => {
+      let p = proofs.get(walkerNo);
+      if (!p) { p = { accepted: 0, takes: 0, refused: 0, unitsUsed: 0, lines: [], hv }; proofs.set(walkerNo, p); }
+      return p;
+    };
+    for (const e of entryRows) {
+      const p = proofOf(Number(e.walker_no), Number(e.holding_rules_version));
+      p.accepted += 1;
+      if (Number(e.outcome) === 3 || Number(e.outcome) === 4) p.takes += 1;
+      p.lines.push([e.source_no, e.unit, e.outcome, e.previous_holder_no ?? "", e.new_holder_no ?? "", `${e.strength_before}>${e.strength_after}`, e.shade_strength].join(":"));
+    }
+    for (const r of refusalRows) {
+      const p = proofOf(Number(r.walker_no), Number(r.holding_rules_version));
+      p.refused = REFUSED_OUTCOMES.reduce((a, o) => a + Number(r[o]), 0);
+      p.unitsUsed = Number(r.units_used);
+      p.lines.push(["refused", ...REFUSED_OUTCOMES.map((o) => Number(r[o])), (r.visit_units ?? []).join(",")].join(":"));
+    }
+    const proofList = [...proofs.entries()].filter(([, p]) => p.accepted + p.refused > 0).sort((a, b) => a[0] - b[0]);
+    if (proofList.length > 0) {
+      await tx.execute(sql`
+        INSERT INTO gameplay_player_day_proofs (player_no, day, holding_rules_version, accepted, takes, refused, units_used, events_sha256)
+        SELECT v.player_no, ${day}::int, v.hv, v.accepted, v.takes, v.refused, v.units_used, decode(v.sha, 'hex')
+          FROM unnest(${arr(proofList.map(([n]) => n))}::int[], ${arr(proofList.map(([, p]) => p.hv))}::int[], ${arr(proofList.map(([, p]) => p.accepted))}::int[],
+                      ${arr(proofList.map(([, p]) => p.takes))}::int[], ${arr(proofList.map(([, p]) => p.refused))}::int[], ${arr(proofList.map(([, p]) => p.unitsUsed))}::int[],
+                      ${arr(proofList.map(([, p]) => createHash("sha256").update(p.lines.join("\n")).digest("hex")))}::text[])
+            AS v(player_no, hv, accepted, takes, refused, units_used, sha)
+        ON CONFLICT (player_no, day) DO NOTHING`);
+    }
+    const summary = await this.daySummary(tx, day);
+    return { ...summary!, created: true };
+  }
+
+  /**
+   * Replay a closed day against its stored settlement, writing nothing. The
+   * inputs are read again exactly as settlement reads them (receipt cutoff
+   * included) and their digest compared with the one stored. A match means
+   * the closed books still follow from the record. A mismatch fails closed
+   * with 409 `closed_day_replay_mismatch`: nothing is rewritten, re-settled
+   * or paid, and repairing the day is an operator incident that needs its own
+   * authorization. Account erasure after the day legitimately changes its
+   * inputs and also reports a mismatch.
+   */
+  async verifyDay(day: number): Promise<{ day: number; inputDigest: string }> {
+    if (!Number.isInteger(day) || day < 0) throw new GameplayError(400, "invalid_day");
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
+      const [stored] = await rows<{ season: number; input_digest: string }>(tx, sql`
+        SELECT season, input_digest FROM gameplay_day_settlements WHERE day = ${day}`);
+      if (!stored) throw new GameplayError(404, "day_not_settled");
+      const rules = await this.pinnedRules(tx, day);
+      const { inputDigest } = await this.dayInputs(tx, day, Number(stored.season), rules);
+      if (inputDigest !== stored.input_digest) throw new GameplayError(409, "closed_day_replay_mismatch");
+      return { day, inputDigest };
+    }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  }
+
+  /** The rule set a pinned day settles under. Unknown or changed fails closed. */
+  private async pinnedRules(tx: Tx, day: number): Promise<GameplayRules> {
+    const [pinned] = await rows<{ holding_rules_version: number; config_digest: string }>(tx, sql`
+      SELECT holding_rules_version, config_digest FROM gameplay_day_rules WHERE day = ${day}`);
+    if (!pinned) throw new GameplayError(409, "day_rules_not_pinned");
     let dayRules;
     try {
-      dayRules = rulesetFor(Number(pinned!.holding_rules_version));
+      dayRules = rulesetFor(Number(pinned.holding_rules_version));
     } catch (err) {
       if (err instanceof UnknownRulesVersionError) throw new GameplayError(409, "unknown_rules_version");
       throw err;
     }
-    if (rulesetDigest(dayRules) !== pinned!.config_digest) throw new GameplayError(409, "rules_config_mismatch");
-    const rules: GameplayRules = { ...dayRules, seasonOneStartDay: this.rules.seasonOneStartDay };
+    if (rulesetDigest(dayRules) !== pinned.config_digest) throw new GameplayError(409, "rules_config_mismatch");
+    return { ...dayRules, seasonOneStartDay: this.rules.seasonOneStartDay };
+  }
 
+  /**
+   * Everything a day's settlement reads and computes, without writing:
+   * shared by settlement and by `verifyDay`'s replay, so both see exactly the
+   * same inputs and the same digest.
+   */
+  private async dayInputs(tx: Tx, day: number, season: number, rules: GameplayRules) {
     // Each unit as it stood at the end of its last change on or before the day.
     const stateRows = await rows<{ unit: string; day: number; holder_id: string; strength: number; shade: boolean; deeded: boolean; masked: boolean;
       level: number; fortified: boolean; holding_rules_version: number }>(tx, sql`
@@ -964,11 +1086,18 @@ export class GameplayService {
       }))));
 
     // Players who moved: verified sessions whose last fix falls on the day (D1),
-    // and the week before it for consistency (section 17).
-    const sessionRows = await rows<{ id: string; user_id: string; end_time: string; duration_seconds: number | null; distance_meters: number | null; traversed_hex_ids: string[] | null }>(tx, sql`
-      SELECT id, user_id, end_time, duration_seconds, distance_meters, traversed_hex_ids FROM movement_verifications
+    // and the week before it for consistency (section 17). A session counts
+    // only if the server received it before its own day closed (the receipt
+    // cutoff, rules.ts): one that arrived later earns nothing for any day, so
+    // the result does not depend on when this runs.
+    const cutoff = receiptCutoffOf(rules, day);
+    const sessionRows = (await rows<{ id: string; user_id: string; end_time: string; duration_seconds: number | null; distance_meters: number | null;
+      traversed_hex_ids: string[] | null; received_ms: number }>(tx, sql`
+      SELECT id, user_id, end_time, duration_seconds, distance_meters, traversed_hex_ids, ${RECEIVED_MS} AS received_ms FROM movement_verifications
        WHERE status = 'verified' AND end_time >= ${dayStartMs(rules, day - 6)} AND end_time < ${dayStartMs(rules, day + 1)}
-       ORDER BY user_id, end_time, id`);
+         AND ${RECEIVED_MS} < ${dayCloseMs(rules, day)}::float8
+       ORDER BY user_id, end_time, id`))
+      .filter((s) => receivedInTime(rules, dayOf(rules, Number(s.end_time)), Number(s.received_ms)));
     // 1002: a session's crossed cells (the toll's input, economy V3 §20) are the
     // stepped units of its stored path, never interpolated ones and never the
     // resolution 8 cells. A session without a path crosses nothing here.
@@ -1064,91 +1193,9 @@ export class GameplayService {
       entries: accepted.map((e) => [e.eventId, e.outcome, e.walkerId, e.previousHolderId, e.newHolderId]),
       refusals: refusalRows.map((r) => [r.walker_id, ...REFUSED_OUTCOMES.map((o) => Number(r[o])), (r.visit_units ?? []).map(String)]),
       players, memberships, districts: districtRows.map((d) => [int8ToCell(d.unit), d.district_id, d.districts_version]),
+      receiptCutoff: cutoff,
     });
-
-    if (credits.status === "refused") {
-      await tx.execute(sql`
-        INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, problems, clubs_status, input_digest)
-        VALUES (${day}, ${season}, 'refused', ${rules.ruleset}, ${rules.economyRulesVersion}, ${rules.holding.rulesVersion},
-                ${JSON.stringify(credits.problems)}::jsonb, 'skipped', ${inputDigest})`);
-    } else {
-      const b = credits.settlement.books;
-      await tx.execute(sql`
-        INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version,
-          pool_micro, minted_micro, credited_micro, toll_paid_micro, toll_received_micro, burned_micro, returned_micro,
-          day_share_micro, players, clubs_status, clubs_problems, input_digest)
-        VALUES (${day}, ${season}, 'settled', ${rules.ruleset}, ${rules.economyRulesVersion}, ${rules.holding.rulesVersion},
-          ${b.poolMicro}, ${b.mintedMicro}, ${b.creditedMicro}, ${b.tollPaidMicro}, ${b.tollReceivedMicro}, ${b.burnedMicro},
-          ${b.returnedToSeasonPoolMicro}, ${credits.settlement.dayShareMicro}, ${credits.lines.length}, ${clubsStatus},
-          ${JSON.stringify(clubsProblems)}::jsonb, ${inputDigest})`);
-      const l = credits.lines;
-      if (l.length > 0) {
-        await tx.execute(sql`
-          INSERT INTO gameplay_credit_lines (day, player_id, earned_micro, toll_paid_micro, toll_received_micro, recharge_micro,
-            upkeep_taken_micro, upkeep_in_condition_micro, zones_held, net_micro)
-          SELECT ${day}::int, v.* FROM unnest(${arr(l.map((x) => x.playerId))}::text[], ${arr(l.map((x) => x.earnedMicro))}::bigint[],
-            ${arr(l.map((x) => x.tollPaidMicro))}::bigint[], ${arr(l.map((x) => x.tollReceivedMicro))}::bigint[], ${arr(l.map((x) => x.rechargeMicro))}::bigint[],
-            ${arr(l.map((x) => x.upkeepTakenMicro))}::bigint[], ${arr(l.map((x) => x.upkeepPaidInConditionMicro))}::bigint[],
-            ${arr(l.map((x) => x.zonesHeld))}::int[], ${arr(l.map((x) => x.netMicro))}::bigint[]) AS v`);
-      }
-      if (clubsStatus === "settled" && contributions && control) {
-        const netOf = new Map(l.map((x) => [x.playerId, x.netMicro]));
-        const clubs = contributions.clubs;
-        if (clubs.length > 0) {
-          const credit = clubs.map((c) => c.members.reduce((a, m) => a + (netOf.get(m.walkerId) ?? 0), 0));
-          await tx.execute(sql`
-            INSERT INTO gameplay_club_days (day, club_id, members, contributions, credits_micro)
-            SELECT ${day}::int, v.club_id, v.members, v.contributions::jsonb, v.credits
-              FROM unnest(${arr(clubs.map((c) => c.clubId))}::text[], ${arr(clubs.map((c) => c.members.length))}::int[],
-                          ${arr(clubs.map((c) => JSON.stringify(c.totals)))}::text[], ${arr(credit)}::bigint[]) AS v(club_id, members, contributions, credits)`);
-        }
-        const ds = control.districts;
-        if (ds.length > 0) {
-          await tx.execute(sql`
-            INSERT INTO gameplay_district_days (day, district_id, status, controller_club_id, held_weight, standings)
-            SELECT ${day}::int, v.district_id, v.status, v.controller, v.weight, v.standings::jsonb
-              FROM unnest(${arr(ds.map((d) => d.districtId))}::text[], ${arr(ds.map((d) => d.status))}::text[], ${arr(ds.map((d) => d.controllerClubId))}::text[],
-                          ${arr(ds.map((d) => d.held.weight))}::bigint[],
-                          ${arr(ds.map((d) => JSON.stringify({ held: d.held, clubs: d.clubs, unclubbed: d.unclubbed })))}::text[])
-                AS v(district_id, status, controller, weight, standings)`);
-        }
-      }
-    }
-
-    // One proof per walker of the day, whatever the books said: counts and the
-    // sha256 of their accepted rows (seq order) and refusal counters. Player
-    // numbers only; it outlives the raw partitions (retention, owner decision).
-    const proofs = new Map<number, { accepted: number; takes: number; refused: number; unitsUsed: number; lines: string[]; hv: number }>();
-    const proofOf = (walkerNo: number, hv: number) => {
-      let p = proofs.get(walkerNo);
-      if (!p) { p = { accepted: 0, takes: 0, refused: 0, unitsUsed: 0, lines: [], hv }; proofs.set(walkerNo, p); }
-      return p;
-    };
-    for (const e of entryRows) {
-      const p = proofOf(Number(e.walker_no), Number(e.holding_rules_version));
-      p.accepted += 1;
-      if (Number(e.outcome) === 3 || Number(e.outcome) === 4) p.takes += 1;
-      p.lines.push([e.source_no, e.unit, e.outcome, e.previous_holder_no ?? "", e.new_holder_no ?? "", `${e.strength_before}>${e.strength_after}`, e.shade_strength].join(":"));
-    }
-    for (const r of refusalRows) {
-      const p = proofOf(Number(r.walker_no), Number(r.holding_rules_version));
-      p.refused = REFUSED_OUTCOMES.reduce((a, o) => a + Number(r[o]), 0);
-      p.unitsUsed = Number(r.units_used);
-      p.lines.push(["refused", ...REFUSED_OUTCOMES.map((o) => Number(r[o])), (r.visit_units ?? []).join(",")].join(":"));
-    }
-    const proofList = [...proofs.entries()].filter(([, p]) => p.accepted + p.refused > 0).sort((a, b) => a[0] - b[0]);
-    if (proofList.length > 0) {
-      await tx.execute(sql`
-        INSERT INTO gameplay_player_day_proofs (player_no, day, holding_rules_version, accepted, takes, refused, units_used, events_sha256)
-        SELECT v.player_no, ${day}::int, v.hv, v.accepted, v.takes, v.refused, v.units_used, decode(v.sha, 'hex')
-          FROM unnest(${arr(proofList.map(([n]) => n))}::int[], ${arr(proofList.map(([, p]) => p.hv))}::int[], ${arr(proofList.map(([, p]) => p.accepted))}::int[],
-                      ${arr(proofList.map(([, p]) => p.takes))}::int[], ${arr(proofList.map(([, p]) => p.refused))}::int[], ${arr(proofList.map(([, p]) => p.unitsUsed))}::int[],
-                      ${arr(proofList.map(([, p]) => createHash("sha256").update(p.lines.join("\n")).digest("hex")))}::text[])
-            AS v(player_no, hv, accepted, takes, refused, units_used, sha)
-        ON CONFLICT (player_no, day) DO NOTHING`);
-    }
-    const summary = await this.daySummary(tx, day);
-    return { ...summary!, created: true };
+    return { cutoff, entryRows, refusalRows, credits, clubsStatus, clubsProblems, contributions, control, inputDigest };
   }
 
   private async daySummary(exec: Exec, day: number): Promise<Omit<DaySummary, "created"> | null> {

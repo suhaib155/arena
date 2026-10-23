@@ -95,13 +95,17 @@ async function user(id: string): Promise<string> {
   return id;
 }
 
-/** A verified movement session ending at `endMs`, 30 minutes and 3 km long, through `units`. */
+/**
+ * A verified movement session ending at `endMs`, 30 minutes and 3 km long,
+ * through `units`, received by the server now on the test clock (settlement
+ * and apply select by receipt time, never the machine's wall clock).
+ */
 async function session(userId: string, clientSessionId: string, endMs: number, units: string[], status = "verified"): Promise<string> {
   const id = randomUUID();
   await pool.query(
-    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time)
-     VALUES ($1, $2, $3, $4, 3000, 1800, $5, $6, $7)`,
-    [id, userId, clientSessionId, status, units, endMs - 1_800_000, endMs],
+    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
+     VALUES ($1, $2, $3, $4, 3000, 1800, $5, $6, $7, (to_timestamp($8::float8 / 1000) AT TIME ZONE current_setting('TimeZone')))`,
+    [id, userId, clientSessionId, status, units, endMs - 1_800_000, endMs, clock],
   );
   return id;
 }
@@ -527,13 +531,13 @@ test("day close settles once, the books balance, and the day is then closed to p
   await pool.query(`INSERT INTO gameplay_day_rules (day, season, ruleset, holding_rules_version, takeover_policy, unit_zone_rule, config, config_digest)
     VALUES (1, 99, 'x', 1, 'immediate', 'unit', '{}', $1), (2, 99, 'x', 1, 'immediate', 'unit', '{}', $1)`, ["0".repeat(64)]);
   assert.equal(await errorCode(pool.query(
-    `INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, pool_micro, minted_micro, credited_micro, returned_micro, clubs_status, input_digest)
-     VALUES (1, 1, 'settled', 'x', 1, 1, 100, 60, 50, 40, 'skipped', $1)`, ["0".repeat(64)])), "23514");
+    `INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, pool_micro, minted_micro, credited_micro, returned_micro, clubs_status, input_digest, receipt_cutoff_at)
+     VALUES (1, 1, 'settled', 'x', 1, 1, 100, 60, 50, 40, 'skipped', $1, now())`, ["0".repeat(64)])), "23514");
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
-    await c.query(`INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, pool_micro, minted_micro, credited_micro, returned_micro, players, clubs_status, input_digest)
-      VALUES (2, 1, 'settled', 'x', 1, 1, 100, 60, 60, 40, 1, 'skipped', $1)`, ["0".repeat(64)]);
+    await c.query(`INSERT INTO gameplay_day_settlements (day, season, status, ruleset, economy_rules_version, holding_rules_version, pool_micro, minted_micro, credited_micro, returned_micro, players, clubs_status, input_digest, receipt_cutoff_at)
+      VALUES (2, 1, 'settled', 'x', 1, 1, 100, 60, 60, 40, 1, 'skipped', $1, now())`, ["0".repeat(64)]);
     await c.query(`INSERT INTO gameplay_credit_lines (day, player_id, earned_micro, toll_paid_micro, toll_received_micro, recharge_micro, upkeep_taken_micro, upkeep_in_condition_micro, zones_held, net_micro)
       VALUES (2, 'usr-late', 50, 0, 0, 0, 0, 0, 0, 50)`);
     assert.equal(await errorCode(c.query("COMMIT")), "23514");

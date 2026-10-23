@@ -85,10 +85,13 @@ after(async () => {
   await admin.end();
 });
 
+/** Received by the server now on the test clock (receipt time decides lateness, never the machine's wall clock). */
+const RECEIVED = "(to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone'))";
+
 async function walk(user: string, sid: string, endMs: number, units: string[]) {
   await pool.query(
-    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time)
-     VALUES ($1, $2, $3, 'verified', 2500, 1500, $4, $5, $6)`, [`mv-${sid}`, user, sid, units, endMs - 1_500_000, endMs]);
+    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
+     VALUES ($1, $2, $3, 'verified', 2500, 1500, $4, $5, $6, ${RECEIVED})`, [`mv-${sid}`, user, sid, units, endMs - 1_500_000, endMs, clock]);
   return svc.applySession(user, sid);
 }
 
@@ -142,8 +145,8 @@ test("1001 on PostgreSQL: the stored game state of a fixed scenario is the one r
   out.push(await walk("ben", "b1", at(D, 10), [C[1]!])); // one push a day on someone else's ground
   out.push(await walk("cal", "c0", at(D, 11), [C[3]!, C[4]!]));
   // Concurrent applies of one session: applied once.
-  await pool.query(`INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time)
-     VALUES ('mv-d0', 'dee', 'd0', 'verified', 900, 700, $1, $2, $3)`, [[C[0]!, C[5]!], at(D, 11.5) - 700_000, at(D, 11.5)]);
+  await pool.query(`INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
+     VALUES ('mv-d0', 'dee', 'd0', 'verified', 900, 700, $1, $2, $3, ${RECEIVED.replace("$7", "$4")})`, [[C[0]!, C[5]!], at(D, 11.5) - 700_000, at(D, 11.5), clock]);
   const same = await Promise.all([1, 2, 3, 4, 5].map(() => svc.applySession("dee", "d0")));
   out.push(same.filter((r) => !r.replayed).length);
   clock = at(D + 1, 12);
