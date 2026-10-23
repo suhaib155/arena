@@ -1,6 +1,7 @@
 /** Bounded session evidence, independent of the map's drawing budget. */
 import { haversineMeters, projector, type PlanarPoint } from "./geo";
 import { cellForCoordinate } from "./h3";
+import { isUnobservedBridge } from "./measurement";
 import {
   createSealScanner,
   type PauseSource,
@@ -23,10 +24,22 @@ export interface EvidencePoint extends SealRoutePoint { accuracy?: number | null
 interface Entry<P> { point: P; pinned: boolean; cell: string }
 interface Chunk<P> { entries: Entry<P>[]; compacted: boolean; originalEnd: number }
 
-export function hasEvidenceBreak(a: SealRoutePoint, b: SealRoutePoint, pauses: PauseSource = []): boolean {
+/** A deliberate interruption: the device marked one, or the player paused. */
+export function hasExplicitBreak(a: SealRoutePoint, b: SealRoutePoint, pauses: PauseSource = []): boolean {
   if (b.breakBefore === true) return true;
   return (typeof pauses === "function" ? pauses() : pauses)
     .some((pause) => pause.startedAt < b.timestamp && pause.endedAt > a.timestamp);
+}
+
+/**
+ * The line from `a` to `b` is not evidence: an explicit break, or an
+ * unobserved bridge (stale anchor after a rejected jump, outage, long silence).
+ * Distance, duration, drawing and traversal all split here. Plausibility gates
+ * use {@link hasExplicitBreak} instead, so a bridge never excuses a pair from
+ * the speed checks.
+ */
+export function hasEvidenceBreak(a: EvidencePoint, b: EvidencePoint, pauses: PauseSource = []): boolean {
+  return hasExplicitBreak(a, b, pauses) || isUnobservedBridge(a, b);
 }
 
 /** Canonical measured distance: a missing segment never contributes a straight-line guess. */
