@@ -56,11 +56,22 @@ export interface SessionPathRule {
   maxSpeedMetersPerSecond: number;
   /** Most units one path keeps. */
   maxUnits: number;
-  /** Whether interpolated units become pushes. Stepped units always do. */
+  /**
+   * Whether interpolated units become pushes. Stepped units always do. False
+   * in every authoritative rule: V3 §4 makes solid ground physically stepped,
+   * so an inferred unit never claims, erodes, takes or defends.
+   */
   pushInterpolated: boolean;
 }
 
-/** Rule set 1002's path rule. SIMULATION-PILOT PROPOSAL. */
+/**
+ * Rule set 1002's path rule. SIMULATION-PILOT PROPOSAL. `pushInterpolated`
+ * is false (standing draft safety decision, Track B finding 3): interpolated
+ * units stay in the stored path for display and analysis only. Not ratified
+ * as part of 1002; the flag stays off. Changing it changed rule set 1002's
+ * config digest (d9f35588… to 92e8e3cb…), an in-place edit allowed only
+ * because 0011 is unapplied and no day was ever pinned under 1002.
+ */
 export const VERIFIED_STEPS_V1: Readonly<SessionPathRule> = Object.freeze({
   name: "verified-steps",
   version: 1,
@@ -70,8 +81,32 @@ export const VERIFIED_STEPS_V1: Readonly<SessionPathRule> = Object.freeze({
   maxSegmentMs: 120_000,
   maxSpeedMetersPerSecond: 12,
   maxUnits: 500,
-  pushInterpolated: true,
+  pushInterpolated: false,
 });
+
+/**
+ * Where a unit of a session came from, as the server knows it. Only
+ * `observed_step` is physical evidence:
+ *
+ * - `observed_step`: the unit contains an accepted fix (A1). Under 1001 every
+ *   stored resolution 8 cell is one, at that coarse resolution; it is never
+ *   read as a finer step.
+ * - `interpolated`: crossed by the straight line between two consecutive
+ *   accepted fixes on a walked segment. Inferred, analytic only.
+ * - `enclosed_shade`: inside a sealed loop (V3 §4 shade). Reserved: no
+ *   enclosure is derived until D2; never produced here.
+ * - `masked`: a masked unit (privacy), refused at push time from the unit's
+ *   own state; never produced by path derivation.
+ *
+ * Only the label leaves this function: no coordinate, time or order beyond
+ * the path's own first-touch order.
+ */
+export type UnitProvenance = "observed_step" | "interpolated" | "enclosed_shade" | "masked";
+
+export function provenanceOf(path: Pick<SessionPath, "units" | "interpolated">): { unit: string; provenance: UnitProvenance }[] {
+  if (path.interpolated.length !== path.units.length) throw new RangeError("path flags do not match its units");
+  return path.units.map((unit, i) => ({ unit, provenance: path.interpolated[i] ? "interpolated" : "observed_step" }));
+}
 
 export interface PathFix {
   lat: number;
@@ -167,14 +202,15 @@ export function deriveSessionPath(fixes: readonly PathFix[], pauses: PauseSource
   return { pathVersion: rule.version, resolution: rule.resolution, units, interpolated, skippedSegments, truncated };
 }
 
-/** The units a path pushes, in walk order, under its rule. */
+/** The units a path pushes, in walk order, under its rule: observed steps only unless the rule says otherwise. */
 export function pushUnitsOf(path: Pick<SessionPath, "units" | "interpolated">, rule: Pick<SessionPathRule, "pushInterpolated">): string[] {
-  return rule.pushInterpolated ? [...path.units] : path.units.filter((_, i) => !path.interpolated[i]);
+  if (rule.pushInterpolated) return [...path.units];
+  return provenanceOf(path).filter((u) => u.provenance === "observed_step").map((u) => u.unit);
 }
 
 /** Stepped units only: the "crossed cells" of a session for the toll (economy V3 §20: never interpolated). */
 export function steppedUnitsOf(path: Pick<SessionPath, "units" | "interpolated">): string[] {
-  return path.units.filter((_, i) => !path.interpolated[i]);
+  return provenanceOf(path).filter((u) => u.provenance === "observed_step").map((u) => u.unit);
 }
 
 /* ── compact storage ─────────────────────────────────────────────────────── */

@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { cellToParent, getResolution, latLngToCell } from "h3-js";
 import { cellsForObservations } from "@movenrun/shared/h3";
 import {
-  bitsToFlags, cellToInt8, deriveSessionPath, flagsToBits, int8ToCell, pushUnitsOf, sessionPathRuleProblems, steppedUnitsOf, VERIFIED_STEPS_V1,
+  bitsToFlags, cellToInt8, deriveSessionPath, flagsToBits, int8ToCell, provenanceOf, pushUnitsOf, sessionPathRuleProblems, steppedUnitsOf, VERIFIED_STEPS_V1,
   type PathFix,
 } from "./path.js";
 import { fixesOf, poly, ROUTE_FIXTURES, T0 } from "./pathFixtures.js";
@@ -98,11 +98,49 @@ test("compact storage round-trips: bigint ids and one bit per unit", () => {
   assert.equal(Buffer.byteLength(path.units[0]!), 15);
 });
 
-test("pushes: interpolated units push under 1002's rule; the toll's crossed cells are stepped units only", () => {
+test("pushes: 1002's rule pushes observed steps only; the toll's crossed cells are stepped units only; provenance labels each unit", () => {
   const path = { units: ["a", "b", "c"], interpolated: [false, true, false] };
-  assert.deepEqual(pushUnitsOf(path, { pushInterpolated: true }), ["a", "b", "c"]);
-  assert.deepEqual(pushUnitsOf(path, { pushInterpolated: false }), ["a", "c"]);
+  assert.equal(VERIFIED_STEPS_V1.pushInterpolated, false, "authoritative pushes never use inferred units");
+  assert.deepEqual(pushUnitsOf(path, VERIFIED_STEPS_V1), ["a", "c"]);
+  assert.deepEqual(pushUnitsOf(path, { pushInterpolated: true }), ["a", "b", "c"], "the switch still exists, off");
   assert.deepEqual(steppedUnitsOf(path), ["a", "c"]);
+  assert.deepEqual(provenanceOf(path), [
+    { unit: "a", provenance: "observed_step" }, { unit: "b", provenance: "interpolated" }, { unit: "c", provenance: "observed_step" },
+  ]);
+  assert.throws(() => provenanceOf({ units: ["a"], interpolated: [] }));
+});
+
+/** Fixes along a polyline (metres from a synthetic origin) every `spacing` m at 1.4 m/s, optionally with a silent gap. */
+function walkFixes(vertices: [number, number][], spacing: number, origin = { latitude: 51.5, longitude: -0.12 }): PathFix[] {
+  return fixesOf(poly(vertices, spacing), origin, Math.round((spacing / 1.4) * 1000));
+}
+
+test("no inferred push: sparse accurate GPS, a benign signal gap, a phone pause and a long leg each push exactly the units holding a fix", () => {
+  const fixCells = (f: PathFix[]) => [...new Set(f.map((p) => latLngToCell(p.lat, p.lng, R.resolution)))];
+  // Sparse but accurate: a fix every 150 m; the segments are walked (interpolated units exist) but push nothing.
+  const sparse = walkFixes([[0, 0], [1500, 0]], 150);
+  const sp = deriveSessionPath(sparse, [], R);
+  assert.ok(sp.interpolated.some(Boolean));
+  assert.deepEqual(pushUnitsOf(sp, R), fixCells(sparse));
+  // A benign 90 s signal gap of 120 m (no pause): still a walkable segment, its inside still not pushed.
+  const before = walkFixes([[0, 0], [300, 0]], 10);
+  const after = walkFixes([[420, 0], [700, 0]], 10).map((p) => ({ ...p, timestamp: p.timestamp - T0 + before[before.length - 1]!.timestamp + 90_000 }));
+  const gap = deriveSessionPath([...before, ...after], [], R);
+  assert.deepEqual(pushUnitsOf(gap, R), fixCells([...before, ...after]));
+  // The same gap over a phone pause: not walked at all (no bridge).
+  const last = before[before.length - 1]!.timestamp;
+  const paused = deriveSessionPath([...before, ...after], [{ startedAt: last + 1_000, endedAt: after[0]!.timestamp - 1_000 }], R);
+  assert.equal(paused.skippedSegments, 1);
+  assert.equal(gap.skippedSegments, 0, "without the pause the gap is a walked segment");
+  assert.ok(paused.interpolated.filter(Boolean).length <= gap.interpolated.filter(Boolean).length);
+  assert.deepEqual(pushUnitsOf(paused, R), fixCells([...before, ...after]));
+  // A 600 m leg between two fixes is an unsupported segment: never bridged, nothing inferred across it, nothing pushed on it.
+  const leg = [...walkFixes([[0, 0], [100, 0]], 10)];
+  const far = { ...leg[leg.length - 1]!, lng: leg[leg.length - 1]!.lng + 600 / 69_400, timestamp: leg[leg.length - 1]!.timestamp + 430_000 };
+  const long = deriveSessionPath([...leg, far], [], R);
+  assert.equal(long.skippedSegments, 1);
+  assert.deepEqual(pushUnitsOf(long, R), fixCells([...leg, far]));
+  assert.ok(!long.units.some((u, i) => long.interpolated[i] && !fixCells(leg).includes(u) && u !== latLngToCell(far.lat, far.lng, R.resolution)), "nothing inferred on the long leg");
 });
 
 /* ── drift and coverage on the route fixtures ───────────────────────────── */
