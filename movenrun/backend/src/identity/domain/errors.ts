@@ -21,6 +21,9 @@ export type IdentityErrorCode =
   | "conflict"
   | "rate_limited"
   | "provider_not_configured"
+  // The sign-in provider's keys could not be fetched — 503 with Retry-After;
+  // the token was neither accepted nor judged invalid.
+  | "provider_unavailable"
   // Auth / OTP — intentionally uniform so responses can't be used to
   // enumerate accounts or distinguish "wrong code" from "no such challenge".
   | "verification_failed"
@@ -60,6 +63,7 @@ export const ERROR_HTTP_STATUS: Record<IdentityErrorCode, number> = {
   conflict: 409,
   rate_limited: 429,
   provider_not_configured: 503,
+  provider_unavailable: 503,
   verification_failed: 401,
   challenge_expired: 401,
   challenge_consumed: 401,
@@ -80,6 +84,9 @@ export const ERROR_HTTP_STATUS: Record<IdentityErrorCode, number> = {
   registration_closed: 403,
   registration_busy: 429,
 };
+
+/** Retry-After (seconds) sent with `provider_unavailable`; matches the verifier's retry gap after a failed key fetch. */
+export const PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS = 10;
 
 export class IdentityError extends Error {
   readonly code: IdentityErrorCode;

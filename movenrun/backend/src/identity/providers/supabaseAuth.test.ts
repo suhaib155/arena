@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, randomBytes, sign, type KeyObject } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { LEGACY_JWT_SECRET_VARIABLES, SupabaseAuthClient, SupabaseAuthError, SupabaseTokenVerifier, supabaseAuthConfigFrom, tokenTrustSummary } from "./supabaseAuth.js";
+import { JWKS_RETRY_AFTER_FAILURE_MS, LEGACY_JWT_SECRET_VARIABLES, SupabaseAuthClient, SupabaseAuthError, SupabaseTokenVerifier, supabaseAuthConfigFrom, tokenTrustSummary } from "./supabaseAuth.js";
 
 const URL_ = "https://tavxtestproject.supabase.co";
 const SUB = "5f6c2a1e-4b7d-4c8e-9f10-112233445566";
@@ -206,9 +206,135 @@ test("JWKS is cached, private keys in it are ignored, and an unknown kid refetch
   assert.equal(counter.n, 2);
 });
 
-test("an unreachable JWKS fails closed", async () => {
-  const down = (async () => { throw new Error("network"); }) as typeof fetch;
-  await rejects(verifier(down), token(good), "bad_signature");
+/** A key-set endpoint that can be taken down and brought back; counts fetches. */
+function switchableJwks(keys: unknown[]) {
+  const state = { up: true, n: 0, failure: (): Promise<Response> => Promise.reject(new TypeError("fetch failed")) };
+  const fetchImpl = (async () => {
+    state.n += 1;
+    if (!state.up) return state.failure();
+    return new Response(JSON.stringify({ keys }), { status: 200 });
+  }) as unknown as typeof fetch;
+  return { state, fetchImpl };
+}
+
+test("a JWKS outage (network error, timeout, 5xx, unreadable body) is provider_unavailable, never acceptance", async () => {
+  const failures: Array<[string, typeof fetch]> = [
+    ["network", (async () => { throw new TypeError("fetch failed"); }) as unknown as typeof fetch],
+    ["500", (async () => new Response("{}", { status: 500 })) as unknown as typeof fetch],
+    ["502", (async () => new Response("bad gateway", { status: 502 })) as unknown as typeof fetch],
+    ["503", (async () => new Response("{}", { status: 503 })) as unknown as typeof fetch],
+    ["not json", (async () => new Response("<html>", { status: 200 })) as unknown as typeof fetch],
+    ["no keys array", (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch],
+  ];
+  for (const [name, fetchImpl] of failures) {
+    const v = verifier(fetchImpl);
+    await assert.rejects(v.verify(token(good)), (e: unknown) => e instanceof SupabaseAuthError && e.reason === "provider_unavailable", name);
+    // A forged token is not let through either; and tokens that need no key are still plain refusals.
+    await assert.rejects(v.verify(token(good, { key: generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey })), (e: unknown) => e instanceof SupabaseAuthError && e.reason === "provider_unavailable", name);
+    await rejects(v, token(good, { alg: "HS256", hmac: randomBytes(32).toString("hex") }), "bad_signature");
+    await rejects(v, token(good, { alg: "none" }), "bad_signature");
+    await rejects(v, "not.a.jwt!", "malformed_token");
+  }
+});
+
+test("a JWKS fetch that does not answer in time is provider_unavailable", async () => {
+  const hanging = ((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    init.signal!.addEventListener("abort", () => reject(init.signal!.reason));
+  })) as unknown as typeof fetch;
+  const v = new SupabaseTokenVerifier({ url: URL_ }, hanging, () => NOW, { timeoutMs: 50 });
+  // AbortSignal.timeout's timer does not hold the process open; a server's listener does, so stand in for it.
+  const keepAlive = setInterval(() => {}, 1_000);
+  try {
+    const started = Date.now();
+    await rejects(v, token(good), "provider_unavailable");
+    assert.ok(Date.now() - started < 5_000, "bounded by the fetch timeout");
+  } finally {
+    clearInterval(keepAlive);
+  }
+});
+
+test("after a successful fetch, an unknown kid or a bad signature stays bad_signature", async () => {
+  const { state, fetchImpl } = switchableJwks([jwk(ec.publicKey, "ec-1")]);
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => NOW);
+  assert.equal((await v.verify(token(good))).subject, SUB);
+  await rejects(v, token(good, { kid: "rotated-away" }), "bad_signature");
+  await rejects(v, token(good, { key: generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey }), "bad_signature");
+  assert.equal(state.n, 1);
+});
+
+test("cached keys keep verifying through an outage for a bounded time; unknown kids during it are provider_unavailable", async () => {
+  const { state, fetchImpl } = switchableJwks([jwk(ec.publicKey, "ec-1")]);
+  let clock = NOW;
+  const at = (ms: number) => { clock = new Date(NOW.getTime() + ms); };
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => clock);
+  const fresh = () => token({ ...good, iat: Math.floor(clock.getTime() / 1000) - 10, exp: Math.floor(clock.getTime() / 1000) + 3600 });
+  assert.equal((await v.verify(fresh())).subject, SUB);
+  state.up = false;
+  // Past the 10-minute cache: a refresh is tried, fails, and the known key still verifies.
+  at(11 * 60_000);
+  assert.equal((await v.verify(fresh())).subject, SUB);
+  assert.equal(state.n, 2);
+  // A kid the last good fetch did not have cannot be judged while the provider is down.
+  await rejects(v, token({ ...good, iat: Math.floor(clock.getTime() / 1000), exp: Math.floor(clock.getTime() / 1000) + 3600 }, { kid: "new-key" }), "provider_unavailable");
+  // A forged signature on a cached kid is still a bad signature.
+  await rejects(v, token({ ...good, exp: Math.floor(clock.getTime() / 1000) + 3600 }, { key: generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey }), "bad_signature");
+  // More than an hour after the last good fetch the cached key is no longer trusted.
+  at(61 * 60_000);
+  await rejects(v, fresh(), "provider_unavailable");
+});
+
+test("concurrent requests share one JWKS fetch: all wait for it, all get its outcome", async () => {
+  for (const up of [false, true]) {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const counter = { n: 0 };
+    const fetchImpl = (async () => {
+      counter.n += 1;
+      await gate;
+      if (!up) throw new TypeError("fetch failed");
+      return new Response(JSON.stringify({ keys: [jwk(ec.publicKey, "ec-1")] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => NOW);
+    const results = Array.from({ length: 20 }, () => v.verify(token(good)).then(() => "ok", (e: unknown) => (e instanceof SupabaseAuthError ? e.reason : "other")));
+    release();
+    const outcomes = await Promise.all(results);
+    assert.deepEqual(new Set(outcomes), new Set([up ? "ok" : "provider_unavailable"]), up ? "all accepted" : "all unavailable");
+    assert.equal(counter.n, 1, "one fetch for all of them");
+  }
+});
+
+test("recovery: after the retry gap the next request refetches and verifies; before it nothing hammers the provider", async () => {
+  const { state, fetchImpl } = switchableJwks([jwk(ec.publicKey, "ec-1")]);
+  let clock = NOW;
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => clock);
+  state.up = false;
+  for (let i = 0; i < 5; i++) await rejects(v, token(good), "provider_unavailable");
+  assert.equal(state.n, 1);
+  state.up = true;
+  clock = new Date(NOW.getTime() + JWKS_RETRY_AFTER_FAILURE_MS - 1_000);
+  await rejects(v, token(good), "provider_unavailable");
+  assert.equal(state.n, 1);
+  clock = new Date(NOW.getTime() + JWKS_RETRY_AFTER_FAILURE_MS + 1_000);
+  assert.equal((await v.verify(token(good))).subject, SUB);
+  assert.equal(state.n, 2);
+});
+
+test("a key-set fetch that throws before returning a promise does not wedge later refreshes", async () => {
+  const counter = { n: 0 };
+  let up = false;
+  const fetchImpl = ((): Promise<Response> => {
+    counter.n += 1;
+    if (!up) throw new TypeError("fetch failed");
+    return Promise.resolve(new Response(JSON.stringify({ keys: [jwk(ec.publicKey, "ec-1")] }), { status: 200 }));
+  }) as unknown as typeof fetch;
+  let clock = NOW;
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => clock);
+  await rejects(v, token(good), "provider_unavailable");
+  assert.equal(counter.n, 1);
+  up = true;
+  clock = new Date(NOW.getTime() + JWKS_RETRY_AFTER_FAILURE_MS + 1_000);
+  assert.equal((await v.verify(token(good))).subject, SUB);
+  assert.equal(counter.n, 2);
 });
 
 test("the Web3 grant posts message and signature with the publishable key only", async () => {

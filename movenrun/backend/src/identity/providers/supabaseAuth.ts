@@ -16,6 +16,10 @@ import { createPublicKey, verify as verifySignature, type JsonWebKey, type KeyOb
 
 const TIMEOUT_MS = 10_000;
 const JWKS_TTL_MS = 10 * 60 * 1000;
+/** After a failed key-set fetch, the next one may be tried this soon (successful fetches: once a minute). */
+export const JWKS_RETRY_AFTER_FAILURE_MS = 10_000;
+/** Keys from the last good fetch keep verifying through an outage for at most this long after it. */
+export const JWKS_MAX_STALE_MS = 60 * 60 * 1000;
 /** A token is refused once it is this close to expiry, and `iat` may be at most this far ahead. */
 const CLOCK_SKEW_SECONDS = 30;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,12 +84,14 @@ export class SupabaseTokenVerifier {
   private keys = new Map<string, { key: KeyObject; alg: "ES256" | "RS256" }>();
   private fetchedAt = 0;
   private attemptedAt = 0;
+  private lastFetchFailed = false;
   private inflight: Promise<void> | null = null;
 
   constructor(
     private readonly config: Pick<SupabaseAuthConfig, "url">,
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly now: () => Date = () => new Date(),
+    private readonly options: { timeoutMs?: number } = {},
   ) {
     this.issuer = `${config.url}/auth/v1`;
   }
@@ -152,13 +158,27 @@ export class SupabaseTokenVerifier {
     return { subject: claims.sub.toLowerCase(), email, methods, providers, sessionId, oauthSignedInAt, expiresAt: new Date(claims.exp * 1000) };
   }
 
+  /**
+   * The key for `kid`, or null when a successfully fetched key set does not
+   * have it (the token is then refused as a bad signature). Throws
+   * `provider_unavailable` when the key set could not be fetched and no
+   * recent enough copy of the key is held: the token is neither accepted nor
+   * called invalid.
+   */
   private async keyFor(kid: string) {
     const now = this.now().getTime();
     // Refresh when the cache is old or the kid is unknown (a key rotation),
-    // but never more than once a minute, so bad tokens cannot hammer the provider.
+    // but never more than once a minute after a good fetch (or every 10 s
+    // after a failed one), so bad tokens cannot hammer the provider.
     const wanted = now - this.fetchedAt > JWKS_TTL_MS || !this.keys.has(kid);
-    if (wanted && now - this.attemptedAt > 60_000) await this.refresh();
-    return this.keys.get(kid) ?? null;
+    const gap = this.lastFetchFailed ? JWKS_RETRY_AFTER_FAILURE_MS : 60_000;
+    if (wanted && now - this.attemptedAt > gap) await this.refresh();
+    // A request arriving while a fetch is under way waits for its outcome.
+    else if (wanted && this.inflight) await this.inflight;
+    const entry = this.keys.get(kid);
+    if (entry && this.now().getTime() - this.fetchedAt <= JWKS_MAX_STALE_MS) return entry;
+    if (this.lastFetchFailed) throw new SupabaseAuthError("provider_unavailable");
+    return null;
   }
 
   private refresh(): Promise<void> {
@@ -167,7 +187,7 @@ export class SupabaseTokenVerifier {
       try {
         const response = await this.fetchImpl(`${this.issuer}/.well-known/jwks.json`, {
           redirect: "error",
-          signal: AbortSignal.timeout(TIMEOUT_MS),
+          signal: AbortSignal.timeout(this.options.timeoutMs ?? TIMEOUT_MS),
         });
         if (!response.ok) throw new SupabaseAuthError("jwks_unavailable");
         const body = (await response.json()) as Jwks;
@@ -183,13 +203,19 @@ export class SupabaseTokenVerifier {
         }
         this.keys = next;
         this.fetchedAt = this.now().getTime();
+        this.lastFetchFailed = false;
       } catch {
-        // Keep serving known keys through a provider blip; the caller fails
-        // closed for any kid it cannot find.
-      } finally {
-        this.inflight = null;
+        // Network error, timeout, non-2xx or an unreadable body. Known keys
+        // keep serving for a bounded time (keyFor); anything else is
+        // reported as the provider being unavailable, never accepted.
+        this.lastFetchFailed = true;
       }
-    })();
+      // Cleared in a later callback, never synchronously: a fetch that throws
+      // before its first await would otherwise clear it before it is assigned,
+      // leaving a settled promise that blocks every later refresh.
+    })().finally(() => {
+      this.inflight = null;
+    });
     return this.inflight;
   }
 }
