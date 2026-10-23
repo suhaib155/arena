@@ -115,6 +115,15 @@ export interface VerifiedSignIn {
   googleSession?: { id: string; keepUntil: Date };
 }
 
+/**
+ * A provider outage (the signing keys could not be fetched) is a retryable
+ * 503; every other verification failure is the same uniform 401.
+ */
+function tokenVerificationError(err: unknown): IdentityError {
+  if (err instanceof SupabaseAuthError && err.reason === "provider_unavailable") return new IdentityError("provider_unavailable");
+  return new IdentityError("verification_failed");
+}
+
 export class SupabaseSignInService {
   private readonly now: () => Date;
   private readonly nonce: () => string;
@@ -155,8 +164,8 @@ export class SupabaseSignInService {
     let user: VerifiedSupabaseUser;
     try {
       user = await this.deps.tokens.verify(accessToken);
-    } catch {
-      throw new IdentityError("verification_failed");
+    } catch (err) {
+      throw tokenVerificationError(err);
     }
     // Only an OAuth login may come in this way. A Web3 session must go through
     // the wallet routes, where the nonce and message are checked.
@@ -251,8 +260,8 @@ export class SupabaseSignInService {
     let user: VerifiedSupabaseUser;
     try {
       user = await this.deps.tokens.verify(accessToken);
-    } catch {
-      throw new IdentityError("verification_failed");
+    } catch (err) {
+      throw tokenVerificationError(err);
     }
     return { subject: user.subject, email: null, method: "wallet" };
   }

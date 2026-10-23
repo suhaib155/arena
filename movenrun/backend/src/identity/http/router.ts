@@ -16,7 +16,7 @@
  * rejection — so nothing is ever swallowed, and internal errors never leak.
  */
 import { Router, type NextFunction, type Request, type Response } from "express";
-import { IdentityError, isIdentityError } from "../domain/errors.js";
+import { IdentityError, isIdentityError, PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS } from "../domain/errors.js";
 import type { SessionRecord } from "../repositories/records.js";
 import type { IdentityServices } from "./wiring.js";
 import {
@@ -53,6 +53,7 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
     fn(req, res).catch((err: unknown) => {
       if (isIdentityError(err)) {
+        if (err.code === "provider_unavailable") res.setHeader("Retry-After", String(PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS));
         res.status(err.status).json(err.toPublicJSON());
       } else {
         next(err instanceof Error ? err : new Error(String(err)));
