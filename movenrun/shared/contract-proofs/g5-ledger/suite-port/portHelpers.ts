@@ -110,6 +110,9 @@ export async function deploySuite(): Promise<Suite> {
   const s = await ethers.getSigners();
   const [eligibilityCoSigner, contestCoSigner, voider, outsider] = [s[11], s[12], s[13], s[14]];
   const regionTree = buildRegionTree(defaultRegionEntries());
+  // FIXTURE ADJUSTMENT (signer roles patch): a new eligibility signer needs a prior approval
+  // from SIGNER_APPROVER_ROLE, which the constructor gives to the guardian.
+  await (await f.deedClaims.connect(f.guardian).approveEligibilitySignerAddition(eligibilityCoSigner.address)).wait();
   await execBatchViaTimelock(
     f,
     [f.addresses.deedClaims, f.addresses.deedClaims, f.addresses.contests, f.addresses.deed],

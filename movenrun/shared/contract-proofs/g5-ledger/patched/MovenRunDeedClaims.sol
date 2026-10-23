@@ -33,6 +33,17 @@ import {IMovenRunDeed} from "./interfaces/IMovenRunDeed.sol";
 ///        `maxDeedsPerCluster` claims per cluster per city are accepted, counted on chain;
 ///      - issuance caps: a city-wide deed cap, a per-city daily claim limit and a global claim
 ///        ceiling, all on top of the existing per-holder cap and the guardian pause.
+///
+///      G5 DRAFT PATCH (void lifecycle and signer roles, RESEARCH/PROPOSED, unaudited):
+///      - every claim gets a claim record; MovenRunDeed reports each void through
+///        onDeedVoided. A FAULT void keeps every counter spent. An ADMINISTRATIVE void
+///        restores the cluster slot once per (city, cluster), after RECLAIM_COOLDOWN; the daily
+///        counter, the lifetime ceiling, the attestation nonce and the burned fee stay spent.
+///        The delayed administrator may reclassify a FAULT void as administrative once, within
+///        APPEAL_WINDOW (capacity only; the deed is never reinstated).
+///      - adding an eligibility signer (registration or rotation) needs a prior, expiring
+///        approval from SIGNER_APPROVER_ROLE, a self-administered role the delayed
+///        administrator cannot grant itself. Removing a signer needs no approval (fails closed).
 contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     /// @notice Role permitted to pause new deed claims and nothing else.
     bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
@@ -103,7 +114,41 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     mapping(uint32 cityId => mapping(uint64 day => uint32 count)) public cityClaimsOnDay;
     /// @notice G5 patch: lifetime ceiling on claims through this contract.
     uint256 public maxTotalClaims;
+    /// @notice Claims accepted so far. Monotonic: never decreases, also used as the claim id.
     uint256 public totalClaims;
+
+    // ---- void lifecycle (RESEARCH/PROPOSED) ----
+    uint8 public constant CLAIM_LIVE = 1;
+    uint8 public constant CLAIM_VOIDED_FAULT = 2;
+    uint8 public constant CLAIM_VOIDED_ADMIN_RESTORED = 3;
+    uint8 public constant CLAIM_VOIDED_ADMIN_NOT_RESTORED = 4;
+    /// @notice Wait after a restoring void before the cluster may claim in that city again.
+    uint64 public constant RECLAIM_COOLDOWN = 7 days;
+    /// @notice Period after a FAULT void during which it may be reclassified as administrative.
+    uint64 public constant APPEAL_WINDOW = 30 days;
+
+    struct ClaimRecord {
+        address claimant;
+        uint32 cityId;
+        uint8 status;
+        uint64 voidedAt;
+        bytes32 clusterId;
+        uint256 tokenId;
+    }
+    mapping(uint256 claimId => ClaimRecord) public claimRecord;
+    /// @notice Live claim id behind a deed; cleared on void.
+    mapping(uint256 tokenId => uint256 claimId) public claimIdOfToken;
+    /// @notice Whether a (city, cluster) has already used its one capacity restoration.
+    mapping(uint32 cityId => mapping(bytes32 clusterId => bool used)) public clusterRestorationUsed;
+    /// @notice Earliest time a restored (city, cluster) may claim again.
+    mapping(uint32 cityId => mapping(bytes32 clusterId => uint64 at)) public clusterReclaimAfter;
+
+    // ---- signer roles (RESEARCH/PROPOSED) ----
+    /// @notice Independent role that must approve every new eligibility signer.
+    bytes32 public constant SIGNER_APPROVER_ROLE = keccak256("MOVENRUN_SIGNER_APPROVER_ROLE");
+    /// @notice Lifetime of a signer approval.
+    uint64 public constant SIGNER_APPROVAL_TTL = 7 days;
+    mapping(address signer => uint64 expiresAt) public signerApprovalExpiry;
 
     event DeedClaimed(
         uint256 indexed tokenId,
@@ -126,6 +171,10 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     event IssuanceLimitsUpdated(uint32 maxDeedsPerCluster, uint32 maxClaimsPerCityPerDay, uint256 maxTotalClaims);
     event CityWideCapUpdated(uint32 indexed cityId, uint32 cap);
     event ClaimEvidence(uint256 indexed tokenId, bytes32 indexed clusterId, bytes32 evidenceHash);
+    event ClaimVoided(uint256 indexed claimId, uint256 indexed tokenId, address indexed holder, uint8 status);
+    event ClusterCapacityRestored(uint256 indexed claimId, uint32 indexed cityId, bytes32 indexed clusterId, uint64 reclaimAfter);
+    event FaultVoidReclassified(uint256 indexed claimId, uint8 status);
+    event SignerAdditionApproved(address indexed signer, uint64 expiresAt, address approver);
 
     error ZeroAddress();
     error ClaimsArePaused();
@@ -153,6 +202,11 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     error CityWideCapReached(uint32 cityId, uint32 cap);
     error CityDailyClaimLimitReached(uint32 cityId);
     error TotalClaimCeilingReached(uint256 ceiling);
+    error NotDeedContract();
+    error ClusterReclaimCoolingDown(bytes32 clusterId, uint32 cityId, uint64 reclaimAfter);
+    error NotAFaultVoid(uint256 claimId);
+    error AppealWindowClosed(uint256 claimId, uint64 closedAt);
+    error SignerAdditionNotApproved(address signer);
 
     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
     /// @param guardian Emergency address permitted to pause new claims only.
@@ -193,6 +247,11 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(GUARDIAN_ROLE, guardian);
+        // G5 patch: the approver role administers itself, so DEFAULT_ADMIN cannot grant it.
+        // The constructor signature is unchanged, so the guardian holds it initially; a real
+        // deployment would hand it to a security council distinct from the timelock proposer.
+        _setRoleAdmin(SIGNER_APPROVER_ROLE, SIGNER_APPROVER_ROLE);
+        _grantRole(SIGNER_APPROVER_ROLE, guardian);
 
         emit EligibilityThresholdsUpdated(21, 30, 10);
     }
@@ -255,6 +314,18 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
             moveToken.burnFrom(msg.sender, attestation.claimFee);
         }
         tokenId = deed.mintDeed(msg.sender, attestation.h3CellId, attestation.cityId);
+        {
+            uint256 claimId = totalClaims;
+            claimRecord[claimId] = ClaimRecord({
+                claimant: msg.sender,
+                cityId: attestation.cityId,
+                status: CLAIM_LIVE,
+                voidedAt: 0,
+                clusterId: attestation.clusterId,
+                tokenId: tokenId
+            });
+            claimIdOfToken[tokenId] = claimId;
+        }
 
         emit ClaimEvidence(tokenId, attestation.clusterId, attestation.evidenceHash);
         emit DeedClaimed(tokenId, msg.sender, attestation.cityId, attestation.claimFee, attestation.rulesVersion);
@@ -281,6 +352,10 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
 
     function _applyIssuanceLimits(uint32 cityId, bytes32 clusterId) private {
         if (clusterId == bytes32(0)) revert MissingCluster();
+        {
+            uint64 reclaimAfter = clusterReclaimAfter[cityId][clusterId];
+            if (block.timestamp < reclaimAfter) revert ClusterReclaimCoolingDown(clusterId, cityId, reclaimAfter);
+        }
         uint32 clusterCount = clusterClaimCount[cityId][clusterId];
         if (clusterCount >= maxDeedsPerCluster) revert ClusterCapReached(clusterId, cityId);
         uint32 cityCap = cityWideCap[cityId];
@@ -292,6 +367,47 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
         clusterClaimCount[cityId][clusterId] = clusterCount + 1;
         cityClaimsOnDay[cityId][day] = today + 1;
         totalClaims += 1;
+    }
+
+    // ---------------------------------------------------------------------
+    // G5 patch: void lifecycle
+    // ---------------------------------------------------------------------
+
+    /// @notice Called by MovenRunDeed when a pending deed is voided.
+    function onDeedVoided(uint256 tokenId, address holder, bool administrative) external {
+        if (msg.sender != address(deed)) revert NotDeedContract();
+        uint256 claimId = claimIdOfToken[tokenId];
+        ClaimRecord storage r = claimRecord[claimId];
+        if (claimId == 0 || r.status != CLAIM_LIVE || r.tokenId != tokenId) return;
+        delete claimIdOfToken[tokenId];
+        r.voidedAt = uint64(block.timestamp);
+        r.status = administrative ? _restoreOnce(claimId, r) : CLAIM_VOIDED_FAULT;
+        emit ClaimVoided(claimId, tokenId, holder, r.status);
+    }
+
+    /// @notice Reclassifies a FAULT void as administrative after a successful appeal.
+    ///         Delayed administration only, once, within APPEAL_WINDOW. Restores claim
+    ///         capacity under the same one-time rule; never reinstates the deed.
+    function reclassifyFaultVoid(uint256 claimId) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        ClaimRecord storage r = claimRecord[claimId];
+        if (r.status != CLAIM_VOIDED_FAULT) revert NotAFaultVoid(claimId);
+        uint64 closesAt = r.voidedAt + APPEAL_WINDOW;
+        if (block.timestamp > closesAt) revert AppealWindowClosed(claimId, closesAt);
+        r.status = _restoreOnce(claimId, r);
+        emit FaultVoidReclassified(claimId, r.status);
+    }
+
+    function _restoreOnce(uint256 claimId, ClaimRecord storage r) private returns (uint8) {
+        uint32 cityId = r.cityId;
+        bytes32 clusterId = r.clusterId;
+        if (clusterRestorationUsed[cityId][clusterId]) return CLAIM_VOIDED_ADMIN_NOT_RESTORED;
+        clusterRestorationUsed[cityId][clusterId] = true;
+        uint32 count = clusterClaimCount[cityId][clusterId];
+        if (count > 0) clusterClaimCount[cityId][clusterId] = count - 1;
+        uint64 reclaimAfter = uint64(block.timestamp) + RECLAIM_COOLDOWN;
+        clusterReclaimAfter[cityId][clusterId] = reclaimAfter;
+        emit ClusterCapacityRestored(claimId, cityId, clusterId, reclaimAfter);
+        return CLAIM_VOIDED_ADMIN_RESTORED;
     }
 
     /// @notice Parent of an H3 cell at CITY_REGION_RESOLUTION (resolution field set, finer digits unused).
@@ -378,6 +494,7 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     /// @notice Rotates the eligibility signer. Delayed administration only.
     function setEligibilitySigner(address newSigner) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newSigner == address(0)) revert ZeroAddress();
+        if (!isEligibilitySigner[newSigner]) _consumeSignerApproval(newSigner);
         emit EligibilitySignerUpdated(eligibilitySigner, newSigner);
         // G5 patch: rotation keeps the signer registry consistent.
         if (isEligibilitySigner[eligibilitySigner]) {
@@ -401,10 +518,30 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     function setEligibilitySignerRegistered(address signer, bool registered) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (signer == address(0)) revert ZeroAddress();
         if (isEligibilitySigner[signer] == registered) return;
+        if (registered) _consumeSignerApproval(signer);
         isEligibilitySigner[signer] = registered;
         if (registered) eligibilitySignerCount += 1;
         else eligibilitySignerCount -= 1;
         emit EligibilitySignerRegistered(signer, registered);
+    }
+
+    /// @notice G5 patch: approves one future signer addition. SIGNER_APPROVER_ROLE only.
+    function approveEligibilitySignerAddition(address signer) external onlyRole(SIGNER_APPROVER_ROLE) {
+        if (signer == address(0)) revert ZeroAddress();
+        uint64 expiresAt = uint64(block.timestamp) + SIGNER_APPROVAL_TTL;
+        signerApprovalExpiry[signer] = expiresAt;
+        emit SignerAdditionApproved(signer, expiresAt, msg.sender);
+    }
+
+    /// @notice G5 patch: withdraws an unused signer approval. SIGNER_APPROVER_ROLE only.
+    function revokeEligibilitySignerApproval(address signer) external onlyRole(SIGNER_APPROVER_ROLE) {
+        delete signerApprovalExpiry[signer];
+        emit SignerAdditionApproved(signer, 0, msg.sender);
+    }
+
+    function _consumeSignerApproval(address signer) private {
+        if (block.timestamp > signerApprovalExpiry[signer]) revert SignerAdditionNotApproved(signer);
+        delete signerApprovalExpiry[signer];
     }
 
     /// @notice G5 patch: sets the attestation threshold, never below two. Delayed administration only.
