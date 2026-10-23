@@ -30,9 +30,22 @@ Change:
   coverage, never the lifecycle span.
 
 Not solved by this: whether `performance.now()` keeps counting while the device
-sleeps or the app is suspended depends on the platform. If it stops, the session
-under-counts (never over-counts) that span. This must be measured on hardware
-(H-sheet); JavaScript monotonicity does not settle it.
+sleeps or the app is suspended depends on the platform; JavaScript
+monotonicity does not settle it, and **hardware testing is required** (H-sheet:
+lock the screen mid-walk for at least one minute, unlock, keep walking, and
+check that distance keeps growing and the saved duration matches a stopwatch).
+If the source stops in deep sleep, the session clock falls behind real time and
+every later GNSS-stamped fix would look future-dated, freezing the route for
+the rest of the walk. Mitigation: background/foreground marks give the clock a
+catch-up budget (wall advance minus monotonic advance while away), spent only
+when a delivered fix is ahead of the session clock and never past that fix's
+time. A wall clock moved forward while the app was away therefore reaches the
+session only as far as fix time confirms. If a platform stamps fixes from the
+system clock rather than satellite time, that bound is the wall-clock jump
+itself (the pre-change behaviour, for background spells only); the server's
+receipt check and coverage-based duration, and the estimated-XP settlement,
+still apply. Both properties (sleep behaviour, fix time source) are hardware
+questions.
 
 ## 2. Acquisition health (C01)
 
