@@ -198,7 +198,7 @@ After:
 | 11 | Deletion keeps only an anonymous count | **Supported** | `accountDeletion.ts:116-124` (`account_deleted`, null user id, null metadata). | Unchanged. |
 | 12 | "Immediately" / "straight away" deletion | **Partly true; reworded** | Database erase is one transaction (`accountDeletion.ts:79`); the provider step is separate and can be pending. | Two-step wording; "straight away" no longer used for the whole deletion. |
 
-Not changed and not audited here: the docs pages (`/docs/faq/`, `/docs/verification/`, `/docs/disclaimers/`) repeat "up to seven days" for unsent routes, compatible with row 10 but less precise; `docs/assets/search-index.json` is generated from them. Left alone to keep this change to the deletion and privacy claims.
+Not changed and not audited here: the docs pages (`/docs/faq/`, `/docs/verification/`, `/docs/disclaimers/`) repeat "up to seven days" for unsent routes, compatible with row 10 but less precise; `docs/assets/search-index.json` is built from them. Left alone to keep this change to the deletion and privacy claims.
 
 ## Safety checks
 
