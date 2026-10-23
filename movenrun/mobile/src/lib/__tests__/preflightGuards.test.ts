@@ -118,7 +118,8 @@ test("no new distance or duration threshold was introduced", () => {
 test("every progression effect is gated on movement, at its own call site", () => {
   const screen = summary();
   /* XP, streak and the movement-history row all go through `completeQuest`. */
-  assert.match(screen, /if \(movedOverGround\) completeQuest\(sessionQuest\)/);
+  /* The block form also records the estimate (MR-C), still inside the gate. */
+  assert.match(screen, /if \(movedOverGround\) \{\s*(\/\*[^]*?\*\/\s*)?const outcome = completeQuest\(sessionQuest\);\s*recordMovementXpEstimate\(/);
   /* Territory defence, and therefore `timesDefended`, the defence/control gains
      and the decay-clock reset that follow from `applyDefend`. */
   assert.match(screen, /evidenceComplete && movedOverGround\s*\n?\s*\? defendZones/);

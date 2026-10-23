@@ -93,3 +93,56 @@ about 42 m for two minutes at walking pace fail the server check; the scatter
 guard trims straight and curved walks by 0 to 6 % (W05 figure-eight: 0.94 of
 the unguarded distance on average). Honest walks measured: W02 0.99, W03 1.00,
 W04 0.98, W06 0.98, T03 0.99 of truth (20-seed mean).
+
+## 4. Estimated versus verified XP
+
+Root cause: Save banked XP from the phone's own measurement as final; the server
+verdict was recorded beside it and never affected it.
+
+Change (`mobile/src/lib/movementXp.ts`, store actions, no backend API change):
+
+- Save banks the XP as an **estimate** and records it once per
+  `clientSessionId` (`recordMovementXpEstimate`).
+- The server verdict settles it once (`settleMovementXp`, called from the
+  summary's submission and from the retry hook). Verified: verified XP =
+  `min(estimate, XP from the server's own distance and duration)`; any excess is
+  taken back from `totalXp`. Rejected: the whole estimate is taken back; history
+  and streak stay. A settled entry never settles again, so retries and duplicate
+  responses cannot reverse or verify twice.
+- No verdict (offline, timeout, 5xx, signed out): the estimate stands.
+- `recordMovementVerification` is unchanged and still awards nothing.
+
+States (data only; the frozen UI does not render them). Proposed strings:
+
+| State | Meaning | Proposed label |
+|---|---|---|
+| `saved_locally` | Saved; no verification attempted | `Saved locally` |
+| `pending_verification` | Sent or queued, no verdict; estimate stands | `Pending verification` |
+| `verified` | Server verified; verified XP banked | `Verified` |
+| `not_eligible` | Server declined; estimate taken back | `Not eligible` |
+
+A pending answer with a permanent cause (`invalid_request`, `not_found`) stays
+`pending_verification`: only a server verdict reverses XP.
+
+## Before / after (Track A harness, canonical seeds)
+
+Before = `814ad74`; after = this stack. Server column uses the production
+anomaly detector (`detectMovementAnomalies`); the Track A harness's own server
+stub predates MR-A-01 and reported "Too few GPS points" for W04 and C02. With
+the production detector, C02 at the base was **verified** by the server.
+Silent = seconds of rejected fixes while the chip said usable.
+
+| Fixture | Truth m | Before: client m / s / local XP / silent / server | After: client m / s / local XP / silent / server |
+|---|---:|---|---|
+| W04 urban walk | 220 | 216 / 170 / 25 / 0 / verified | 216 / 170 / 25 / 0 / verified |
+| I02 vehicle leg | 299 | 254 / 348 / 33 / 140 / verified | 240 / 348 / 32 / 16 / verified |
+| C01 clock -1 h | 500 | 175 / 0 / 0 / 200 / not submitted | 501 / 370 / 49 / 0 / verified |
+| C02 clock +1 h | 150 | 82 / 3720 / 191 / 0 / verified | 161 / 120 / 0 / 0 / not submitted |
+| S03 still, overconfident | 0 | 632 / 307 / 53 / 0 / verified | 109 / 307 / 25 / 0 / verified |
+
+Notes: C01 no longer drops fixes, so the fixture's "chip degrades" expectation
+is not exercised; the chip degrading on genuinely dropped or missing fixes is
+covered by `clockIntegrity.test.ts`. S03 is **not 0 m**: 109 m and the 25 XP
+floor remain on the canonical seed, verified by the server (the residual is
+below the server's wander threshold). An older client's 632 m upload is now
+rejected. All local XP in this table is now an estimate, settled by the verdict.
