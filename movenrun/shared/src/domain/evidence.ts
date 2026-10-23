@@ -29,6 +29,83 @@ export function hasEvidenceBreak(a: SealRoutePoint, b: SealRoutePoint, pauses: P
     .some((pause) => pause.startedAt < b.timestamp && pause.endedAt > a.timestamp);
 }
 
+/**
+ * Point floor for a submission that carries no session metadata.
+ *
+ * Kept for legacy uploads only. Without provenance the server cannot tell
+ * whether the points were filtered by the on-foot capture rule, so a bare count
+ * is the only evidence bar it has.
+ */
+export const LEGACY_MIN_POINTS = 10;
+
+/**
+ * Minimum evidence for a short metadata-bearing on-foot route (fewer than
+ * {@link LEGACY_MIN_POINTS} accepted fixes).
+ *
+ * Every submitted fix of such a route has already passed `inspectFix` against
+ * its predecessor, so each continuous segment is a displacement larger than
+ * both reported accuracy circles. Five fixes are four such independent
+ * observations. Nothing here depends on pace: a slower walk only ever adds
+ * fixes and observed time, so this cannot punish slow movement.
+ *
+ * This is route evidence for saving a walk, not economic eligibility.
+ */
+export const SHORT_ROUTE_EVIDENCE = Object.freeze({
+  minFixes: 5,
+  minContinuousSegments: 4,
+  /** Below this a reported accuracy is not a phone GNSS estimate. */
+  minAccuracyMeters: 1,
+  /** The app's own usable-signal ceiling; weaker fixes need the legacy count. */
+  maxAccuracyMeters: 25,
+  minObservedSeconds: 30,
+  /** Furthest fix from the start of its continuous stretch must clear this and a multiple of the worst accuracy. */
+  minExtentMeters: 40,
+  extentAccuracyMultiple: 3,
+});
+
+export interface ShortRouteFix extends SealRoutePoint { accuracy: number | null }
+
+/**
+ * Human-readable reasons a short route lacks the evidence to stand without the
+ * legacy point floor; empty when it has enough, or when it is not short.
+ */
+export function shortRouteEvidenceProblems(points: readonly ShortRouteFix[],
+  pauses: PauseSource = []): string[] {
+  if (points.length >= LEGACY_MIN_POINTS) return [];
+  const policy = SHORT_ROUTE_EVIDENCE;
+  if (points.length < policy.minFixes) {
+    return [`Too few accepted GPS fixes for a short route: ${points.length} (needs ${policy.minFixes})`];
+  }
+  const problems: string[] = [];
+  let segments = 0, observedMs = 0, extent = 0;
+  // Extent is measured from the start of each continuous stretch, so ground
+  // covered across a pause or break never stands in for observed movement.
+  let stretchStart = points[0]!;
+  for (let i = 1; i < points.length; i++) {
+    if (hasEvidenceBreak(points[i - 1]!, points[i]!, pauses)) { stretchStart = points[i]!; continue; }
+    segments += 1;
+    observedMs += Math.max(0, points[i]!.timestamp - points[i - 1]!.timestamp);
+    extent = Math.max(extent, haversineMeters(stretchStart, points[i]!));
+  }
+  if (segments < policy.minContinuousSegments) {
+    problems.push(`Too few continuous GPS segments for a short route: ${segments} (needs ${policy.minContinuousSegments})`);
+  }
+  const accuracies = points.map((p) => p.accuracy);
+  if (accuracies.some((a) => a === null || !Number.isFinite(a) ||
+    a < policy.minAccuracyMeters || a > policy.maxAccuracyMeters)) {
+    problems.push(`A short route needs reported accuracy between ${policy.minAccuracyMeters} and ${policy.maxAccuracyMeters} m on every fix`);
+    return problems;
+  }
+  if (observedMs < policy.minObservedSeconds * 1000) {
+    problems.push(`Short route covers only ${Math.round(observedMs / 1000)} s of continuous observation (needs ${policy.minObservedSeconds} s)`);
+  }
+  const worst = Math.max(...(accuracies as number[]));
+  if (extent < Math.max(policy.minExtentMeters, policy.extentAccuracyMultiple * worst)) {
+    problems.push("Short route stays too close to its start to rule out GPS drift");
+  }
+  return problems;
+}
+
 /** Canonical measured distance: a missing segment never contributes a straight-line guess. */
 export function evidenceDistance(points: readonly SealRoutePoint[], pauses: PauseSource = []): number {
   let distance = 0;
