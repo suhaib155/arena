@@ -32,6 +32,7 @@ import { createHash } from "node:crypto";
 import { cellToParent, getResolution, isValidCell } from "h3-js";
 import { sessionPathRuleProblems, VERIFIED_STEPS_V1, type SessionPathRule } from "./path.js";
 import type { HoldingRules, TakeoverRule } from "@movenrun/shared/holding";
+import { isSealMethod } from "@movenrun/shared/sealing";
 import type { DistrictControlRule, LeaderboardMetric } from "@movenrun/shared/clubsDistricts";
 
 export const DAY_MS = 86_400_000;
@@ -72,6 +73,13 @@ export interface GameplayRules {
    * input digest either way.
    */
   receiptCutoff?: ReceiptCutoff;
+  /**
+   * V3 rule 3, "nothing is claimed until sealed" (see `TerritorySeal`).
+   * Absent means `TERRITORY_SEAL_V1`, unnamed, so the 1001 and 1002 config
+   * digests are unchanged. This is a SOURCE-CORRECTNESS FIX, not byte-identical
+   * behaviour: before it, an unsealed verified session claimed ground.
+   */
+  territorySeal?: TerritorySeal;
   /**
    * D1: the day index (days since 1970-01-01 on the clock above) on which
    * season 1 starts. No default: required when gameplay is enabled.
@@ -167,6 +175,23 @@ export interface ReceiptCutoff {
   rule: "server-receipt-before-day-close";
   version: 1;
 }
+
+/**
+ * What a session must carry before it may create or change a holding (V3
+ * rule 3). `server-verified-seal` v1: the movement pipeline's own seal
+ * summary on the verified row (`sealed`, `seal_methods`, `seal_event_count`,
+ * computed by the shared sealing engine from the fixes the server accepted;
+ * the phone cannot set them), stamped with a sealing rules version listed
+ * here. Missing, unsealed, inconsistent or under an unlisted version: no
+ * territory, the route and its verification stay as they are.
+ */
+export interface TerritorySeal {
+  rule: "server-verified-seal";
+  version: 1;
+  sealingRulesVersions: readonly number[];
+}
+
+export const TERRITORY_SEAL_V1: Readonly<TerritorySeal> = Object.freeze({ rule: "server-verified-seal", version: 1, sealingRulesVersions: Object.freeze([1]) });
 
 export const RECEIPT_CUTOFF_V1: Readonly<ReceiptCutoff> = Object.freeze({ rule: "server-receipt-before-day-close", version: 1 });
 
@@ -332,6 +357,7 @@ export function rulesetConfig(rules: Omit<GameplayRules, "seasonOneStartDay">) {
     dayAttribution: rules.dayAttribution,
     // Absent in 1001 and 1002 (the v1 cutoff, unnamed), so their digests are unchanged.
     receiptCutoff: rules.receiptCutoff,
+    territorySeal: rules.territorySeal,
   };
 }
 
@@ -376,6 +402,8 @@ export function rulesetProblems(r: Omit<GameplayRules, "seasonOneStartDay">): st
     if (r.takeBudget.counting !== "takes-v1") p.push("unknown take counting rule");
     if (r.takeBudget.order !== undefined && r.takeBudget.order !== "walk-order-v1") p.push("unknown take order");
   }
+  if (r.territorySeal !== undefined && (r.territorySeal.rule !== "server-verified-seal" || r.territorySeal.version !== 1
+    || r.territorySeal.sealingRulesVersions.length === 0 || !r.territorySeal.sealingRulesVersions.every((v) => Number.isInteger(v) && v >= 1))) p.push("unknown territory seal rule");
   if (r.receiptCutoff !== undefined && (r.receiptCutoff.rule !== "server-receipt-before-day-close" || r.receiptCutoff.version !== 1)) p.push("unknown receipt cutoff rule");
   if (!(Number.isInteger(r.dayCloseGraceMs) && r.dayCloseGraceMs >= 0 && r.dayCloseGraceMs < DAY_MS)) p.push("day close grace must be 0 to under a day");
   if (r.dayAttribution !== undefined && (r.dayAttribution.rule !== "d1-last-verified-fix" || r.dayAttribution.version !== 1)) p.push("unknown day attribution rule");
@@ -453,6 +481,33 @@ export function dayCloseMs(rules: Pick<GameplayRules, "dayOffsetMinutes" | "dayC
 export function receiptCutoffOf(rules: Pick<GameplayRules, "receiptCutoff" | "dayOffsetMinutes" | "dayCloseGraceMs">, day: number) {
   const c = rules.receiptCutoff ?? RECEIPT_CUTOFF_V1;
   return { rule: c.rule, version: c.version, dayOffsetMinutes: rules.dayOffsetMinutes, dayCloseGraceMs: rules.dayCloseGraceMs, closeMs: dayCloseMs(rules, day) };
+}
+
+/** The seal a session needs before it may claim (V3 rule 3). */
+export function territorySealOf(rules: Pick<GameplayRules, "territorySeal">): TerritorySeal {
+  return rules.territorySeal ?? TERRITORY_SEAL_V1;
+}
+
+/**
+ * Why a verified session's stored seal summary does not authorize territory,
+ * or null when it does. Fails closed on anything missing or inconsistent.
+ */
+export function sealProblem(
+  rules: Pick<GameplayRules, "territorySeal">,
+  row: { sealed: boolean | null; seal_methods: string[] | null; seal_event_count: number | null; rules_version: number | null },
+): "seal_missing" | "session_not_sealed" | "seal_inconsistent" | "seal_rules_version_unsupported" | null {
+  const need = territorySealOf(rules);
+  if (row.sealed === null || row.rules_version === null) return "seal_missing";
+  if (!need.sealingRulesVersions.includes(Number(row.rules_version))) return "seal_rules_version_unsupported";
+  const count = row.seal_event_count === null ? null : Number(row.seal_event_count);
+  const methods = row.seal_methods ?? [];
+  if (row.sealed === false) {
+    if (count !== 0 || methods.length !== 0) return "seal_inconsistent";
+    return "session_not_sealed";
+  }
+  if (count === null || !Number.isInteger(count) || count < 1 || methods.length === 0 || methods.length > count
+    || new Set(methods).size !== methods.length || !methods.every(isSealMethod)) return "seal_inconsistent";
+  return null;
 }
 
 /** Whether a session received at `receivedMs` counts for its D1 day `day` (strictly before the close). */

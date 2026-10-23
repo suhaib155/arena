@@ -32,6 +32,7 @@ import { cellToInt8, deriveSessionPath, int8ToCell, VERIFIED_STEPS_V1 } from "./
 import { fixesOf, poly, ROUTE_FIXTURES } from "./pathFixtures.js";
 import { DAY_MS, PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, type GameplayRules } from "./rules.js";
 import { GameplayError, GameplayService } from "./service.js";
+import { SEALED_LOOP, SEAL_COLUMNS, sealLiteral, sessionFor } from "./sealFixtures.js";
 import { createTestDb, type TestDb } from "./pgTestDb.js";
 
 const DATABASE_URL = process.env.MOVENRUN_TEST_DATABASE_URL;
@@ -86,8 +87,8 @@ async function code(p: Promise<unknown>): Promise<string | undefined> {
 async function session(userId: string, sid: string, endMs: number, units: string[], opts: { receivedMs?: number; interpolated?: boolean[]; path?: boolean } = {}) {
   const id = `mv-${sid}`;
   await t.pool.query(
-    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
-     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')))`,
+    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
+     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
     [id, userId, sid, [], endMs - 1_800_000, endMs, opts.receivedMs ?? clock]);
   if (opts.path !== false) {
     await t.pool.query(
@@ -123,7 +124,8 @@ function observation(fixture: number, endMs: number, origin = { latitude: 51.52,
   const fixes = fixesOf(xy, origin, 10_000);
   const shift = endMs - fixes[fixes.length - 1]!.timestamp;
   const points = fixes.map((f) => ({ lat: f.lat, lng: f.lng, accuracy: 5, timestamp: f.timestamp + shift }));
-  return { startTime: points[0]!.timestamp, endTime: points[points.length - 1]!.timestamp, points };
+  // With session metadata, as the app sends it, so the pipeline runs the real sealing engine.
+  return { startTime: points[0]!.timestamp, endTime: points[points.length - 1]!.timestamp, points, session: sessionFor(points) };
 }
 
 /**
@@ -286,8 +288,8 @@ test("mid-season rule change fails closed: 1001 cannot touch a 1002 season, and 
     const end = i % 2 === 0 ? at(S2, 21) : at(S2 + 1, 0.5);
     await session(w, `race-p2-${i}`, end, [U[400 + i]!]);
     await t.pool.query(
-      `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
-       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')))`,
+      `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
+       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
       [`mv-race-a9-${i}`, w, `race-a9-${i}`, [R8[i + 1]!], end - 1_800_000, end, clock]);
   }
   const settled = await Promise.allSettled(racers.flatMap((w, i) => [p2.applySession(w, `race-p2-${i}`), a9.applySession(w, `race-a9-${i}`)]));

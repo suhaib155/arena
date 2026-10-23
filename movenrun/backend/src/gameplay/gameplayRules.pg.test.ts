@@ -24,6 +24,7 @@ import { createDrizzleAccountDeletionStore } from "../identity/accountDeletion.j
 import { applyServerLedger, challengeKey } from "./policy.js";
 import { DAY_MS, PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, rulesetConfig, rulesetDigest, type GameplayRules } from "./rules.js";
 import { GameplayError, GameplayService } from "./service.js";
+import { SEALED_LOOP, SEAL_COLUMNS, sealLiteral } from "./sealFixtures.js";
 import { cellToInt8, int8ToCell } from "./cells.js";
 import { createHash } from "node:crypto";
 
@@ -91,8 +92,8 @@ async function session(userId: string, clientSessionId: string, endMs: number, u
   opts: { receivedMs?: number; path?: boolean; interpolated?: boolean[] } = {}): Promise<string> {
   const id = randomUUID();
   await pool.query(
-    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
-     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')))`,
+    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
+     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
     [id, userId, clientSessionId, units, endMs - 1_800_000, endMs, opts.receivedMs ?? clock],
   );
   const fine = units.length > 0 && units.every((u) => isValidCell(u) && getResolution(u) === 10);
