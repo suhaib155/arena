@@ -364,6 +364,12 @@ When the system is unsure (§28): *pending* keeps tokens and tolls reversible un
 | D21 | District control: shade weight against solid (above 0, §4) and the minimum share of held ground. Required parameters in the G4 model, no default; ties control nothing |
 | D22 | What a season leaderboard ranks and the tie-break. A required metric in the G4 model, no default; ties share a rank, listed by id |
 | D23 | Whether pushing a club-mate's ground erodes it. Today it does (the holding model has no clubs); the G4 model counts such pushes apart |
+| D24 | Upkeep at 16 zones: the §7 formula gives 0.96 day-shares, the §7 table prints 1.00. The model follows the formula. Worked cases in `G34_D_REGISTER.md` |
+| D25 | Ceiling order: trust, session ceiling, day ceiling (A6, A7). Worked cases in `G34_D_REGISTER.md` |
+| D26 | Trimmed amounts: a static daily pool (A3) or spread over the season's remaining days (§17). Worked cases in `G34_D_REGISTER.md` |
+| D27 | The numeric per-city deed cap, and whether it applies per holder or per city (part of D6). Worked cases in `G34_D_REGISTER.md` |
+
+D10 and D18–D23 also have worked cases in `G34_D_REGISTER.md`.
 
 ## 9. What is built (truth table, 14 Oct 2026)
 
