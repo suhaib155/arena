@@ -253,6 +253,42 @@ describe("G5 hardening: void lifecycle, valve, signer roles (patched, RESEARCH/P
       await execViaTimelock(f, f.addresses.timelock, f.timelock.interface.encodeFunctionData("updateDelay", [2 * DAY]), ethers.id("e5b"));
       expect(await f.timelock.getMinDelay()).to.equal(BigInt(2 * DAY));
     });
+    it("E6 epoch boundary (documented limit): the cap is per calendar epoch, not a rolling window, so withheld closed days let more than one cap be drawn within hours across a boundary", async () => {
+      const f = await fx();
+      const genesis = Number(await f.settlement.genesis());
+      const CEIL = 200_000n * ONE;
+      // Nothing is published for 59 days; the raise for epoch 1 lands 2 hours before it ends.
+      await time.increaseTo(genesis + 2 * VALVE_EPOCH - 3 * 3600);
+      await raise(f, EPOCH_CAP, "e6a");
+      const t0 = await time.latest();
+      let day = 31;
+      let liquid = 0n;
+      const publishMax = async (lastDay: number) => {
+        while (day <= lastDay) {
+          const allowance: bigint = await f.settlement.liquidIssuanceAllowance();
+          if (allowance === 0n) return;
+          let gross: bigint = day === 31 ? 100_000n * ONE : await f.settlement.dailyPoolOf(day);
+          if (gross > CEIL) gross = CEIL;
+          if (gross > allowance) gross = allowance;
+          await (await publishSettlement(f, await settlementAuthorization(f, {
+            dayId: day, grossIssuance: gross, lockedClaims: 0n, liquidMovementClaims: gross,
+          }))).wait();
+          liquid += gross;
+          day += 1;
+        }
+      };
+      await publishMax(59);
+      expect(await f.settlement.currentValveEpoch()).to.equal(1n);
+      expect(liquid).to.equal(EPOCH_CAP);
+      await time.increaseTo(genesis + 2 * VALVE_EPOCH);
+      await raise(f, EPOCH_CAP, "e6b");
+      await publishMax(60);
+      expect(await f.settlement.epochLiquidRaised(1)).to.equal(EPOCH_CAP);
+      expect(await f.settlement.epochLiquidRaised(2)).to.equal(EPOCH_CAP);
+      // More than one epoch cap issued liquid inside about three hours (two timelock delays).
+      expect(liquid).to.be.gt(EPOCH_CAP);
+      expect((await time.latest()) - t0).to.be.lt(4 * 3600);
+    });
   });
 
   describe("F. eligibility signer roles", () => {

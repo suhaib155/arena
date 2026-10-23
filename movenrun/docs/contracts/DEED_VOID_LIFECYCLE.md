@@ -97,6 +97,17 @@ signatures. This is bounded by D3, but it is still a policy choice for the owner
 | Emergency halt | `haltValve` (guardian or timelock) zeroes the allowance and refuses raises, including one already queued in the timelock, and liquid publication; locked rewards continue; only the timelock can call `resumeValve`, and the allowance restarts at zero | E4 |
 | Minimum timelock delay | `MovenRunTimelock.MIN_DELAY_FLOOR` = 1 hour, enforced in the constructor and in `updateDelay`, so a 1-second delay is refused | E5, 06 C5 |
 
+**Epoch boundary (limit of the design, not fixed here; test E6).** The cap bounds what is
+*raised* per calendar epoch counted from genesis, not what is issued in any rolling 30-day
+window. Settlement days can be published late and in order, so the two settlement keys can
+withhold closed days, spend one epoch's allowance on them shortly before the boundary, then
+spend the next epoch's allowance on the rest just after it. E6 issues 4.38M liquid within
+about three hours this way (3M from epoch 1, the rest from epoch 2). The real bound in a short
+interval is the per-publication ceiling (2 x nominal day) times the number of withheld closed
+days, plus up to two epoch caps of allowance; over any 30 days it is at most 2 x
+`LIQUID_EPOCH_CAP`. A rolling-window cap, or charging each publication to the epoch of its
+`dayId`, would close this; both are owner decisions.
+
 The floor is 1 hour only so that the unmodified original fixture (`TIMELOCK_DELAY = 3600`)
 still runs. **The proposed production floor is 48 hours.** Raising the floor means shifting
 the fixture's time base, which is a separate follow-up. The valve is still not tied to
@@ -111,6 +122,15 @@ approval is single-use and expires after 7 days. That role is its own admin
 unchanged it starts with the guardian; a real deployment would hand it to a separate
 security council. Removing a signer needs no approval. A removal can only make claims fail,
 never let them through. Tests: F1 and F2, plus 06 C4 (rewritten from FINDING to FIXED).
+
+Residual risks of the approver role (not fixed here):
+- Because the role administers itself, the timelock cannot revoke a lost or compromised
+  approver key either. Only another approver can. A compromised approver still cannot add a
+  signer alone (the timelock must also act), but it can grant the role to anyone.
+- If the last approver renounces, no signer can ever be added again. Removals still work, so
+  claims could end up permanently closed once fewer signers than the threshold remain.
+- While the guardian holds the role, the separation is timelock vs guardian. It is only
+  independent if those keys belong to different parties.
 
 ## 7. Open items (documented, not fixed here)
 
