@@ -572,7 +572,11 @@ export function dayBooksProblems(rules: EconomyRules, s: DaySettlement): string[
     const where = `player ${r.playerId}`;
     if (r.dayRewardMicro > rules.dayCeilingMicro) problems.push(`${where}: over the day ceiling`);
     if (r.sessionRewardsMicro.some((v) => v > rules.sessionCeilingMicro)) problems.push(`${where}: over the session ceiling`);
-    if (r.sessionRewardsMicro.reduce((a, v) => a + n(v), 0n) !== n(r.dayRewardMicro)) problems.push(`${where}: session rewards do not add up to the day reward`);
+    // A day rebuilt from stored credit lines has no per-session split (empty);
+    // the day ceiling, toll and charge caps still bind it.
+    if (r.sessionRewardsMicro.length > 0 && r.sessionRewardsMicro.reduce((a, v) => a + n(v), 0n) !== n(r.dayRewardMicro)) {
+      problems.push(`${where}: session rewards do not add up to the day reward`);
+    }
     if (n(r.tollPaidMicro) * 10_000n > n(r.dayRewardMicro) * n(rules.tollBasisPoints)) problems.push(`${where}: toll above 2%`);
     const auto = n(r.charges.rechargeMicro) + n(r.charges.upkeepTakenMicro);
     if (auto * 10_000n > n(r.dayRewardMicro) * n(rules.autoChargeCapBasisPoints)) problems.push(`${where}: charges above 60%`);
