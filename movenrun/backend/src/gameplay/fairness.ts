@@ -110,7 +110,7 @@ export function prng(seed: number) {
   };
 }
 
-type XY = [number, number];
+export type XY = [number, number];
 const uniform = (rnd: () => number, a: number, b: number) => a + (b - a) * rnd();
 function gauss(rnd: () => number): number {
   const u = Math.max(rnd(), 1e-12);
@@ -128,19 +128,24 @@ export interface SimSession {
   fixes: PathFix[];
 }
 
-function loop(rnd: () => number, c: XY, radius: number): XY[] {
+export function loop(rnd: () => number, c: XY, radius: number): XY[] {
   const n = 5 + Math.floor(rnd() * 3);
   const angles = Array.from({ length: n }, () => rnd() * Math.PI * 2).sort((a, b) => a - b);
   const pts = angles.map((a) => [c[0] + Math.cos(a) * radius * (0.6 + 0.4 * rnd()), c[1] + Math.sin(a) * radius * (0.6 + 0.4 * rnd())] as XY);
   return [...pts, pts[0]!];
 }
 
-interface TraceOpts { noiseM: number; gaps?: { count: number; minMs: number; maxMs: number } }
+export interface TraceOpts {
+  noiseM: number;
+  gaps?: { count: number; minMs: number; maxMs: number };
+  /** Speed along the polyline in m/s. Absent: walking speed, 1.4 m/s (every cohort of this study). */
+  speedMps?: number;
+}
 
-/** Walk a polyline at 1.4 m/s with a fix every 10 s, add GPS noise, and drop fixes in gaps. */
-function trace(rnd: () => number, xy: readonly XY[], origin: FairnessSpec["origin"], startMs: number, opts: TraceOpts): PathFix[] {
+/** Walk a polyline at 1.4 m/s (or `opts.speedMps`) with a fix every 10 s, add GPS noise, and drop fixes in gaps. */
+export function trace(rnd: () => number, xy: readonly XY[], origin: FairnessSpec["origin"], startMs: number, opts: TraceOpts): PathFix[] {
   const pts: { x: number; y: number; t: number }[] = [];
-  const step = SPEED * (FIX_MS / 1000);
+  const step = (opts.speedMps ?? SPEED) * (FIX_MS / 1000);
   let t = startMs;
   let carry = 0;
   for (let i = 0; i + 1 < xy.length; i++) {
