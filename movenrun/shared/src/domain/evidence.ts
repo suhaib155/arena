@@ -1,7 +1,7 @@
 /** Bounded session evidence, independent of the map's drawing budget. */
 import { haversineMeters, projector, type PlanarPoint } from "./geo";
 import { cellForCoordinate } from "./h3";
-import { isUnobservedBridge } from "./measurement";
+import { isUnobservedBridge, ON_FOOT_POLICY, type MeasurementFix } from "./measurement";
 import {
   createSealScanner,
   type PauseSource,
@@ -117,6 +117,157 @@ export function shortRouteEvidenceProblems(points: readonly ShortRouteFix[],
     problems.push("Short route stays too close to its start to rule out GPS drift");
   }
   return problems;
+}
+
+/**
+ * Stationary drift (MR-C, Track A fixture S03).
+ *
+ * The anchor rule in `inspectFix` trusts the reported accuracy circles. A phone
+ * that reports 6 m while its real error wanders 15 m (multipath beside tall
+ * buildings) clears those circles every few fixes while standing still, and
+ * each clearance was banked as walked distance: 632 m and 53 XP for five
+ * minutes on one spot, verified by the server.
+ *
+ * Two grounded checks, both of which only ever withhold distance:
+ *
+ * 1. **Observed scatter.** The receiver's own stream says how noisy it is: the
+ *    residual of the last few delivered fixes about a straight constant-speed
+ *    track. Walking leaves a small residual; an error cloud jumping around one
+ *    spot leaves a large one. The uncertainty used for the disjoint-circle test
+ *    is the larger of the reported accuracy and a multiple of that residual.
+ *    Client side only: the server never sees the rejected fixes it needs.
+ * 2. **Wandering in place (server).** Within one continuous stretch, over the
+ *    last two minutes, accepted movement whose path is far longer than the
+ *    ground it spans (path > 4 x diameter) is going round in circles inside its
+ *    own error envelope. Depends only on accepted points, so the server checks
+ *    it on what was uploaded, which also covers older or modified clients. The
+ *    phone does not apply it: at ratios tight enough to matter for drift it
+ *    withholds honest laps of small loops, and the scatter check already does
+ *    most of the work (measured in the MR-C doc).
+ *
+ * Neither invents distance: a withheld fix is simply not accepted, and the next
+ * fix is measured from the same anchor, so a real walk loses at most a corner;
+ * the server check rejects a route rather than trimming it.
+ * Residual: these reduce, not remove, the false positive; see
+ * docs/movement/MR-C_CLOCK_DRIFT_AND_XP_STATUS.md for the measured threshold.
+ */
+export const STATIONARY_DRIFT_POLICY = Object.freeze({
+  /** Delivered fixes in the scatter estimate (about 32 s at the 4 s watch). */
+  scatterFixes: 8,
+  /** Fewer than this and there is no estimate (reported accuracy stands). */
+  minScatterFixes: 4,
+  /** The effective accuracy is at least this multiple of the residual RMS. */
+  scatterMultiple: 2,
+  /** Look-back for the wandering check, within one continuous stretch. */
+  wanderWindowMs: 120_000,
+  /**
+   * Path longer than this multiple of the window's diameter is wandering. At a
+   * walking 1.4 m/s (168 m in the window) honest laps of a loop narrower than
+   * about 42 m fail it; that is the documented nonpassable case.
+   */
+  maxPathToDiameter: 4,
+});
+
+const METRES_PER_DEGREE = 111_320;
+
+/**
+ * Residual RMS (metres) of fixes about a least-squares constant-velocity track.
+ * Zero when there are too few fixes to say anything.
+ */
+export function observedScatterMeters(fixes: readonly MeasurementFix[]): number {
+  const n = fixes.length;
+  if (n < STATIONARY_DRIFT_POLICY.minScatterFixes) return 0;
+  const origin = fixes[0]!;
+  const east = Math.cos((origin.latitude * Math.PI) / 180) * METRES_PER_DEGREE;
+  const t = fixes.map((f) => (f.timestamp - origin.timestamp) / 1000);
+  const meanT = t.reduce((a, b) => a + b, 0) / n;
+  let varT = 0;
+  for (const ti of t) varT += (ti - meanT) ** 2;
+  let squared = 0;
+  for (const axis of [
+    fixes.map((f) => (f.longitude - origin.longitude) * east),
+    fixes.map((f) => (f.latitude - origin.latitude) * METRES_PER_DEGREE),
+  ]) {
+    const mean = axis.reduce((a, b) => a + b, 0) / n;
+    let cov = 0;
+    for (let i = 0; i < n; i++) cov += (t[i]! - meanT) * (axis[i]! - mean);
+    const slope = varT > 0 ? cov / varT : 0;
+    for (let i = 0; i < n; i++) squared += (axis[i]! - mean - slope * (t[i]! - meanT)) ** 2;
+  }
+  return Math.sqrt(squared / (n - 2));
+}
+
+/**
+ * The accepted points of `points` (oldest first) in the same continuous
+ * stretch as, and within the wander window before, a candidate at `timestamp`.
+ * The stretch ends at any evidence break, so a pause, background gap or
+ * unobserved bridge never joins two places into one window.
+ */
+export function wanderWindow<P extends EvidencePoint>(points: readonly P[], timestamp: number,
+  pauses: PauseSource = []): P[] {
+  const window: P[] = [];
+  for (let i = points.length - 1; i >= 0; i--) {
+    const point = points[i]!;
+    if (timestamp - point.timestamp > STATIONARY_DRIFT_POLICY.wanderWindowMs) break;
+    window.unshift(point);
+    if (i > 0 && hasEvidenceBreak(points[i - 1]!, point, pauses)) break;
+  }
+  return window;
+}
+
+/** True when `window` plus `next` covers much more path than ground. */
+export function wandersInPlace(window: readonly EvidencePoint[], next: EvidencePoint,
+  maxPathToDiameter: number = STATIONARY_DRIFT_POLICY.maxPathToDiameter): boolean {
+  if (window.length < 2) return false;
+  const all = [...window, next];
+  let path = 0, diameter = 0;
+  for (let i = 1; i < all.length; i++) path += haversineMeters(all[i - 1]!, all[i]!);
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) diameter = Math.max(diameter, haversineMeters(all[i]!, all[j]!));
+  }
+  return path > maxPathToDiameter * diameter;
+}
+
+/**
+ * The phone's stationary-drift guard, applied after `inspectFix` accepts a fix.
+ * `observe` every delivered fix (only those of usable quality and increasing
+ * time feed the scatter estimate); `withholds` says whether an otherwise
+ * accepted fix is inside the uncertainty the scatter shows.
+ */
+export function createStationaryDriftGuard() {
+  const recent: MeasurementFix[] = [];
+  return {
+    observe(fix: MeasurementFix): void {
+      if (fix.accuracy === null || !(fix.accuracy <= ON_FOOT_POLICY.maxAccuracyMeters)) return;
+      if (recent.length > 0 && fix.timestamp <= recent[recent.length - 1]!.timestamp) return;
+      recent.push(fix);
+      if (recent.length > STATIONARY_DRIFT_POLICY.scatterFixes) recent.shift();
+    },
+    /** `previous` is the anchor `inspectFix` measured from, or null after a break. */
+    withholds(previous: MeasurementFix | null, next: MeasurementFix & { breakBefore?: boolean }): boolean {
+      if (!previous) return false;
+      const scatter = STATIONARY_DRIFT_POLICY.scatterMultiple * observedScatterMeters(recent);
+      const uncertainty = Math.max(previous.accuracy ?? ON_FOOT_POLICY.maxAccuracyMeters, scatter) +
+        Math.max(next.accuracy ?? ON_FOOT_POLICY.maxAccuracyMeters, scatter);
+      return haversineMeters(previous, next) <= uncertainty;
+    },
+  };
+}
+
+/**
+ * The server's wandering check on uploaded points. Empty when the route gets
+ * somewhere; one reason when any accepted point wandered in place.
+ */
+export function stationaryDriftProblems(points: readonly EvidencePoint[], pauses: PauseSource = []): string[] {
+  for (let i = 1; i < points.length; i++) {
+    const point = points[i]!;
+    if (hasEvidenceBreak(points[i - 1]!, point, pauses)) continue;
+    const window = wanderWindow(points.slice(0, i), point.timestamp, pauses);
+    if (wandersInPlace(window, point)) {
+      return ["Route wanders in place like stationary GPS drift"];
+    }
+  }
+  return [];
 }
 
 /** Canonical measured distance: a missing segment never contributes a straight-line guess. */

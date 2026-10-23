@@ -50,3 +50,46 @@ phone whose OS delivers no fix degrades after 20 s; the app has not heard a
 current position, so it says so.
 
 No new copy: the chip keeps its existing words (`Weak signal`).
+
+## 3. Stationary drift (S03)
+
+Root cause: `inspectFix` accepts a fix once it clears both *reported* accuracy
+circles. A phone that reports 6 m while its real error wanders ~15 m clears them
+every few fixes while standing still.
+
+Change (shared `evidence.ts`, never invents distance, only withholds):
+
+- Phone, `createStationaryDriftGuard`: the receiver's own scatter (residual RMS
+  of the last 8 delivered fixes about a constant-velocity track) grounds the
+  accuracy. The disjoint-circle test uses `max(reported, 2 x scatter)` per fix.
+  A withheld fix takes the existing rejected path as `within_uncertainty`.
+- Server, `stationaryDriftProblems` in on-foot quality: within one continuous
+  stretch and a 2-minute window, path > 4 x diameter rejects the route ("Route
+  wanders in place like stationary GPS drift"). It needs only uploaded points,
+  so it also covers older or modified clients. The phone does not apply it:
+  at ratios tight enough to matter (1.5) it cut honest laps of a 25 m-radius
+  loop to 41 % while the scatter check alone already did most of the work.
+
+Measured (synthetic, 20 seeds each, accuracy 6 m, correlation 0.95, 5 min still):
+
+| True error sigma | Before: median / max m | After: median / max m | Local XP banked after |
+|---|---:|---:|---:|
+| 4 m | 27 / 70 | 0 / 18 | 3 of 20 |
+| 6 m | 108 / 177 | 40 / 109 | 16 of 20 |
+| 10 m | 286 / 362 | 91 / 204 | 20 of 20 |
+| 15 m (S03) | 628 / 765 | 186 / 310 | 20 of 20 |
+| 20 m | 1006 / 1249 | 248 / 402 | 20 of 20 |
+
+Residual stationary false-positive threshold: when a still phone's real error
+exceeds its reported accuracy (overconfident by about 1x or more) the phone
+still accumulates phantom distance, roughly 6 to 12 times the true sigma over
+five minutes. Because a five-minute session is saveable by duration, any such
+residual route still banks the 25 XP floor locally. That XP is *estimated* (see
+section 4) and the server is the authority; an unguarded upload of the same
+stillness (632 m) is now rejected by the server.
+
+Nonpassable cases (honest movement that loses): laps of a loop narrower than
+about 42 m for two minutes at walking pace fail the server check; the scatter
+guard trims straight and curved walks by 0 to 6 % (W05 figure-eight: 0.94 of
+the unguarded distance on average). Honest walks measured: W02 0.99, W03 1.00,
+W04 0.98, W06 0.98, T03 0.99 of truth (20-seed mean).
