@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import {
   DAY_MS, DEFAULT_RULES_VERSION, PILOT_PROPOSAL, RECEIPT_CUTOFF_V1, RULESETS, SIM_PILOT_2_PROPOSAL, UnknownRulesVersionError, dayCloseMs, dayOf, dayStartMs,
-  gameplayRulesFromEnv, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, rulesetProblems, seasonOf, takeoverRuleOf,
+  gameplayRulesFromEnv, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, rulesetProblems, sealProblem, seasonOf, TERRITORY_SEAL_V1, takeoverRuleOf,
 } from "./rules.js";
 import { VERIFIED_STEPS_V1 } from "./path.js";
 
@@ -64,6 +64,25 @@ test("receipt cutoff (v1, unnamed in 1001 and 1002): a session counts only if re
   assert.notEqual(rulesetDigest({ ...PILOT_PROPOSAL, receiptCutoff: RECEIPT_CUTOFF_V1 }), rulesetDigest(PILOT_PROPOSAL));
   assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, receiptCutoff: { rule: "x", version: 1 } as never }).includes("unknown receipt cutoff rule"));
   assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, dayCloseGraceMs: DAY_MS }).some((x) => x.includes("grace")));
+});
+
+test("territory seal (V3 rule 3, v1 unnamed in 1001 and 1002): only a consistent server seal under a listed sealing version authorizes ground", () => {
+  const ok = { sealed: true, seal_methods: ["return_to_start"], seal_event_count: 1, rules_version: 1 };
+  assert.equal(sealProblem(PILOT_PROPOSAL, ok), null);
+  assert.equal(sealProblem(PILOT_PROPOSAL, { ...ok, seal_methods: ["self_cross", "return_to_start"], seal_event_count: 3 }), null);
+  assert.equal(sealProblem(PILOT_PROPOSAL, { sealed: false, seal_methods: [], seal_event_count: 0, rules_version: 1 }), "session_not_sealed");
+  assert.equal(sealProblem(PILOT_PROPOSAL, { sealed: null, seal_methods: null, seal_event_count: null, rules_version: null }), "seal_missing");
+  assert.equal(sealProblem(PILOT_PROPOSAL, { ...ok, rules_version: null }), "seal_missing");
+  assert.equal(sealProblem(PILOT_PROPOSAL, { ...ok, rules_version: 2 }), "seal_rules_version_unsupported");
+  for (const bad of [{ seal_event_count: 0 }, { seal_event_count: null }, { seal_methods: [] }, { seal_methods: null }, { seal_methods: ["x"] },
+    { seal_methods: ["self_cross", "self_cross"], seal_event_count: 2 }, { seal_methods: ["self_cross", "return_to_start"], seal_event_count: 1 }, { sealed: false }]) {
+    assert.equal(sealProblem(PILOT_PROPOSAL, { ...ok, ...bad }), "seal_inconsistent", JSON.stringify(bad));
+  }
+  // A later rule set may list another sealing version, and that is a new identity.
+  assert.equal(sealProblem({ territorySeal: { ...TERRITORY_SEAL_V1, sealingRulesVersions: [2] } }, { ...ok, rules_version: 2 }), null);
+  for (const r of RULESETS.values()) assert.equal(rulesetConfig(r).territorySeal, undefined);
+  assert.notEqual(rulesetDigest({ ...PILOT_PROPOSAL, territorySeal: TERRITORY_SEAL_V1 }), rulesetDigest(PILOT_PROPOSAL));
+  assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, territorySeal: { ...TERRITORY_SEAL_V1, sealingRulesVersions: [] } }).includes("unknown territory seal rule"));
 });
 
 test("the pilot proposal keeps the owner's push rule and the source's fixed numbers", () => {
