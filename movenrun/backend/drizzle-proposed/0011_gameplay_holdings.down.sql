@@ -61,4 +61,5 @@ DROP FUNCTION IF EXISTS public.gameplay_reset_erased_state_holder();--> statemen
 DROP FUNCTION IF EXISTS public.gameplay_check_challenge();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_check_take_budget();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_day_rules_final();--> statement-breakpoint
-DROP FUNCTION IF EXISTS public.gameplay_settlement_halts_append_only();
+DROP FUNCTION IF EXISTS public.gameplay_settlement_halts_append_only();--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_player_day_proofs_append_only();

@@ -546,6 +546,28 @@ CREATE TABLE IF NOT EXISTS "gameplay_player_day_proofs" (
   CONSTRAINT "gameplay_player_day_proofs_day_rules" FOREIGN KEY ("day", "holding_rules_version") REFERENCES "gameplay_day_rules" ("day", "holding_rules_version")
 );--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "gameplay_player_day_proofs_day_idx" ON "gameplay_player_day_proofs" ("day");--> statement-breakpoint
+-- Append-only: a proof is never updated, and is deleted only once its player
+-- is gone (account erasure cascades from users through gameplay_players).
+-- Proofs carry no personal data beyond the player number, and they do not
+-- outlive the person: erasure removes them, so a proof is not a reason to
+-- keep anyone's data (docs/G34_SERVER_ARCHITECTURE.md, "Player day proofs").
+-- A legal hold or archive destruction is an owner decision outside this
+-- trigger; dropping or truncating the table fires no row trigger.
+CREATE OR REPLACE FUNCTION public.gameplay_player_day_proofs_append_only()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM public.gameplay_players WHERE player_no = OLD.player_no) THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'gameplay_player_day_proofs is append-only' USING ERRCODE = 'restrict_violation';
+END
+$$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_player_day_proofs_append_only" ON "gameplay_player_day_proofs";--> statement-breakpoint
+CREATE TRIGGER "gameplay_player_day_proofs_append_only" BEFORE UPDATE OR DELETE ON "gameplay_player_day_proofs"
+  FOR EACH ROW EXECUTE FUNCTION public.gameplay_player_day_proofs_append_only();--> statement-breakpoint
 
 -- ── day settlements: one header per closed day ─────────────────────────────
 CREATE TABLE IF NOT EXISTS "gameplay_day_settlements" (
@@ -792,6 +814,7 @@ REVOKE ALL ON FUNCTION public.gameplay_check_challenge() FROM PUBLIC;--> stateme
 REVOKE ALL ON FUNCTION public.gameplay_ensure_day_partitions(integer, integer) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_movement_receipt_immutable() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_settlement_halts_append_only() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_player_day_proofs_append_only() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_push_seq" FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_source_no_seq" FROM PUBLIC;--> statement-breakpoint
 
