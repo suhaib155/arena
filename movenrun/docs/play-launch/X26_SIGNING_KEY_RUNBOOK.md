@@ -26,7 +26,7 @@ Supabase project `movenrun`, ref `tavxmwuwkeynbnzfwove` only. Never the other pr
 | Where it is not | Not in the repository, reports, commits, PRs or CI (secret scan passes) |
 | Users affected | None: 0 rows in `auth.users`, sign-in providers not enabled |
 | Impact if abused | Anyone holding it can mint tokens the project accepts while it is trusted: `service_role` tokens bypass RLS through the Data API **and are accepted by the Auth admin API** (list, create and delete sign-in users, read their emails), Storage and Realtime; and `authenticated` tokens for any user id. The empty Data API does not cover the Auth admin API, so **revoke before X-05 turns sign-in on** |
-| Mitigation in place | Data API exposes no schema (`db_schema` empty), RLS on all 19 public tables, no public policies; the MovenRun API ignores HS256 unless `SUPABASE_LEGACY_JWT_SECRET` is set |
+| Mitigation in place | Data API exposes no schema (`db_schema` empty), RLS on all 19 public tables, no public policies; the MovenRun API never accepts HS256 and refuses to start if `SUPABASE_LEGACY_JWT_SECRET` or `SUPABASE_JWT_SECRET` is set (branch `security/a1-legacy-jwt-fail-closed`, not yet deployed; the deployed `2192de6` still honours the variable) |
 | Fix | Move to asymmetric signing keys, disable legacy API keys, **revoke** the legacy secret |
 
 ## 2. Dependency check (done 2026-10-14, read only)
@@ -34,7 +34,7 @@ Supabase project `movenrun`, ref `tavxmwuwkeynbnzfwove` only. Never the other pr
 | Check | Result | Evidence |
 |---|---|---|
 | API verifies Supabase tokens by JWKS (ES256/RS256) | Yes | `backend/src/identity/providers/supabaseAuth.ts` (`SupabaseTokenVerifier`) |
-| API accepts HS256 | Only when `SUPABASE_LEGACY_JWT_SECRET` is set | same file, `supabaseAuthConfigFrom`; unit test "the legacy HS256 secret works only when configured" |
+| API accepts HS256 | Deployed `2192de6`: only when `SUPABASE_LEGACY_JWT_SECRET` is set. Branch `security/a1-legacy-jwt-fail-closed`: never; startup is refused if the variable is set | same file, `supabaseAuthConfigFrom`; unit tests "an HS256 token is refused even when the verifier is handed a legacy shared secret" and "a configured legacy shared-secret variable refuses startup, whatever its value" |
 | `render.yaml` declares `SUPABASE_LEGACY_JWT_SECRET` | No | `render.yaml` env list; guarded by `renderBlueprint.test.ts` |
 | Render dashboard has `SUPABASE_LEGACY_JWT_SECRET` | **Owner to check** (name only) | §3 step 1 |
 | API keys used by server code | `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` (operator guide says `sb_publishable_…` / `sb_secret_…`) | `LIVE_SETUP_OPERATOR_GUIDE.md` Render step 2 |

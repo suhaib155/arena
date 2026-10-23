@@ -52,5 +52,6 @@ test("secrets are set in the dashboard only; public values are the agreed ones",
   assert.equal(env.get("TRUST_PROXY_HOPS"), 'value="1"');
   assert.equal(env.get("TRUST_PROXY"), "value=render-cloudflare");
   assert.ok(!/RESEND|OTP_PEPPER|REVIEW_CODE|REVIEW_EMAIL/.test(blueprint), "no email-code settings");
+  assert.ok(!/JWT_SECRET/.test(blueprint), "no legacy JWT shared-secret variable: the API refuses to start with one");
   assert.ok(!/sb_secret_|service_role|postgres(ql)?:\/\/[^<\s]+@/.test(blueprint), "no key or connection string in the file");
 });
