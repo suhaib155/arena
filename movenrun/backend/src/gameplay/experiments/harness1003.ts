@@ -1,7 +1,7 @@
 /**
  * SIMULATION ONLY. Experiment 1003 against 1001 and 1002 on identical seeds.
  *
- * Each seed generates one population and one set of verified sessions
+ * Each seed builds one population and one set of verified sessions
  * (`population1003.ts`), and every rule set gets exactly those sessions in
  * server-receipt order: 1001 its resolution 8 stored cells, 1002 and the 1003
  * variants the resolution 10 session path. 1001 and 1002 run through the
@@ -27,7 +27,7 @@ import {
   ADVERSARY_1003, COHORTS_1003, DEFAULT_COUNTS_1003, HONEST_1003, population1003,
   type Cohort1003, type Population1003Spec, type Session1003, type Walker1003,
 } from "./population1003.js";
-import { EXPERIMENTS_1003, type Experiment1003 } from "./rules1003.js";
+import { EXPERIMENTS_1003, SENSITIVITY_1003, type Experiment1003 } from "./rules1003.js";
 
 type Rules = Omit<GameplayRules, "seasonOneStartDay">;
 export const DAY0 = 20_000;
@@ -40,6 +40,12 @@ export const RUNS_1003: readonly RunConfig[] = [
   { label: "1001", kind: "server", rules: PILOT_PROPOSAL, gap: false },
   { label: "1002", kind: "server", rules: SIM_PILOT_2_PROPOSAL, gap: true },
   ...EXPERIMENTS_1003.map((exp) => ({ label: exp.label, kind: "1003" as const, exp })),
+];
+
+/** 1002 and the budget-size sensitivity variants, on the same seeds. */
+export const SENSITIVITY_RUNS_1003: readonly RunConfig[] = [
+  RUNS_1003[1]!, RUNS_1003[3]!,
+  ...SENSITIVITY_1003.map((exp) => ({ label: exp.label, kind: "1003" as const, exp })),
 ];
 
 const rulesOf = (c: RunConfig) => (c.kind === "server" ? c.rules : c.exp.rules);

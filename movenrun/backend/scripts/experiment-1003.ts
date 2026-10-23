@@ -5,27 +5,29 @@
  * docs/G34_1003_EXPERIMENT.md. Synthetic behaviour assumptions; not evidence
  * about real players. HYPOTHESIS, credits-only.
  *
- *   node --import tsx scripts/experiment-1003.ts [seeds=5] [days=90] [outDir=../docs/sim/1003]
+ *   node --import tsx scripts/experiment-1003.ts [seeds=5] [days=90] [outDir=../docs/sim/1003] [main|sensitivity]
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { DEFAULT_1003, RUNS_1003, experiment1003Seed, prepare1003, type CohortRow, type Run1003Row } from "../src/gameplay/experiments/harness1003.js";
+import { DEFAULT_1003, RUNS_1003 as MAIN_RUNS, SENSITIVITY_RUNS_1003, experiment1003Seed, prepare1003, type CohortRow, type Run1003Row } from "../src/gameplay/experiments/harness1003.js";
 import { ADVERSARY_1003, COHORTS_1003, COHORT_1003_LABEL, HONEST_1003, type Cohort1003 } from "../src/gameplay/experiments/population1003.js";
 import { getHexagonAreaAvg } from "h3-js";
 
 const seeds = Number(process.argv[2] ?? 5);
 const days = Number(process.argv[3] ?? DEFAULT_1003.days);
-const outDir = process.argv[4] ?? join(import.meta.dirname, "../../docs/sim/1003");
+const set = process.argv[5] ?? "main";
+const RUNS_1003 = set === "sensitivity" ? SENSITIVITY_RUNS_1003 : MAIN_RUNS;
+const outDir = process.argv[4] ?? join(import.meta.dirname, "../../docs/sim/1003", set === "sensitivity" ? "sensitivity" : "");
 mkdirSync(outDir, { recursive: true });
 
 const SEEDS = Array.from({ length: seeds }, (_, i) => i + 1);
 const runs: Run1003Row[][] = [];
-const seedRows: string[] = ["seed,population_prng_seed,days,accounts,sessions_generated"];
+const seedRows: string[] = ["seed,population_prng_seed,days,accounts,sessions_total"];
 for (const seed of SEEDS) {
   const spec = { ...DEFAULT_1003, days, seed };
   const prep = prepare1003(spec);
   seedRows.push([seed, seed ^ 0x1003, days, prep.walkers.length, prep.sessions.length].join(","));
-  runs.push(experiment1003Seed(seed, { days }));
+  runs.push(experiment1003Seed(seed, { days }, RUNS_1003));
   process.stderr.write(`seed ${seed} done\n`);
 }
 const LABELS = RUNS_1003.map((r) => r.label);

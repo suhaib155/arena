@@ -100,6 +100,14 @@ export const RULES_1003C0 = variant("C0", { counting: "contest-or-flip-v1", perW
 
 export const EXPERIMENTS_1003: readonly Experiment1003[] = [RULES_1003A, RULES_1003B, RULES_1003C, RULES_1003C0];
 
+/** Budget-size sensitivity (same counting, smaller daily budget). Simulation parameters, not candidates by themselves. */
+export const SENSITIVITY_1003: readonly Experiment1003[] = [
+  variant("A5", { ...RULES_1003A.budget, perWalkerPerDay: 5 }),
+  variant("B5", { ...RULES_1003B.budget, perWalkerPerDay: 5 }),
+  variant("B3", { ...RULES_1003B.budget, perWalkerPerDay: 3 }),
+  variant("C5", { ...RULES_1003C.budget, perWalkerPerDay: 5 }),
+];
+
 /** Whether an event of this class counts against the variant's budget. */
 export function counts1003(budget: TakeBudget1003, cls: EventClass1003, deliberate: boolean): boolean {
   switch (budget.counting) {

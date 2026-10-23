@@ -188,7 +188,7 @@ export function population1003(spec: Population1003Spec, day0: number): { walker
         case "sibling":
         case "duplicate": {
           const g = byGroup.get(w.group!)!;
-          if (g[0]!.id !== w.id) break; // the group is generated once, from its first member
+          if (g[0]!.id !== w.id) break; // the group is built once, from its first member
           if (w.cohort === "duplicate") {
             // One person carrying two phones signed in to two accounts: every walk recorded twice.
             if (rnd() < 0.75) {
