@@ -97,22 +97,44 @@ export function buildGoogleAuthorizeUrl(supabaseUrl: string, codeChallenge: stri
 export type CallbackResult =
   | { kind: "code"; code: string }
   | { kind: "cancelled" }
-  | { kind: "error"; reason: "provider_error" | "unexpected_redirect" | "missing_code" };
+  | { kind: "error"; reason: "provider_error" | "unexpected_redirect" | "missing_code" | "malformed" | "ambiguous" | "too_long" };
 
-function queryOf(url: string): Map<string, string> {
-  const out = new Map<string, string>();
+/** Return links longer than this are refused unread. Real ones are a few hundred characters. */
+export const CALLBACK_MAX_URL_LENGTH = 2048;
+
+type QueryRead = { ok: true; params: Map<string, string> } | { ok: false; reason: "malformed" | "ambiguous" | "too_long" };
+
+function decodePart(raw: string): string | null {
+  try {
+    return decodeURIComponent(raw.replace(/\+/g, " "));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The query of a return link. Never throws: a bad escape is "malformed", a
+ * repeated name (after decoding) is "ambiguous", and a non-empty fragment is
+ * "ambiguous" too, because only the query may carry the result.
+ */
+function queryOf(url: string): QueryRead {
+  if (url.length > CALLBACK_MAX_URL_LENGTH) return { ok: false, reason: "too_long" };
+  const params = new Map<string, string>();
+  const hash = url.indexOf("#");
+  if (hash >= 0 && hash < url.length - 1) return { ok: false, reason: "ambiguous" };
   const at = url.indexOf("?");
-  if (at < 0) return out;
-  const hash = url.indexOf("#", at);
+  if (at < 0 || (hash >= 0 && hash < at)) return { ok: true, params };
   const query = url.slice(at + 1, hash < 0 ? undefined : hash);
   for (const pair of query.split("&")) {
     if (!pair) continue;
     const eq = pair.indexOf("=");
-    const key = decodeURIComponent((eq < 0 ? pair : pair.slice(0, eq)).replace(/\+/g, " "));
-    const value = eq < 0 ? "" : decodeURIComponent(pair.slice(eq + 1).replace(/\+/g, " "));
-    if (!out.has(key)) out.set(key, value);
+    const key = decodePart(eq < 0 ? pair : pair.slice(0, eq));
+    const value = eq < 0 ? "" : decodePart(pair.slice(eq + 1));
+    if (key === null || value === null) return { ok: false, reason: "malformed" };
+    if (params.has(key)) return { ok: false, reason: "ambiguous" };
+    params.set(key, value);
   }
-  return out;
+  return { ok: true, params };
 }
 
 /**
@@ -124,7 +146,9 @@ export function parseGoogleCallback(url: string | null | undefined): CallbackRes
   if (!url) return { kind: "cancelled" };
   const base = url.split(/[?#]/)[0];
   if (base !== GOOGLE_REDIRECT_URL) return { kind: "error", reason: "unexpected_redirect" };
-  const q = queryOf(url);
+  const read = queryOf(url);
+  if (!read.ok) return { kind: "error", reason: read.reason };
+  const q = read.params;
   if (q.has("error") || q.has("error_code")) return { kind: "error", reason: "provider_error" };
   const code = q.get("code");
   if (!code || !/^[A-Za-z0-9._~-]{8,512}$/.test(code)) return { kind: "error", reason: "missing_code" };
@@ -143,7 +167,8 @@ export function normalizeHandoffCode(input: string): string | null {
 /** Read the code from `movenrun://auth/wallet?code=…`. Nothing else is accepted. */
 export function parseWalletReturn(url: string | null | undefined): string | null {
   if (!url || url.split(/[?#]/)[0] !== WALLET_RETURN_URL) return null;
-  return normalizeHandoffCode(queryOf(url).get("code") ?? "");
+  const read = queryOf(url);
+  return read.ok ? normalizeHandoffCode(read.params.get("code") ?? "") : null;
 }
 
 /** The sign-in page, told which challenge to bind its code to. */
