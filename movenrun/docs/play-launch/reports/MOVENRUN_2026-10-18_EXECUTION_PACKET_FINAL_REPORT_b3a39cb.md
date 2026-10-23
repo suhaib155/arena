@@ -196,6 +196,8 @@ No Play account exists. No EAS quota was used.
 2. **X-29 Vercel:** each push currently builds 5 projects.
    - In movenrun-website, set Settings → Git → Ignored Build Step → Custom to
      `git diff --quiet HEAD^ HEAD -- .`.
+   - Superseded on 22 Oct: this one-liner is revoked. Use the X-29 row in
+     EXTERNAL_ACTIONS.md (`sh ../ops/vercel/ignored-build.sh || exit 1`).
    - Disconnect or delete arena, arena-pchb, arena-qg9n and arena-vv61.
    - Today `commandForIgnoringBuildStep` is unset. Production was not touched.
 3. **X-28:** in GitHub → Code → Branches, delete `ops/two-network-check`.
