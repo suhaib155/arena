@@ -6,8 +6,9 @@
  * mid-walk) and C02 (set forward one hour mid-walk). Fix timestamps are GNSS
  * time; only the phone's wall clock moves.
  *
- * Device suspend/resume is NOT covered here: whether the runtime's monotonic
- * source keeps counting while the phone sleeps has to be measured on hardware.
+ * Device suspend/resume is covered only as a model: both possible behaviours
+ * of the runtime's monotonic source (counts through sleep, or stops) are
+ * simulated. Which one a real phone has must be measured on hardware.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -28,11 +29,14 @@ const HOUR = 3_600_000;
 function world() {
   let elapsed = 0;
   let wallOffset = 0;
+  let stalled = 0;
   return {
     advance(ms: number) { elapsed += ms; },
+    /** Real time passes while a monotonic source that stops in deep sleep does not. */
+    sleep(ms: number) { elapsed += ms; stalled += ms; },
     setWallOffset(ms: number) { wallOffset = ms; },
     wall: () => EPOCH + elapsed + wallOffset,
-    monotonic: () => 5_000 + elapsed,
+    monotonic: () => 5_000 + elapsed - stalled,
     gnss: () => EPOCH + elapsed,
   };
 }
@@ -75,6 +79,51 @@ test("C01: a backward wall-clock step mid-walk does not make current fixes futur
   assert.ok(accepted >= 5, `walking fixes keep counting (${accepted} accepted)`);
   /* And the same fix judged by the raw wall clock is exactly the C01 defect. */
   assert.equal(inspectFix(null, fix(0, w.gnss()), w.wall()).reason, "future_fix");
+});
+
+test("suspend: a monotonic source that stopped while the phone slept does not freeze the route after resume", () => {
+  const w = world();
+  const clock = createSessionClock(w.wall, w.monotonic);
+  let previous = fix(0, w.gnss());
+  w.advance(20_000);
+  clock.suspend(); // screen locked: the app goes to the background
+  w.sleep(60_000); // the phone sleeps; the monotonic source does not count
+  w.advance(1_000);
+  clock.resume();
+  let accepted = 0;
+  for (let i = 1; i <= 20; i++) {
+    w.advance(4_000);
+    const next = fix(100 + i * 6, w.gnss());
+    if (i === 1) {
+      /* The defect: the stalled clock is a minute behind, so a current fix looks future-dated. */
+      assert.equal(inspectFix(null, next, clock.now() + 300).reason, "future_fix");
+    }
+    clock.catchUp(next.timestamp);
+    const decision = inspectFix(i === 1 ? null : previous, next, clock.now() + 300);
+    assert.notEqual(decision.reason, "future_fix", `fix ${i} after resume judged against a caught-up clock`);
+    if (decision.accepted) { accepted += 1; previous = next; }
+    assert.ok(clock.now() <= w.gnss(), "catching up never runs ahead of GNSS time");
+  }
+  assert.ok(accepted >= 5, `walking fixes keep counting after resume (${accepted} accepted)`);
+});
+
+test("a wall clock moved forward while backgrounded cannot push the session past GNSS time", () => {
+  const w = world();
+  const clock = createSessionClock(w.wall, w.monotonic);
+  const startedAt = clock.now();
+  w.advance(65_000);
+  clock.suspend(); // the player opens Settings
+  w.advance(20_000); // awake: the monotonic source keeps counting
+  w.setWallOffset(HOUR);
+  clock.resume();
+  for (let i = 1; i <= 10; i++) {
+    w.advance(4_000);
+    clock.catchUp(w.gnss()); // satellite time is not the phone's setting
+  }
+  assert.equal(clock.now() - startedAt, 125_000, "duration is real elapsed time, not the wall-clock jump");
+  /* Without a fix to confirm it the wall clock alone moves nothing. */
+  clock.catchUp(Number.NaN);
+  assert.equal(clock.now() - startedAt, 125_000);
 });
 
 test("the session clock never runs backwards, even without a monotonic source", () => {
