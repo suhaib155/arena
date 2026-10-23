@@ -47,6 +47,8 @@ DROP SCHEMA IF EXISTS "gameplay_partitions";--> statement-breakpoint
 DROP SEQUENCE IF EXISTS "gameplay_push_seq";--> statement-breakpoint
 DROP SEQUENCE IF EXISTS "gameplay_source_no_seq";--> statement-breakpoint
 DROP INDEX IF EXISTS "movement_verifications_verified_end_time_idx";--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_movement_receipt_immutable" ON "movement_verifications";--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_movement_receipt_immutable();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_ensure_day_partitions(integer, integer);--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_current_player_id();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_settlements_final();--> statement-breakpoint
