@@ -28,6 +28,7 @@ Newest first.
 | 2026-10-13 | Free hosting readiness (Render Free + Supabase Free) | dd83065 | [MOVENRUN_2026-10-13_FREE_HOSTING_READINESS_FINAL_REPORT_dd83065.md](MOVENRUN_2026-10-13_FREE_HOSTING_READINESS_FINAL_REPORT_dd83065.md) |
 | 2026-10-13 | Post-security launch prep (frontend on hold) | 41b78a8 | [MOVENRUN_2026-10-13_POST_SECURITY_LAUNCH_PREP_FINAL_REPORT_41b78a8.md](MOVENRUN_2026-10-13_POST_SECURITY_LAUNCH_PREP_FINAL_REPORT_41b78a8.md) |
 | 2026-10-22 | Execution loop: #129 and #130 merged into the feature stack; drafts #131–#135 (exception, handset worksheet, contract suite port, fairness study, storage lifecycle) | 850bf64 | [MOVENRUN_2026-10-22_EXECUTION_LOOP_FINAL_REPORT_850bf64.md](MOVENRUN_2026-10-22_EXECUTION_LOOP_FINAL_REPORT_850bf64.md) |
+| 2026-10-23 | Continuation: P0 security drafts (A-1 to A-4), movement fixes (W04, I02, clock, drift, XP), gameplay sealing, cutoff, settlement and storage benchmark; drafts #139–#158, nothing merged or deployed | 6429a30 | [MOVENRUN_2026-10-23_SECURITY_MOVEMENT_GAMEPLAY_FINAL_REPORT_6429a30.md](MOVENRUN_2026-10-23_SECURITY_MOVEMENT_GAMEPLAY_FINAL_REPORT_6429a30.md) |
 
 Earlier reports (before this convention) were shared outside the repository
 as `FINAL_REPORT.md`: the Google + wallet change and the security review,

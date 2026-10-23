@@ -296,14 +296,37 @@ app CTAs (D-35). Done:
 - Not done (owner only): migration 0011, the gameplay flag, backend redeploy,
   main merge, mobile UI, Play account, EAS build, any chain action.
 
+## Checkpoint 2026-10-23 (continuation packet: security, movement, gameplay)
+
+- 20 new draft PRs, #139 to #158, each reviewed by an agent that did not write
+  it (E-102 to E-113). Nothing merged, deployed, built, signed or enabled.
+- P0 security drafts: A-1 legacy JWT fail-closed (#143), A-3 JWKS outage 503
+  (#144), A-2 deletion queue CAS (#148), A-4 callback parser (#140). Staging
+  still runs 2192de6 with the old verifier; deploy needs X-30.
+- Movement: W04 verifies, I02 bridge removed, C01 honest 500 m verifies, C02
+  clock tamper no longer earns XP, S03 drift 632 m to 109 m (#145, #146,
+  #153 to #155). The 4x drift rule is owner decision X-31a.
+- Gameplay (flag off): receipt cutoff, seal gate, no interpolation, settlement
+  invariants (#150 to #152, #156); 1003 study (#149); storage variance and HOT
+  benchmark (#158). 0011 hashes changed (E-110); still unapplied.
+- Contracts: #147 research only, not audited, not deployed.
+- Hosted re-check at 11:40Z refused by the network (E-114): Render, website
+  and providers are UNKNOWN/REVERIFY since 18 Oct. Vercel daily cap hit on
+  five projects (E-115, X-29).
+- Backend `test` script globs miss about 121 tests under plain sh; fix PR
+  pending.
+- Report: `reports/MOVENRUN_2026-10-23_SECURITY_MOVEMENT_GAMEPLAY_FINAL_REPORT_6429a30.md`.
+
 ## Open owner decisions
 
 - X-01a: Play account type, chosen truthfully (Personal unless MovenRun is a
   registered entity with a D-U-N-S number).
-- Approvals for the live sequence X-07 → X-05 → X-21 (X-06 done).
-- X-25 retention matrix; X-26 legacy JWT secret rotation; G0 decisions D1–D13.
+- X-05 approval (X-06, X-07 and X-21 done).
+- X-25 retention matrix; G0 decisions D1–D13.
+- X-30 Render name-only check and P0 staging deploy; X-31 gameplay decisions;
+  X-32 dependency exception before 21 Nov.
 
 ## Safety record
 
-No merge, publish, payment, onchain transaction, contract change, provider
+No merge into `main`, a release branch or a deploy branch, and no publish, payment, onchain transaction, contract change, provider
 change or live database change was made. No secrets were committed.
