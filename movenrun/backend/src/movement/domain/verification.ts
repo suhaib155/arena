@@ -12,7 +12,7 @@
 import { inspectFix } from "@movenrun/shared/measurement";
 import { sessionMetadataProblems } from "@movenrun/shared/session";
 import { evaluateSealing } from "@movenrun/shared/sealing";
-import { hasEvidenceBreak } from "@movenrun/shared/evidence";
+import { hasEvidenceBreak, hasExplicitBreak } from "@movenrun/shared/evidence";
 
 import type {
   MovementObservation,
@@ -206,21 +206,25 @@ function sealFor(observation: MovementObservation) {
       latitude: p.lat,
       longitude: p.lng,
       timestamp: p.timestamp,
+      accuracy: p.accuracy,
       ...(p.breakBefore === true ? { breakBefore: true } : {}),
     })),
     heldCells: null,
   });
 }
 
-/** Never count the unobserved straight line across an intentional or foreground break. */
+/** Never count the unobserved straight line across an intentional or foreground
+ * break, or across an unobserved bridge (MR-A-02: stale anchor after a rejected
+ * jump, outage, long silence). Decided from the uploaded pair alone. */
 function distanceFor(observation: MovementObservation, deps: VerifyMovementDeps): number {
   const stretches: ObservedPoint[][] = [[]];
   for (let i = 0; i < observation.points.length; i++) {
     const point = observation.points[i]!;
     const previous = observation.points[i - 1];
     if (previous && hasEvidenceBreak(
-      { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp },
-      { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, breakBefore: point.breakBefore },
+      { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp, accuracy: previous.accuracy },
+      { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, accuracy: point.accuracy,
+        breakBefore: point.breakBefore },
       observation.session?.pauses,
     )) stretches.push([]);
     stretches[stretches.length - 1]!.push(point);
@@ -241,7 +245,9 @@ function onFootQualityProblems(observation: MovementObservation): string[] {
       accuracy: point.accuracy, breakBefore: point.breakBefore };
     const previous = prior ? { latitude: prior.lat, longitude: prior.lng,
       timestamp: prior.timestamp, accuracy: prior.accuracy } : null;
-    const broken = previous && hasEvidenceBreak(previous, current, observation.session.pauses);
+    // Only a deliberate break resets the speed check. An unobserved bridge is
+    // excluded from distance, but never excuses a pair from plausibility.
+    const broken = previous && hasExplicitBreak(previous, current, observation.session.pauses);
     const decision = inspectFix(broken ? null : previous, current);
     if (!decision.accepted) return ["Route measurement quality needs review"];
   }
@@ -257,8 +263,9 @@ function observedDurationSeconds(observation: MovementObservation): number {
   for (let i = 1; i < observation.points.length; i++) {
     const previous = observation.points[i - 1]!, point = observation.points[i]!;
     if (!hasEvidenceBreak(
-      { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp },
-      { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, breakBefore: point.breakBefore },
+      { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp, accuracy: previous.accuracy },
+      { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, accuracy: point.accuracy,
+        breakBefore: point.breakBefore },
       observation.session?.pauses,
     )) milliseconds += Math.max(0, point.timestamp - previous.timestamp);
   }
