@@ -55,6 +55,7 @@ import {
   type Projector,
 } from "./geo";
 import type { SessionMetadata, PauseInterval } from "./session";
+import { isUnobservedBridge } from "./measurement";
 
 /* ── methods ──────────────────────────────────────────────────────────────── */
 
@@ -134,6 +135,8 @@ export interface SealRoutePoint extends GeoCoordinate {
   /** The device observed an interruption before this fix. No bridging segment exists. */
   breakBefore?: boolean;
   timestamp: number;
+  /** Reported accuracy, read only by the unobserved-bridge rule (capped there). */
+  accuracy?: number | null;
 }
 
 /* ── events ───────────────────────────────────────────────────────────────── */
@@ -435,7 +438,8 @@ export function createSealScanner(rules: SealingRules, pauses: PauseSource = [])
     if (
       point.breakBefore === true ||
       pausedBetween(prior.point.timestamp, point.timestamp) ||
-      haversineMeters(prior.point, point) > rules.continuityBreakMeters
+      haversineMeters(prior.point, point) > rules.continuityBreakMeters ||
+      isUnobservedBridge(prior.point, point)
     ) {
       subpathCount += 1;
       return [];

@@ -10,7 +10,7 @@
  */
 import type { Router } from "express";
 import { randomUUID } from "node:crypto";
-import { hasEvidenceBreak, shortRouteEvidenceProblems } from "@movenrun/shared/evidence";
+import { hasExplicitBreak, shortRouteEvidenceProblems } from "@movenrun/shared/evidence";
 import { getDb } from "../../db/client.js";
 import { getIdentityConfig } from "../../identity/config.js";
 import { getProviderConfig } from "../../identity/providerConfig.js";
@@ -36,7 +36,9 @@ export function toValidatable(observation: MovementObservation) {
     points: observation.points.map((point, index) => {
       const previous = observation.points[index - 1];
       if (!previous) return point;
-      const broken = hasEvidenceBreak(
+      // Explicit breaks only: an unobserved bridge (MR-A-02) is dropped from
+      // distance, but must still face the anomaly speed check.
+      const broken = hasExplicitBreak(
         { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp },
         { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, breakBefore: point.breakBefore },
         observation.session?.pauses,
