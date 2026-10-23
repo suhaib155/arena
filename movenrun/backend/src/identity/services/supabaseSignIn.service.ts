@@ -89,6 +89,18 @@ export const ORPHAN_GRACE_MS = 60 * 60 * 1000;
 /** Most provider users one sweep may delete; the rest wait for the next run. */
 export const ORPHAN_SWEEP_MAX_DELETES = 100;
 
+/** First wait before a failed provider deletion is retried; doubles per attempt, up to a day. */
+export const PENDING_DELETION_RETRY_MS = 10 * 60 * 1000;
+/**
+ * How long one worker owns a queued deletion while it reads and deletes the
+ * provider user. Far longer than the two provider calls can take (10 s
+ * timeout each), so a lease never lapses mid-call; a worker that dies holding
+ * one only delays that row.
+ */
+export const PENDING_DELETION_LEASE_MS = 10 * 60 * 1000;
+/** A queued deletion older than this is reported (as a count) every run. */
+export const PENDING_DELETION_OVERDUE_MS = 24 * 60 * 60 * 1000;
+
 export interface SupabaseSignInConfig {
   /** The domain written into wallet messages; must also be on Supabase's redirect allow list. */
   authDomain: string;
@@ -105,6 +117,8 @@ interface Deps {
   now?: () => Date;
   nonce?: () => string;
   handoffCode?: () => string;
+  /** Operator log; counts only. */
+  log?: Pick<Console, "warn">;
 }
 
 export interface VerifiedSignIn {
@@ -294,9 +308,17 @@ export class SupabaseSignInService {
     const expired = [...new Set(await this.deps.signIn.walletHandoffs.takeExpired(now, limit))];
     // The same wallet always maps to the same provider user, so a newer code
     // (or one already spent) for that user keeps it.
-    const abandoned: string[] = [];
-    for (const subject of expired) if (!(await this.deps.signIn.walletHandoffs.inUse(subject, now))) abandoned.push(subject);
-    return (await this.removeProviderUsers(abandoned)).removed.length;
+    // An expired code was made more than one code lifetime ago, right after
+    // its wallet signed in. A provider sign-in since then is the person back
+    // (a direct sign-in whose account may not be committed yet), so the user
+    // is kept and left to the orphan sweep.
+    const signedInAfter = new Date(now.getTime() - WALLET_HANDOFF_TTL_MS);
+    let removed = 0;
+    for (const subject of expired) {
+      if (await this.deps.signIn.walletHandoffs.inUse(subject, now)) continue;
+      if ((await this.deleteProviderUser(subject, { signedInAfter })) === "removed") removed += 1;
+    }
+    return removed;
   }
 
   /**
@@ -308,19 +330,96 @@ export class SupabaseSignInService {
     const removed: string[] = [];
     const pending: string[] = [];
     for (const subject of subjects) {
-      const mapped = await this.deps.stores.identities.findActiveByProviderSubject(SUPABASE_PROVIDER, subject);
-      if (mapped) continue;
-      await this.deps.signIn.pendingAuthDeletions.add([subject]);
-      try {
-        await this.deps.auth.deleteUser(subject);
-        await this.deps.signIn.pendingAuthDeletions.remove(subject);
-        removed.push(subject);
-      } catch {
-        await this.deps.signIn.pendingAuthDeletions.markAttempt(subject, this.now());
-        pending.push(subject);
-      }
+      const outcome = await this.deleteProviderUser(subject, {});
+      if (outcome === "removed") removed.push(subject);
+      else if (outcome === "pending") pending.push(subject);
     }
     return { removed, pending };
+  }
+
+  /**
+   * One provider deletion, owned through its queue row (A-2).
+   *
+   * Policy: a newly established identity is never deleted. A subject mapped
+   * to an active account, or whose provider user signed in after the deletion
+   * was requested (or after `signedInAfter`), is "kept" or "superseded": its
+   * row is retired and an unmapped user is left to the orphan sweep, which
+   * waits out its own grace period. Any doubt (the provider cannot be read,
+   * another worker owns the row) leaves the user in place.
+   *
+   * Why this cannot delete an account a sign-in is establishing: the row is
+   * claimed before the provider user is read. A provider sign-in before the
+   * claim shows in that read; one after it reaches `adoptPendingDeletion`
+   * while the lease is live and is refused there before any account exists.
+   */
+  private async deleteProviderUser(
+    subject: string,
+    opts: { retryAfterMs?: number; signedInAfter?: Date },
+  ): Promise<"removed" | "pending" | "kept"> {
+    const queue = this.deps.signIn.pendingAuthDeletions;
+    const mapped = () => this.deps.stores.identities.findActiveByProviderSubject(SUPABASE_PROVIDER, subject);
+    if (await mapped()) {
+      await queue.adopt(subject, this.now());
+      return "kept";
+    }
+    // A new request is queued first so a failure is retried; a retry only
+    // claims an existing row and never revives one another worker retired.
+    if (opts.retryAfterMs === undefined) await queue.add([subject], this.now());
+    const claim = await queue.claim(subject, this.now(), { leaseMs: PENDING_DELETION_LEASE_MS, retryAfterMs: opts.retryAfterMs });
+    if (!claim) return "pending";
+    // Read again under the lease: a sign-in may have mapped it since.
+    if (await mapped()) {
+      await queue.finish(subject, claim.token);
+      return "kept";
+    }
+    let current: ProviderUserSummary | null;
+    try {
+      current = await this.deps.auth.getUser(subject);
+    } catch {
+      // Fail closed: never delete a user that could not be read.
+      await queue.release(subject, claim.token, this.now());
+      return "pending";
+    }
+    const cutoff = opts.signedInAfter ?? claim.requestedAt;
+    if (current?.lastSignInAt && current.lastSignInAt.getTime() > cutoff.getTime()) {
+      // Signed in again since the request: superseded. The row is retired so it
+      // cannot stay due; if no account follows, the orphan sweep removes it.
+      await queue.finish(subject, claim.token);
+      return "pending";
+    }
+    try {
+      // Deleting a user that is already gone succeeds, so a retry after a lost
+      // response converges.
+      await this.deps.auth.deleteUser(subject);
+    } catch {
+      await queue.release(subject, claim.token, this.now());
+      return "pending";
+    }
+    await queue.finish(subject, claim.token);
+    return "removed";
+  }
+
+  /**
+   * Called on every Supabase sign-in before the account is looked up or
+   * created: the person is back, so a queued deletion of their provider user
+   * is retired. Refused, with a retryable error, while a deletion of that user
+   * is in flight, because the user may be gone a moment later.
+   */
+  async adoptPendingDeletion(subject: string): Promise<void> {
+    if ((await this.deps.signIn.pendingAuthDeletions.adopt(subject, this.now())) === "busy") throw new IdentityError("provisioning_failed");
+  }
+
+  /**
+   * Aggregate health of the deletion queue for operators: how many rows are
+   * pending, how many were requested over a day ago, how many are in flight.
+   * Logs one line with counts (never subjects) when any row is overdue.
+   */
+  async reportPendingDeletions(): Promise<{ pending: number; overdue: number; inFlight: number }> {
+    const stats = await this.deps.signIn.pendingAuthDeletions.stats(this.now(), PENDING_DELETION_OVERDUE_MS);
+    if (stats.overdue > 0) {
+      (this.deps.log ?? console).warn(`Provider sign-in deletions pending over 24h: ${stats.overdue} (pending ${stats.pending}, in flight ${stats.inFlight})`);
+    }
+    return stats;
   }
 
   /**
@@ -371,14 +470,25 @@ export class SupabaseSignInService {
       const current = await this.deps.auth.getUser(subject);
       if (!current || !stale(current, now.getTime() - graceMs)) continue;
       if (await this.deps.signIn.walletHandoffs.inUse(subject, now)) continue;
-      removed += (await this.removeProviderUsers([subject])).removed.length;
+      // Under the lease the user is read once more; any sign-in within the
+      // grace period keeps it.
+      if ((await this.deleteProviderUser(subject, { signedInAfter: new Date(now.getTime() - graceMs) })) === "removed") removed += 1;
     }
     return removed;
   }
 
-  /** Retry provider deletions that failed earlier. Safe to run repeatedly. */
+  /**
+   * Retry provider deletions that failed earlier. Safe to run repeatedly and
+   * concurrently: each row is claimed before it is worked. Rows never tried
+   * come first and each failure doubles the wait (up to a day), so rows the
+   * provider keeps refusing cannot hold the batch.
+   */
   async retryPendingDeletions(limit = 50): Promise<number> {
-    const due = await this.deps.signIn.pendingAuthDeletions.due(this.now(), 10 * 60 * 1000, limit);
-    return (await this.removeProviderUsers(due)).removed.length;
+    const due = await this.deps.signIn.pendingAuthDeletions.due(this.now(), PENDING_DELETION_RETRY_MS, limit);
+    let removed = 0;
+    for (const subject of due) {
+      if ((await this.deleteProviderUser(subject, { retryAfterMs: PENDING_DELETION_RETRY_MS })) === "removed") removed += 1;
+    }
+    return removed;
   }
 }

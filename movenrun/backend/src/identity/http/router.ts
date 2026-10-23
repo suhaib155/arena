@@ -136,6 +136,10 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
   // ---- unauthenticated auth entry ----------------------------------------
   // Supabase sign-in (Google, wallet) → one MovenRun account per Supabase user.
   const signInWithSupabase = async (verified: VerifiedSignIn, rawDeviceLabel: string | undefined) => {
+    // The person is back: a queued deletion of this provider user is retired
+    // before any account is looked up or created, and the sign-in waits
+    // (503, retryable) while a deletion of it is in flight (A-2).
+    await options.supabaseSignIn?.adoptPendingDeletion(verified.subject);
     try {
       return await services.orchestrator.signupOrLogin({
         providerIdentity: {
