@@ -139,6 +139,34 @@ export function economyRulesFor(rulesVersion: number): EconomyRules | null {
   return RULES_BY_VERSION.get(rulesVersion) ?? null;
 }
 
+function canonical(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v !== null && typeof v === "object") {
+    return Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical((v as Record<string, unknown>)[k])]));
+  }
+  return v;
+}
+
+/** The canonical JSON of a version's registry rules, for a pinned digest; null when unknown. */
+export function economyRulesCanonicalJson(rulesVersion: number): string | null {
+  const r = economyRulesFor(rulesVersion);
+  return r ? JSON.stringify(canonical(r)) : null;
+}
+
+/**
+ * Null when `rules` is exactly the registry's rules for its version, else
+ * why not. A reconciler never trusts a rules object it is handed: one that
+ * keeps `rulesVersion: 1` but changes a value is refused.
+ */
+export function pinnedRulesProblem(rules: EconomyRules): string | null {
+  const pinned = economyRulesCanonicalJson(rules?.rulesVersion);
+  if (pinned === null) return `unknown economy rules version ${String(rules?.rulesVersion)}`;
+  if (rules !== economyRulesFor(rules.rulesVersion) && JSON.stringify(canonical(rules)) !== pinned) {
+    return `rules object is not the pinned registry rules for version ${rules.rulesVersion}`;
+  }
+  return null;
+}
+
 /* ── seasons ──────────────────────────────────────────────────────────────── */
 
 /**
@@ -503,6 +531,8 @@ export function settleDay(rules: EconomyRules, input: DayInput): DaySettlement {
  * empty list. Settlement halts on any entry.
  */
 export function dayBooksProblems(rules: EconomyRules, s: DaySettlement): string[] {
+  const forged = pinnedRulesProblem(rules);
+  if (forged) return [forged];
   const b = s.books;
   const problems: string[] = [];
   // Every amount a non-negative safe integer first; the identities are then
@@ -548,6 +578,27 @@ export function dayBooksProblems(rules: EconomyRules, s: DaySettlement): string[
     if (auto * 10_000n > n(r.dayRewardMicro) * n(rules.autoChargeCapBasisPoints)) problems.push(`${where}: charges above 60%`);
     if (n(r.charges.upkeepTakenMicro) + n(r.charges.upkeepPaidInConditionMicro) !== n(r.charges.upkeepOwedMicro)) problems.push(`${where}: upkeep not fully accounted for`);
     if (n(r.dayRewardMicro) - n(r.tollPaidMicro) - auto !== n(r.creditedMicro)) problems.push(`${where}: credited does not follow from reward, toll and charges`);
+  }
+  return problems;
+}
+
+/**
+ * The independent reconciler's entry point: checks a day's books against the
+ * registry's rules for `rulesVersion`, loaded here, never passed in. With a
+ * season, the day's pool must also be that season's daily pool.
+ */
+export function reconcileDay(rulesVersion: number, s: DaySettlement, opts: { season?: number } = {}): string[] {
+  const rules = economyRulesFor(rulesVersion);
+  if (!rules) return [`unknown economy rules version ${rulesVersion}`];
+  const problems = dayBooksProblems(rules, s);
+  if (opts.season !== undefined) {
+    let pool: number;
+    try {
+      pool = dailyPoolMicro(rules, opts.season);
+    } catch (err) {
+      return [...problems, err instanceof Error ? err.message : String(err)];
+    }
+    if (s.books.poolMicro !== pool) problems.push(`pool ${s.books.poolMicro} is not season ${opts.season}'s daily pool ${pool}`);
   }
   return problems;
 }

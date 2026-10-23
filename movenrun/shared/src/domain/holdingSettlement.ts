@@ -44,6 +44,8 @@ import {
   dailyPoolMicro,
   dayBooksProblems,
   economyRulesFor,
+  isMicroAmount,
+  reconcileDay,
   seasonPoolMicro,
   settleDay,
   type DaySettlement,
@@ -316,16 +318,75 @@ export interface SeasonCredits {
   returnedMicro: number;
   /** Net credits per player, sorted by playerId. */
   byPlayer: { playerId: string; netMicro: number }[];
+  /** With `firstDay`: the season's days with no settled result, ascending. Empty otherwise. */
+  missingDays: number[];
+  /** The season pool not covered by a settled day (missing days' pools, never summed). */
+  unsettledPoolMicro: number;
+}
+
+export interface SeasonOptions {
+  /** The season's first day index; days outside [firstDay, firstDay + seasonDays) are refused and absent ones reported. */
+  firstDay?: number;
+  /** Refuse the season when any of its days is missing (a closed season). Needs `firstDay`. */
+  requireAllDays?: boolean;
+}
+
+/**
+ * Re-verifies one settled day for the season, from the registry's rules:
+ * the books (exactly, `reconcileDay`), the pool against the season's daily
+ * pool, and every credit line against its player row and the books. Never
+ * trusts the `status: "settled"` label.
+ */
+function settledDayProblems(rulesVersion: number, season: number, d: Extract<CreditsDayResult, { status: "settled" }>): string[] {
+  const problems = reconcileDay(rulesVersion, d.settlement, { season });
+  if (d.poolMicro !== d.settlement.books.poolMicro) problems.push(`pool ${d.poolMicro} differs from the books' ${d.settlement.books.poolMicro}`);
+  const rows = new Map(d.settlement.players.map((r) => [r.playerId, r]));
+  if (d.lines.length !== d.settlement.players.length) problems.push(`${d.lines.length} credit lines for ${d.settlement.players.length} players`);
+  const seen = new Set<string>();
+  let earned = 0n;
+  let net = 0n;
+  for (const l of d.lines) {
+    const amounts = [l.earnedMicro, l.tollPaidMicro, l.tollReceivedMicro, l.rechargeMicro, l.upkeepTakenMicro, l.upkeepPaidInConditionMicro, l.netMicro];
+    if (!amounts.every(isMicroAmount)) {
+      problems.push(`line ${l.playerId}: an amount is not a non-negative safe integer`);
+      continue;
+    }
+    if (seen.has(l.playerId)) problems.push(`line ${l.playerId}: twice`);
+    seen.add(l.playerId);
+    const n = (v: number) => BigInt(v);
+    if (n(l.earnedMicro) - n(l.tollPaidMicro) - n(l.rechargeMicro) - n(l.upkeepTakenMicro) + n(l.tollReceivedMicro) !== n(l.netMicro)) {
+      problems.push(`line ${l.playerId}: net does not follow from its parts`);
+    }
+    const r = rows.get(l.playerId);
+    if (!r) problems.push(`line ${l.playerId}: no player row`);
+    else if (r.dayRewardMicro !== l.earnedMicro || r.tollPaidMicro !== l.tollPaidMicro || r.tollReceivedMicro !== l.tollReceivedMicro
+      || r.charges.rechargeMicro !== l.rechargeMicro || r.charges.upkeepTakenMicro !== l.upkeepTakenMicro
+      || r.charges.upkeepPaidInConditionMicro !== l.upkeepPaidInConditionMicro) {
+      problems.push(`line ${l.playerId}: differs from its player row`);
+    }
+    earned += n(l.earnedMicro);
+    net += n(l.netMicro);
+  }
+  const b = d.settlement.books;
+  if (problems.length === 0) {
+    if (earned !== BigInt(b.mintedMicro)) problems.push("lines' earned does not add up to minted");
+    if (net !== BigInt(b.creditedMicro) + BigInt(b.tollReceivedMicro)) problems.push("lines' net does not add up to credited plus tolls received");
+  }
+  return problems;
 }
 
 export type SeasonCreditsResult = ({ status: "settled" } & SeasonCredits) | { status: "refused"; season: number; problems: string[] };
 
 /**
- * Sums a season's settled days. Refuses if any day was refused, belongs to
- * another season or rules version, is repeated, or if the days together pass
- * the season's length or pool.
+ * Sums a season's settled days, re-verifying each one against the registry's
+ * rules (books, pool, credit lines): a `status: "settled"` label is not
+ * trusted. Refuses if any day was refused or fails that check, belongs to
+ * another season or rules version, is repeated, lies outside the season
+ * (with `firstDay`), or if the days together pass the season's length or
+ * pool. Missing days are reported, with the pool nobody settled; a closed
+ * season (`requireAllDays`) refuses them.
  */
-export function settleCreditsSeason(rulesVersion: number, season: number, days: readonly CreditsDayResult[]): SeasonCreditsResult {
+export function settleCreditsSeason(rulesVersion: number, season: number, days: readonly CreditsDayResult[], opts: SeasonOptions = {}): SeasonCreditsResult {
   const refuse = (problems: string[]): SeasonCreditsResult => ({ status: "refused", season, problems });
   const rules = economyRulesFor(rulesVersion);
   if (!rules) return refuse([`unknown economy rules version ${rulesVersion}`]);
@@ -337,31 +398,55 @@ export function settleCreditsSeason(rulesVersion: number, season: number, days: 
   }
 
   const problems: string[] = [];
+  const { firstDay, requireAllDays } = opts;
+  if (firstDay !== undefined && !(Number.isSafeInteger(firstDay) && firstDay >= 0)) return refuse(["firstDay must be a whole number, 0 or more"]);
+  if (requireAllDays && firstDay === undefined) return refuse(["requireAllDays needs firstDay"]);
   const seen = new Set<number>();
-  const byPlayer = new Map<string, number>();
-  let pool = 0;
-  let issued = 0;
-  let burned = 0;
-  let returned = 0;
+  // Exact sums: bigint, converted back only after the safe-integer check.
+  const byPlayer = new Map<string, bigint>();
+  let pool = 0n;
+  let issued = 0n;
+  let burned = 0n;
+  let returned = 0n;
   for (const d of days) {
     if (d.status !== "settled") {
       problems.push(`day ${d.day} was refused`);
       continue;
     }
+    if (!Number.isSafeInteger(d.day) || d.day < 0) {
+      problems.push(`day ${String(d.day)} is not a day index`);
+      continue;
+    }
+    if (firstDay !== undefined && (d.day < firstDay || d.day >= firstDay + rules.seasonDays)) {
+      problems.push(`day ${d.day} is outside season ${season} (days ${firstDay} to ${firstDay + rules.seasonDays - 1})`);
+    }
     if (d.season !== season) problems.push(`day ${d.day} is in season ${d.season}`);
     if (d.rulesVersion !== rulesVersion) problems.push(`day ${d.day} is under rules version ${d.rulesVersion}`);
     if (seen.has(d.day)) problems.push(`day ${d.day} settled twice`);
     seen.add(d.day);
+    const dayProblems = settledDayProblems(rulesVersion, season, d);
+    if (dayProblems.length > 0) {
+      problems.push(...dayProblems.map((p) => `day ${d.day}: ${p}`));
+      continue;
+    }
     const b = d.settlement.books;
-    pool += b.poolMicro;
-    issued += b.mintedMicro;
-    burned += b.burnedMicro;
-    returned += b.returnedToSeasonPoolMicro;
-    for (const line of d.lines) byPlayer.set(line.playerId, (byPlayer.get(line.playerId) ?? 0) + line.netMicro);
+    pool += BigInt(b.poolMicro);
+    issued += BigInt(b.mintedMicro);
+    burned += BigInt(b.burnedMicro);
+    returned += BigInt(b.returnedToSeasonPoolMicro);
+    for (const line of d.lines) byPlayer.set(line.playerId, (byPlayer.get(line.playerId) ?? 0n) + BigInt(line.netMicro));
+  }
+  const missingDays: number[] = [];
+  if (firstDay !== undefined) {
+    for (let k = firstDay; k < firstDay + rules.seasonDays; k++) if (!seen.has(k)) missingDays.push(k);
+    if (requireAllDays && missingDays.length > 0) problems.push(`${missingDays.length} days missing (first: ${missingDays[0]})`);
   }
   if (seen.size > rules.seasonDays) problems.push(`${seen.size} days settled in a ${rules.seasonDays}-day season`);
-  if (issued > seasonPool) problems.push("issued more than the season pool");
-  if (pool > seasonPool) problems.push("day pools exceed the season pool");
+  if (issued > BigInt(seasonPool)) problems.push("issued more than the season pool");
+  if (pool > BigInt(seasonPool)) problems.push("day pools exceed the season pool");
+  if (issued - burned !== [...byPlayer.values()].reduce((a, v) => a + v, 0n)) problems.push("net credits do not equal issued minus burned");
+  const safe = (v: bigint) => v >= 0n && v <= BigInt(Number.MAX_SAFE_INTEGER);
+  if (![pool, issued, burned, returned, ...byPlayer.values()].every(safe)) problems.push("a season total is not a non-negative safe integer");
   if (problems.length > 0) return refuse(problems);
 
   return {
@@ -370,10 +455,12 @@ export function settleCreditsSeason(rulesVersion: number, season: number, days: 
     season,
     daysSettled: seen.size,
     seasonPoolMicro: seasonPool,
-    poolMicro: pool,
-    issuedMicro: issued,
-    burnedMicro: burned,
-    returnedMicro: returned,
-    byPlayer: [...byPlayer].sort(([a], [b]) => byString(a, b)).map(([playerId, netMicro]) => ({ playerId, netMicro })),
+    poolMicro: Number(pool),
+    issuedMicro: Number(issued),
+    burnedMicro: Number(burned),
+    returnedMicro: Number(returned),
+    byPlayer: [...byPlayer].sort(([a], [b]) => byString(a, b)).map(([playerId, netMicro]) => ({ playerId, netMicro: Number(netMicro) })),
+    missingDays,
+    unsettledPoolMicro: seasonPool - Number(pool),
   };
 }
