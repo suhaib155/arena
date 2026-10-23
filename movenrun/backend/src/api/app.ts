@@ -53,6 +53,8 @@ export function createApiApp(config: ApiConfig) {
       run: async () => (await supabaseSignIn.expireHandoffs()) + (await supabaseSignIn.retryPendingDeletions()),
     },
     { name: "unused sign-in records", everyMs: 30 * 60 * 1000, run: () => supabaseSignIn.sweepOrphanProviderUsers() },
+    // Counts only: logs how many provider deletions have waited over a day.
+    { name: "pending sign-in deletion age", everyMs: 60 * 60 * 1000, run: async () => { await supabaseSignIn.reportPendingDeletions(); return 0; } },
     { name: "expired sign-in sessions", everyMs: 60 * 60 * 1000, run: () => identity.sessions.pruneExpiredSessions() },
   ]);
   maintenance.start();
