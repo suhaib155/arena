@@ -209,10 +209,13 @@ export class SupabaseTokenVerifier {
         // keep serving for a bounded time (keyFor); anything else is
         // reported as the provider being unavailable, never accepted.
         this.lastFetchFailed = true;
-      } finally {
-        this.inflight = null;
       }
-    })();
+      // Cleared in a later callback, never synchronously: a fetch that throws
+      // before its first await would otherwise clear it before it is assigned,
+      // leaving a settled promise that blocks every later refresh.
+    })().finally(() => {
+      this.inflight = null;
+    });
     return this.inflight;
   }
 }

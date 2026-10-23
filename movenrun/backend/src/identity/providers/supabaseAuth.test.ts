@@ -319,6 +319,24 @@ test("recovery: after the retry gap the next request refetches and verifies; bef
   assert.equal(state.n, 2);
 });
 
+test("a key-set fetch that throws before returning a promise does not wedge later refreshes", async () => {
+  const counter = { n: 0 };
+  let up = false;
+  const fetchImpl = ((): Promise<Response> => {
+    counter.n += 1;
+    if (!up) throw new TypeError("fetch failed");
+    return Promise.resolve(new Response(JSON.stringify({ keys: [jwk(ec.publicKey, "ec-1")] }), { status: 200 }));
+  }) as unknown as typeof fetch;
+  let clock = NOW;
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => clock);
+  await rejects(v, token(good), "provider_unavailable");
+  assert.equal(counter.n, 1);
+  up = true;
+  clock = new Date(NOW.getTime() + JWKS_RETRY_AFTER_FAILURE_MS + 1_000);
+  assert.equal((await v.verify(token(good))).subject, SUB);
+  assert.equal(counter.n, 2);
+});
+
 test("the Web3 grant posts message and signature with the publishable key only", async () => {
   const seen: Array<{ url: string; init: RequestInit }> = [];
   const fetchImpl = (async (url: string, init: RequestInit) => {
