@@ -64,6 +64,10 @@ Option A was chosen because it never deletes by accident.
   Each failure doubles the wait from 10 min, up to 24 h. The batch is still 50 rows. Rows
   are never abandoned, because erasure is an obligation: a stuck row is retried daily and
   shows up in the metric below.
+- **Expired wallet codes.** `expireHandoffs` keeps a provider user that signed in after the
+  expired code was made (any sign-in within the last code lifetime). Otherwise a wallet
+  signing in directly while its old code expires, with its account not yet committed, was
+  deleted: the row was requested after that sign-in, so the `requested_at` check missed it.
 - **The orphan sweep fails closed.** A failed listing or a failed re-read of a user deletes
   nothing. The sweep also re-reads the user under the lease and keeps any user that signed in
   within its grace period.
