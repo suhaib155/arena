@@ -376,6 +376,27 @@ test("Google sign-in over HTTP returns a MovenRun session and the same player ev
   });
 });
 
+test("a sign-in over HTTP retires a queued deletion of its provider user, and waits while one is in flight", async () => {
+  await withApp(1000, async ({ post, supabase, signIn, service, advance }) => {
+    // Erased earlier; the provider deletion is still queued.
+    await signIn.pendingAuthDeletions.add([GOOGLE_SUB], T0);
+    const back = await post("/identity/auth/google/complete", { accessToken: supabase.googleToken() });
+    assert.equal(back.status, 200);
+    assert.deepEqual(await signIn.pendingAuthDeletions.due(new Date(T0.getTime() + 864e5), 0, 10), []);
+    advance(60 * 60_000);
+    assert.equal(await service.retryPendingDeletions(), 0);
+    assert.deepEqual(supabase.deleted, []);
+
+    // While a worker owns the row the sign-in is refused as retryable and no account is made.
+    const other = "66666666-6666-4666-8666-666666666666";
+    await signIn.pendingAuthDeletions.add([other], T0);
+    assert.ok(await signIn.pendingAuthDeletions.claim(other, new Date(T0.getTime() + 60 * 60_000), { leaseMs: 10 * 60_000 }));
+    const busy = await post("/identity/auth/google/complete", { accessToken: supabase.googleToken(other) });
+    assert.equal(busy.status, 503);
+    assert.equal(busy.json.error.code, "provisioning_failed");
+  });
+});
+
 test("wallet sign-in over HTTP: begin, sign, complete", async () => {
   await withApp(1000, async ({ post }) => {
     const wallet = Wallet.createRandom();

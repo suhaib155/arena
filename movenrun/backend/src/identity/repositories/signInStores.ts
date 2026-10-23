@@ -23,13 +23,60 @@ export interface WalletSignInChallengeStore {
   purgeExpired(before: Date): Promise<number>;
 }
 
-export interface PendingAuthDeletionStore {
-  add(subjects: readonly string[]): Promise<void>;
-  remove(subject: string): Promise<void>;
-  /** Oldest first, skipping any tried within `retryAfter`. */
-  due(now: Date, retryAfterMs: number, limit: number): Promise<string[]>;
-  markAttempt(subject: string, at: Date): Promise<void>;
+/**
+ * A queued provider deletion is owned by whoever holds its lease. There is no
+ * status column: `last_attempt_at` in the future means "in flight until then",
+ * in the past means "last tried then", and `attempts` (bumped by every claim)
+ * is the owner's token, so only the claimer can finish or release the row.
+ * Terminal states (deleted at the provider, already gone, or superseded by a
+ * newer sign-in) all retire the row, which is idempotent.
+ */
+export interface PendingAuthDeletionClaim {
+  /** The owner's token: the row's `attempts` after this claim. */
+  token: number;
+  requestedAt: Date;
 }
+
+export interface PendingDeletionStats {
+  pending: number;
+  /** Rows requested longer ago than the overdue threshold. */
+  overdue: number;
+  inFlight: number;
+}
+
+export interface PendingAuthDeletionStore {
+  /** Queues subjects requested at `at` (the database clock when omitted). An already queued subject is left as it is. */
+  add(subjects: readonly string[], at?: Date): Promise<void>;
+  /**
+   * Due rows: never tried first, then the longest waiting, skipping any in
+   * flight or still backing off (`retryAfterMs` doubled per attempt, capped at
+   * PENDING_DELETION_MAX_BACKOFF_MS).
+   */
+  due(now: Date, retryAfterMs: number, limit: number): Promise<string[]>;
+  /**
+   * Takes the row for `leaseMs`, in one conditional write: of concurrent
+   * claimers at most one succeeds. Refused while another owner's lease is
+   * live, and, when `retryAfterMs` is given, while the row is backing off.
+   */
+  claim(subject: string, now: Date, opts: { leaseMs: number; retryAfterMs?: number }): Promise<PendingAuthDeletionClaim | null>;
+  /** Retires the row if `token` still owns it. */
+  finish(subject: string, token: number): Promise<boolean>;
+  /** Ends the lease after a failed attempt at `at` if `token` still owns it; the back-off counts from `at`. */
+  release(subject: string, token: number, at: Date): Promise<void>;
+  /**
+   * A sign-in takes the subject over. In one transaction: no row → "none";
+   * a row in flight → "busy" (the provider user may be going right now);
+   * otherwise the row is retired → "adopted".
+   */
+  adopt(subject: string, now: Date): Promise<"none" | "busy" | "adopted">;
+  /** Counts only, never subjects. */
+  stats(now: Date, overdueMs: number): Promise<PendingDeletionStats>;
+}
+
+/** Longest wait between two attempts at one provider deletion. */
+export const PENDING_DELETION_MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
+export const pendingDeletionBackoffMs = (attempts: number, retryAfterMs: number) =>
+  Math.min(retryAfterMs * 2 ** Math.min(Math.max(attempts - 1, 0), 30), PENDING_DELETION_MAX_BACKOFF_MS);
 
 export interface WalletSignInHandoffStore {
   create(input: { codeHash: string; codeChallenge: string; subject: string; expiresAt: Date }): Promise<void>;
@@ -61,7 +108,7 @@ export interface SignInStores {
 
 export function createInMemorySignInStores(): SignInStores {
   const challenges = new Map<string, WalletSignInChallenge>();
-  const pending = new Map<string, { requestedAt: number; lastAttemptAt: number | null }>();
+  const pending = new Map<string, { requestedAt: number; seq: number; attempts: number; lastAttemptAt: number | null }>();
   const handoffs = new Map<string, { codeChallenge: string; subject: string; expiresAt: Date; consumedAt: Date | null }>();
   const exchanged = new Map<string, Date>();
   let seq = 0;
@@ -106,22 +153,52 @@ export function createInMemorySignInStores(): SignInStores {
       },
     },
     pendingAuthDeletions: {
-      async add(subjects) {
-        for (const s of subjects) if (!pending.has(s)) pending.set(s, { requestedAt: seq++, lastAttemptAt: null });
-      },
-      async remove(subject) {
-        pending.delete(subject);
+      async add(subjects, at) {
+        for (const s of subjects) if (!pending.has(s)) pending.set(s, { requestedAt: at?.getTime() ?? Date.now(), seq: seq++, attempts: 0, lastAttemptAt: null });
       },
       async due(now, retryAfterMs, limit) {
+        const t = now.getTime();
         return [...pending.entries()]
-          .filter(([, p]) => p.lastAttemptAt === null || now.getTime() - p.lastAttemptAt >= retryAfterMs)
-          .sort((a, b) => a[1].requestedAt - b[1].requestedAt)
+          .filter(([, p]) => p.lastAttemptAt === null || p.lastAttemptAt + pendingDeletionBackoffMs(p.attempts, retryAfterMs) <= t)
+          .sort((a, b) => (a[1].lastAttemptAt ?? -Infinity) - (b[1].lastAttemptAt ?? -Infinity) || a[1].requestedAt - b[1].requestedAt || a[1].seq - b[1].seq)
           .slice(0, limit)
           .map(([s]) => s);
       },
-      async markAttempt(subject, at) {
+      async claim(subject, now, opts) {
         const p = pending.get(subject);
-        if (p) p.lastAttemptAt = at.getTime();
+        const t = now.getTime();
+        if (!p || (p.lastAttemptAt !== null && p.lastAttemptAt > t)) return null;
+        if (opts.retryAfterMs !== undefined && p.lastAttemptAt !== null && p.lastAttemptAt + pendingDeletionBackoffMs(p.attempts, opts.retryAfterMs) > t) return null;
+        p.attempts += 1;
+        p.lastAttemptAt = t + opts.leaseMs;
+        return { token: p.attempts, requestedAt: new Date(p.requestedAt) };
+      },
+      async finish(subject, token) {
+        const p = pending.get(subject);
+        if (!p || p.attempts !== token) return false;
+        pending.delete(subject);
+        return true;
+      },
+      async release(subject, token, at) {
+        const p = pending.get(subject);
+        if (p && p.attempts === token) p.lastAttemptAt = at.getTime();
+      },
+      async adopt(subject, now) {
+        const p = pending.get(subject);
+        if (!p) return "none";
+        if (p.lastAttemptAt !== null && p.lastAttemptAt > now.getTime()) return "busy";
+        pending.delete(subject);
+        return "adopted";
+      },
+      async stats(now, overdueMs) {
+        const t = now.getTime();
+        let overdue = 0;
+        let inFlight = 0;
+        for (const p of pending.values()) {
+          if (p.requestedAt <= t - overdueMs) overdue += 1;
+          if (p.lastAttemptAt !== null && p.lastAttemptAt > t) inFlight += 1;
+        }
+        return { pending: pending.size, overdue, inFlight };
       },
     },
     walletHandoffs: {
@@ -157,6 +234,13 @@ export function createInMemorySignInStores(): SignInStores {
     },
   };
 }
+
+/** Timestamps are stored without a zone, in UTC, as Drizzle writes them. */
+const iso = (at: Date) => at.toISOString();
+
+/** The back-off after the row's attempts, as an SQL interval (see `pendingDeletionBackoffMs`). */
+const backoffSql = (retryAfterMs: number) =>
+  sql`(least(${retryAfterMs}::float8 * power(2, least(greatest(${pendingAuthUserDeletions.attempts} - 1, 0), 30)), ${PENDING_DELETION_MAX_BACKOFF_MS}::float8) * interval '1 millisecond')`;
 
 export function createDrizzleSignInStores(db: Db): SignInStores {
   return {
@@ -204,28 +288,64 @@ export function createDrizzleSignInStores(db: Db): SignInStores {
       },
     },
     pendingAuthDeletions: {
-      async add(subjects) {
+      async add(subjects, at) {
         if (subjects.length === 0) return;
-        await db.insert(pendingAuthUserDeletions).values(subjects.map((subject) => ({ subject }))).onConflictDoNothing();
-      },
-      async remove(subject) {
-        await db.delete(pendingAuthUserDeletions).where(eq(pendingAuthUserDeletions.subject, subject));
+        await db.insert(pendingAuthUserDeletions).values(subjects.map((subject) => (at ? { subject, requestedAt: at } : { subject }))).onConflictDoNothing();
       },
       async due(now, retryAfterMs, limit) {
-        const cutoff = new Date(now.getTime() - retryAfterMs);
+        const t = pendingAuthUserDeletions;
         const rows = await db
-          .select({ subject: pendingAuthUserDeletions.subject })
-          .from(pendingAuthUserDeletions)
-          .where(sql`${pendingAuthUserDeletions.lastAttemptAt} is null or ${pendingAuthUserDeletions.lastAttemptAt} <= ${cutoff}`)
-          .orderBy(asc(pendingAuthUserDeletions.requestedAt))
+          .select({ subject: t.subject })
+          .from(t)
+          .where(sql`${t.lastAttemptAt} is null or ${t.lastAttemptAt} + ${backoffSql(retryAfterMs)} <= ${iso(now)}`)
+          .orderBy(sql`${t.lastAttemptAt} asc nulls first`, asc(t.requestedAt), asc(t.subject))
           .limit(limit);
         return rows.map((r) => r.subject);
       },
-      async markAttempt(subject, at) {
-        await db
-          .update(pendingAuthUserDeletions)
-          .set({ attempts: sql`${pendingAuthUserDeletions.attempts} + 1`, lastAttemptAt: at })
-          .where(eq(pendingAuthUserDeletions.subject, subject));
+      async claim(subject, now, opts) {
+        const t = pendingAuthUserDeletions;
+        // One conditional update: Postgres re-checks the condition on the row's
+        // latest version after any concurrent claim commits, so only one wins.
+        const backingOff = opts.retryAfterMs === undefined
+          ? sql`false`
+          : sql`${t.lastAttemptAt} + ${backoffSql(opts.retryAfterMs)} > ${iso(now)}`;
+        const rows = await db
+          .update(t)
+          .set({ attempts: sql`${t.attempts} + 1`, lastAttemptAt: new Date(now.getTime() + opts.leaseMs) })
+          .where(and(eq(t.subject, subject), sql`(${t.lastAttemptAt} is null or (${t.lastAttemptAt} <= ${iso(now)} and not (${backingOff})))`))
+          .returning({ token: t.attempts, requestedAt: t.requestedAt });
+        return rows[0] ?? null;
+      },
+      async finish(subject, token) {
+        const t = pendingAuthUserDeletions;
+        const rows = await db.delete(t).where(and(eq(t.subject, subject), eq(t.attempts, token))).returning({ subject: t.subject });
+        return rows.length === 1;
+      },
+      async release(subject, token, at) {
+        const t = pendingAuthUserDeletions;
+        await db.update(t).set({ lastAttemptAt: at }).where(and(eq(t.subject, subject), eq(t.attempts, token)));
+      },
+      async adopt(subject, now) {
+        const t = pendingAuthUserDeletions;
+        return db.transaction(async (tx) => {
+          // The row lock waits for a claim in progress and then reads its result.
+          const [row] = await tx.select({ lastAttemptAt: t.lastAttemptAt }).from(t).where(eq(t.subject, subject)).for("update");
+          if (!row) return "none" as const;
+          if (row.lastAttemptAt && row.lastAttemptAt.getTime() > now.getTime()) return "busy" as const;
+          await tx.delete(t).where(eq(t.subject, subject));
+          return "adopted" as const;
+        });
+      },
+      async stats(now, overdueMs) {
+        const t = pendingAuthUserDeletions;
+        const [row] = await db
+          .select({
+            pending: sql<number>`count(*)::int`,
+            overdue: sql<number>`(count(*) filter (where ${t.requestedAt} <= ${iso(new Date(now.getTime() - overdueMs))}))::int`,
+            inFlight: sql<number>`(count(*) filter (where ${t.lastAttemptAt} > ${iso(now)}))::int`,
+          })
+          .from(t);
+        return { pending: row?.pending ?? 0, overdue: row?.overdue ?? 0, inFlight: row?.inFlight ?? 0 };
       },
     },
     walletHandoffs: {
