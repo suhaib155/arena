@@ -83,3 +83,26 @@ test("server check never joins two stretches across a pause", () => {
   const everyGapPaused = accepted.slice(1).map((p, i) => ({ startedAt: accepted[i]!.timestamp + 1, endedAt: p.timestamp - 1 }));
   assert.deepEqual(stationaryDriftProblems(accepted, everyGapPaused), []);
 });
+
+/* Documented nonpassable cases (MR-C doc, section 3). The wander rule is
+   speed-blind: an honest loop fails when two minutes of path exceed four
+   times its diameter, so the narrowest passable loop grows with pace. Clean
+   synthetic loops, no noise: this pins the rule's geometry, not GPS. */
+test("server check: honest loops lose below about 30 x speed metres across (documented)", () => {
+  const loop = (diameter: number, speed: number) => {
+    const path = circle(diameter / 2, speed);
+    const fixes = [];
+    for (let t = 0; t <= 600; t += 4) {
+      const { x, y } = path(t);
+      fixes.push({ latitude: -30 + y / 111_320, longitude: -140 + x / (111_320 * Math.cos((30 * Math.PI) / 180)),
+        timestamp: 1_000_000 + t * 1000, accuracy: 5 });
+    }
+    return stationaryDriftProblems(fixes).length > 0 ? "rejected" : "passes";
+  };
+  assert.equal(loop(40, 1.4), "rejected", "walking laps of a 40 m loop");
+  assert.equal(loop(50, 1.4), "passes");
+  assert.equal(loop(60, 2.5), "rejected", "jogging laps of a 60 m loop");
+  assert.equal(loop(80, 2.5), "passes");
+  assert.equal(loop(100, 3.5), "rejected", "running laps of a 100 m loop");
+  assert.equal(loop(130, 3.5), "passes");
+});

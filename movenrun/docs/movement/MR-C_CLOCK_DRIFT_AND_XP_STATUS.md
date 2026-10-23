@@ -30,9 +30,22 @@ Change:
   coverage, never the lifecycle span.
 
 Not solved by this: whether `performance.now()` keeps counting while the device
-sleeps or the app is suspended depends on the platform. If it stops, the session
-under-counts (never over-counts) that span. This must be measured on hardware
-(H-sheet); JavaScript monotonicity does not settle it.
+sleeps or the app is suspended depends on the platform; JavaScript
+monotonicity does not settle it, and **hardware testing is required** (H-sheet:
+lock the screen mid-walk for at least one minute, unlock, keep walking, and
+check that distance keeps growing and the saved duration matches a stopwatch).
+If the source stops in deep sleep, the session clock falls behind real time and
+every later GNSS-stamped fix would look future-dated, freezing the route for
+the rest of the walk. Mitigation: background/foreground marks give the clock a
+catch-up budget (wall advance minus monotonic advance while away), spent only
+when a delivered fix is ahead of the session clock and never past that fix's
+time. A wall clock moved forward while the app was away therefore reaches the
+session only as far as fix time confirms. If a platform stamps fixes from the
+system clock rather than satellite time, that bound is the wall-clock jump
+itself (the pre-change behaviour, for background spells only); the server's
+receipt check and coverage-based duration, and the estimated-XP settlement,
+still apply. Both properties (sleep behaviour, fix time source) are hardware
+questions.
 
 ## 2. Acquisition health (C01)
 
@@ -88,8 +101,17 @@ residual route still banks the 25 XP floor locally. That XP is *estimated* (see
 section 4) and the server is the authority; an unguarded upload of the same
 stillness (632 m) is now rejected by the server.
 
-Nonpassable cases (honest movement that loses): laps of a loop narrower than
-about 42 m for two minutes at walking pace fail the server check; the scatter
+Nonpassable cases (honest movement that loses): the server wander rule is
+speed-blind, so the narrowest loop an honest player can lap for two minutes is
+about 30 x their speed in m/s, in metres across. Pinned on clean synthetic
+loops in `shared` `stationaryDrift.test.ts`: walking (1.4 m/s) fails a 40 m
+loop and passes 50 m; jogging (2.5 m/s) fails 60 m and passes 80 m; running
+(3.5 m/s) fails 100 m and passes 130 m. A 400 m running track passes up to
+about 5 m/s and fails at 5.5 m/s (sub-3:05/km pace, scratch probe). A failure
+rejects the whole session, not just the loop, and reverses its estimated XP
+(section 4); a long honest walk that includes two minutes of pacing on one spot
+is exposed in the same way. The rule cannot simply scale with speed: the S03
+phantom path itself runs at about 2 m/s. The scatter
 guard trims straight and curved walks by 0 to 6 % (W05 figure-eight: 0.94 of
 the unguarded distance on average). Honest walks measured: W02 0.99, W03 1.00,
 W04 0.98, W06 0.98, T03 0.99 of truth (20-seed mean).

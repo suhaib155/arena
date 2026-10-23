@@ -250,6 +250,9 @@ export default function MoveSessionScreen() {
         if (cancelled || lifecycleRef.current.state !== "active") return;
         if (backgroundedAtRef.current !== null) return;
         const prev = continuityBrokenRef.current ? null : pointsRef.current[pointsRef.current.length - 1] ?? null;
+        /* After a background spell the clock may be behind real time (see
+           sessionClock.ts); a fix's own time lets it catch up, within budget. */
+        clockRef.current.catchUp(p.timestamp);
         const now = clockRef.current.now();
         const inspected: FixDecision = p.timestamp <= lastFixTimestampRef.current ||
           p.timestamp < (lifecycleRef.current.startedAt ?? now)
@@ -409,6 +412,8 @@ export default function MoveSessionScreen() {
          different facts that must not overwrite each other. */
       const state = lifecycleRef.current.state;
       if (state !== "active" && state !== "paused") return;
+      if (next === "active") clockRef.current.resume();
+      else clockRef.current.suspend();
       const at = clockRef.current.now();
       if (next === "active") {
         const startedAt = backgroundedAtRef.current;
