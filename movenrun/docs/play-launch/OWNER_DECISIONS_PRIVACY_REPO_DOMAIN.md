@@ -3,6 +3,10 @@
 Written 17 Oct 2026 for the owner. None of these is approved or changed.
 Each is a separate decision.
 
+**Owner review, 17 Oct.** The owner's review agrees with each recommendation
+below and grants none of them: each still needs its own explicit approval.
+Repository visibility: **keep public for now**.
+
 ## 1. Android backup (A-08): recommend `allowBackup: false`
 
 **Today.** `mobile/app.json` sets no `android.allowBackup`, and Expo then
@@ -26,7 +30,8 @@ not yet sent are not restored. Everything the account holds on the server
 (verified sessions, account) comes back by signing in.
 
 **Why it waits.** It is a mobile config change, and the mobile app is frozen
-until the owner says otherwise. It needs a new build and a phone check that
+until the owner says otherwise. It needs a separate exception to the mobile
+hold for this one setting. It needs a new build and a phone check that
 the merged manifest shows `allowBackup="false"`.
 
 ## 2. Repository visibility (A-12)
@@ -38,8 +43,8 @@ movenrun.xyz links to it.
 
 | Option | Effect | Before doing it |
 |---|---|---|
-| **A. Turn off GitHub Pages** (recommended now) | Removes the stale public prototype | Nothing depends on it (verified above). GitHub → Settings → Pages → Unpublish |
-| B. Keep the repo public | Free unlimited Actions minutes, free secret scanning and push protection. Security never relied on secrecy | Keep incident details factual and closed (X-26 is closed) |
+| **A. Turn off GitHub Pages** (recommended, after approval) | Removes the stale public prototype | Nothing depends on it (verified above). GitHub → Settings → Pages → Unpublish |
+| **B. Keep the repo public** (owner's review: for now) | Free unlimited Actions minutes, free secret scanning and push protection. Security never relied on secrecy | Keep incident details factual and closed (X-26 is closed) |
 | C. Make the repo private | Code, history and launch ledgers no longer public | Preflight below; it can break deploys |
 
 **Preflight for option C** (each must be checked by the owner before switching):

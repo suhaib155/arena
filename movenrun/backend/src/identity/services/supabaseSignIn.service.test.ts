@@ -9,7 +9,7 @@ import { createInMemorySignInStores } from "../repositories/signInStores.js";
 import { EoaSignatureVerifier } from "../providers/eoaVerifier.js";
 import { SupabaseAuthError, type VerifiedSupabaseUser } from "../providers/supabaseAuth.js";
 import { createHash, randomBytes } from "node:crypto";
-import { SupabaseSignInService, WALLET_HANDOFF_TTL_MS, WALLET_MESSAGE_TTL_MS } from "./supabaseSignIn.service.js";
+import { GOOGLE_EXCHANGE_PURGE_BATCH, GOOGLE_EXCHANGE_RETENTION_MS, GOOGLE_EXCHANGE_SKEW_MS, GOOGLE_EXCHANGE_WINDOW_MS, SupabaseSignInService, WALLET_HANDOFF_TTL_MS, WALLET_MESSAGE_TTL_MS } from "./supabaseSignIn.service.js";
 import { resolveIdentityConfig } from "../config.js";
 import { createIdentityServices } from "../http/wiring.js";
 import { createIdentityRouter } from "../http/router.js";
@@ -19,7 +19,7 @@ const T0 = new Date("2026-10-13T12:00:00Z");
 const GOOGLE_SUB = "11111111-1111-4111-8111-111111111111";
 
 /** Fake Supabase: wallet grants map an address to a stable user id; tokens are opaque strings. */
-function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failDelete?: boolean } = {}) {
+function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failDelete?: boolean } = {}, now: () => Date = () => T0) {
   const usersByAddress = new Map<string, string>();
   /** Every auth user the fake knows, for the admin listing. */
   const listed: Array<{ id: string; createdAt: Date; lastSignInAt: Date | null }> = [];
@@ -31,7 +31,13 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failD
   let n = 0;
   const mint = (subject: string, methods: string[], email: string | null, providers: string[] = []) => {
     const t = `token-${n++}-${"x".repeat(30)}`;
-    tokens.set(t, { subject, methods, email, providers, expiresAt: new Date(T0.getTime() + 3600_000) });
+    tokens.set(t, { subject, methods, email, providers, sessionId: `33333333-3333-4333-8333-${String(n).padStart(12, "0")}`, oauthSignedInAt: now(), expiresAt: new Date(now().getTime() + 3600_000) });
+    return t;
+  };
+  /** A new access token for the same Supabase session, as a refresh gives: same session id and sign-in time. */
+  const refresh = (token: string) => {
+    const t = `token-${n++}-${"x".repeat(30)}`;
+    tokens.set(t, { ...tokens.get(token)!, expiresAt: new Date(now().getTime() + 3600_000) });
     return t;
   };
   return {
@@ -40,6 +46,7 @@ function fakeSupabase(opts: { refuseWeb3?: boolean; refuseStatus?: number; failD
     listed,
     listCalls,
     listGate,
+    refresh,
     googleToken: (subject = GOOGLE_SUB, email: string | null = "runner@example.com", providers = ["google"]) => mint(subject, ["oauth"], email, providers),
     web3Token: (subject: string) => mint(subject, ["web3"], null),
     tokens: {
@@ -83,7 +90,7 @@ function setup(opts: { maxAccounts?: number; maxNewPerHour?: number; refuseWeb3?
   const now = () => clock;
   const stores = createInMemoryStores(now, { maxAccounts: opts.maxAccounts, maxNewPerHour: opts.maxNewPerHour });
   const signIn = createInMemorySignInStores();
-  const supabase = fakeSupabase(opts);
+  const supabase = fakeSupabase(opts, now);
   const service = new SupabaseSignInService({
     tokens: supabase.tokens,
     auth: supabase.auth,
@@ -177,12 +184,125 @@ test("the same wallet always reaches the same Supabase user; a refused grant is 
 test("Google sign-in accepts only a verified OAuth session", async () => {
   const { service, supabase } = setup();
   const ok = await service.verifyGoogle(supabase.googleToken());
-  assert.deepEqual(ok, { subject: GOOGLE_SUB, email: "runner@example.com", method: "google" });
+  assert.deepEqual([ok.subject, ok.email, ok.method], [GOOGLE_SUB, "runner@example.com", "google"]);
   assert.equal(await code(service.verifyGoogle("forged")), "verification_failed");
   // An OAuth session from any provider other than Google is refused.
   assert.equal(await code(service.verifyGoogle(supabase.googleToken(GOOGLE_SUB, null, ["github"]))), "verification_failed");
   // A wallet session must come through the wallet routes, where the nonce is checked.
   assert.equal(await code(service.verifyGoogle(supabase.web3Token("33333333-3333-4333-8333-333333333333"))), "verification_failed");
+});
+
+/** Verify and spend one Google token, as the sign-in route does around the account work. */
+const exchange = async (service: SupabaseSignInService, token: string) => service.claimGoogleExchange(await service.verifyGoogle(token));
+
+test("a Google token is exchanged once; a replay or a token without a Supabase session or sign-in time is refused", async () => {
+  const { service, supabase } = setup();
+  const token = supabase.googleToken();
+  // Verifying spends nothing: only the claim does.
+  assert.equal((await service.verifyGoogle(token)).subject, GOOGLE_SUB);
+  assert.equal(await code(exchange(service, token)), "ok");
+  assert.equal(await code(service.verifyGoogle(token)), "verification_failed");
+  assert.equal(await code(service.claimGoogleExchange({ subject: GOOGLE_SUB, email: null, method: "google" })), "verification_failed");
+  // A fresh Google sign-in (a new Supabase session) works as before.
+  assert.equal(await code(exchange(service, supabase.googleToken())), "ok");
+  // Concurrent replays of one token: all may verify, exactly one is spent.
+  const raced = supabase.googleToken();
+  const verified = await Promise.all(Array.from({ length: 25 }, () => service.verifyGoogle(raced)));
+  const results = await Promise.all(verified.map((v) => code(service.claimGoogleExchange(v))));
+  assert.equal(results.filter((r) => r === "ok").length, 1);
+  assert.equal(results.filter((r) => r === "verification_failed").length, 24);
+  const unrecorded = supabase.googleToken();
+  (await supabase.tokens.verify(unrecorded)).sessionId = null;
+  assert.equal(await code(service.verifyGoogle(unrecorded)), "verification_failed");
+  const untimed = supabase.googleToken();
+  (await supabase.tokens.verify(untimed)).oauthSignedInAt = null;
+  assert.equal(await code(service.verifyGoogle(untimed)), "verification_failed");
+});
+
+test("once per Supabase session: replays and refreshes at 10, 11, 30 and 65 minutes are refused, and the record outlives any eligible time", async () => {
+  const { service, supabase, signIn, advance } = setup();
+  const first = supabase.googleToken();
+  const sessionId = (await supabase.tokens.verify(first)).sessionId!;
+  await exchange(service, first);
+  const keepUntil = (await service.verifyGoogle(supabase.googleToken())).googleSession!.keepUntil;
+  assert.equal(keepUntil.getTime(), T0.getTime() + GOOGLE_EXCHANGE_RETENTION_MS);
+  // Several refreshes in a row, each replayed at a later time: all refused.
+  let latest = first;
+  for (const minutes of [10, 1, 19, 35]) { // reaches 10, 11, 30 and 65 minutes
+    advance(minutes * 60_000);
+    latest = supabase.refresh(latest);
+    assert.equal(await code(service.verifyGoogle(latest)), "verification_failed");
+    assert.equal(await code(service.verifyGoogle(first)), "verification_failed");
+  }
+  // Purging at 65 minutes keeps the record: it lives for the retention period.
+  assert.equal(await signIn.googleExchanges.purgeExpired(new Date(T0.getTime() + 65 * 60_000), 500), 0);
+  assert.equal(await signIn.googleExchanges.exchanged(sessionId), true);
+  // Even with the record gone, the session's Google sign-in time stays old,
+  // so a refreshed token is still refused by time.
+  advance(GOOGLE_EXCHANGE_RETENTION_MS);
+  assert.ok((await signIn.googleExchanges.purgeExpired(new Date(T0.getTime() + GOOGLE_EXCHANGE_RETENTION_MS + 66 * 60_000), 500)) >= 1);
+  assert.equal(await signIn.googleExchanges.exchanged(sessionId), false);
+  assert.equal(await code(service.verifyGoogle(supabase.refresh(latest))), "verification_failed");
+});
+
+test("the window: exactly 10 minutes after the Google sign-in passes, a millisecond later fails; clock skew up to a minute is tolerated", async () => {
+  const { service, supabase } = setup();
+  const at = (offsetMs: number) => {
+    const t = supabase.googleToken();
+    return { t, set: async () => { (await supabase.tokens.verify(t)).oauthSignedInAt = new Date(T0.getTime() + offsetMs); } };
+  };
+  for (const [offset, expected] of [
+    [-GOOGLE_EXCHANGE_WINDOW_MS, "ok"],
+    [-GOOGLE_EXCHANGE_WINDOW_MS - 1, "verification_failed"],
+    [GOOGLE_EXCHANGE_SKEW_MS, "ok"],
+    [GOOGLE_EXCHANGE_SKEW_MS + 1, "verification_failed"],
+    [-30 * 60_000, "verification_failed"],
+  ] as const) {
+    const { t, set } = at(offset);
+    await set();
+    assert.equal(await code(service.verifyGoogle(t)), expected, `offset ${offset}`);
+  }
+});
+
+test("a user who cancels never sends a token; a verified but unspent token stays usable; Google re-authentication inside the same session is refused", async () => {
+  const { service, supabase, advance } = setup();
+  // Verified (for example, the account work then failed) but not spent: still usable.
+  const pending = supabase.googleToken();
+  await service.verifyGoogle(pending);
+  await service.verifyGoogle(pending);
+  assert.equal(await code(exchange(service, pending)), "ok");
+  // Re-authenticating with Google inside the same Supabase session gives a new
+  // oauth time, but the session's record refuses it: one session, one exchange.
+  advance(3 * 60_000);
+  const reauth = supabase.refresh(pending);
+  (await supabase.tokens.verify(reauth)).oauthSignedInAt = new Date(T0.getTime() + 3 * 60_000);
+  assert.equal(await code(service.verifyGoogle(reauth)), "verification_failed");
+  // A new Google sign-in (new Supabase session) for the same person works.
+  assert.equal(await code(exchange(service, supabase.googleToken())), "ok");
+});
+
+test("concurrent refreshes of one session racing to be spent: exactly one wins", async () => {
+  const { service, supabase } = setup();
+  const first = supabase.googleToken();
+  const copies = [first, ...Array.from({ length: 24 }, () => supabase.refresh(first))];
+  const verified = await Promise.all(copies.map((t) => service.verifyGoogle(t)));
+  const results = await Promise.all(verified.map((v) => code(service.claimGoogleExchange(v))));
+  assert.equal(results.filter((r) => r === "ok").length, 1);
+});
+
+test("clean-up of spent records is bounded per exchange and never removes a live one", async () => {
+  const { service, supabase, signIn, advance } = setup();
+  const base = new Date(T0.getTime() - 60 * 60_000);
+  for (let i = 0; i < GOOGLE_EXCHANGE_PURGE_BATCH + 20; i++) {
+    assert.ok(await signIn.googleExchanges.claim(`old-${i}`, base));
+  }
+  await exchange(service, supabase.googleToken());
+  // One exchange removed one batch; the next removes the rest.
+  assert.equal(await signIn.googleExchanges.purgeExpired(T0, 1000), 20);
+  advance(1000);
+  const live = supabase.googleToken();
+  await exchange(service, live);
+  assert.equal(await signIn.googleExchanges.exchanged((await supabase.tokens.verify(live)).sessionId!), true);
 });
 
 test("provider users are removed only when no MovenRun account uses them, and failures are retried", async () => {
@@ -333,6 +453,64 @@ test("an uncollected handoff code expires and releases its provider user, unless
   assert.equal(await code(service.exchangeHandoff("0OIL0OIL0OIL", p3.verifier)), "verification_failed");
 });
 
+test("a Google sign-in that fails before its session is issued can be retried; after that point only a new sign-in works", async () => {
+  await withApp(1000, async ({ post, supabase, stores }) => {
+    // The database fails while the account is looked up: nothing is spent and
+    // the same token works on retry.
+    const token = supabase.googleToken();
+    const find = stores.identities.findActiveByProviderSubject;
+    stores.identities.findActiveByProviderSubject = async () => { throw new Error("database unavailable"); };
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: token })).status, 500);
+    stores.identities.findActiveByProviderSubject = find;
+    const retried = await post("/identity/auth/google/complete", { accessToken: token });
+    assert.equal(retried.status, 200);
+    const player = retried.json.user.id;
+
+    // The session write fails after the claim: the token is spent and nothing
+    // was issued. A new Google sign-in (new Supabase session) recovers.
+    const spent = supabase.googleToken();
+    const create = stores.sessions.create;
+    stores.sessions.create = async () => { throw new Error("database unavailable"); };
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: spent })).status, 500);
+    stores.sessions.create = create;
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: spent })).status, 401);
+    const recovered = await post("/identity/auth/google/complete", { accessToken: supabase.googleToken() });
+    assert.equal(recovered.status, 200);
+    assert.equal(recovered.json.user.id, player);
+
+    // A lost response is the same case: the session was issued, the replay is
+    // refused, and a new sign-in reaches the same player.
+    const lost = supabase.googleToken();
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: lost })).status, 200);
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: lost })).status, 401);
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: supabase.refresh(lost) })).status, 401);
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: supabase.googleToken() })).json.user.id, player);
+  });
+});
+
+test("25 concurrent Google sign-ins: new and existing players each get one session, replays get none, wallets are unaffected", async () => {
+  await withApp(1000, async ({ post, supabase }) => {
+    const sub = (n: number) => `88888888-8888-4888-8888-${n.toString(16).padStart(12, "0")}`;
+    // Ten existing players.
+    for (let i = 0; i < 10; i++) assert.equal((await post("/identity/auth/google/complete", { accessToken: supabase.googleToken(sub(i)) })).status, 200);
+    const fresh = Array.from({ length: 25 }, (_, i) => supabase.googleToken(sub(i)));
+    const firsts = await Promise.all(fresh.map((accessToken) => post("/identity/auth/google/complete", { accessToken })));
+    assert.deepEqual(firsts.map((r) => r.status), Array(25).fill(200));
+    // Each of the 25 tokens replayed twice at once: all refused.
+    const replays = await Promise.all([...fresh, ...fresh].map((accessToken) => post("/identity/auth/google/complete", { accessToken })));
+    assert.deepEqual(replays.map((r) => r.status), Array(50).fill(401));
+    // One brand-new token sent 25 times at once: one session.
+    const one = supabase.googleToken(sub(99));
+    const raced = await Promise.all(Array.from({ length: 25 }, () => post("/identity/auth/google/complete", { accessToken: one })));
+    assert.equal(raced.filter((r) => r.status === 200).length, 1);
+    assert.equal(raced.filter((r) => r.status === 401).length, 24);
+    // Wallet sign-in does not use the record.
+    const wallet = Wallet.createRandom();
+    const begin = await post("/identity/auth/wallet/begin", { address: wallet.address });
+    assert.equal((await post("/identity/auth/wallet/complete", { message: begin.json.message, signature: await wallet.signMessage(begin.json.message) })).status, 200);
+  });
+});
+
 test("the account cap counts Google and wallet players together, lets existing players in, and frees a place on deletion", async () => {
   await withApp(2, async ({ post, supabase }) => {
     const google = await post("/identity/auth/google/complete", { accessToken: supabase.googleToken() });
@@ -348,6 +526,11 @@ test("the account cap counts Google and wallet players together, lets existing p
     assert.equal(full.status, 403);
     assert.equal(full.json.error.code, "registration_closed");
     assert.deepEqual(supabase.deleted, [newcomer]);
+    // The refusal spends that sign-in: its provider user is gone.
+    const fullToken = supabase.googleToken(newcomer);
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: fullToken })).status, 403);
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: fullToken })).status, 401);
+    supabase.deleted.splice(supabase.deleted.lastIndexOf(newcomer), 1);
 
     // Existing players still sign in at capacity.
     assert.equal((await post("/identity/auth/google/complete", { accessToken: supabase.googleToken() })).status, 200);
