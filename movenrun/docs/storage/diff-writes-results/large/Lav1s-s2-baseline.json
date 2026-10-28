@@ -1,0 +1,84 @@
+{
+  "variant": {
+    "name": "baseline",
+    "mode": "delete-insert",
+    "fillfactor": null,
+    "challengeAv": false
+  },
+  "clients": 8,
+  "sessions": 20000,
+  "paceSeconds": 0,
+  "seed": 7,
+  "units": 20000,
+  "contested": 5000,
+  "wallSeconds": 35.393,
+  "batchesPerSecond": 565.083491085808,
+  "latencyMs": {
+    "p50": 13,
+    "p95": 26,
+    "p99": 40,
+    "max": 98
+  },
+  "lockPhaseMs": {
+    "sum": 38390,
+    "p95": 9,
+    "p99": 20,
+    "max": 80
+  },
+  "lockWaitSamples": {
+    "sampled": 340,
+    "withLockWait": 134,
+    "peakWaiters": 3
+  },
+  "changeRate": 0.1,
+  "rollover": 0.5,
+  "staleRowsAfterRollover": 0,
+  "retries": {
+    "lockTimeout": 0,
+    "deadlock": 0,
+    "other": 0,
+    "gaveUp": 0
+  },
+  "deadlocksDb": 0,
+  "rowsWritten": {
+    "inserted": 1092151,
+    "updated": 0,
+    "deleted": 1087623,
+    "rewrittenUnchanged": 1044189,
+    "keptValueChanged": 127873
+  },
+  "challengeTable": {
+    "live": 29316,
+    "dead": 0,
+    "heapBytes": 9289728,
+    "indexBytes": 4128768,
+    "toastBytes": 8192,
+    "totalBytes": 13459456,
+    "peakTotalBytes": 16015360,
+    "startTotalBytes": 2703360,
+    "ins": 1089532,
+    "upd": 0,
+    "hotUpd": 0,
+    "del": 1085017,
+    "autovacuumCount": 24,
+    "autoanalyzeCount": 22,
+    "freePercent": 78.58,
+    "deadTuplePercent": 0
+  },
+  "afterPlainVacuumBytes": 13459456,
+  "diagnosticAfterVacuumFullBytes": 3063808,
+  "wal": {
+    "bytes": 512479792,
+    "records": 6998141,
+    "fpi": 1617
+  },
+  "cpuSeconds": {
+    "clients": 48.57,
+    "checkpointer": 0.14000000000000012,
+    "bgwriter": 0,
+    "walwriter": 0.12,
+    "autovacuumLog": 0.2600000000000001,
+    "autovacuumRuns": 24
+  },
+  "databaseBytesBeforeVacuumFull": 27466775
+}
