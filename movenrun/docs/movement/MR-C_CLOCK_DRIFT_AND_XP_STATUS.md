@@ -93,3 +93,29 @@ States (data only; the frozen UI does not render them). Proposed strings:
 
 A pending answer with a permanent cause (`invalid_request`, `not_found`) stays
 `pending_verification`: only a server verdict reverses XP.
+
+## Android QA0 integration (`integration/android-qa0-28oct`)
+
+This branch carries MR-A-01, MR-A-02, the clock-integrity change and the
+estimated-versus-verified XP change. It does **not** carry the stationary-drift
+rule (phone scatter guard and the server's path-versus-diameter check); a
+replacement stationary-risk rule is a separate piece of work.
+
+Five fixtures through the real modules (shared measurement and seal preview,
+`mobile/src/lib/sessionClock.ts`, `fixHealth.ts`, `movementXp.ts`, and the
+backend `MovementVerificationService` with the production anomaly detector);
+the `session.tsx` fix callback and the Save decision are mirrored by the
+Track A harness. Synthetic data, canonical seeds.
+
+| Fixture | Truth m | Client m / s | Estimated XP | Server | XP after verdict |
+|---|---:|---|---:|---|---:|
+| W04 urban walk | 220 | 216 / 170 | 25 | verified, 216 m | 25 |
+| I02 vehicle leg | 299 | 254 / 348 | 33 | verified, 254 m / 176 s | 25 |
+| C01 clock -1 h | 500 | 501 / 370 | 49 | verified, 501 m | 48 |
+| C02 clock +1 h | 150 | 161 / 120 | 0 | not submitted (not saveable) | 0 |
+| S03 still, overconfident | 0 | 632 / 307 | 53 | verified, 632 m | 53 |
+
+S03 is the known open case: without a stationary-risk rule a still phone that
+overstates its accuracy records 632 m and the server verifies it, so 53 XP is
+banked and stays after the verdict. Duplicate uploads of every submitted
+fixture were answered idempotently (no second record).
