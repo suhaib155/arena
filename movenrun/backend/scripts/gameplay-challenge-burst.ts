@@ -123,8 +123,9 @@ async function main() {
   const base = new URL(URL_ENV);
   const host = base.hostname.replace(/^\[|\]$/g, "");
   if (!["localhost", "127.0.0.1", "::1"].includes(host)) { console.error(`Refusing ${host || "(empty host)"}: local, disposable PostgreSQL only.`); process.exit(2); }
-  const variant = VARIANTS.find((v) => v.name === (arg("variant") ?? "baseline"));
-  if (!variant) throw new Error(`unknown variant; one of ${VARIANTS.map((v) => v.name).join(", ")}`);
+  const found = VARIANTS.find((v) => v.name === (arg("variant") ?? "baseline"));
+  if (!found) throw new Error(`unknown variant; one of ${VARIANTS.map((v) => v.name).join(", ")}`);
+  const variant: Variant = found;
   const clients = Number(arg("clients") ?? 8);
   const sessions = Number(arg("sessions") ?? 4500);
   const paceSeconds = Number(arg("pace-seconds") ?? 0);
