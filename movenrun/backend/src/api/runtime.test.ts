@@ -75,9 +75,12 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     assert.equal((await originalFetch(`http://127.0.0.1:${port}/gps/submit`, { method: "POST" })).status, 404);
     // Public sign-in routes refuse large bodies; only movement accepts megabytes.
     const bulky = JSON.stringify({ address: "0x" + "a".repeat(40_000) });
-    assert.equal((await originalFetch(`http://127.0.0.1:${port}/identity/auth/wallet/begin`, {
+    const tooLarge = await originalFetch(`http://127.0.0.1:${port}/identity/auth/wallet/begin`, {
       method: "POST", headers: { "content-type": "application/json" }, body: bulky,
-    })).status, 413);
+    });
+    assert.equal(tooLarge.status, 413);
+    // Refused before the identity router, and still never cached.
+    assert.equal(tooLarge.headers.get("cache-control"), "no-store");
     assert.notEqual((await originalFetch(`http://127.0.0.1:${port}/movement/verify`, {
       method: "POST", headers: { "content-type": "application/json" }, body: bulky,
     })).status, 413);
@@ -104,8 +107,11 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     const deletedProviderUsers: string[] = [];
     let adminListings = 0;
     const walletUsers = new Map<string, string>();
+    /** When each provider user last signed in, for the admin user lookup. */
+    const providerSignIns = new Map<string, number>();
     const mint = (sub: string, method: string, email: string | null, session: { id?: string | null; signedInAt?: number; refreshedAt?: number } = {}) => {
       const now = Math.floor(Date.now() / 1000);
+      providerSignIns.set(sub, now * 1000);
       const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
       const head = enc({ alg: "ES256", kid: "k1", typ: "JWT" });
       const sessionId = session.id === undefined ? randomUUID() : session.id;
@@ -124,6 +130,13 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
         return new Response(JSON.stringify({ access_token: mint(walletUsers.get(address)!, "web3", null) }), { status: 200 });
       }
       const admin = new RegExp(`^${SUPABASE_URL}/auth/v1/admin/users/([0-9a-f-]{36})$`).exec(url);
+      if (admin && (init?.method ?? "GET") === "GET") {
+        // The deletion queue reads the user before deleting it (A-2).
+        assert.equal((init?.headers as Record<string, string>).apikey, "sb_secret_test");
+        const at = providerSignIns.get(admin[1]);
+        if (deletedProviderUsers.includes(admin[1]) || at === undefined) return new Response("{}", { status: 404 });
+        return new Response(JSON.stringify({ id: admin[1], created_at: new Date(at).toISOString(), last_sign_in_at: new Date(at).toISOString() }), { status: 200 });
+      }
       if (admin && init?.method === "DELETE") {
         assert.equal((init.headers as Record<string, string>).apikey, "sb_secret_test");
         deletedProviderUsers.push(admin[1]);

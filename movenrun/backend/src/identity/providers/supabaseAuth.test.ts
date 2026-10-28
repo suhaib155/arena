@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHmac, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
-import { SupabaseAuthClient, SupabaseAuthError, SupabaseTokenVerifier, supabaseAuthConfigFrom, tokenTrustSummary } from "./supabaseAuth.js";
+import { createHmac, generateKeyPairSync, randomBytes, sign, type KeyObject } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { JWKS_RETRY_AFTER_FAILURE_MS, LEGACY_JWT_SECRET_VARIABLES, SupabaseAuthClient, SupabaseAuthError, SupabaseTokenVerifier, supabaseAuthConfigFrom, tokenTrustSummary } from "./supabaseAuth.js";
 
 const URL_ = "https://tavxtestproject.supabase.co";
 const SUB = "5f6c2a1e-4b7d-4c8e-9f10-112233445566";
@@ -47,8 +48,8 @@ function jwksFetch(keys: unknown[], counter = { n: 0 }): typeof fetch {
   }) as typeof fetch;
 }
 
-const verifier = (fetchImpl = jwksFetch([jwk(ec.publicKey, "ec-1"), jwk(rsa.publicKey, "rsa-1")]), legacyJwtSecret: string | null = null) =>
-  new SupabaseTokenVerifier({ url: URL_, legacyJwtSecret }, fetchImpl, () => NOW);
+const verifier = (fetchImpl = jwksFetch([jwk(ec.publicKey, "ec-1"), jwk(rsa.publicKey, "rsa-1")])) =>
+  new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => NOW);
 
 async function rejects(v: SupabaseTokenVerifier, t: string, reason: string) {
   await assert.rejects(v.verify(t), (err: unknown) => err instanceof SupabaseAuthError && err.reason === reason);
@@ -129,11 +130,67 @@ test("a token marking any header critical, or naming none or another algorithm, 
   await rejects(v, token(good, { alg: "HS256", hmac: "guess" }), "bad_signature"); // no legacy secret configured
 });
 
-test("the legacy HS256 secret works only when configured", async () => {
-  const secret = "s".repeat(40);
-  const user = await verifier(jwksFetch([]), secret).verify(token(good, { alg: "HS256", hmac: secret }));
-  assert.equal(user.subject, SUB);
-  await rejects(verifier(jwksFetch([]), secret), token(good, { alg: "HS256", hmac: "t".repeat(40) }), "bad_signature");
+test("an HS256 token is refused even when the verifier is handed a legacy shared secret", async () => {
+  // A synthetic secret made here; a token signed with it is otherwise perfect.
+  const secret = randomBytes(48).toString("base64url");
+  const counter = { n: 0 };
+  const smuggled = { url: URL_, legacyJwtSecret: secret } as unknown as ConstructorParameters<typeof SupabaseTokenVerifier>[0];
+  const v = new SupabaseTokenVerifier(smuggled, jwksFetch([jwk(ec.publicKey, "ec-1")], counter), () => NOW);
+  for (const kid of [undefined, "ec-1", ""]) {
+    await rejects(v, token(good, { alg: "HS256", hmac: secret, kid }), "bad_signature");
+  }
+  // The shared-secret path never even reaches the key set.
+  assert.equal(counter.n, 0);
+  // The same verifier still accepts a token signed by the published EC key.
+  assert.equal((await v.verify(token(good))).subject, SUB);
+});
+
+test("no shared-secret verification exists to re-enable", () => {
+  // Fails if someone brings an HMAC acceptor or a legacy-secret setting back
+  // into the verifier. Re-adding one is a security change, not a test fix.
+  const source = readFileSync(new URL("./supabaseAuth.ts", import.meta.url), "utf8");
+  assert.ok(!/createHmac|timingSafeEqual/.test(source), "the token verifier computes no HMAC");
+  assert.ok(!/legacyJwtSecret/.test(source), "the verifier has no legacy secret setting");
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.ok(!/HS(256|384|512)/.test(code), "no HS algorithm is named outside comments");
+});
+
+test("a configured legacy shared-secret variable refuses startup, whatever its value", () => {
+  const keys = { SUPABASE_URL: URL_, SUPABASE_PUBLISHABLE_KEY: "sb_publishable_a", SUPABASE_SECRET_KEY: "sb_secret_b" };
+  assert.ok(LEGACY_JWT_SECRET_VARIABLES.includes("SUPABASE_LEGACY_JWT_SECRET"));
+  assert.ok(LEGACY_JWT_SECRET_VARIABLES.includes("SUPABASE_JWT_SECRET"));
+  for (const name of LEGACY_JWT_SECRET_VARIABLES) {
+    for (const value of [randomBytes(48).toString("base64url"), "short", ""]) {
+      let message = "";
+      try {
+        supabaseAuthConfigFrom({ ...keys, [name]: value });
+      } catch (err) {
+        message = err instanceof Error ? err.message : "";
+      }
+      assert.ok(message.includes(name), `${name} is refused by name`);
+      if (value) assert.ok(!message.includes(value), "the refusal never echoes the value");
+    }
+    // Set on its own, without the rest of the Supabase settings, it is refused too.
+    assert.throws(() => supabaseAuthConfigFrom({ [name]: "x".repeat(40) }), (err: unknown) => err instanceof Error && err.message.includes(name));
+  }
+});
+
+test("malformed headers and algorithm none are refused before any key lookup", async () => {
+  const counter = { n: 0 };
+  const v = new SupabaseTokenVerifier({ url: URL_ }, jwksFetch([jwk(ec.publicKey, "ec-1")], counter), () => NOW);
+  const [, body, sig] = token(good).split(".");
+  const enc = (s: string) => Buffer.from(s).toString("base64url");
+  for (const header of ["not json", "[]", "null", "1", '"ES256"']) {
+    await rejects(v, `${enc(header)}.${body}.${sig}`, "malformed_token");
+  }
+  for (const t of ["", "a.b", "a.b.c.d", `.${body}.${sig}`, `${enc("{}")}.${body}.`, `${enc("{}")}..${sig}`]) {
+    await rejects(v, t, "malformed_token");
+  }
+  for (const alg of ["none", "None", "NONE", "", "es256", 256, null]) {
+    await rejects(v, `${enc(JSON.stringify({ alg, typ: "JWT", kid: "ec-1" }))}.${body}.${sig}`, "bad_signature");
+  }
+  await rejects(v, `${enc(JSON.stringify({ typ: "JWT", kid: "ec-1" }))}.${body}.${sig}`, "bad_signature");
+  assert.equal(counter.n, 0);
 });
 
 test("JWKS is cached, private keys in it are ignored, and an unknown kid refetches at most once a minute", async () => {
@@ -149,9 +206,135 @@ test("JWKS is cached, private keys in it are ignored, and an unknown kid refetch
   assert.equal(counter.n, 2);
 });
 
-test("an unreachable JWKS fails closed", async () => {
-  const down = (async () => { throw new Error("network"); }) as typeof fetch;
-  await rejects(verifier(down), token(good), "bad_signature");
+/** A key-set endpoint that can be taken down and brought back; counts fetches. */
+function switchableJwks(keys: unknown[]) {
+  const state = { up: true, n: 0, failure: (): Promise<Response> => Promise.reject(new TypeError("fetch failed")) };
+  const fetchImpl = (async () => {
+    state.n += 1;
+    if (!state.up) return state.failure();
+    return new Response(JSON.stringify({ keys }), { status: 200 });
+  }) as unknown as typeof fetch;
+  return { state, fetchImpl };
+}
+
+test("a JWKS outage (network error, timeout, 5xx, unreadable body) is provider_unavailable, never acceptance", async () => {
+  const failures: Array<[string, typeof fetch]> = [
+    ["network", (async () => { throw new TypeError("fetch failed"); }) as unknown as typeof fetch],
+    ["500", (async () => new Response("{}", { status: 500 })) as unknown as typeof fetch],
+    ["502", (async () => new Response("bad gateway", { status: 502 })) as unknown as typeof fetch],
+    ["503", (async () => new Response("{}", { status: 503 })) as unknown as typeof fetch],
+    ["not json", (async () => new Response("<html>", { status: 200 })) as unknown as typeof fetch],
+    ["no keys array", (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch],
+  ];
+  for (const [name, fetchImpl] of failures) {
+    const v = verifier(fetchImpl);
+    await assert.rejects(v.verify(token(good)), (e: unknown) => e instanceof SupabaseAuthError && e.reason === "provider_unavailable", name);
+    // A forged token is not let through either; and tokens that need no key are still plain refusals.
+    await assert.rejects(v.verify(token(good, { key: generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey })), (e: unknown) => e instanceof SupabaseAuthError && e.reason === "provider_unavailable", name);
+    await rejects(v, token(good, { alg: "HS256", hmac: randomBytes(32).toString("hex") }), "bad_signature");
+    await rejects(v, token(good, { alg: "none" }), "bad_signature");
+    await rejects(v, "not.a.jwt!", "malformed_token");
+  }
+});
+
+test("a JWKS fetch that does not answer in time is provider_unavailable", async () => {
+  const hanging = ((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    init.signal!.addEventListener("abort", () => reject(init.signal!.reason));
+  })) as unknown as typeof fetch;
+  const v = new SupabaseTokenVerifier({ url: URL_ }, hanging, () => NOW, { timeoutMs: 50 });
+  // AbortSignal.timeout's timer does not hold the process open; a server's listener does, so stand in for it.
+  const keepAlive = setInterval(() => {}, 1_000);
+  try {
+    const started = Date.now();
+    await rejects(v, token(good), "provider_unavailable");
+    assert.ok(Date.now() - started < 5_000, "bounded by the fetch timeout");
+  } finally {
+    clearInterval(keepAlive);
+  }
+});
+
+test("after a successful fetch, an unknown kid or a bad signature stays bad_signature", async () => {
+  const { state, fetchImpl } = switchableJwks([jwk(ec.publicKey, "ec-1")]);
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => NOW);
+  assert.equal((await v.verify(token(good))).subject, SUB);
+  await rejects(v, token(good, { kid: "rotated-away" }), "bad_signature");
+  await rejects(v, token(good, { key: generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey }), "bad_signature");
+  assert.equal(state.n, 1);
+});
+
+test("cached keys keep verifying through an outage for a bounded time; unknown kids during it are provider_unavailable", async () => {
+  const { state, fetchImpl } = switchableJwks([jwk(ec.publicKey, "ec-1")]);
+  let clock = NOW;
+  const at = (ms: number) => { clock = new Date(NOW.getTime() + ms); };
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => clock);
+  const fresh = () => token({ ...good, iat: Math.floor(clock.getTime() / 1000) - 10, exp: Math.floor(clock.getTime() / 1000) + 3600 });
+  assert.equal((await v.verify(fresh())).subject, SUB);
+  state.up = false;
+  // Past the 10-minute cache: a refresh is tried, fails, and the known key still verifies.
+  at(11 * 60_000);
+  assert.equal((await v.verify(fresh())).subject, SUB);
+  assert.equal(state.n, 2);
+  // A kid the last good fetch did not have cannot be judged while the provider is down.
+  await rejects(v, token({ ...good, iat: Math.floor(clock.getTime() / 1000), exp: Math.floor(clock.getTime() / 1000) + 3600 }, { kid: "new-key" }), "provider_unavailable");
+  // A forged signature on a cached kid is still a bad signature.
+  await rejects(v, token({ ...good, exp: Math.floor(clock.getTime() / 1000) + 3600 }, { key: generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey }), "bad_signature");
+  // More than an hour after the last good fetch the cached key is no longer trusted.
+  at(61 * 60_000);
+  await rejects(v, fresh(), "provider_unavailable");
+});
+
+test("concurrent requests share one JWKS fetch: all wait for it, all get its outcome", async () => {
+  for (const up of [false, true]) {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const counter = { n: 0 };
+    const fetchImpl = (async () => {
+      counter.n += 1;
+      await gate;
+      if (!up) throw new TypeError("fetch failed");
+      return new Response(JSON.stringify({ keys: [jwk(ec.publicKey, "ec-1")] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => NOW);
+    const results = Array.from({ length: 20 }, () => v.verify(token(good)).then(() => "ok", (e: unknown) => (e instanceof SupabaseAuthError ? e.reason : "other")));
+    release();
+    const outcomes = await Promise.all(results);
+    assert.deepEqual(new Set(outcomes), new Set([up ? "ok" : "provider_unavailable"]), up ? "all accepted" : "all unavailable");
+    assert.equal(counter.n, 1, "one fetch for all of them");
+  }
+});
+
+test("recovery: after the retry gap the next request refetches and verifies; before it nothing hammers the provider", async () => {
+  const { state, fetchImpl } = switchableJwks([jwk(ec.publicKey, "ec-1")]);
+  let clock = NOW;
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => clock);
+  state.up = false;
+  for (let i = 0; i < 5; i++) await rejects(v, token(good), "provider_unavailable");
+  assert.equal(state.n, 1);
+  state.up = true;
+  clock = new Date(NOW.getTime() + JWKS_RETRY_AFTER_FAILURE_MS - 1_000);
+  await rejects(v, token(good), "provider_unavailable");
+  assert.equal(state.n, 1);
+  clock = new Date(NOW.getTime() + JWKS_RETRY_AFTER_FAILURE_MS + 1_000);
+  assert.equal((await v.verify(token(good))).subject, SUB);
+  assert.equal(state.n, 2);
+});
+
+test("a key-set fetch that throws before returning a promise does not wedge later refreshes", async () => {
+  const counter = { n: 0 };
+  let up = false;
+  const fetchImpl = ((): Promise<Response> => {
+    counter.n += 1;
+    if (!up) throw new TypeError("fetch failed");
+    return Promise.resolve(new Response(JSON.stringify({ keys: [jwk(ec.publicKey, "ec-1")] }), { status: 200 }));
+  }) as unknown as typeof fetch;
+  let clock = NOW;
+  const v = new SupabaseTokenVerifier({ url: URL_ }, fetchImpl, () => clock);
+  await rejects(v, token(good), "provider_unavailable");
+  assert.equal(counter.n, 1);
+  up = true;
+  clock = new Date(NOW.getTime() + JWKS_RETRY_AFTER_FAILURE_MS + 1_000);
+  assert.equal((await v.verify(token(good))).subject, SUB);
+  assert.equal(counter.n, 2);
 });
 
 test("the Web3 grant posts message and signature with the publishable key only", async () => {
@@ -206,7 +389,7 @@ test("configuration is all or nothing", () => {
   assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: "http://x.supabase.co", ...keys }));
   assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: URL_, ...keys, SUPABASE_SECRET_KEY: keys.SUPABASE_PUBLISHABLE_KEY }));
   assert.deepEqual(supabaseAuthConfigFrom({ SUPABASE_URL: `${URL_}/`, ...keys }), {
-    url: URL_, publishableKey: "sb_publishable_a", secretKey: "sb_secret_b", legacyJwtSecret: null,
+    url: URL_, publishableKey: "sb_publishable_a", secretKey: "sb_secret_b",
   });
 });
 
@@ -218,10 +401,6 @@ test("legacy anon and service_role JWT keys are refused, so revoking the legacy 
   assert.throws(() => supabaseAuthConfigFrom({ SUPABASE_URL: URL_, SUPABASE_PUBLISHABLE_KEY: "sb_secret_b", SUPABASE_SECRET_KEY: "sb_publishable_a" }));
 });
 
-test("the startup summary says whether a legacy secret is trusted and nothing else", () => {
-  assert.equal(tokenTrustSummary({ legacyJwtSecret: null }), "signing keys only");
-  const secret = "s".repeat(40);
-  const summary = tokenTrustSummary({ legacyJwtSecret: secret });
-  assert.equal(summary, "signing keys and legacy secret");
-  assert.ok(!summary.includes(secret.slice(0, 4)));
+test("the startup summary names the only trusted keys: the published signing keys", () => {
+  assert.equal(tokenTrustSummary(), "signing keys only");
 });

@@ -16,7 +16,7 @@
  * rejection — so nothing is ever swallowed, and internal errors never leak.
  */
 import { Router, type NextFunction, type Request, type Response } from "express";
-import { IdentityError, isIdentityError } from "../domain/errors.js";
+import { IdentityError, isIdentityError, PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS } from "../domain/errors.js";
 import type { SessionRecord } from "../repositories/records.js";
 import type { IdentityServices } from "./wiring.js";
 import {
@@ -45,6 +45,14 @@ import {
 } from "./publicViews.js";
 
 /**
+ * Transient 503s a client may retry after a short, bounded wait: the sign-in
+ * provider's keys could not be fetched, or a deletion of this provider user is
+ * in flight (A-2) or a provisioning call failed. `provider_not_configured` is
+ * not transient and gets no Retry-After.
+ */
+const RETRYABLE_UNAVAILABLE: ReadonlySet<string> = new Set(["provider_unavailable", "provisioning_failed"]);
+
+/**
  * Route wrapper: an IdentityError becomes its mapped status + public JSON;
  * anything else forwards to Express's error middleware (the app's generic 500
  * handler), so no internal detail ever leaks as a "helpful" 4xx.
@@ -53,6 +61,7 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
     fn(req, res).catch((err: unknown) => {
       if (isIdentityError(err)) {
+        if (RETRYABLE_UNAVAILABLE.has(err.code)) res.setHeader("Retry-After", String(PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS));
         res.status(err.status).json(err.toPublicJSON());
       } else {
         next(err instanceof Error ? err : new Error(String(err)));
@@ -136,6 +145,10 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
   // ---- unauthenticated auth entry ----------------------------------------
   // Supabase sign-in (Google, wallet) → one MovenRun account per Supabase user.
   const signInWithSupabase = async (verified: VerifiedSignIn, rawDeviceLabel: string | undefined) => {
+    // The person is back: a queued deletion of this provider user is retired
+    // before any account is looked up or created, and the sign-in waits
+    // (503, retryable) while a deletion of it is in flight (A-2).
+    await options.supabaseSignIn?.adoptPendingDeletion(verified.subject);
     try {
       return await services.orchestrator.signupOrLogin({
         providerIdentity: {

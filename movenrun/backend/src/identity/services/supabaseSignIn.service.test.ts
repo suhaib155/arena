@@ -325,7 +325,7 @@ test("provider users are removed only when no MovenRun account uses them, and fa
 
 // ---- HTTP: one account per Supabase user, the account cap, deletion --------
 
-async function withApp(maxAccounts: number, fn: (h: ReturnType<typeof setup> & { post: (path: string, body: unknown, token?: string) => Promise<{ status: number; json: any }> }) => Promise<void>, opts: { maxNewPerHour?: number } = {}) {
+async function withApp(maxAccounts: number, fn: (h: ReturnType<typeof setup> & { post: (path: string, body: unknown, token?: string) => Promise<{ status: number; json: any; headers: Headers }> }) => Promise<void>, opts: { maxNewPerHour?: number } = {}) {
   const h = setup({ maxAccounts, maxNewPerHour: opts.maxNewPerHour });
   const cfg = resolveIdentityConfig({ NODE_ENV: "test", IDENTITY_SESSION_PEPPER: "x".repeat(32) }, { requireSecrets: false });
   assert.ok(cfg.ok);
@@ -350,7 +350,7 @@ async function withApp(maxAccounts: number, fn: (h: ReturnType<typeof setup> & {
     const res = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
     // Every identity response carries tokens or codes and must never be cached.
     assert.equal(res.headers.get("cache-control"), "no-store");
-    return { status: res.status, json: (await res.json().catch(() => null)) as any };
+    return { status: res.status, json: (await res.json().catch(() => null)) as any, headers: res.headers };
   };
   try {
     await fn({ ...h, post });
@@ -373,6 +373,76 @@ test("Google sign-in over HTTP returns a MovenRun session and the same player ev
     assert.equal((await post("/identity/auth/google/complete", { accessToken: "y".repeat(40) })).status, 401);
     // Email codes are off unless explicitly enabled.
     assert.equal((await post("/identity/auth/email/begin", { email: "runner@example.com" })).status, 404);
+  });
+});
+
+test("a sign-in over HTTP retires a queued deletion of its provider user, and waits while one is in flight", async () => {
+  await withApp(1000, async ({ post, supabase, signIn, service, advance }) => {
+    // Erased earlier; the provider deletion is still queued.
+    await signIn.pendingAuthDeletions.add([GOOGLE_SUB], T0);
+    const back = await post("/identity/auth/google/complete", { accessToken: supabase.googleToken() });
+    assert.equal(back.status, 200);
+    assert.deepEqual(await signIn.pendingAuthDeletions.due(new Date(T0.getTime() + 864e5), 0, 10), []);
+    advance(60 * 60_000);
+    assert.equal(await service.retryPendingDeletions(), 0);
+    assert.deepEqual(supabase.deleted, []);
+
+    // While a worker owns the row the sign-in is refused as retryable and no account is made.
+    const other = "66666666-6666-4666-8666-666666666666";
+    await signIn.pendingAuthDeletions.add([other], T0);
+    assert.ok(await signIn.pendingAuthDeletions.claim(other, new Date(T0.getTime() + 60 * 60_000), { leaseMs: 10 * 60_000 }));
+    const busy = await post("/identity/auth/google/complete", { accessToken: supabase.googleToken(other) });
+    assert.equal(busy.status, 503);
+    assert.equal(busy.json.error.code, "provisioning_failed");
+  });
+});
+
+test("a sign-in refused while a deletion is in flight is an uncached 503 with a short Retry-After, and succeeds once the deletion settles", async () => {
+  await withApp(1000, async ({ post, supabase, signIn, advance }) => {
+    const other = "66666666-6666-4666-8666-666666666667";
+    await signIn.pendingAuthDeletions.add([other], T0);
+    assert.ok(await signIn.pendingAuthDeletions.claim(other, T0, { leaseMs: 10 * 60_000 }));
+    const busy = await post("/identity/auth/google/complete", { accessToken: supabase.googleToken(other) });
+    assert.equal(busy.status, 503);
+    assert.deepEqual(busy.json, { error: { code: "provisioning_failed" } });
+    const retryAfter = Number(busy.headers.get("retry-after"));
+    assert.ok(Number.isInteger(retryAfter) && retryAfter >= 1 && retryAfter <= 60, "a bounded Retry-After in seconds");
+    assert.equal(busy.headers.get("cache-control"), "no-store");
+    // A refusal that is not transient carries no Retry-After.
+    const forged = await post("/identity/auth/google/complete", { accessToken: "z".repeat(40) });
+    assert.equal(forged.status, 401);
+    assert.equal(forged.headers.get("retry-after"), null);
+    // The lease ends with the worker gone: the next sign-in adopts the row.
+    advance(11 * 60_000);
+    assert.equal((await post("/identity/auth/google/complete", { accessToken: supabase.googleToken(other) })).status, 200);
+  });
+});
+
+test("account deletion while the provider is down reports the sign-in record pending, never removed, and a later retry removes it once", async () => {
+  await withApp(1000, async ({ post, supabase, signIn, service, advance }) => {
+    const signedIn = await post("/identity/auth/google/complete", { accessToken: supabase.googleToken() });
+    assert.equal(signedIn.status, 200);
+    const realDelete = supabase.auth.deleteUser;
+    let attempts = 0;
+    supabase.auth.deleteUser = async () => { attempts += 1; throw new SupabaseAuthError("unavailable"); };
+    const del = await post("/identity/account/delete", { confirm: "DELETE" }, signedIn.json.session.accessToken);
+    assert.equal(del.status, 200);
+    assert.equal(del.json.signInRecord, "pending");
+    const queued = async () => signIn.pendingAuthDeletions.due(new Date(T0.getTime() + 864e6), 0, 10);
+    assert.deepEqual(await queued(), [GOOGLE_SUB]);
+    for (let i = 0; i < 3; i++) {
+      advance(2 * 60 * 60_000);
+      assert.equal(await service.retryPendingDeletions(), 0);
+      assert.deepEqual(await queued(), [GOOGLE_SUB], "the row was completed while the provider still had the user");
+    }
+    assert.ok(attempts >= 2);
+    supabase.auth.deleteUser = realDelete;
+    advance(25 * 60 * 60_000);
+    assert.equal(await service.retryPendingDeletions(), 1);
+    advance(25 * 60 * 60_000);
+    assert.equal(await service.retryPendingDeletions(), 0);
+    assert.deepEqual(supabase.deleted, [GOOGLE_SUB]);
+    assert.deepEqual(await queued(), []);
   });
 });
 

@@ -52,5 +52,33 @@ test("secrets are set in the dashboard only; public values are the agreed ones",
   assert.equal(env.get("TRUST_PROXY_HOPS"), 'value="1"');
   assert.equal(env.get("TRUST_PROXY"), "value=render-cloudflare");
   assert.ok(!/RESEND|OTP_PEPPER|REVIEW_CODE|REVIEW_EMAIL/.test(blueprint), "no email-code settings");
+  assert.ok(!/JWT_SECRET/.test(blueprint), "no legacy JWT shared-secret variable: the API refuses to start with one");
   assert.ok(!/sb_secret_|service_role|postgres(ql)?:\/\/[^<\s]+@/.test(blueprint), "no key or connection string in the file");
+});
+
+test("the blueprint's CORS allowlist trusts the apex only: www, http and look-alikes get no CORS grant", async () => {
+  const { default: express } = await import("express");
+  const { createCorsMiddleware } = await import("../middleware/security.js");
+  const block = blueprint.slice(blueprint.indexOf("envVars:"));
+  const origins = /- key: CORS_ORIGINS\n\s+value: (.+)/.exec(block)![1].trim();
+  assert.equal(origins, "https://movenrun.xyz");
+  const app = express();
+  app.use(createCorsMiddleware({ NODE_ENV: "production", CORS_ORIGINS: origins }));
+  app.post("/identity/auth/google/complete", (_req, res) => { res.json({}); });
+  const server = await new Promise<import("node:http").Server>((resolve) => { const s = app.listen(0, "127.0.0.1", () => resolve(s)); });
+  const base = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+  const preflight = (origin: string) => fetch(`${base}/identity/auth/google/complete`, {
+    method: "OPTIONS",
+    headers: { origin, "access-control-request-method": "POST", "access-control-request-headers": "content-type,authorization" },
+  });
+  try {
+    const apex = await preflight("https://movenrun.xyz");
+    assert.equal(apex.headers.get("access-control-allow-origin"), "https://movenrun.xyz");
+    assert.equal(apex.headers.get("access-control-allow-credentials"), null);
+    for (const origin of ["https://www.movenrun.xyz", "http://movenrun.xyz", "https://movenrun.xyz.evil.example", "https://evilmovenrun.xyz", "null"]) {
+      assert.equal((await preflight(origin)).headers.get("access-control-allow-origin"), null, origin);
+    }
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

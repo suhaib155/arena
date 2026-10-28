@@ -53,6 +53,8 @@ export function createApiApp(config: ApiConfig) {
       run: async () => (await supabaseSignIn.expireHandoffs()) + (await supabaseSignIn.retryPendingDeletions()),
     },
     { name: "unused sign-in records", everyMs: 30 * 60 * 1000, run: () => supabaseSignIn.sweepOrphanProviderUsers() },
+    // Counts only: logs how many provider deletions have waited over a day.
+    { name: "pending sign-in deletion age", everyMs: 60 * 60 * 1000, run: async () => { await supabaseSignIn.reportPendingDeletions(); return 0; } },
     { name: "expired sign-in sessions", everyMs: 60 * 60 * 1000, run: () => identity.sessions.pruneExpiredSessions() },
   ]);
   maintenance.start();
@@ -61,6 +63,13 @@ export function createApiApp(config: ApiConfig) {
   app.set("trust proxy", trustProxySetting(config.TRUST_PROXY, config.TRUST_PROXY_HOPS));
   app.use(maintenance.afterResponse);
   app.use(createSecurityHeadersMiddleware(), createCorsMiddleware(config));
+  // Identity responses carry tokens and codes; a refusal before the router
+  // (rate limit, oversized or unreadable body) is not cached either.
+  app.use("/identity", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+    next();
+  });
   app.use(createGlobalRateLimiter(config));
   app.get("/health", (_req, res) => { res.json({ status: "ok" }); });
   app.get("/ready", async (_req, res) => {
