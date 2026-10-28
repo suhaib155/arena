@@ -5,6 +5,8 @@ Branch `fix/movement-stationary-risk`, based on `integration/android-qa0-28oct` 
 
 All evidence on this page is **local and synthetic**. No real GPS, no device, no hosted service. The rates below hold only under the stated synthetic assumptions. They are not a claim that the rule catches every stationary upload, or that it can't be fooled: a scripted upload that looks coherent passes by construction.
 
+Known bypass (independent review): pauses (`breakBefore`) come from the client and end a stretch, and a window needs at least 6 segments. An upload that marks a break every few points therefore leaves nothing to assess. The test "a pause splits windows" shows this with a break every 4th point. The rule targets honest drift, not a malicious client. A follow-up could treat a high break rate or many short stretches as a risk signal in its own right. The client-pipeline figures (FP 0/1558, FN 10/650) come from an untracked harness and cannot be reproduced from committed code; the corpus figures (FP 0/1400, FN 5/650) can, with `node --import tsx src/movement/testing/stationaryRiskRates.ts 50`. No test yet covers the production router refusing to start on an unknown rule value.
+
 ## Problem
 
 Track A fixture S03 is a phone left still for five minutes. It reports 6 m accuracy while its real error drifts about 15 m (multipath). The capture rule trusts the reported accuracy circles, so the drift is accepted step by step. On the base the result is 632 m, 53 XP and a server verdict of verified.
