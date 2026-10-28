@@ -501,3 +501,27 @@ The 0011 file stays outside `drizzle/` and is not applied. Revision 3 with these
 The previous values were up `9a62dc7f…c4cb` and down `34d13e92…c0cd`.
 
 **1001 unchanged.** Its config digest stays `d4199ec6…41cd6`, and 1002's is also unchanged, because the rule-set configs were not touched. The fixed PostgreSQL scenario stores the same game state. The shared economy code is no longer byte-identical: the toll now uses bigint, and amounts are now validated. All of the source's worked examples give the same results.
+
+## 18. Sealing v2: the territory seal requires enclosed ground (28 Oct)
+
+The out-and-back and tiny-spur loopholes left by #151 are closed by a second, server-only seal computed from the accepted fixes. Full criterion, fixture table, sensitivity and the owner decisions are in [`g34/SEALING_V2_28OCT.md`](g34/SEALING_V2_28OCT.md). Every threshold is a pilot hypothesis.
+
+**Rule sets.** 1001 and 1002 now name `territorySeal: TERRITORY_SEAL_V2_PILOT`. Their config digests changed, and nothing else in either config did:
+
+| Rule set | Digest before | Digest after |
+|---|---|---|
+| 1001 | `d4199ec6…41cd6` | `9222df56…3fb7d` |
+| 1002 | `92e8e3cb…7b788` | `bc36241c…d4532` |
+
+**Proposed 0011, still unapplied.** It adds three nullable columns to `movement_verifications`:
+
+- `territory_seal_version`
+- `territory_sealed`
+- `territory_seal_reason`
+
+It also adds a consistency CHECK and a write-once trigger. The rollback removes all of them. Applied migrations 0000–0010 and the journal are unchanged. New sha256 values:
+
+- up: `63425217ef928b4bf2e6d20760d377e9266d2f1e5bdf0cf20b6aca3ee5f61bb9`
+- down: `1ae475e027a1208c594a9639199a412eea04f213a7bebce45fae6eab18dd8a1b`
+
+The previous values were up `e3f355a9…b59e` and down `c134da41…d69a`.
