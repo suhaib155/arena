@@ -415,8 +415,10 @@ export class GameplayService {
     try {
       return await this.withPartitions(() => this.db.transaction(async (tx) => {
         const [mv] = await rows<{ id: string; status: string; end_time: string; traversed_hex_ids: string[] | null; received_ms: number;
-          sealed: boolean | null; seal_methods: string[] | null; seal_event_count: number | null; rules_version: number | null }>(tx, sql`
-          SELECT id, status, end_time, traversed_hex_ids, ${RECEIVED_MS} AS received_ms, sealed, seal_methods, seal_event_count, rules_version
+          sealed: boolean | null; seal_methods: string[] | null; seal_event_count: number | null; rules_version: number | null;
+          territory_seal_version: number | null; territory_sealed: boolean | null; territory_seal_reason: string | null }>(tx, sql`
+          SELECT id, status, end_time, traversed_hex_ids, ${RECEIVED_MS} AS received_ms, sealed, seal_methods, seal_event_count, rules_version,
+                 territory_seal_version, territory_sealed, territory_seal_reason
             FROM movement_verifications
            WHERE user_id = ${userId} AND client_session_id = ${clientSessionId}
            FOR UPDATE`);
@@ -440,8 +442,9 @@ export class GameplayService {
         if (!receivedInTime(this.rules, day, Number(mv.received_ms))) throw new GameplayError(409, "day_closed");
         if (seasonOf(this.rules, day) === null) throw new GameplayError(409, "season_not_started");
         // V3 rule 3: no holding is created or changed without the server's own
-        // seal of this route under a listed sealing rules version. Nothing is
-        // written; the route and its verification are untouched.
+        // seal of this route under a listed sealing rules version (and, under
+        // sealing v2, its own finding that the route enclosed ground). Nothing
+        // is written; the route and its verification are untouched.
         const unsealed = sealProblem(this.rules, mv);
         if (unsealed) throw new GameplayError(409, unsealed);
         // 1001: the stored cells, in unit id order. 1002: the canonical path the

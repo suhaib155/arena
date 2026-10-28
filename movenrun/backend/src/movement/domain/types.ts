@@ -92,6 +92,19 @@ export interface MovementVerificationResult {
    * returned to the client.
    */
   sessionPath?: SessionPath;
+  /**
+   * Sealing v2's territory seal (gameplay/sealLoop.ts), present only for an
+   * accepted session and only when gameplay asked for it. Stored on the row
+   * (version, verdict, reason code); never returned to the client.
+   */
+  territorySeal?: TerritorySealResult;
+}
+
+/** The stored part of `gameplay/sealLoop.ts`'s result, restated so this domain imports nothing from gameplay. */
+export interface TerritorySealResult {
+  version: number;
+  sealed: boolean;
+  reason: string;
 }
 
 /** The shape of `gameplay/path.ts`'s `SessionPath`, restated so this domain imports nothing from gameplay. */

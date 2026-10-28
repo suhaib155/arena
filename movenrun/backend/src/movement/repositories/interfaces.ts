@@ -11,7 +11,7 @@
 import type { MovementMode } from "@movenrun/shared/session";
 import type { SealMethod } from "@movenrun/shared/sealing";
 
-import type { MovementVerificationStatus, SessionPath } from "../domain/types.js";
+import type { MovementVerificationStatus, SessionPath, TerritorySealResult } from "../domain/types.js";
 
 export interface MovementVerificationRecord {
   id: string;
@@ -118,6 +118,8 @@ export interface DailyAdmission {
  */
 export interface VerificationExtras {
   sessionPath?: SessionPath;
+  /** Sealing v2's territory seal, written on the new row in the same transaction. */
+  territorySeal?: TerritorySealResult;
 }
 
 export interface MovementVerificationRepository {
@@ -149,6 +151,8 @@ export class InMemoryMovementVerificationRepository
   private readonly byKey = new Map<string, MovementVerificationRecord>();
   /** Session paths written with their verification, by verification id. */
   readonly sessionPaths = new Map<string, SessionPath>();
+  /** Territory seals written with their verification, by verification id. */
+  readonly territorySeals = new Map<string, TerritorySealResult>();
 
   private static key(userId: string, clientSessionId: string): string {
     // Length-prefixed so a userId containing the separator cannot forge a
@@ -171,6 +175,7 @@ export class InMemoryMovementVerificationRepository
     const record: MovementVerificationRecord = { ...input, createdAt: new Date() };
     this.byKey.set(key, record);
     if (extras?.sessionPath) this.sessionPaths.set(input.id, extras.sessionPath);
+    if (extras?.territorySeal) this.territorySeals.set(input.id, extras.territorySeal);
     return record;
   }
 

@@ -12,7 +12,8 @@ import { cellsForObservations } from "@movenrun/shared/h3";
 import { GpsService } from "../services/gps.service.js";
 import { DrizzleMovementVerificationRepository } from "../movement/repositories/drizzle/store.js";
 import { MovementVerificationService } from "../movement/services/movementVerification.service.js";
-import { sessionPathFor, toValidatable } from "../movement/http/productionRouter.js";
+import { sessionPathFor, territorySealFor, toValidatable } from "../movement/http/productionRouter.js";
+import { ENCLOSED_LOOP_V1 } from "./sealLoop.js";
 import type { MovementObservation, ObservedPoint } from "../movement/domain/types.js";
 import { bitsToFlags, cellToInt8, int8ToCell, VERIFIED_STEPS_V1 } from "./path.js";
 import { fixesOf, poly } from "./pathFixtures.js";
@@ -51,14 +52,28 @@ const pipeline = () => new MovementVerificationService({
   calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
   traversedHexIds: (points: ObservedPoint[]) => cellsForObservations(points.map((p) => ({ latitude: p.lat, longitude: p.lng }))),
   sessionPath: sessionPathFor(VERIFIED_STEPS_V1),
+  territorySeal: territorySealFor(ENCLOSED_LOOP_V1),
 });
 
-/** A closed square walked at 1.4 m/s with sparse but accurate GPS: one fix every `spacing` metres. */
+/**
+ * A walk at 1.4 m/s with accurate GPS: a closed 400 m square with a fix every
+ * 14 m (the loop that seals, by crossing its own first side), then a sparse leg out with one fix every
+ * `spacing` metres. The sparse steps are walked by the 1002 path rule (up to
+ * 200 m), so they cross resolution 10 units no fix is in; sealing v2 treats
+ * any step over 50 m as a gap no loop may cross, so only the dense square
+ * seals.
+ */
 function sparseLoop(spacing: number, endMs: number, origin = { latitude: 51.52, longitude: -0.1 }): MovementObservation {
-  const xy = poly([[0, 0], [500, 0], [500, 500], [0, 500], [0, 0]], spacing);
-  const fixes = fixesOf(xy, origin, Math.round((spacing / 1.4) * 1000));
-  const shift = endMs - fixes[fixes.length - 1]!.timestamp;
-  const points = fixes.map((f) => ({ lat: f.lat, lng: f.lng, accuracy: 5, timestamp: f.timestamp + shift }));
+  // The square's last side runs on past the start and cuts its first side: a self-crossing seal.
+  const dense = poly([[0, 0], [400, 0], [400, 400], [20, 400], [20, -40]], 14);
+  const sparse = poly([[20, -40], [20, -1040]], spacing).slice(1);
+  const times: number[] = [];
+  let t = 0;
+  dense.forEach((_, i) => { if (i > 0) t += 10_000; times.push(t); });
+  sparse.forEach(() => { t += Math.round((spacing / 1.4) * 1000); times.push(t); });
+  const fixes = fixesOf([...dense, ...sparse], origin, 1);
+  const shift = endMs - times[times.length - 1]!;
+  const points = fixes.map((f, i) => ({ lat: f.lat, lng: f.lng, accuracy: 5, timestamp: times[i]! + shift }));
   return { startTime: points[0]!.timestamp, endTime: points[points.length - 1]!.timestamp, points, session: sessionFor(points) };
 }
 

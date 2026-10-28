@@ -108,7 +108,10 @@ export function createApiApp(config: ApiConfig) {
   // Rule set 1002 needs the session path derived at verification; with
   // gameplay off, or under 1001, nothing extra is derived or stored.
   const sessionPathRule = gameplayRules?.units.source?.kind === "session-path" ? gameplayRules.units.source.rule : undefined;
-  app.use("/movement", createProductionMovementRouter(config, { sessionPathRule }));
+  // Sealing v2 needs the territory seal computed at verification (the raw
+  // fixes are never stored); with gameplay off nothing is computed or stored.
+  const territorySealRule = gameplayRules?.territorySeal?.rule === "server-enclosed-loop" ? gameplayRules.territorySeal.loop : undefined;
+  app.use("/movement", createProductionMovementRouter(config, { sessionPathRule, territorySealRule }));
   if (gameplay) {
     app.use("/gameplay", express.json({ limit: "8kb" }));
     app.use("/gameplay", gameplay.router);

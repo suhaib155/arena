@@ -24,6 +24,7 @@ import { createMovementRouter } from "./router.js";
 import { createWriteRateLimiter } from "../../middleware/rateLimit.js";
 import type { MovementObservation, ObservedPoint } from "../domain/types.js";
 import { deriveSessionPath, type SessionPathRule } from "../../gameplay/path.js";
+import { evaluateSealLoop, type SealLoopRule } from "../../gameplay/sealLoop.js";
 
 /** GpsService speaks the shared GPSRoute shape; only points/startTime/endTime
  *  are read by validateRoute and calculateDistance, so the chain-specific
@@ -57,10 +58,22 @@ export function sessionPathFor(rule: SessionPathRule) {
   return (observation: MovementObservation) => deriveSessionPath(observation.points, observation.session?.pauses ?? [], rule);
 }
 
+/** Sealing v2's territory seal of an accepted observation: its own fixes (with their reported accuracy) and pauses, nothing else. */
+export function territorySealFor(rule: SealLoopRule) {
+  return (observation: MovementObservation) => {
+    const r = evaluateSealLoop(observation.points, observation.session?.pauses ?? [], rule);
+    return { version: r.version, sealed: r.sealed, reason: r.reason };
+  };
+}
+
 export function createProductionMovementRouter(
   rateLimitConfig?: Parameters<typeof createWriteRateLimiter>[0],
-  /** Gameplay rule set 1002 only (MOVENRUN_GAMEPLAY_ENABLED with a session-path rule set): also derive and store the session path. */
-  options: { sessionPathRule?: SessionPathRule } = {},
+  /**
+   * Gameplay only (MOVENRUN_GAMEPLAY_ENABLED): a session-path rule set (1002)
+   * also derives and stores the session path; sealing v2 also computes and
+   * stores the territory seal.
+   */
+  options: { sessionPathRule?: SessionPathRule; territorySealRule?: SealLoopRule } = {},
 ): Router {
   const stores = createDrizzleStores(getDb());
   const providerConfig = getProviderConfig();
@@ -82,6 +95,7 @@ export function createProductionMovementRouter(
     calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
     traversedHexIds: (points: ObservedPoint[]) => hex.getHexIdsForPoints(points),
     ...(options.sessionPathRule ? { sessionPath: sessionPathFor(options.sessionPathRule) } : {}),
+    ...(options.territorySealRule ? { territorySeal: territorySealFor(options.territorySealRule) } : {}),
   });
 
   return createMovementRouter({

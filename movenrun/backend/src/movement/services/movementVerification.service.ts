@@ -100,8 +100,10 @@ export class MovementVerificationService {
         ...sessionColumns(input.observation.session),
         ...sealColumns(result),
       }, { since, max: MAX_NEW_VERIFICATIONS_PER_DAY },
-      // Gameplay rule set 1002's path: written with the row or not at all.
-      result.status === "verified" && result.sessionPath ? { sessionPath: result.sessionPath } : undefined);
+      // Gameplay data (1002's path, sealing v2's territory seal): written with the row or not at all.
+      result.status === "verified" && (result.sessionPath || result.territorySeal)
+        ? { ...(result.sessionPath ? { sessionPath: result.sessionPath } : {}), ...(result.territorySeal ? { territorySeal: result.territorySeal } : {}) }
+        : undefined);
       return { record, created: true };
     } catch (err) {
       if (!(err instanceof MovementSessionConflictError)) throw err;

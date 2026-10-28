@@ -18,9 +18,10 @@ import { cellsForObservations } from "@movenrun/shared/h3";
 import { GpsService } from "../services/gps.service.js";
 import { DrizzleMovementVerificationRepository } from "../movement/repositories/drizzle/store.js";
 import { MovementVerificationService } from "../movement/services/movementVerification.service.js";
-import { sessionPathFor, toValidatable } from "../movement/http/productionRouter.js";
+import { sessionPathFor, territorySealFor, toValidatable } from "../movement/http/productionRouter.js";
 import type { MovementObservation, ObservedPoint } from "../movement/domain/types.js";
 import { VERIFIED_STEPS_V1 } from "./path.js";
+import { ENCLOSED_LOOP_V1 } from "./sealLoop.js";
 import { fixesOf, poly } from "./pathFixtures.js";
 import { DAY_MS, PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, type GameplayRules } from "./rules.js";
 import { GameplayError, GameplayService } from "./service.js";
@@ -66,6 +67,8 @@ function pipeline(t: TestDb, withPath: boolean) {
     calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
     traversedHexIds: (points: ObservedPoint[]) => cellsForObservations(points.map((p) => ({ latitude: p.lat, longitude: p.lng }))),
     ...(withPath ? { sessionPath: sessionPathFor(VERIFIED_STEPS_V1) } : {}),
+    // Both rule sets name sealing v2, so the pipeline computes the territory seal as production would.
+    territorySeal: territorySealFor(ENCLOSED_LOOP_V1),
   });
 }
 
@@ -147,22 +150,27 @@ test("an honest closed loop claims; the same walker's open route afterwards clai
   assert.ok(Number(row.distance_meters) > 1000);
 });
 
-test("near miss: finishing 160 m from the start does not seal (150 m does), so it claims nothing", { skip: SKIP }, async () => {
+test("near miss: finishing 160 m from the start does not seal; 150 m seals the movement route (v1) but its 150 m closing edge was never walked, so only 40 m claims", { skip: SKIP }, async () => {
   const miss = await submit(a9db, "w-miss", "miss", route([[[0, 0], [600, 0], [600, 600], [0, 600], [0, 160]]], at(D, 10)));
   assert.equal(miss.sealed, false);
   assert.equal(await code(a9.applySession("w-miss", "miss")), "session_not_sealed");
   assert.deepEqual(await territoryOf(a9db, "w-miss"), NOTHING);
   const edge = await submit(a9db, "w-edge", "edge", route([[[0, 0], [600, 0], [600, 600], [0, 600], [0, 150]]], at(D, 10)));
   assert.equal(edge.sealed, true);
-  assert.ok((await a9.applySession("w-edge", "edge")).applied > 0);
+  assert.equal(await code(a9.applySession("w-edge", "edge")), "seal_not_enclosed");
+  assert.deepEqual(await territoryOf(a9db, "w-edge"), NOTHING);
+  const near = await submit(a9db, "w-near", "near", route([[[0, 0], [600, 0], [600, 600], [0, 600], [0, 40]]], at(D, 10)));
+  assert.equal(near.sealed, true);
+  assert.ok((await a9.applySession("w-near", "near")).applied > 0);
 });
 
-test("direction reversal: out and back to the start seals (return to start); turning back short of it does not", { skip: SKIP }, async () => {
+test("direction reversal: out and back to the start seals the movement route (v1, return to start) but encloses nothing; turning back short of it does not seal", { skip: SKIP }, async () => {
   const full = await submit(a9db, "w-rev", "rev-full", route([[[0, 0], [1500, 0], [0, 0]]], at(D, 9)));
   assert.equal(full.sealed, true);
   const short = await submit(a9db, "w-rev2", "rev-short", route([[[0, 0], [1500, 0], [700, 0]]], at(D, 9)));
   assert.equal(short.sealed, false);
-  assert.ok((await a9.applySession("w-rev", "rev-full")).applied > 0);
+  assert.equal(await code(a9.applySession("w-rev", "rev-full")), "seal_not_enclosed");
+  assert.deepEqual(await territoryOf(a9db, "w-rev"), NOTHING);
   assert.equal(await code(a9.applySession("w-rev2", "rev-short")), "session_not_sealed");
   assert.deepEqual(await territoryOf(a9db, "w-rev2"), NOTHING);
 });
@@ -173,7 +181,8 @@ test("an unobserved line across the route never seals it: walked across it close
   assert.deepEqual(walked.sealMethods, ["self_cross"]);
   // The unobserved stretch is 260 m: past the engine's 200 m continuity break,
   // so without a pause it is not evidence either. (A shorter silent gap with no
-  // pause is treated as walked by the sealing rules, version 1; not changed here.)
+  // pause is treated as walked by the sealing rules, version 1, but never by
+  // the territory seal: see the sealing v2 test below.)
   const parts: XY[][] = [[[0, -300], [0, 300], [200, 300], [200, 5], [130, 5]], [[-130, 5], [-310, 5]]];
   const paused = await submit(a9db, "w-gap1", "paused", route(parts, at(D, 9), { pause: true }));
   const gap = await submit(a9db, "w-gap2", "gap", route(parts, at(D, 9)));
@@ -192,6 +201,30 @@ test("teleporting: a loop closed by an impossible jump is not believed, so it is
   assert.equal(jump.sealed, null);
   assert.equal(await code(a9.applySession("w-tele", "tele")), "session_not_verified");
   assert.deepEqual(await territoryOf(a9db, "w-tele"), NOTHING);
+});
+
+test("sealing v2: out-and-back, parallel sidewalks, a small knot and a gap under 200 m seal the movement route (v1) but claim no land", { skip: SKIP }, async () => {
+  const loopholes: [string, MovementObservation][] = [
+    // One street, there and back to the door.
+    ["one-street", route([[[0, 0], [1200, 0], [0, 0]]], at(D, 9))],
+    // Down one sidewalk and back up the other, 15 m apart.
+    ["sidewalks", route([[[0, 0], [800, 0], [800, 15], [0, 15], [0, 0]]], at(D, 9))],
+    // A 1 km straight walk with a 20 m knot in the middle (a self-crossing).
+    ["knot", route([[[0, 0], [500, 0], [520, 15], [510, -10], [495, 10], [1000, 0]]], at(D, 9))],
+    // A 190 x 400 m "loop" whose top side is a 190 m jump nobody walked (20 s, no pause).
+    ["gap", route([[[0, 0], [0, 400]], [[190, 400], [190, 0], [0, 0]]], at(D, 9), { jumpMs: 20_000 })],
+  ];
+  for (const [sid, obs] of loopholes) {
+    const r = await submit(a9db, `w-v2-${sid}`, sid, obs);
+    assert.equal(r.status, "verified", `${sid}: ${r.rejectionReasons.join("; ")}`);
+    assert.equal(r.sealed, true, `${sid}: the movement engine (rules version 1) still calls it sealed`);
+    assert.ok(Number(r.distanceMeters) > 0, `${sid}: still a verified movement session with distance`);
+    assert.equal(await code(a9.applySession(`w-v2-${sid}`, sid)), "seal_not_enclosed", sid);
+    assert.deepEqual(await territoryOf(a9db, `w-v2-${sid}`), NOTHING, sid);
+  }
+  // The same walker's honest block claims.
+  await submit(a9db, "w-v2-one-street", "block", route([[[0, 0], [150, 0], [150, 100], [0, 100], [0, 0]]], at(D, 10)));
+  assert.ok((await a9.applySession("w-v2-one-street", "block")).applied > 0);
 });
 
 test("missing, stale, inconsistent or forged seals fail closed", { skip: SKIP }, async () => {
@@ -215,6 +248,11 @@ test("missing, stale, inconsistent or forged seals fail closed", { skip: SKIP },
     ["no-methods", { ...SEALED_LOOP, seal_methods: [] }, "seal_inconsistent"],
     ["bad-method", { ...SEALED_LOOP, seal_methods: ["admin_seal"] }, "seal_inconsistent"],
     ["false-with-events", { ...SEALED_LOOP, sealed: false }, "seal_inconsistent"],
+    // Sealing v2: the territory seal is the server's, computed at verification.
+    ["no-territory", { ...SEALED_LOOP, territory_seal_version: null, territory_sealed: null, territory_seal_reason: null }, "territory_seal_missing"],
+    ["territory-v2", { ...SEALED_LOOP, territory_seal_version: 2 }, "territory_seal_version_unsupported"],
+    ["not-enclosed", { ...SEALED_LOOP, territory_sealed: false, territory_seal_reason: "loop_too_thin" }, "seal_not_enclosed"],
+    ["territory-without-v1", { ...SEALED_LOOP, sealed: false, seal_methods: [], seal_event_count: 0 }, "session_not_sealed"],
   ];
   for (const [name, c, expected] of cases) {
     assert.equal(await code(forged(`w-${name}`, name, c)), expected, name);

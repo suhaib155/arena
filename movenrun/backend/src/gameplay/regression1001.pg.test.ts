@@ -19,7 +19,10 @@
  * (no territory without a server seal), every fixture session carries the
  * seal summary the real sealing engine computes for a closed loop
  * (sealFixtures.ts); seal columns are not in the projection, so the recorded
- * value is unchanged. To rerun on 685852b, inline SEALED_LOOP. Skipped without
+ * value is unchanged. Sealing v2 names a territory seal rule in the 1001
+ * config, so the pinned day rules' config and digest differ in exactly that
+ * key; the test checks that and compares the rest with the recording. To
+ * rerun on 685852b, inline SEALED_LOOP. Skipped without
  * MOVENRUN_TEST_DATABASE_URL.
  */
 import { test, before, after } from "node:test";
@@ -32,7 +35,7 @@ import { gridDisk, latLngToCell } from "h3-js";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Db } from "../db/client.js";
-import { DAY_MS, PILOT_PROPOSAL, type GameplayRules } from "./rules.js";
+import { DAY_MS, PILOT_PROPOSAL, rulesetDigest, TERRITORY_SEAL_V2_PILOT, type GameplayRules } from "./rules.js";
 import { GameplayService } from "./service.js";
 import { SEALED_LOOP, SEAL_COLUMNS, sealLiteral } from "./sealFixtures.js";
 
@@ -161,7 +164,20 @@ test("1001 on PostgreSQL: the stored game state of a fixed scenario is the one r
   clock = at(D + 2, 3);
   out.push(await svc.settleDueDays());
   out.push(await svc.myHoldings("ana"), await svc.myCredits("cal", 1), await svc.leaderboard("ben", 1, "player_credits"));
-  out.push(...(await projection()));
+  const projected = await projection();
+  // The pinned day rules carry the config and its digest. Since sealing v2
+  // the config names `territorySeal` (the one deliberate identity change);
+  // with that key taken out it must be the recorded config exactly, and the
+  // rest of the state must hash to the value recorded on 685852b.
+  const dayRules = projected[projected.length - 4] as { config: Record<string, unknown>; config_digest: string }[];
+  assert.ok(dayRules.length > 0);
+  for (const r of dayRules) {
+    assert.equal(r.config_digest, rulesetDigest(PILOT_PROPOSAL));
+    assert.deepEqual(r.config.territorySeal, JSON.parse(JSON.stringify(TERRITORY_SEAL_V2_PILOT)));
+    delete r.config.territorySeal;
+    r.config_digest = rulesetDigest({ ...PILOT_PROPOSAL, territorySeal: undefined });
+  }
+  out.push(...projected);
   const fp = createHash("sha256").update(JSON.stringify(out)).digest("hex");
   if (process.env.MOVENRUN_PRINT_MEASUREMENTS) console.log(`1001 PostgreSQL fingerprint: ${fp}`);
   assert.equal(fp, RECORDED);

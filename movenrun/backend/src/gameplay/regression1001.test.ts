@@ -18,6 +18,12 @@ import { PILOT_PROPOSAL, rulesetConfig, rulesetDigest, zoneOfUnder } from "./rul
 
 /** Recorded from 685852b. */
 const DIGEST_1001 = "d4199ec60958750007bfa8884c88aad1bf810aed6bd2a054abb5dc74ffe41cd6";
+/**
+ * 1001 with sealing v2 named (`territorySeal`, docs/g34/SEALING_V2_28OCT.md):
+ * the one deliberate identity change since 685852b. Without that key the
+ * config is the recorded one, byte for byte.
+ */
+const DIGEST_1001_SEALING_V2 = "9222df56287d481afd39c0b4296af4f89b8ae0327f4616c3fd1ba43c6da3fb7d";
 const STREAM_FINGERPRINT_1001 = "438a3ea0ddb1ad928a04207634d3b8bdbafc5e9c6f250cde58d58c7ee4148a87";
 
 function prng(seed: number) {
@@ -64,8 +70,9 @@ export function stream1001(seed: number): string {
   return createHash("sha256").update(JSON.stringify(out)).digest("hex");
 }
 
-test("1001's recorded identity is unchanged: same config, same digest, no 1002-only field", () => {
-  assert.equal(rulesetDigest(PILOT_PROPOSAL), DIGEST_1001);
+test("1001's recorded identity is unchanged except for the named sealing v2 rule: same config otherwise, no 1002-only field", () => {
+  assert.equal(rulesetDigest({ ...PILOT_PROPOSAL, territorySeal: undefined }), DIGEST_1001);
+  assert.equal(rulesetDigest(PILOT_PROPOSAL), DIGEST_1001_SEALING_V2);
   const config = rulesetConfig(PILOT_PROPOSAL);
   assert.equal(config.dayAttribution, undefined);
   assert.equal(PILOT_PROPOSAL.units.source, undefined);

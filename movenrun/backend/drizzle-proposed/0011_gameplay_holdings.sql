@@ -51,6 +51,14 @@
 --        gameplay_current_player_id(); anon and authenticated get nothing on
 --        any gameplay table, partition, sequence, function or schema. The
 --        API (table owner) serves every read.
+--   movement_verifications + territory_seal_version smallint,
+--                         territory_sealed boolean, territory_seal_reason text
+--                         (sealing v2, docs/g34/SEALING_V2_28OCT.md): the
+--                         server's own finding, at verification, that the
+--                         accepted fixes enclose ground (enclosed-loop rule).
+--                         All NULL unless gameplay asked for it; written once
+--                         (trigger gameplay_movement_territory_seal_once).
+--                         Reason codes only: no location, area or polygon.
 --   gameplay_ensure_day_partitions: a partition another creator committed
 --        while this one waited for the lock is skipped instead of failing
 --        the push with 42P07 (found by 40 concurrent first pushes of a day).
@@ -783,6 +791,34 @@ DROP TRIGGER IF EXISTS "gameplay_movement_receipt_immutable" ON "movement_verifi
 CREATE TRIGGER "gameplay_movement_receipt_immutable" BEFORE UPDATE OF "created_at" ON "movement_verifications"
   FOR EACH ROW EXECUTE FUNCTION public.gameplay_movement_receipt_immutable();--> statement-breakpoint
 
+-- Sealing v2: the server's territory seal of a verified session (V3 rule 3),
+-- computed from the accepted fixes at verification and written in the same
+-- transaction when gameplay asks for it. All three NULL otherwise (gameplay
+-- off, or a rule set that does not use it); a push then refuses the session.
+ALTER TABLE "movement_verifications" ADD COLUMN IF NOT EXISTS "territory_seal_version" smallint;--> statement-breakpoint
+ALTER TABLE "movement_verifications" ADD COLUMN IF NOT EXISTS "territory_sealed" boolean;--> statement-breakpoint
+ALTER TABLE "movement_verifications" ADD COLUMN IF NOT EXISTS "territory_seal_reason" text;--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP CONSTRAINT IF EXISTS "movement_verifications_territory_seal";--> statement-breakpoint
+ALTER TABLE "movement_verifications" ADD CONSTRAINT "movement_verifications_territory_seal" CHECK (
+  ("territory_seal_version" IS NULL AND "territory_sealed" IS NULL AND "territory_seal_reason" IS NULL)
+  OR ("territory_seal_version" >= 1 AND "territory_sealed" IS NOT NULL
+      AND "territory_seal_reason" IN ('enclosed', 'no_closed_loop', 'loop_too_small', 'loop_retraced', 'loop_too_thin', 'insufficient_route', 'route_outside_local_frame')
+      AND "territory_sealed" = ("territory_seal_reason" = 'enclosed')));--> statement-breakpoint
+-- Written once: a recorded territory seal never changes (a re-scored session
+-- could otherwise claim ground its walk did not enclose).
+CREATE OR REPLACE FUNCTION public.gameplay_movement_territory_seal_once() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.territory_seal_version IS NOT NULL AND (NEW.territory_seal_version IS DISTINCT FROM OLD.territory_seal_version
+      OR NEW.territory_sealed IS DISTINCT FROM OLD.territory_sealed OR NEW.territory_seal_reason IS DISTINCT FROM OLD.territory_seal_reason) THEN
+    RAISE EXCEPTION 'movement_verifications territory seal is written once' USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_movement_territory_seal_once" ON "movement_verifications";--> statement-breakpoint
+CREATE TRIGGER "gameplay_movement_territory_seal_once" BEFORE UPDATE OF "territory_seal_version", "territory_sealed", "territory_seal_reason" ON "movement_verifications"
+  FOR EACH ROW EXECUTE FUNCTION public.gameplay_movement_territory_seal_once();--> statement-breakpoint
+
 -- ── row level security ─────────────────────────────────────────────────────
 ALTER TABLE "gameplay_players" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_units" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -813,6 +849,7 @@ REVOKE ALL ON FUNCTION public.gameplay_check_take_budget() FROM PUBLIC;--> state
 REVOKE ALL ON FUNCTION public.gameplay_check_challenge() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_ensure_day_partitions(integer, integer) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_movement_receipt_immutable() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_movement_territory_seal_once() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_settlement_halts_append_only() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_player_day_proofs_append_only() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_push_seq" FROM PUBLIC;--> statement-breakpoint

@@ -189,9 +189,13 @@ test("0011 applies on the committed chain, rolls back cleanly, and applies again
   const leftovers = await pool.query(`SELECT relname FROM pg_class WHERE relname LIKE 'gameplay_%'
     UNION ALL SELECT nspname FROM pg_namespace WHERE nspname = 'gameplay_partitions'`);
   assert.deepEqual(leftovers.rows, [], "partitions, sequences and the partition schema go too");
+  const territoryColumns = async () => (await pool.query(`SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'movement_verifications' AND column_name LIKE 'territory\_seal%' ORDER BY 1`)).rows.map((r) => r.column_name);
+  assert.deepEqual(await territoryColumns(), [], "sealing v2's columns go too; the movement rows stay");
   await migrateUp();
   await migrateUp(); // and re-running it is harmless
   assert.deepEqual(await tables(), withGameplay);
+  assert.deepEqual(await territoryColumns(), ["territory_seal_reason", "territory_seal_version", "territory_sealed"]);
 });
 
 test("default deny: no privilege and no policy at all for anon or the signed-in role on any gameplay table", { skip: SKIP }, async () => {

@@ -9,7 +9,8 @@ import { COHORTS, DEFAULT_FAIRNESS, fairnessSeed, fairnessSessions } from "./fai
 import { PILOT_PROPOSAL, SIM_PILOT_2_PROPOSAL, rulesetDigest } from "./rules.js";
 
 const SMALL = { days: 7, counts: { commuter: 4, loop: 3, long: 2, cowalker: 4, gaps: 3, hostile: 1, spoofer: 1 } };
-const DIGEST_1001 = "d4199ec60958750007bfa8884c88aad1bf810aed6bd2a054abb5dc74ffe41cd6";
+// 1001 with sealing v2 named (was d4199ec6… before docs/g34/SEALING_V2_28OCT.md).
+const DIGEST_1001 = "9222df56287d481afd39c0b4296af4f89b8ae0327f4616c3fd1ba43c6da3fb7d";
 
 test("same seed, same walks, same rows; another seed differs", () => {
   const a = fairnessSeed(11, SMALL);
