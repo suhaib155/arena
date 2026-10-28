@@ -90,6 +90,7 @@ test("1002 blocks honest walker-days far more than 1003B, and 3 a day more than 
 test("no rule set changes: 1001 stays the default with its digest, 1002 digest is the post-#152 one, every scenario is a distinct spec", () => {
   assert.equal(DEFAULT_RULES_VERSION, 1001);
   assert.equal(rulesetDigest(PILOT_PROPOSAL), "d4199ec60958750007bfa8884c88aad1bf810aed6bd2a054abb5dc74ffe41cd6");
+  assert.equal(rulesetDigest(SIM_PILOT_2_PROPOSAL), "92e8e3cb12ac1f2cc07aeca2a9d50b9424182951a69de2fb8cd91c79cf27b788");
   assert.equal(SIM_PILOT_2_PROPOSAL.units.source!.rule.pushInterpolated, false);
   assert.equal(new Set(SCENARIOS.map((s) => s.id)).size, SCENARIOS.length);
   assert.deepEqual(STUDY_RUNS.map((r) => r.label), ["1001", "1002", "1003B5", "1003B3"]);
