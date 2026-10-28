@@ -328,7 +328,7 @@ Raw JSON in `diff-writes-results/small/`. Scenario s1: kept rows unchanged. s2: 
 | naptime 1 s | s2 | delete-insert | 5.48 | 0 | 0 | 2 | 31.2 | 0 |
 | naptime 1 s | s2 | diff (compare) | 3.63 | 0 | 10,283 / 5,553 | 1 | 18.4 | 0 |
 
-No retries, deadlocks or lock timeouts in any run. The comparing diff writes 15,4xx updates in s2 (the rollover restamps every kept row of the touched units once; that is the cost of correctness) and is HOT for 52 to 62% of them at fillfactor 100.
+No retries, deadlocks or lock timeouts in any run. The comparing diff writes 6,050 to 14,803 updates in s2 (table above) (the rollover restamps every kept row of the touched units once; that is the cost of correctness) and is HOT for 51 to 62% of them at fillfactor 100.
 
 Larger run (20,000 batches, 8 clients, s2; `diff-writes-results/large/`):
 
