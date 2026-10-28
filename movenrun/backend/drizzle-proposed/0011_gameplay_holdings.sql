@@ -40,6 +40,12 @@
 --                         challenge (the session row's created_at, or the
 --                         server clock for a server batch), never a client
 --                         clock. Read by 1002's 20-hour second-push gap.
+--   gameplay_day_settlements + receipt_cutoff_at timestamptz NOT NULL: the
+--                         day's close plus grace; sessions the server received
+--                         at or after it count for no day (Track B finding 1).
+--   movement_verifications: trigger gameplay_movement_receipt_immutable
+--                         refuses any UPDATE that changes created_at, the
+--                         server receipt time settlement selects by.
 --   access: default deny on every table. The signed-in role's read policies
 --        and column grants of revision 2 are removed, as is
 --        gameplay_current_player_id(); anon and authenticated get nothing on
@@ -564,6 +570,9 @@ CREATE TABLE IF NOT EXISTS "gameplay_day_settlements" (
   "clubs_problems" jsonb DEFAULT '[]'::jsonb NOT NULL CHECK (jsonb_typeof("clubs_problems") = 'array'),
   -- sha256 of the canonical inputs, for an independent reconciler.
   "input_digest" text NOT NULL CHECK ("input_digest" ~ '^[0-9a-f]{64}$'),
+  -- The day's receipt cutoff (close plus grace): sessions the server received
+  -- at or after it counted for nothing. Also bound into input_digest.
+  "receipt_cutoff_at" timestamptz NOT NULL,
   "settled_at" timestamp DEFAULT now() NOT NULL,
   -- Section 6.1 invariants 1 to 4, held by the database as well as the model.
   CONSTRAINT "gameplay_day_settlements_books_close" CHECK (
@@ -707,6 +716,23 @@ CREATE TABLE IF NOT EXISTS "gameplay_district_days" (
 -- ── day attribution index on verified sessions (read at day close) ─────────
 CREATE INDEX IF NOT EXISTS "movement_verifications_verified_end_time_idx" ON "movement_verifications" ("end_time") WHERE "status" = 'verified';--> statement-breakpoint
 
+-- ── server receipt time of a session is immutable ──────────────────────────
+-- Settlement counts a session only if the server received it before its day
+-- closed (movement_verifications.created_at, the database's own clock at
+-- insert; the API never supplies it). Rewriting it later could pull a late
+-- session back into a closed day, so an UPDATE that changes it is refused.
+CREATE OR REPLACE FUNCTION public.gameplay_movement_receipt_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'movement_verifications.created_at is the server receipt time and cannot change' USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_movement_receipt_immutable" ON "movement_verifications";--> statement-breakpoint
+CREATE TRIGGER "gameplay_movement_receipt_immutable" BEFORE UPDATE OF "created_at" ON "movement_verifications"
+  FOR EACH ROW EXECUTE FUNCTION public.gameplay_movement_receipt_immutable();--> statement-breakpoint
+
 -- ── row level security ─────────────────────────────────────────────────────
 ALTER TABLE "gameplay_players" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_units" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -735,6 +761,7 @@ REVOKE ALL ON FUNCTION public.gameplay_day_rules_final() FROM PUBLIC;--> stateme
 REVOKE ALL ON FUNCTION public.gameplay_check_take_budget() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_check_challenge() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_ensure_day_partitions(integer, integer) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_movement_receipt_immutable() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_push_seq" FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_source_no_seq" FROM PUBLIC;--> statement-breakpoint
 

@@ -126,12 +126,24 @@ function observation(fixture: number, endMs: number, origin = { latitude: 51.52,
   return { startTime: points[0]!.timestamp, endTime: points[points.length - 1]!.timestamp, points };
 }
 
+/**
+ * The pipeline's row carries the database's real receipt time, weeks after
+ * this synthetic day closed; re-date it to the test clock (bypassing, for
+ * these tests only, the trigger that otherwise keeps it immutable).
+ */
+async function redate(id: string): Promise<void> {
+  await t.pool.query("ALTER TABLE movement_verifications DISABLE TRIGGER gameplay_movement_receipt_immutable");
+  await t.pool.query("UPDATE movement_verifications SET created_at = (to_timestamp($2::float8 / 1000) AT TIME ZONE current_setting('TimeZone')) WHERE id = $1", [id, clock]);
+  await t.pool.query("ALTER TABLE movement_verifications ENABLE TRIGGER gameplay_movement_receipt_immutable");
+}
+
 test("the movement pipeline stores the resolution 10 path of verified fixes; 1002 pushes exactly it, in walk order", { skip: SKIP }, async () => {
   clock = at(D, 12);
   const ana = await user("ana");
   const obs = observation(0, at(D, 11));
   const { record } = await pipeline(true).submit({ userId: ana, clientSessionId: "pipe-1", observation: obs });
   assert.equal(record.status, "verified");
+  await redate(record.id);
   for (const c of record.traversedHexIds) assert.equal(getResolution(c), 8, "the pipeline's own column is unchanged");
   const [row] = await q("SELECT path_version, resolution, unit_ids::text[] AS ids, interpolated::text AS bits, truncated, pg_column_size(unit_ids) AS bytes FROM gameplay_session_paths WHERE movement_verification_id = $1", [record.id]);
   const expected = deriveSessionPath(obs.points, [], VERIFIED_STEPS_V1);
@@ -147,7 +159,7 @@ test("the movement pipeline stores the resolution 10 path of verified fixes; 100
     console.log(`session path: ${expected.units.length} units, unit_ids ${row.bytes} bytes as bigint[] vs ${text} as text[]`);
   }
   // A session verified while gameplay was off has no path: 1002 refuses it rather than guessing.
-  await pipeline(false).submit({ userId: ana, clientSessionId: "pipe-2", observation: observation(1, at(D, 11.5)) });
+  await redate((await pipeline(false).submit({ userId: ana, clientSessionId: "pipe-2", observation: observation(1, at(D, 11.5)) })).record.id);
   assert.equal(await code(p2.applySession(ana, "pipe-2")), "session_path_unavailable");
   // 1001 still pushes the stored resolution 8 cells, as before (different day, a season of its own is not needed: unit ids differ).
 });
@@ -274,8 +286,9 @@ test("mid-season rule change fails closed: 1001 cannot touch a 1002 season, and 
     const end = i % 2 === 0 ? at(S2, 21) : at(S2 + 1, 0.5);
     await session(w, `race-p2-${i}`, end, [U[400 + i]!]);
     await t.pool.query(
-      `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time)
-       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6)`, [`mv-race-a9-${i}`, w, `race-a9-${i}`, [R8[i + 1]!], end - 1_800_000, end]);
+      `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
+       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')))`,
+      [`mv-race-a9-${i}`, w, `race-a9-${i}`, [R8[i + 1]!], end - 1_800_000, end, clock]);
   }
   const settled = await Promise.allSettled(racers.flatMap((w, i) => [p2.applySession(w, `race-p2-${i}`), a9.applySession(w, `race-a9-${i}`)]));
   const codes = settled.map((s) => (s.status === "fulfilled" ? "ok" : (s.reason as GameplayError).code));
