@@ -188,14 +188,14 @@ export default function SecurityScreen() {
     }
     setBusy(false);
     if (!deleted) return;
-    Alert.alert("Account deleted", "Your MovenRun account and its saved sessions have been permanently deleted.");
+    Alert.alert("Account deleted", "Your MovenRun account data and saved sessions have been deleted. Removing the Google or wallet sign-in record may still be finishing.");
     router.replace("/account");
   };
 
   const confirmDeleteAccount = () => {
     Alert.alert(
       "Delete your account?",
-      "This permanently deletes your MovenRun account, its Google or wallet sign-in record, and every verified session saved to it, and signs out all devices. Progress on this device is cleared too. This cannot be undone.",
+      "This deletes your MovenRun account data and every verified session saved to it, requests removal of its Google or wallet sign-in record, and signs out all devices. Progress on this device is cleared too. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Delete account", style: "destructive", onPress: () => void doDeleteAccount() },
