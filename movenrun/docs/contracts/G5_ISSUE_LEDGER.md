@@ -69,6 +69,11 @@ What changed in this branch:
   days) lifts it. It is scoped to the (city, cluster) so that a different claimant can still
   claim a freed cell (N1 regression test). The signers choose the evidence id, so this is
   defence in depth against replayed evidence, not protection against colluding signers.
+  **Known limitation (open, owner design choice):** the key is shared, not per claim. Where the
+  cluster cap allows two live claims with the same evidence under different nonces, and both
+  are FAULT-voided, appealing only one deletes the shared key and so also frees the evidence of
+  the claim that was not appealed. The appeal also lifts the key when no cluster slot is
+  restored. Closing this needs a per-claim nullifier or a use count; no test covers the case yet.
 
 Kept from `355b8f5`: one-time cluster restoration on administrative void, 7-day reclaim
 cooldown, appeal window, hook callable only by the deed contract, no administrative reach over
