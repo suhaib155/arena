@@ -1,6 +1,19 @@
 import { ethers } from "ethers";
 import { getConfig } from "../config.js";
 import { BASE_RATE, HALVING_INTERVAL, DAILY_CAP_INITIAL } from "@movenrun/shared";
+import { decimalToFixed18, FIXED18_ONE } from "@movenrun/shared/credit-units";
+
+/**
+ * 18-decimal units earned for a distance at a per-km rate and a gear
+ * multiplier. Exact: the multiplier becomes fixed point by its written
+ * decimal (never `Math.round(x * 1e18)`, which turns 1.1 into
+ * 1.1000000000000001), and the one division floors.
+ */
+export function earningFor(distanceMeters: number, rate: bigint, gearMultiplier = 1.0): bigint {
+  if (!Number.isSafeInteger(distanceMeters) || distanceMeters < 0) throw new RangeError("distanceMeters must be a non-negative safe integer");
+  if (rate < 0n) throw new RangeError("rate must be non-negative");
+  return (BigInt(distanceMeters) * rate * decimalToFixed18(gearMultiplier)) / (1000n * FIXED18_ONE);
+}
 
 export class TokenService {
   private provider: ethers.JsonRpcProvider;
@@ -14,8 +27,7 @@ export class TokenService {
   async calculateEarning(walletAddress: string, distanceMeters: number, gearMultiplier = 1.0): Promise<bigint> {
     const blockNumber = await this.provider.getBlockNumber();
     const rate = this._rateAtBlock(blockNumber);
-    const earned = (BigInt(distanceMeters) * rate * BigInt(Math.round(gearMultiplier * 1e18))) / (1000n * BigInt(1e18));
-    return earned;
+    return earningFor(distanceMeters, rate, gearMultiplier);
   }
 
   async getUserStats(walletAddress: string): Promise<{

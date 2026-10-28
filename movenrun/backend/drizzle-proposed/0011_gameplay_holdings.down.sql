@@ -17,13 +17,15 @@
 --     challenges, the district map and the player numbers;
 --   - every stored 1002 session path: an unapplied 1002 session can then
 --     never be applied (its raw fixes were never stored);
---   - the sequences behind ledger order and source numbers.
+--   - the sequences behind ledger order and source numbers;
+--   - the settlement halt log (every operator and reconciler halt/resume).
 -- Settled days are meant to be final; after this they cannot be reconciled
 -- or replayed. Take a pg_dump of the gameplay_* tables and the
 -- gameplay_partitions schema first, and treat running this as its own owner
 -- decision. If 0011 was promoted into drizzle/, also delete its row from
 -- drizzle.__drizzle_migrations in the same transaction, or a later
 -- `drizzle-kit migrate` will not re-apply it.
+DROP TABLE IF EXISTS "gameplay_settlement_halts";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_session_paths";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_unit_challenges";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_walker_days";--> statement-breakpoint
@@ -58,4 +60,6 @@ DROP FUNCTION IF EXISTS public.gameplay_reset_erased_holder();--> statement-brea
 DROP FUNCTION IF EXISTS public.gameplay_reset_erased_state_holder();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_check_challenge();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_check_take_budget();--> statement-breakpoint
-DROP FUNCTION IF EXISTS public.gameplay_day_rules_final();
+DROP FUNCTION IF EXISTS public.gameplay_day_rules_final();--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_settlement_halts_append_only();--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_player_day_proofs_append_only();

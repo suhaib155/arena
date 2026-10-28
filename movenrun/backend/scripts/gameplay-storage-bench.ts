@@ -92,6 +92,7 @@ async function loadService(): Promise<void> {
   rulesetFor = rules.rulesetFor;
 }
 const PROFILE = arg("profile") ?? "quick";
+const SCENARIO_JSON = arg("scenario-json");
 const PROPOSED = arg("proposed") ?? "drizzle-proposed/0011_gameplay_holdings.sql";
 const ONLY = arg("only");
 const KEEP = flag("keep");
@@ -205,6 +206,10 @@ interface Scenario {
   challengeVacuumEvery?: number;
   /** Churn study only: a plain VACUUM of gameplay_unit_challenges once per day, after the day's applies. */
   challengeVacuumDaily?: boolean;
+  /** Matrix study: capture per-table stats (dead tuples, HOT updates, autovacuum counts, sizes) before any measurement VACUUM, at every checkpoint. */
+  captureStats?: boolean;
+  /** Matrix study: skip the bench's own database-wide VACUUM on day 2 (the retry probe), so only autovacuum runs before the day-14 measurement. */
+  noMidVacuum?: boolean;
 }
 
 const AREA_RADIUS_M = { dense: 2_000, sparse: 12_000 } as const;
@@ -255,6 +260,14 @@ const PROFILES: Record<string, Scenario[]> = {
     walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7, 14], ...extra,
   })),
 };
+
+// Matrix study (G34_HOT_AUTOVACUUM_BENCHMARK.md): scenarios come from --scenario-json (an array of partial scenarios); raw JSON only.
+if (SCENARIO_JSON) {
+  PROFILES.matrix = (JSON.parse(readFileSync(SCENARIO_JSON, "utf8")) as Partial<Scenario>[]).map((x) => ({
+    rulesVersion: 1002, res: 10, density: "dense", days: 14, activeShare: 0.6, sessionsPerActiveDay: 1.5, walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [14],
+    captureStats: true, ...x,
+  }) as Scenario);
+}
 
 /* ── database helpers ──────────────────────────────────────────────────── */
 
@@ -330,6 +343,42 @@ async function indexSizes(pool: pg.Pool, table: string): Promise<{ index: string
   return r.rows.map((x) => ({ index: x.index, bytes: Number(x.bytes) }));
 }
 
+interface StatRow {
+  table: string; rows: number; live: number; dead: number; heap: number; indexes: number; toast: number; total: number;
+  ins: number; upd: number; hotUpd: number; del: number; autovacuumCount: number; vacuumCount: number; autoanalyzeCount: number;
+}
+/** Per root table (partitions summed): sizes and the stats collector's counters. Run before the measurement VACUUM, after stats are flushed. */
+async function statRows(pool: pg.Pool): Promise<StatRow[]> {
+  await new Promise((r) => setTimeout(r, 1200));
+  await pool.query("SELECT pg_stat_clear_snapshot()");
+  const r = await pool.query(`
+    WITH rel AS (
+      -- public tables, and the day partitions of public partitioned tables (they live in gameplay_partitions), summed into the parent.
+      SELECT c.oid, c.relname, c.relkind, coalesce(pc.relname, c.relname) AS root
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN pg_inherits i ON i.inhrelid = c.oid LEFT JOIN pg_class pc ON pc.oid = i.inhparent
+        LEFT JOIN pg_namespace pn ON pn.oid = pc.relnamespace
+       WHERE c.relkind IN ('r', 'p') AND ((n.nspname = 'public' AND pc.oid IS NULL) OR pn.nspname = 'public'))
+    SELECT rel.root AS table,
+           sum(pg_relation_size(rel.oid)) AS heap, sum(pg_indexes_size(rel.oid)) AS indexes,
+           sum(CASE WHEN c2.reltoastrelid <> 0 THEN pg_total_relation_size(c2.reltoastrelid) ELSE 0 END) AS toast,
+           sum(pg_total_relation_size(rel.oid)) AS total,
+           coalesce(sum(s.n_live_tup), 0) AS live, coalesce(sum(s.n_dead_tup), 0) AS dead,
+           coalesce(sum(s.n_tup_ins), 0) AS ins, coalesce(sum(s.n_tup_upd), 0) AS upd, coalesce(sum(s.n_tup_hot_upd), 0) AS hot,
+           coalesce(sum(s.n_tup_del), 0) AS del, coalesce(sum(s.autovacuum_count), 0) AS av, coalesce(sum(s.vacuum_count), 0) AS v,
+           coalesce(sum(s.autoanalyze_count), 0) AS aa
+      FROM rel JOIN pg_class c2 ON c2.oid = rel.oid LEFT JOIN pg_stat_user_tables s ON s.relid = rel.oid
+     WHERE rel.relkind = 'r'
+     GROUP BY rel.root ORDER BY rel.root`);
+  const out: StatRow[] = [];
+  for (const x of r.rows) {
+    const cnt = await pool.query(`SELECT count(*)::bigint AS n FROM "${x.table}"`);
+    out.push({ table: x.table, rows: Number(cnt.rows[0].n), live: Number(x.live), dead: Number(x.dead), heap: Number(x.heap), indexes: Number(x.indexes), toast: Number(x.toast),
+      total: Number(x.total), ins: Number(x.ins), upd: Number(x.upd), hotUpd: Number(x.hot), del: Number(x.del), autovacuumCount: Number(x.av), vacuumCount: Number(x.v), autoanalyzeCount: Number(x.aa) });
+  }
+  return out;
+}
+
 const dbSize = async (pool: pg.Pool) => Number((await pool.query("SELECT pg_database_size(current_database()) AS b")).rows[0].b);
 
 /* ── one scenario ──────────────────────────────────────────────────────── */
@@ -358,6 +407,8 @@ interface ScenarioResult {
   sessionPaths?: number;
   /** Churn study: plain VACUUMs of gameplay_unit_challenges the scenario ran, and the table each day before any measurement VACUUM. */
   challengeVacuums?: number;
+  /** Matrix study: table stats captured before the measurement VACUUM at each checkpoint (see captureStats). */
+  statsAtCheckpoints?: { day: number; databaseBytes: number; tables: StatRow[]; autovacuum: { count: number; analyzeCount: number }; tempFiles: number; tempBytes: number; xactCommit: number; walBytesSoFar: number }[];
   challengeSamples?: { day: number; bytes: number; live: number; dead: number }[];
   /** Revision 2 only: bytes of one empty day partition, per partitioned table. */
   emptyPartition?: Record<string, number>;
@@ -500,6 +551,7 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
     const challengeSamples: { day: number; bytes: number; live: number; dead: number }[] = [];
     const lsn = async () => String((await pool.query("SELECT pg_current_wal_lsn()::text AS l")).rows[0].l);
     let walBytes = 0;
+    const statsAtCheckpoints: NonNullable<ScenarioResult["statsAtCheckpoints"]> = [];
 
     for (let day = SEASON_START; day <= lastDay; day++) {
       const walDayStart = await lsn();
@@ -576,13 +628,13 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       if (day === SEASON_START + 1 && retries === null) {
         const sample = todays.slice(0, Math.min(50, todays.length));
         const rowsNow = async () => (await tableSizes(pool)).filter((t) => proposedTables.includes(t.table));
-        await pool.query("VACUUM");
+        if (!s.noMidVacuum) await pool.query("VACUUM");
         const b = await rowsNow();
         for (const x of sample) {
           const r = await service.applySession(x.userId, x.clientSessionId);
           if (!r.replayed) throw new Error("retry was not a replay");
         }
-        await pool.query("VACUUM");
+        if (!s.noMidVacuum) await pool.query("VACUUM");
         const a = await rowsNow();
         retries = { replays: sample.length, rowsBefore: b.reduce((q, t) => q + t.rows, 0), rowsAfter: a.reduce((q, t) => q + t.rows, 0),
           bytesBefore: b.reduce((q, t) => q + t.total, 0), bytesAfter: a.reduce((q, t) => q + t.total, 0) };
@@ -616,6 +668,13 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
         challengeSamples.push({ day: n, bytes: Number(c.b), live: Number(c.live), dead: Number(c.dead) });
       }
       if (s.checkpoints.includes(n)) {
+        if (s.captureStats) {
+          const tables = await statRows(pool);
+          const dbst = (await pool.query(`SELECT temp_files, temp_bytes, xact_commit FROM pg_stat_database WHERE datname = current_database()`)).rows[0];
+          const av = tables.reduce((a, t) => ({ count: a.count + t.autovacuumCount, analyzeCount: a.analyzeCount + t.autoanalyzeCount }), { count: 0, analyzeCount: 0 });
+          statsAtCheckpoints.push({ day: n, databaseBytes: await dbSize(pool), tables, autovacuum: av, tempFiles: Number(dbst.temp_files), tempBytes: Number(dbst.temp_bytes),
+            xactCommit: Number(dbst.xact_commit), walBytesSoFar: walBytes });
+        }
         await pool.query("VACUUM ANALYZE");
         const cp: Checkpoint = { day: n, databaseBytes: await dbSize(pool), tables: await tableSizes(pool) };
         if (n === s.days) {
@@ -652,7 +711,7 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       outcomes, retries, checkpoints, pushEventIndexes,
       dayStatesPerPush: rowsOf("gameplay_unit_day_states") / Math.max(1, pushes.normal + pushes.hostile),
       distinctUnits: rowsOf("gameplay_units"), districtMapUnits: mapCells.length, clubs: nClubs, districts,
-      authFootprint, alternatives, explain, walBytes, sessionPaths, challengeVacuums, challengeSamples, seconds: (Date.now() - t0) / 1000,
+      authFootprint, alternatives, explain, walBytes, sessionPaths, challengeVacuums, statsAtCheckpoints, challengeSamples, seconds: (Date.now() - t0) / 1000,
     };
   } finally {
     await pool.end();
@@ -1406,6 +1465,12 @@ async function main() {
   for (const s of scenarios) {
     console.error(`scenario ${s.name}`);
     results.push(await runScenario(s));
+  }
+  if (PROFILE === "matrix") {
+    const rawOut = arg("out");
+    if (!rawOut) throw new Error("--out is required for --profile matrix");
+    writeFileSync(rawOut, JSON.stringify({ ranAt: new Date().toISOString(), postgres: version.v, results }, null, 2));
+    return;
   }
   const proj = projections(results);
   const extra = extraSections(results);

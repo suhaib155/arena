@@ -61,7 +61,7 @@ import {
   clubContributions, clubSnapshot, districtControl, seasonLeaderboard,
   type DistrictControlResult, type DistrictStanding, type LeaderboardMetric, type Membership, type SeasonDay,
 } from "@movenrun/shared/clubsDistricts";
-import type { DaySettlement } from "@movenrun/shared/economy-v3";
+import { reconcileDay, seasonPoolMicro, type DaySettlement } from "@movenrun/shared/economy-v3";
 import {
   dayCloseMs, dayOf, dayStartMs, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, sealProblem, seasonOf,
   UnknownRulesVersionError, zoneOfUnder,
@@ -75,6 +75,7 @@ import { DEFAULT_UNIT_BUDGET, type CapacityGuard } from "./capacity.js";
 import { cellToInt8, int8ToCell, isStorableCell } from "./cells.js";
 import { bitsToFlags, pushUnitsOf, steppedUnitsOf } from "./path.js";
 import { partitionProblems, withPartitionLevels, zonePartitions } from "./zones.js";
+import { dayInvariantProblems, exact, pinnedEconomyRules, PinnedRulesError, type BooksRow, type LineRow } from "./invariants.js";
 
 /** Advisory lock namespace ("MRGP"); the second key is the day index. */
 export const GAMEPLAY_LOCK_NAMESPACE = 0x4d524750;
@@ -253,6 +254,28 @@ export interface GameplayServiceDeps {
   /** work_mem for the settlement transaction, in kB (default 16 MiB), so the day's sorts stay in memory. */
   settlementWorkMemKb?: number;
 }
+
+type SettledCredits = Extract<CreditsDayResult, { status: "settled" }>;
+
+/** The books a settled day stores, as exact integers. */
+function booksOf(c: SettledCredits): BooksRow {
+  const b = c.settlement.books;
+  return {
+    pool: exact(b.poolMicro), minted: exact(b.mintedMicro), credited: exact(b.creditedMicro), tollPaid: exact(b.tollPaidMicro),
+    tollReceived: exact(b.tollReceivedMicro), burned: exact(b.burnedMicro), returned: exact(b.returnedToSeasonPoolMicro), players: BigInt(c.lines.length),
+  };
+}
+
+/** The credit lines a settled day stores, as exact integers, by player id. */
+function linesOf(c: SettledCredits): LineRow[] {
+  return [...c.lines].sort((a, b) => byString(a.playerId, b.playerId)).map((l) => ({
+    playerId: l.playerId, earned: exact(l.earnedMicro), tollPaid: exact(l.tollPaidMicro), tollReceived: exact(l.tollReceivedMicro),
+    recharge: exact(l.rechargeMicro), upkeepTaken: exact(l.upkeepTakenMicro), upkeepInCondition: exact(l.upkeepPaidInConditionMicro), net: exact(l.netMicro),
+  }));
+}
+
+/** Key-sorted, bigints as text: two rows compare equal exactly when every field does. */
+const stringify = (o: object) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => byString(a, b)).map(([k, v]) => [k, typeof v === "bigint" ? v.toString() : v]));
 
 export class GameplayService {
   private readonly db: Db;
@@ -858,6 +881,8 @@ export class GameplayService {
    * instance that slept catches up when it wakes; no paid scheduler.
    */
   async settleDueDays(): Promise<number> {
+    // An operator or reconciler halt: settle nothing, quietly (the loop keeps running).
+    if ((await this.settlementStatus()).halted) return 0;
     const today = this.today();
     if (today + 2 >= this.rules.seasonOneStartDay) await this.ensurePartitions(Math.max(this.rules.seasonOneStartDay, today), today + 2);
     const last = lastClosedDay(this.rules, this.now());
@@ -893,6 +918,8 @@ export class GameplayService {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
     const existing = await this.daySummary(tx, day);
     if (existing) return { ...existing, created: false };
+    // Halted: nothing is written; the day stays unsettled until a resume.
+    if (await this.haltedIn(tx)) throw new GameplayError(503, "settlement_halted");
     // The day's sorts (entries, the session week, the latest unit states) in memory, not on disk.
     await tx.execute(sql.raw(`SET LOCAL work_mem = '${this.settlementWorkMemKb}kB'`));
 
@@ -1003,14 +1030,194 @@ export class GameplayService {
     if (!Number.isInteger(day) || day < 0) throw new GameplayError(400, "invalid_day");
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
-      const [stored] = await rows<{ season: number; input_digest: string }>(tx, sql`
-        SELECT season, input_digest FROM gameplay_day_settlements WHERE day = ${day}`);
+      const [stored] = await rows<{ season: number; input_digest: string; status: "settled" | "refused"; problems: unknown; economy_rules_version: number;
+        pool_micro: string; minted_micro: string; credited_micro: string; toll_paid_micro: string; toll_received_micro: string; burned_micro: string;
+        returned_micro: string; players: number }>(tx, sql`
+        SELECT season, input_digest, status, problems, economy_rules_version, pool_micro::text, minted_micro::text, credited_micro::text,
+               toll_paid_micro::text, toll_received_micro::text, burned_micro::text, returned_micro::text, players
+          FROM gameplay_day_settlements WHERE day = ${day}`);
       if (!stored) throw new GameplayError(404, "day_not_settled");
       const rules = await this.pinnedRules(tx, day);
-      const { inputDigest } = await this.dayInputs(tx, day, Number(stored.season), rules);
+      const season = Number(stored.season);
+      const { inputDigest, credits } = await this.dayInputs(tx, day, season, rules);
       if (inputDigest !== stored.input_digest) throw new GameplayError(409, "closed_day_replay_mismatch");
+      if (Number(stored.economy_rules_version) !== rules.economyRulesVersion) throw new GameplayError(409, "closed_day_replay_mismatch");
+
+      // The books as STORED, checked on their own (invariants.ts), then
+      // against a fresh settlement of the same inputs under the pinned rules.
+      if (stored.status !== credits.status) throw new GameplayError(409, "closed_day_replay_mismatch");
+      if (credits.status === "refused") {
+        if (JSON.stringify(stored.problems) !== JSON.stringify(credits.problems)) throw new GameplayError(409, "closed_day_replay_mismatch");
+        return { day, inputDigest };
+      }
+      const lineRows = await rows<Record<string, string>>(tx, sql`
+        SELECT player_id, earned_micro::text, toll_paid_micro::text, toll_received_micro::text, recharge_micro::text, upkeep_taken_micro::text,
+               upkeep_in_condition_micro::text, zones_held::text, net_micro::text
+          FROM gameplay_credit_lines WHERE day = ${day} ORDER BY player_id`);
+      let books: BooksRow;
+      let lines: (LineRow & { zonesHeld: bigint })[];
+      try {
+        books = {
+          pool: exact(stored.pool_micro), minted: exact(stored.minted_micro), credited: exact(stored.credited_micro), tollPaid: exact(stored.toll_paid_micro),
+          tollReceived: exact(stored.toll_received_micro), burned: exact(stored.burned_micro), returned: exact(stored.returned_micro), players: exact(String(stored.players)),
+        };
+        lines = lineRows.map((l) => ({
+          playerId: l.player_id!, earned: exact(l.earned_micro), tollPaid: exact(l.toll_paid_micro), tollReceived: exact(l.toll_received_micro),
+          recharge: exact(l.recharge_micro), upkeepTaken: exact(l.upkeep_taken_micro), upkeepInCondition: exact(l.upkeep_in_condition_micro),
+          zonesHeld: exact(l.zones_held), net: exact(l.net_micro),
+        }));
+      } catch {
+        throw new GameplayError(409, "closed_day_books_invalid");
+      }
+      if (dayInvariantProblems({ economyRulesVersion: rules.economyRulesVersion, season, books, lines }).length > 0) {
+        throw new GameplayError(409, "closed_day_books_invalid");
+      }
+      const fresh = booksOf(credits);
+      const freshLines = linesOf(credits).map((l) => ({ ...l, zonesHeld: 0n }));
+      const zones = new Map(credits.lines.map((l) => [l.playerId, BigInt(l.zonesHeld)]));
+      for (const l of freshLines) l.zonesHeld = zones.get(l.playerId)!;
+      const same = JSON.stringify(stringify(fresh)) === JSON.stringify(stringify(books))
+        && JSON.stringify(freshLines.map(stringify)) === JSON.stringify(lines.map(stringify));
+      if (!same) throw new GameplayError(409, "closed_day_replay_mismatch");
       return { day, inputDigest };
     }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  }
+
+  /**
+   * Re-verify a whole season, read-only: every closed day of it must have a
+   * settled header that passes `verifyDay` (input digest, stored invariants
+   * and a fresh settlement under its pinned rules). A missing, refused or
+   * corrupted day refuses the roll-up, with no totals (fail closed). One
+   * economy rules version per season; the rule sets the days are pinned to
+   * are reported, never re-read under another.
+   */
+  async verifySeason(season: number): Promise<
+    | { season: number; status: "verified"; days: number; throughDay: number; rulesets: { ruleset: string; economyRulesVersion: number; holdingRulesVersion: number }[];
+        poolMicro: string; mintedMicro: string; creditedMicro: string; burnedMicro: string; returnedMicro: string; seasonPoolMicro: string }
+    | { season: number; status: "refused"; problems: string[] }
+  > {
+    if (!Number.isSafeInteger(season) || season < 1) throw new GameplayError(400, "invalid_season");
+    let economy;
+    try {
+      economy = pinnedEconomyRules(this.rules.economyRulesVersion);
+    } catch (err) {
+      if (err instanceof PinnedRulesError) throw new GameplayError(409, "economy_rules_not_pinned");
+      throw err;
+    }
+    const first = this.rules.seasonOneStartDay + (season - 1) * economy.seasonDays;
+    const last = Math.min(first + economy.seasonDays - 1, lastClosedDay(this.rules, this.now()));
+    const refuse = (problems: string[]) => ({ season, status: "refused" as const, problems });
+    if (last < first) return refuse([`season ${season} has no closed day`]);
+    const headers = await rows<{ day: number; status: string; ruleset: string; economy_rules_version: number; holding_rules_version: number;
+      pool_micro: string; minted_micro: string; credited_micro: string; burned_micro: string; returned_micro: string }>(this.db, sql`
+      SELECT day, status, ruleset, economy_rules_version, holding_rules_version, pool_micro::text, minted_micro::text, credited_micro::text,
+             burned_micro::text, returned_micro::text
+        FROM gameplay_day_settlements WHERE season = ${season} ORDER BY day`);
+    const byDay = new Map(headers.map((h) => [Number(h.day), h]));
+    const problems: string[] = [];
+    for (const h of headers) {
+      const d = Number(h.day);
+      if (d < first || d > first + economy.seasonDays - 1) problems.push(`day ${d} is stored in season ${season} but lies outside it`);
+    }
+    const total = { pool: 0n, minted: 0n, credited: 0n, burned: 0n, returned: 0n };
+    for (let d = first; d <= last; d++) {
+      const h = byDay.get(d);
+      if (!h) {
+        problems.push(`day ${d} missing: closed but not settled`);
+        continue;
+      }
+      if (h.status !== "settled") {
+        problems.push(`day ${d} refused`);
+        continue;
+      }
+      try {
+        await this.verifyDay(d);
+      } catch (err) {
+        if (err instanceof GameplayError) {
+          problems.push(`day ${d}: ${err.code}`);
+          continue;
+        }
+        throw err;
+      }
+      total.pool += BigInt(h.pool_micro);
+      total.minted += BigInt(h.minted_micro);
+      total.credited += BigInt(h.credited_micro);
+      total.burned += BigInt(h.burned_micro);
+      total.returned += BigInt(h.returned_micro);
+    }
+    const rulesets = [...new Map(headers.filter((h) => byDay.has(Number(h.day)))
+      .map((h) => [`${h.ruleset}|${h.economy_rules_version}|${h.holding_rules_version}`,
+        { ruleset: h.ruleset, economyRulesVersion: Number(h.economy_rules_version), holdingRulesVersion: Number(h.holding_rules_version) }])).values()];
+    if (new Set(rulesets.map((r) => r.economyRulesVersion)).size > 1) problems.push("days under more than one economy rules version");
+    const seasonPool = BigInt(seasonPoolMicro(economy, season));
+    if (total.minted > seasonPool) problems.push("credits issued exceed the season pool");
+    if (total.pool > seasonPool) problems.push("day pools exceed the season pool");
+    if (problems.length > 0) return refuse(problems);
+    return {
+      season, status: "verified", days: last - first + 1, throughDay: last, rulesets,
+      poolMicro: String(total.pool), mintedMicro: String(total.minted), creditedMicro: String(total.credited), burnedMicro: String(total.burned),
+      returnedMicro: String(total.returned), seasonPoolMicro: String(seasonPool),
+    };
+  }
+
+  /* ── operator halt (halt-only) ──────────────────────────────────────── */
+
+  private async haltedIn(exec: Exec): Promise<boolean> {
+    const [r] = await rows<{ action: string }>(exec, sql`SELECT action FROM gameplay_settlement_halts ORDER BY id DESC LIMIT 1`);
+    return r?.action === "halt";
+  }
+
+  /** The current halt status: the latest audited halt or resume, if any. */
+  async settlementStatus(): Promise<{ halted: boolean; actor: string | null; reason: string | null; day: number | null; sinceMs: number | null }> {
+    const [r] = await rows<{ action: string; actor: string; reason: string; day: number | null; at_ms: number }>(this.db, sql`
+      SELECT action, actor, reason, day, (extract(epoch FROM created_at) * 1000)::float8 AS at_ms FROM gameplay_settlement_halts ORDER BY id DESC LIMIT 1`);
+    if (!r) return { halted: false, actor: null, reason: null, day: null, sinceMs: null };
+    return { halted: r.action === "halt", actor: r.actor, reason: r.reason, day: r.day === null ? null : Number(r.day), sinceMs: Number(r.at_ms) };
+  }
+
+  /**
+   * Halt settlement: no day closes until a resume. Halt-only by design: it
+   * stores one audit row and nothing else; it cannot settle, re-settle,
+   * repair, credit or override anything, and it does not bypass any other
+   * authorization. A day already being settled when the halt commits
+   * completes under the normal rules. Halting while halted changes nothing.
+   */
+  async haltSettlement(input: { actor: string; reason: string; day?: number }): Promise<{ halted: true; changed: boolean }> {
+    return { halted: true, changed: await this.recordHalt("halt", input) };
+  }
+
+  /** Resume settlement. It settles nothing itself; the next day-close run does, under the normal rules. */
+  async resumeSettlement(input: { actor: string; reason: string }): Promise<{ halted: false; changed: boolean }> {
+    return { halted: false, changed: await this.recordHalt("resume", input) };
+  }
+
+  private async recordHalt(action: "halt" | "resume", input: { actor: string; reason: string; day?: number }): Promise<boolean> {
+    if (typeof input.actor !== "string" || !/^[a-z0-9][a-z0-9_.:-]{0,63}$/.test(input.actor)) throw new GameplayError(400, "invalid_actor");
+    if (typeof input.reason !== "string" || input.reason.length < 1 || input.reason.length > 500) throw new GameplayError(400, "invalid_reason");
+    if (input.day !== undefined && !(Number.isSafeInteger(input.day) && input.day >= 0)) throw new GameplayError(400, "invalid_day");
+    return this.db.transaction(async (tx) => {
+      // One writer at a time, so two operators never interleave halt and resume.
+      await tx.execute(sql`LOCK TABLE gameplay_settlement_halts IN SHARE ROW EXCLUSIVE MODE`);
+      if ((await this.haltedIn(tx)) === (action === "halt")) return false;
+      await tx.execute(sql`INSERT INTO gameplay_settlement_halts (action, actor, reason, day) VALUES (${action}, ${input.actor}, ${input.reason}, ${input.day ?? null})`);
+      return true;
+    });
+  }
+
+  /**
+   * The reconciler's check of a closed day (`verifyDay`); on a replay
+   * mismatch or invalid stored books it halts settlement (actor
+   * "reconciler", the day recorded) and rethrows. It never repairs the day.
+   */
+  async verifyDayOrHalt(day: number): Promise<{ day: number; inputDigest: string }> {
+    try {
+      return await this.verifyDay(day);
+    } catch (err) {
+      if (err instanceof GameplayError && (err.code === "closed_day_replay_mismatch" || err.code === "closed_day_books_invalid")) {
+        await this.haltSettlement({ actor: "reconciler", reason: `${err.code} on day ${day}`, day });
+      }
+      throw err;
+    }
   }
 
   /** The rule set a pinned day settles under. Unknown or changed fails closed. */
@@ -1026,6 +1233,12 @@ export class GameplayService {
       throw err;
     }
     if (rulesetDigest(dayRules) !== pinned.config_digest) throw new GameplayError(409, "rules_config_mismatch");
+    try {
+      pinnedEconomyRules(dayRules.economyRulesVersion);
+    } catch (err) {
+      if (err instanceof PinnedRulesError) throw new GameplayError(409, "economy_rules_not_pinned");
+      throw err;
+    }
     return { ...dayRules, seasonOneStartDay: this.rules.seasonOneStartDay };
   }
 
@@ -1165,6 +1378,15 @@ export class GameplayService {
     if (partitions && credits.status === "settled") {
       const lineProblems = partitionProblems({ partitions, holdings, lines: credits.lines });
       if (lineProblems.length > 0) credits = { status: "refused", rulesVersion: credits.rulesVersion, season, day, problems: lineProblems };
+    }
+    // Day-close invariants (invariants.ts), asserted on exactly what would be
+    // stored, against the pinned rules: any violation refuses the whole day.
+    if (credits.status === "settled") {
+      const inv = [
+        ...reconcileDay(rules.economyRulesVersion, credits.settlement, { season }),
+        ...dayInvariantProblems({ economyRulesVersion: rules.economyRulesVersion, season, books: booksOf(credits), lines: linesOf(credits) }),
+      ];
+      if (inv.length > 0) credits = { status: "refused", rulesVersion: credits.rulesVersion, season, day, problems: [...new Set(inv)].map((p) => `invariant: ${p}`) };
     }
 
     const membershipRows = await rows<{ walker_id: string; club_id: string; from_day: number; to_day: number | null }>(tx, sql`
@@ -1382,8 +1604,17 @@ export class GameplayService {
         rechargeMicro: Number(l.recharge_micro), upkeepTakenMicro: Number(l.upkeep_taken_micro), upkeepPaidInConditionMicro: Number(l.upkeep_in_condition_micro),
         zonesHeld: Number(l.zones_held), unvisitedZoneIds: [], netMicro: Number(l.net_micro),
       }));
+      // Player rows rebuilt from the stored lines (no per-session split is
+      // stored), so the season roll-up can re-verify each day's books and
+      // lines instead of trusting the header.
+      const players = lines.map((l) => ({
+        playerId: l.playerId, scoringSessions: 0, dayPoints: 0, sessionRewardsMicro: [], dayRewardMicro: l.earnedMicro, tollPaidMicro: l.tollPaidMicro,
+        tollReceivedMicro: l.tollReceivedMicro, creditedMicro: l.earnedMicro - l.tollPaidMicro - l.rechargeMicro - l.upkeepTakenMicro,
+        charges: { rechargeMicro: l.rechargeMicro, upkeepOwedMicro: l.upkeepTakenMicro + l.upkeepPaidInConditionMicro, upkeepTakenMicro: l.upkeepTakenMicro,
+          upkeepPaidInConditionMicro: l.upkeepPaidInConditionMicro },
+      }));
       const settlement: DaySettlement = {
-        totalPoints: 0, dayShareMicro: Number(h.day_share_micro), players: [],
+        totalPoints: 0, dayShareMicro: Number(h.day_share_micro), players,
         books: {
           poolMicro: Number(h.pool_micro), mintedMicro: Number(h.minted_micro), creditedMicro: Number(h.credited_micro), tollPaidMicro: Number(h.toll_paid_micro),
           tollReceivedMicro: Number(h.toll_received_micro), burnedMicro: Number(h.burned_micro), returnedToSeasonPoolMicro: Number(h.returned_micro),

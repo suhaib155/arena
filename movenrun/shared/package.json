@@ -14,6 +14,7 @@
     "./sealing": "./src/domain/sealing.ts",
     "./evidence": "./src/domain/evidence.ts",
     "./economy-v3": "./src/domain/economyV3.ts",
+    "./credit-units": "./src/domain/creditUnits.ts",
     "./holding": "./src/domain/holding.ts",
     "./holdingLedger": "./src/domain/holdingLedger.ts",
     "./holdingSettlement": "./src/domain/holdingSettlement.ts",
