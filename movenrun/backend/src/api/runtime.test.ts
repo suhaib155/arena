@@ -75,9 +75,12 @@ test("built API, migrations and real session/PostgreSQL flow (Supabase Auth stan
     assert.equal((await originalFetch(`http://127.0.0.1:${port}/gps/submit`, { method: "POST" })).status, 404);
     // Public sign-in routes refuse large bodies; only movement accepts megabytes.
     const bulky = JSON.stringify({ address: "0x" + "a".repeat(40_000) });
-    assert.equal((await originalFetch(`http://127.0.0.1:${port}/identity/auth/wallet/begin`, {
+    const tooLarge = await originalFetch(`http://127.0.0.1:${port}/identity/auth/wallet/begin`, {
       method: "POST", headers: { "content-type": "application/json" }, body: bulky,
-    })).status, 413);
+    });
+    assert.equal(tooLarge.status, 413);
+    // Refused before the identity router, and still never cached.
+    assert.equal(tooLarge.headers.get("cache-control"), "no-store");
     assert.notEqual((await originalFetch(`http://127.0.0.1:${port}/movement/verify`, {
       method: "POST", headers: { "content-type": "application/json" }, body: bulky,
     })).status, 413);

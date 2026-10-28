@@ -85,7 +85,7 @@ export const ERROR_HTTP_STATUS: Record<IdentityErrorCode, number> = {
   registration_busy: 429,
 };
 
-/** Retry-After (seconds) sent with `provider_unavailable`; matches the verifier's retry gap after a failed key fetch. */
+/** Retry-After (seconds) sent with the retryable 503s (`provider_unavailable`, `provisioning_failed`); matches the verifier's retry gap after a failed key fetch. */
 export const PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS = 10;
 
 export class IdentityError extends Error {

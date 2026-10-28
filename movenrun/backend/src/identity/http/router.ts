@@ -45,6 +45,14 @@ import {
 } from "./publicViews.js";
 
 /**
+ * Transient 503s a client may retry after a short, bounded wait: the sign-in
+ * provider's keys could not be fetched, or a deletion of this provider user is
+ * in flight (A-2) or a provisioning call failed. `provider_not_configured` is
+ * not transient and gets no Retry-After.
+ */
+const RETRYABLE_UNAVAILABLE: ReadonlySet<string> = new Set(["provider_unavailable", "provisioning_failed"]);
+
+/**
  * Route wrapper: an IdentityError becomes its mapped status + public JSON;
  * anything else forwards to Express's error middleware (the app's generic 500
  * handler), so no internal detail ever leaks as a "helpful" 4xx.
@@ -53,7 +61,7 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
     fn(req, res).catch((err: unknown) => {
       if (isIdentityError(err)) {
-        if (err.code === "provider_unavailable") res.setHeader("Retry-After", String(PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS));
+        if (RETRYABLE_UNAVAILABLE.has(err.code)) res.setHeader("Retry-After", String(PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS));
         res.status(err.status).json(err.toPublicJSON());
       } else {
         next(err instanceof Error ? err : new Error(String(err)));

@@ -78,6 +78,13 @@ export function createApiApp(config: ApiConfig) {
       res.status(503).json({ status: "unavailable" });
     }
   });
+  // Identity responses carry tokens and codes; a refusal before the router
+  // (rate limit, oversized or unreadable body) is not cached either.
+  app.use("/identity", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+    next();
+  });
   // Authentication entry is public, but still subject to the write limit,
   // checked before any body is read.
   app.use("/identity/auth", createWriteRateLimiter(config));
