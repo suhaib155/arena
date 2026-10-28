@@ -63,6 +63,13 @@ export function createApiApp(config: ApiConfig) {
   app.set("trust proxy", trustProxySetting(config.TRUST_PROXY, config.TRUST_PROXY_HOPS));
   app.use(maintenance.afterResponse);
   app.use(createSecurityHeadersMiddleware(), createCorsMiddleware(config));
+  // Identity responses carry tokens and codes; a refusal before the router
+  // (rate limit, oversized or unreadable body) is not cached either.
+  app.use("/identity", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+    next();
+  });
   app.use(createGlobalRateLimiter(config));
   app.get("/health", (_req, res) => { res.json({ status: "ok" }); });
   app.get("/ready", async (_req, res) => {
@@ -77,13 +84,6 @@ export function createApiApp(config: ApiConfig) {
     } catch {
       res.status(503).json({ status: "unavailable" });
     }
-  });
-  // Identity responses carry tokens and codes; a refusal before the router
-  // (rate limit, oversized or unreadable body) is not cached either.
-  app.use("/identity", (_req, res, next) => {
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Pragma", "no-cache");
-    next();
   });
   // Authentication entry is public, but still subject to the write limit,
   // checked before any body is read.
