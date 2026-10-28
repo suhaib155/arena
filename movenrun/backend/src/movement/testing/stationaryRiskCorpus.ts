@@ -1,7 +1,7 @@
 /**
  * Seeded synthetic corpus for the stationary-risk rule (stationary-risk/v1).
  *
- * SYNTHETIC / NOT LIVE. Every route is generated from a seed in an open-ocean
+ * SYNTHETIC / NOT LIVE. Every route is built from a seed in an open-ocean
  * frame; none is a recording, a person or a place. Nothing here is evidence of
  * how a real phone behaves: the error model below is an assumption, stated so
  * the measured rates can be read against it.

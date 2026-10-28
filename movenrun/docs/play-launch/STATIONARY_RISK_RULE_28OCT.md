@@ -96,7 +96,7 @@ Definitions:
 
 | Generator (50 seeds per family) | FP honest | FN stationary | Stress withheld |
 |---|---|---|---|
-| A. real client pipeline (32 honest families, 14 stationary) | **0.0 % (0/1558)** | **1.5 % (10/650)** | 118/150 |
+| A. real client pipeline (32 honest families, 14 stationary) | **0.0 % (0/1558)** | **1.5 % (10/650)** | 56.7 % (85/150) |
 | B. committed corpus (28 honest families, 13 stationary) | **0.0 % (0/1400)** | **0.8 % (5/650)** | 54.7 % (82/150) |
 
 Every FN is a short drift spell of 120-180 s (279-566 m uploaded). Sessions of 5 min or more are always withheld. For comparison, rule off verifies **100 %** of the stationary family, at a median of 646 m for S03-like 300 s sessions.
