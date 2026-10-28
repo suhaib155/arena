@@ -9,6 +9,7 @@
     "src/lib/__tests__/androidPrebuildManifest.test.ts",
     "src/lib/__tests__/androidRuntimePolicy.test.ts",
     "src/lib/__tests__/androidTargetSdk.test.ts",
+    "src/lib/__tests__/clockIntegrity.test.ts",
     "src/lib/__tests__/clubsView.test.ts",
     "src/lib/__tests__/collectionsView.test.ts",
     "src/lib/__tests__/colorTokens.test.ts",

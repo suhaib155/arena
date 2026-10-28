@@ -96,6 +96,13 @@ export function structuralRejections(
     if (Number.isFinite(startedAt) && Number.isFinite(finishedAt)) {
       if (startTime < startedAt) reasons.push("Observations begin before the session started");
       if (endTime > finishedAt) reasons.push("Observations continue after the session finished");
+      /* Receipt ordering: the lifecycle cannot have finished after the server
+         received it. The observation window above is GNSS-stamped and was
+         already bounded; the lifecycle stamps come from the phone's clock, and
+         a clock moved forward mid-session (Track A C02) produced a finish an
+         hour ahead of receipt that nothing here rejected. */
+      if (startedAt > now + MAX_FUTURE_SKEW_MS) reasons.push("Session lifecycle starts in the future");
+      if (finishedAt > now + MAX_FUTURE_SKEW_MS) reasons.push("Session lifecycle finishes in the future");
     }
   }
 

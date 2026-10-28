@@ -11,7 +11,9 @@ import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
 import { FinishSessionSheet } from "@/components/FinishSessionSheet";
 import { gpsTimings, type GpsAcquisitionState } from "@/lib/gpsAcquisitionState";
-import { degradesSignal, gpsPresence, presenceLabel, type GpsPresence } from "@/lib/mapPresence";
+import { gpsPresence, presenceLabel, type GpsPresence } from "@/lib/mapPresence";
+import { createSessionClock, type SessionClock } from "@/lib/sessionClock";
+import { createFixHealth, type FixHealth } from "@/lib/fixHealth";
 import { Button } from "@/components/Button";
 import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
@@ -136,6 +138,21 @@ export default function MoveSessionScreen() {
   const backgroundedAtRef = useRef<number | null>(null);
   const trackerGapAtRef = useRef<number | null>(null);
   const continuityBrokenRef = useRef(false);
+  /**
+   * Every time this session measures comes from here, never from `Date.now()`:
+   * the wall clock read once at Start and advanced by a monotonic source, so a
+   * clock change mid-walk cannot stretch the duration or make fixes look
+   * future-dated. See `lib/sessionClock.ts` for what it does not solve.
+   */
+  const clockRef = useRef<SessionClock>(createSessionClock());
+  /** Chip health from the age of the last accepted fix; see `lib/fixHealth.ts`. */
+  /* Stable (no dependencies), so the start effect calls it without listing it
+     and without re-subscribing the tracker. */
+  const healthRef = useRef<FixHealth | null>(null);
+  const refreshSignal = useCallback((at: number) => {
+    const health = healthRef.current;
+    if (health) setSignal(health.signal(at));
+  }, []);
 
   /**
    * The capture lifecycle.
@@ -183,6 +200,8 @@ export default function MoveSessionScreen() {
     setStartError(null);
     setSignal("unknown");
     showLocation(null);
+    clockRef.current = createSessionClock();
+    healthRef.current = null;
     apply(requested.lifecycle);
     distanceDiagnostics.reset();
 
@@ -223,7 +242,10 @@ export default function MoveSessionScreen() {
         if (cancelled || lifecycleRef.current.state !== "active") return;
         if (backgroundedAtRef.current !== null) return;
         const prev = continuityBrokenRef.current ? null : pointsRef.current[pointsRef.current.length - 1] ?? null;
-        const now = Date.now();
+        /* After a background spell the clock may be behind real time (see
+           sessionClock.ts); a fix's own time lets it catch up, within budget. */
+        clockRef.current.catchUp(p.timestamp);
+        const now = clockRef.current.now();
         const decision: FixDecision = p.timestamp <= lastFixTimestampRef.current ||
           p.timestamp < (lifecycleRef.current.startedAt ?? now)
           ? { accepted: false, reason: "non_increasing_time", segmentMeters: 0 }
@@ -245,7 +267,8 @@ export default function MoveSessionScreen() {
              session losing its signal kept saying `GPS locked` while the
              distance stopped moving. `within_uncertainty` is excluded — that is
              a stationary player, not a bad one. */
-          if (degradesSignal(decision.reason)) setSignal("degraded");
+          healthRef.current?.observe(decision, p.accuracy, now);
+          refreshSignal(now);
           distanceDiagnostics.record(p, decision, distanceRef.current, previewRef.current?.evidenceStats.retained ?? 0);
           return;
         }
@@ -253,9 +276,10 @@ export default function MoveSessionScreen() {
            I". The two channels agree here; they disagree while stationary and
            during acquisition, which is what the display channel is for. */
         showLocation(p);
-        setSignal(p.accuracy != null && p.accuracy > 25 ? "degraded" : "usable");
+        healthRef.current?.observe(decision, p.accuracy, now);
+        refreshSignal(now);
         if (trackerGapAtRef.current !== null) {
-          recordGap(gapsRef.current, trackerGapAtRef.current, Date.now());
+          recordGap(gapsRef.current, trackerGapAtRef.current, now);
           trackerGapAtRef.current = null;
           setStartError(null);
         }
@@ -294,9 +318,10 @@ export default function MoveSessionScreen() {
       }, (error) => {
         if (cancelled) return;
         setStartError(error);
+        healthRef.current?.interrupt();
         setSignal("degraded");
         continuityBrokenRef.current = true;
-        trackerGapAtRef.current ??= Date.now();
+        trackerGapAtRef.current ??= clockRef.current.now();
       }, (state) => { if (!cancelled) setAcquisitionState(state); },
         /* The display channel. It runs before the lifecycle is active — that is
            its whole purpose — so it is guarded by `cancelled` alone and never
@@ -304,11 +329,13 @@ export default function MoveSessionScreen() {
         (p) => { if (!cancelled) showLocation(p); })
       .then(() => {
         if (cancelled) { tracker.stop(); return; }
+        const startedAt = clockRef.current.now();
         const started = trackerStarted(lifecycleRef.current, {
           clientSessionId: newClientSessionId(),
-          at: Date.now(),
+          at: startedAt,
         });
         if (started.outcome !== "ok") return;
+        healthRef.current = createFixHealth(startedAt);
         distanceDiagnostics.bind(started.lifecycle.clientSessionId);
         /* Built here and nowhere earlier: a preview needs a session, and the
            session's own rules version is what decides how sealing is read. The
@@ -348,7 +375,16 @@ export default function MoveSessionScreen() {
    *  once-a-second tick re-renders only the clock, not the route canvas.
    *  Derived from the lifecycle, so the number on screen is the same one the
    *  finished session carries. */
-  const readElapsed = useCallback(() => activeMsSoFar(lifecycleRef.current, Date.now()), []);
+  const readElapsed = useCallback(() => activeMsSoFar(lifecycleRef.current, clockRef.current.now()), []);
+
+  /* Fixes can stop without any callback firing (a frozen watch, a radio that
+     went quiet), so health is re-read on a timer as well as per fix. Only while
+     capturing: a paused session expects no fixes. */
+  useEffect(() => {
+    if (captureState !== "active") return;
+    const timer = setInterval(() => refreshSignal(clockRef.current.now()), 2_000);
+    return () => clearInterval(timer);
+  }, [captureState, refreshSignal]);
 
   /* Foreground-only tracking means backgrounding silently stops the fixes:
      distance stops growing while the clock keeps running, so the summary would
@@ -363,12 +399,16 @@ export default function MoveSessionScreen() {
          different facts that must not overwrite each other. */
       const state = lifecycleRef.current.state;
       if (state !== "active" && state !== "paused") return;
+      if (next === "active") clockRef.current.resume();
+      else clockRef.current.suspend();
+      const at = clockRef.current.now();
       if (next === "active") {
         const startedAt = backgroundedAtRef.current;
-        if (startedAt != null) recordGap(gapsRef.current, startedAt, Date.now());
+        if (startedAt != null) recordGap(gapsRef.current, startedAt, at);
         backgroundedAtRef.current = null;
+        healthRef.current?.rearm(at);
       } else if (backgroundedAtRef.current == null) {
-        backgroundedAtRef.current = Date.now();
+        backgroundedAtRef.current = at;
         continuityBrokenRef.current = true;
       }
     });
@@ -385,12 +425,16 @@ export default function MoveSessionScreen() {
    */
   const togglePause = useCallback(() => {
     const current = lifecycleRef.current;
+    const at = clockRef.current.now();
     const next =
       current.state === "paused"
-        ? resumeLifecycle(current, Date.now())
-        : pauseLifecycle(current, Date.now());
+        ? resumeLifecycle(current, at)
+        : pauseLifecycle(current, at);
     if (next.outcome !== "ok") return;
-    if (next.lifecycle.state === "active") continuityBrokenRef.current = true;
+    if (next.lifecycle.state === "active") {
+      continuityBrokenRef.current = true;
+      healthRef.current?.rearm(at);
+    }
     tapFeedback();
     apply(next.lifecycle);
   }, [apply]);
@@ -405,7 +449,7 @@ export default function MoveSessionScreen() {
    * yields coherent evidence.
    */
   const finish = useCallback(() => {
-    const at = Date.now();
+    const at = clockRef.current.now();
     const next = finishLifecycle(lifecycleRef.current, at);
     if (next.outcome !== "ok") return;
     apply(next.lifecycle);
