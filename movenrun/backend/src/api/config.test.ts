@@ -69,3 +69,18 @@ test("the API process exits at startup with a legacy JWT shared-secret variable,
   assert.ok(!result.output.includes("listening"), "the API never listens");
   assert.ok(!result.output.includes(value), "the value is never printed");
 });
+
+test("the API process exits at startup when either legacy variable name is present with an empty value", async () => {
+  for (const name of ["SUPABASE_LEGACY_JWT_SECRET", "SUPABASE_JWT_SECRET"]) {
+    const base = env();
+    const result = await new Promise<{ code: number | null; output: string }>((resolve) => {
+      const child = execFile(process.execPath, ["--import", "tsx", "src/api/server.ts"], {
+        env: { PATH: process.env.PATH, ...base, PORT: "1", [name]: "" },
+        timeout: 30_000,
+      }, (_err, stdout, stderr) => resolve({ code: child.exitCode, output: `${stdout}${stderr}` }));
+    });
+    assert.equal(result.code, 1, `${name}="" refuses startup`);
+    assert.ok(!result.output.includes("listening"), `${name}: the API never listens`);
+    for (const secret of [base.IDENTITY_SESSION_PEPPER, base.SUPABASE_SECRET_KEY]) assert.ok(!result.output.includes(secret), "no configured value is printed");
+  }
+});

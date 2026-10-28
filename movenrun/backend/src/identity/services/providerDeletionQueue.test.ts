@@ -410,4 +410,72 @@ for (const backend of backends) {
     assert.deepEqual(await h.service.reportPendingDeletions(), { pending: 0, overdue: 0, inFlight: 0 });
     assert.equal(h.logs.length, 0);
   });
+
+  t("delayed provider removal under overlapping workers: never finished while the provider refuses, then deleted exactly once", async () => {
+    const h = await harness(backend);
+    const S = sub(501);
+    h.provider.create(S);
+    h.provider.failDelete.add(S);
+    assert.deepEqual(await h.service.removeProviderUsers([S]), { removed: [], pending: [S] });
+    // The provider keeps refusing for hours; three workers overlap on every run.
+    h.provider.hooks.onLookup = async () => { await new Promise((r) => setTimeout(r, 10)); };
+    for (let i = 0; i < 6; i++) {
+      h.advance(HOUR);
+      const runs = await Promise.all([h.service.retryPendingDeletions(), h.service.retryPendingDeletions(), h.service.retryPendingDeletions()]);
+      assert.equal(runs.reduce((a, b) => a + b, 0), 0);
+      assert.deepEqual(await h.queued(), [S], "the row was retired while the provider still had the user");
+    }
+    assert.deepEqual(h.provider.deleted, []);
+    // The provider recovers: exactly one worker deletes, and later runs find nothing.
+    h.provider.failDelete.delete(S);
+    h.advance(25 * HOUR);
+    const runs = await Promise.all([h.service.retryPendingDeletions(), h.service.retryPendingDeletions(), h.service.retryPendingDeletions()]);
+    assert.equal(runs.reduce((a, b) => a + b, 0), 1);
+    h.advance(25 * HOUR);
+    assert.equal(await h.service.retryPendingDeletions(), 0);
+    assert.deepEqual(h.provider.deleted, [S]);
+    assert.deepEqual(await h.queued(), []);
+  });
+
+  t("handoff expiry, a repeated erase and overlapping workers remove a provider user exactly once", async () => {
+    const h = await harness(backend);
+    // Removals of a user the provider still had. A call for one already gone
+    // is the provider's 404, which counts as deleted and has no effect.
+    const effective: string[] = [];
+    const deleteUser = h.provider.auth.deleteUser;
+    h.provider.auth.deleteUser = async (subject: string) => {
+      const present = h.provider.users.has(subject);
+      await deleteUser(subject);
+      if (present) effective.push(subject);
+    };
+    const W = sub(601);
+    h.provider.create(W);
+    await h.signIn.walletHandoffs.create({ codeHash: "b".repeat(64), codeChallenge: "d".repeat(43), subject: W, expiresAt: new Date(h.now().getTime() + 5 * MIN) });
+    // An earlier erase of the same user is queued; the retry removes it.
+    h.provider.failDelete.add(W);
+    await h.service.removeProviderUsers([W]);
+    h.provider.failDelete.delete(W);
+    h.advance(11 * MIN);
+    assert.equal(await h.service.retryPendingDeletions(), 1);
+    // Then its uncollected wallet code expires, and the erase is repeated.
+    await h.service.expireHandoffs();
+    assert.deepEqual(await h.service.removeProviderUsers([W]), { removed: [W], pending: [] });
+    assert.deepEqual(await h.queued(), []);
+
+    // The same with the expiry and two retry workers overlapping.
+    const V = sub(602);
+    h.provider.create(V);
+    await h.signIn.walletHandoffs.create({ codeHash: "e".repeat(64), codeChallenge: "f".repeat(43), subject: V, expiresAt: new Date(h.now().getTime() + 5 * MIN) });
+    h.provider.failDelete.add(V);
+    await h.service.removeProviderUsers([V]);
+    h.provider.failDelete.delete(V);
+    h.advance(11 * MIN);
+    h.provider.hooks.onLookup = async () => { await new Promise((r) => setTimeout(r, 10)); };
+    await Promise.all([h.service.expireHandoffs(), h.service.retryPendingDeletions(), h.service.retryPendingDeletions()]);
+    h.advance(HOUR);
+    await Promise.all([h.service.expireHandoffs(), h.service.retryPendingDeletions()]);
+    assert.deepEqual(effective, [W, V]);
+    assert.ok(!h.provider.users.has(W) && !h.provider.users.has(V));
+    assert.deepEqual(await h.queued(), []);
+  });
 }
