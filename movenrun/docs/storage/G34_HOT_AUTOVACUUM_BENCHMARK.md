@@ -294,3 +294,72 @@ node --import tsx backend/scripts/gameplay-hot-autovac-report.ts --a out/A --c o
 backend/scripts/gameplay-bench-cluster.sh destroy
 ```
 Scenario example: `{"name":"c500-h2","players":500,"noMidVacuum":true,"hostile":{"accounts":10,"sessionsPerDay":20,"units":500}}`. Burst example: `--variant diff-ff80 --pace-seconds 900` (paced, 4,500 batches) or `--variant baseline --sessions 20000 --clients 16` (saturation).
+
+
+## 9. Diff-only challenge writes in the service, changed kept rows, and recomputed capacity (28 Oct)
+
+**Status: opt-in, default unchanged.** `GameplayServiceDeps.challengeWrites` (`"delete-insert"` | `"diff"`, default `DEFAULT_CHALLENGE_WRITE_MODE = "delete-insert"`, the live behaviour). Nothing selects `"diff"` in production wiring. Migration 0011 and `drizzle/` are untouched.
+
+### 9.1 What the review found, and the fix
+
+The service re-inserts every kept challenge with `holding_rules_version = hv` and keeps `opened_received_at` (service.ts, `writeChallenges`). The section 4 "diff" variant skipped kept rows blindly, so it never modelled a kept row whose value changes. Reproduced here: with a rules rollover in the burst, the blind variant leaves **11,581 to 11,588 rows with the old stamp** (and 0 for delete-insert and for the comparing variant). The service's `diff` mode therefore does: DELETE rows of the touched units that are no longer open; UPDATE a kept row only when `first_day`, `holding_rules_version` or `opened_received_at` differs (`IS DISTINCT FROM`); INSERT rows not yet present. All three run inside the batch transaction after the `FOR UPDATE` lock on the touched `gameplay_units` rows, so the CAS/ordering protocol is unchanged. The challenge trigger still fires for every inserted or updated row.
+
+### 9.2 Correctness evidence (LOCAL POSTGRES VERIFIED)
+
+`src/gameplay/challengeDiff.pg.test.ts`: 120 randomized batches (seeded), each run both ways from the same state with the table compared row for row: 91 batches with a rules-version change, 115 first_day changes, 73 receipt-time changes, 759 kept rows (211 untouched, 548 rewritten), 326 closed, 378 opened. Identical contents after every batch; unchanged kept rows keep their tuple (same `xmin`), changed ones are rewritten, rows of untouched units are never written. Also: a kept row with equal first_day but an old rules version is restamped; an empty open list closes only the touched units' rows; the default is delete-insert and a bad mode is refused. Mutation check: comparing only `first_day` fails the randomized test at batch 8 and the restamp test. With the default temporarily flipped to `diff`, all 69 other gameplay PostgreSQL tests (owner-clash, 40P01 and 40001 retries, partition races, flag-off 404, replay, settlement) passed; the one failure was the assertion that the default is delete-insert.
+
+### 9.3 Burst, 1,200 batches, 8 clients (the reviewer's scale)
+
+Raw JSON in `diff-writes-results/small/`. Scenario s1: kept rows unchanged. s2: 10% of kept rows change first_day and the rules version moves 1002 to 1003 half-way. Throwaway cluster, `autovacuum_naptime` as stated. A 1,200-batch run lasts about 2 s, so autovacuum rarely runs: these runs show write volume, not steady-state size.
+
+| Autovacuum state | Scenario | Variant | Table MiB | Dead | Updates / HOT | Autovacuum runs | WAL MiB | Stale rows |
+|---|---|---|---|---|---|---|---|---|
+| off | s1 | delete-insert | 6.56 | 28,190 | 0 | 0 | 29.9 | 0 |
+| off | s1 | diff (compare) | 2.76 | 1,121 | 0 | 0 | 13.9 | 0 |
+| off | s2 | delete-insert | 6.52 | 27,842 | 0 | 0 | 29.9 | 0 |
+| off | s2 | blind skip | 2.75 | 1,762 | 0 | 0 | 14.0 | **11,581** |
+| off | s2 | diff (compare) | 3.59 | 5,048 | 6,050 / 3,080 | 0 | 17.6 | 0 |
+| naptime 60 s | s1 | delete-insert | 6.60 | 27,030 | 0 | 0 | 30.3 | 0 |
+| naptime 60 s | s1 | diff (compare) | 2.75 | 1,002 | 0 | 0 | 14.0 | 0 |
+| naptime 60 s | s2 | delete-insert | 6.54 | 21,647 | 0 | 0 | 30.0 | 0 |
+| naptime 60 s | s2 | diff (compare) | 3.59 | 10,341 | 14,803 / 9,142 | 0 | 17.5 | 0 |
+| naptime 1 s | s1 | delete-insert | 6.02 | 1,390 | 0 | 1 | 30.6 | 0 |
+| naptime 1 s | s1 | diff (compare) | 2.75 | 1,002 | 0 | 0 | 14.1 | 0 |
+| naptime 1 s | s2 | delete-insert | 5.48 | 0 | 0 | 2 | 31.2 | 0 |
+| naptime 1 s | s2 | diff (compare) | 3.63 | 0 | 10,283 / 5,553 | 1 | 18.4 | 0 |
+
+No retries, deadlocks or lock timeouts in any run. The comparing diff writes 15,4xx updates in s2 (the rollover restamps every kept row of the touched units once; that is the cost of correctness) and is HOT for 52 to 62% of them at fillfactor 100.
+
+Larger run (20,000 batches, 8 clients, s2; `diff-writes-results/large/`):
+
+| Autovacuum state | Variant | Table MiB (peak) | Dead | Updates / HOT | Autovacuum runs | WAL MiB | Client CPU s |
+|---|---|---|---|---|---|---|---|
+| naptime 60 s | delete-insert | 45.64 | 468,980 | 0 | 1 | 478.4 | 48.1 |
+| naptime 60 s | diff (compare) | 6.06 | 13,980 | 126,752 / 124,852 | 1 | 148.3 | 36.2 |
+| naptime 1 s | delete-insert | 12.84 (15.27) | 0 | 0 | 24 | 488.7 | 48.6 |
+| naptime 1 s | diff (compare) | 4.27 | 167 | 124,612 / 116,301 | 9 | 160.6 | 39.5 |
+
+Even with every kept row restamped once and 10% changing a day on every batch (a deliberately pessimistic change rate; the service does not change `first_day` of a kept challenge today), the comparing diff cut WAL by 68% and the table by 67 to 87%. At zero change (s1) it is the 57% to 73% WAL cut of section 4. Fillfactor, targeted autovacuum and in-place variants are not repeated.
+
+### 9.4 Recomputed peak DB + WAL + reserve (SIMULATION ONLY)
+
+`backend/scripts/gameplay-challenge-capacity.ts` (full output in `diff-writes-results/capacity.md`). Assumptions, all stated in the script: the quota is **500 MiB as an assumption only (the real Supabase quota is UNKNOWN)**; ordinary players (0% hostile; hostile cases are in 3.4b); 300 unique units a day; 14-day detail + 120-day compact proofs; 90-day season; warn 60% / backpressure 75% / stop 85% of the assumed quota; non-challenge block from `lifecycleCapacity.ts` (including its auth/audit reserve). Challenge table per 1,000 players at the stated autovacuum state: kept-up 14.2 MiB, stock 60 s 120 MiB (the compressed-bench worst case, section 3.1; in real time autovacuum gets about 1,440 turns a day, so this is a delayed-vacuum bound), autovacuum off 14.9 MiB a day growing without bound. Diff-mode sizes scale those by the measured burst ratios (0.33 at 1 s, 0.13 at 60 s, 0.08 of tuple versions for off; the last is an extrapolation). WAL: 70.7 MiB per 1,000 players a day delete-insert (990 MiB over 14 days), peak day = 2x average (assumption) and one peak day on disk; diff saves 14.9 MiB a day per 1,000 (burst-derived, a lower bound). "Reserve" is the 15% above the stop line; the last column is the quota needed to stay under it. Whether hosted WAL counts against the quota is UNKNOWN, so it is added to be safe.
+
+Total MiB = DB + peak-day WAL (percent of 500; level):
+
+| Players | Seasons | Kept-up: delete-insert | Kept-up: diff | Stock 60 s: delete-insert | Stock 60 s: diff | Autovacuum off: delete-insert | Autovacuum off: diff |
+|---|---|---|---|---|---|---|---|
+| 200 | 1 | 94 (19%, ok) | 86 (17%, ok) | 115 (23%, ok) | 89 (18%, ok) | 359 (72%, warn) | 107 (21%, ok) |
+| 200 | 4 | 113 (23%, ok) | 105 (21%, ok) | 134 (27%, ok) | 108 (22%, ok) | 1,180 (236%, stop) | 191 (38%, ok) |
+| 500 | 1 | 216 (43%, ok) | 197 (39%, ok) | 269 (54%, ok) | 202 (40%, ok) | 878 (176%, stop) | 248 (50%, ok) |
+| 500 | 4 | 264 (53%, ok) | 244 (49%, ok) | 317 (63%, warn) | 250 (50%, ok) | 2,931 (586%, stop) | 457 (91%, stop) |
+| 1,000 | 1 | 420 (84%, backpressure) | 381 (76%, backpressure) | 526 (105%, stop) | 392 (78%, backpressure) | 1,743 (349%, stop) | 484 (97%, stop) |
+| 1,000 | 4 | 515 (103%, stop) | 476 (95%, stop) | 621 (124%, stop) | 487 (97%, stop) | 5,850 (1,170%, stop) | 902 (180%, stop) |
+| 5,000 | 1 | 2,050 (410%, stop) | 1,853 (371%, stop) | 2,579 (516%, stop) | 1,909 (382%, stop) | 8,664 (1,733%, stop) | 2,367 (473%, stop) |
+| 5,000 | 4 | 2,525 (505%, stop) | 2,328 (466%, stop) | 3,054 (611%, stop) | 2,384 (477%, stop) | 29,197 (5,839%, stop) | 4,456 (891%, stop) |
+
+Reading: the pilot cap of 200 fits under the warning line in every autovacuum state that has vacuum running, with or without diff; diff matters most when vacuum lags (stock 60 s: 1,000 players, 1 season goes from stop to backpressure) and bounds growth when vacuum is blocked. Above 500 players the assumed quota is exceeded by the non-challenge tables and the peak-day WAL regardless of write mode; do not publish a player-cap claim without naming the workload and vacuum state. Hosted guidance remains plain VACUUM and autovacuum tuning; never VACUUM FULL on hosted production (the "after VACUUM FULL" column elsewhere is a local diagnostic).
+
+### 9.5 Limits
+
+Single shared 4-vCPU host; 1,200-batch runs are about 2 s and do not exercise autovacuum steady state. The change rate and rollover are synthetic. The burst models the challenge table and unit update only, not the whole push pipeline, and its per-batch row count (about 54) is below the 164 rows per session the 1,000-player bench shows, so the WAL saving in 9.4 is a lower bound. Capacity numbers are a projection, not a measurement; no hosted service was contacted.
