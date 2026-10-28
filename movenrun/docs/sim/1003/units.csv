@@ -1,0 +1,7 @@
+label,ruleset,holding_rules_version,unit,unit_resolution,unit_area_km2_avg,zone,takeover,second_push_gap_h,budget_counting,budget_per_walker_per_day,budget_mode,soft_strength,incidental_strength,daily_unit_capacity_guard
+1001,server-pilot-proposal-1,1001,stored-cell,8,0.737328,unit,immediate (A9),,none,none,,,,300
+1002,server-sim-pilot-2-proposal,1002,h3-session-path,10,0.015048,h3-parent-res9,two-day-challenge window 3 floor 50 immediate-below 30,20,takes-v1,13,hard,,,300
+1003A,sim-take-budget-experiment-1003a,1003,h3-session-path,10,0.015048,h3-parent-res9,two-day-challenge window 3 floor 50 immediate-below 30,20,confirmed-flips-v1,13,hard,,,300
+1003B,sim-take-budget-experiment-1003b,1003,h3-session-path,10,0.015048,h3-parent-res9,two-day-challenge window 3 floor 50 immediate-below 30,20,deliberate-contest-v1,13,hard,,,300
+1003C,sim-take-budget-experiment-1003c,1003,h3-session-path,10,0.015048,h3-parent-res9,two-day-challenge window 3 floor 50 immediate-below 30,20,contest-or-flip-v1,13,soft,25,25,300
+1003C0,sim-take-budget-experiment-1003c0,1003,h3-session-path,10,0.015048,h3-parent-res9,two-day-challenge window 3 floor 50 immediate-below 30,20,contest-or-flip-v1,none,soft,25,25,300

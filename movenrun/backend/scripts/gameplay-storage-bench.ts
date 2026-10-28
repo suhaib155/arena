@@ -7,7 +7,7 @@
  *     node --import tsx scripts/gameplay-storage-bench.ts --profile full \
  *       --out /path/bench.json --markdown /path/bench.md
  *
- * Options: --profile quick|full (default quick), --proposed <file> (default
+ * Options: --profile quick|full|capacity|integration|churn (default quick), --proposed <file> (default
  * drizzle-proposed/0011_gameplay_holdings.sql), --only <scenario name>,
  * --out <json>, --markdown <md>, --keep (do not drop the bench databases),
  * --from <json> (re-project a saved run without touching any database),
@@ -196,6 +196,15 @@ interface Scenario {
   alternatives?: boolean;
   /** Per-walker daily unit budget passed to the service: undefined = its default (300), null = off. Ignored by a service without one. */
   unitBudget?: number | null;
+  /**
+   * Churn study only (profile "churn"): storage parameters set on gameplay_unit_challenges right after 0011 is applied,
+   * as `ALTER TABLE ... SET (...)`, e.g. { autovacuum_vacuum_scale_factor: 0 }. Bench-side; the service is unchanged.
+   */
+  challengeReloptions?: Record<string, number>;
+  /** Churn study only: a plain VACUUM (never VACUUM FULL) of gameplay_unit_challenges after every N applied sessions, standing in for an autovacuum that keeps up at walking pace. */
+  challengeVacuumEvery?: number;
+  /** Churn study only: a plain VACUUM of gameplay_unit_challenges once per day, after the day's applies. */
+  challengeVacuumDaily?: boolean;
 }
 
 const AREA_RADIUS_M = { dense: 2_000, sparse: 12_000 } as const;
@@ -232,6 +241,18 @@ const PROFILES: Record<string, Scenario[]> = {
   integration: [1, 100, 200, 500, 1000].map((players): Scenario => ({
     name: `r3-res10-${players}`, rulesVersion: 1002, res: 10, density: "dense", players, days: 14, activeShare: 0.6, sessionsPerActiveDay: 1.5,
     walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7, 14], explain: players === 1000,
+  })),
+  // Churn options for gameplay_unit_challenges (G34_DATA_LIFECYCLE.md section 5): the same 200 players and walks
+  // (the seed depends only on players, resolution and density), 14 days, with the table's vacuum regime varied.
+  // The service and its delete-and-insert write pattern are unchanged.
+  churn: ([
+    ["churn-200-default", {}],
+    ["churn-200-autovacuum-table", { challengeReloptions: { autovacuum_vacuum_scale_factor: 0, autovacuum_vacuum_threshold: 200, autovacuum_vacuum_cost_delay: 0, autovacuum_analyze_scale_factor: 0.05 } }],
+    ["churn-200-vacuum-daily", { challengeVacuumDaily: true }],
+    ["churn-200-vacuum-every-50", { challengeVacuumEvery: 50 }],
+  ] as [string, Partial<Scenario>][]).map(([name, extra]): Scenario => ({
+    name, rulesVersion: 1002, res: 10, density: "dense", players: 200, days: 14, activeShare: 0.6, sessionsPerActiveDay: 1.5,
+    walkKm: [1.5, 4.5], clubShare: 0.7, checkpoints: [7, 14], ...extra,
   })),
 };
 
@@ -335,6 +356,9 @@ interface ScenarioResult {
   walBytes?: number;
   /** Revision 3: 1002 session path rows written beside the verifications. */
   sessionPaths?: number;
+  /** Churn study: plain VACUUMs of gameplay_unit_challenges the scenario ran, and the table each day before any measurement VACUUM. */
+  challengeVacuums?: number;
+  challengeSamples?: { day: number; bytes: number; live: number; dead: number }[];
   /** Revision 2 only: bytes of one empty day partition, per partitioned table. */
   emptyPartition?: Record<string, number>;
   partitions?: number;
@@ -397,6 +421,13 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
     await runInTx(pool, journal.entries.flatMap((e) => sqlFile(`drizzle/${e.tag}.sql`)));
     const before = await relations(pool);
     await runInTx(pool, sqlFile(PROPOSED));
+    if (s.challengeReloptions) {
+      const opts = Object.entries(s.challengeReloptions).map(([k, v]) => {
+        if (!/^[a-z_]+$/.test(k) || !Number.isFinite(v)) throw new Error(`bad storage parameter ${k}`);
+        return `${k} = ${v}`;
+      });
+      await pool.query(`ALTER TABLE gameplay_unit_challenges SET (${opts.join(", ")})`);
+    }
     const after = await relations(pool);
     const created = [...after.keys()].filter((k) => !before.has(k));
     const proposedTables = created.filter((k) => ["r", "p"].includes(after.get(k)!)).sort();
@@ -465,6 +496,8 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
     // beside the verification and keeps the resolution 8 cells in traversed_hex_ids.
     const writesPaths = Boolean(rules.units.source) && proposedTables.includes("gameplay_session_paths");
     let sessionPaths = 0;
+    let challengeVacuums = 0;
+    const challengeSamples: { day: number; bytes: number; live: number; dead: number }[] = [];
     const lsn = async () => String((await pool.query("SELECT pg_current_wal_lsn()::text AS l")).rows[0].l);
     let walBytes = 0;
 
@@ -510,7 +543,15 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       clock = at(day, 23.5);
       const isProbeDay = s.explain && day === lastDay;
       const toApply = isProbeDay ? todays.slice(0, -1) : todays;
+      let sinceVacuum = 0;
+      let vacuuming: Promise<unknown> = Promise.resolve();
       await pooled(toApply, 8, async (x) => {
+        if (s.challengeVacuumEvery && ++sinceVacuum >= s.challengeVacuumEvery) {
+          sinceVacuum = 0;
+          await vacuuming;
+          vacuuming = pool.query("VACUUM gameplay_unit_challenges");
+          challengeVacuums += 1;
+        }
         for (let attempt = 0; ; attempt++) {
           try {
             const r = await service.applySession(x.userId, x.clientSessionId);
@@ -526,6 +567,11 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
           }
         }
       });
+      await vacuuming;
+      if (s.challengeVacuumDaily) {
+        await pool.query("VACUUM gameplay_unit_challenges");
+        challengeVacuums += 1;
+      }
       // Normal retries: clients re-sending apply for sessions already applied.
       if (day === SEASON_START + 1 && retries === null) {
         const sample = todays.slice(0, Math.min(50, todays.length));
@@ -560,6 +606,15 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       // WAL of the day's writes and settlement only (not the measurement VACUUMs below). Cluster-wide.
       walBytes += Number((await pool.query("SELECT pg_wal_lsn_diff(pg_current_wal_lsn(), $1::pg_lsn) AS b", [walDayStart])).rows[0].b);
       const n = day - SEASON_START + 1;
+      if (PROFILE === "churn") {
+        // Before any measurement VACUUM: the table as the day's writes left it. Stats are flushed when backends go idle.
+        await new Promise((r) => setTimeout(r, 600));
+        await pool.query("SELECT pg_stat_clear_snapshot()");
+        const c = (await pool.query(`SELECT pg_total_relation_size('gameplay_unit_challenges') AS b,
+          (SELECT count(*) FROM gameplay_unit_challenges) AS live,
+          coalesce((SELECT n_dead_tup FROM pg_stat_user_tables WHERE relname = 'gameplay_unit_challenges'), 0) AS dead`)).rows[0];
+        challengeSamples.push({ day: n, bytes: Number(c.b), live: Number(c.live), dead: Number(c.dead) });
+      }
       if (s.checkpoints.includes(n)) {
         await pool.query("VACUUM ANALYZE");
         const cp: Checkpoint = { day: n, databaseBytes: await dbSize(pool), tables: await tableSizes(pool) };
@@ -597,7 +652,7 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       outcomes, retries, checkpoints, pushEventIndexes,
       dayStatesPerPush: rowsOf("gameplay_unit_day_states") / Math.max(1, pushes.normal + pushes.hostile),
       distinctUnits: rowsOf("gameplay_units"), districtMapUnits: mapCells.length, clubs: nClubs, districts,
-      authFootprint, alternatives, explain, walBytes, sessionPaths, seconds: (Date.now() - t0) / 1000,
+      authFootprint, alternatives, explain, walBytes, sessionPaths, challengeVacuums, challengeSamples, seconds: (Date.now() - t0) / 1000,
     };
   } finally {
     await pool.end();
@@ -1291,6 +1346,9 @@ function markdown(results: ScenarioResult[], proj: ReturnType<typeof projections
       }
     }
     md.push("", `Push event indexes: ${r.pushEventIndexes.map((i) => `${i.index} ${i.bytes}`).join(", ")}.`, "");
+    if (r.challengeSamples?.length) {
+      md.push(`gameplay_unit_challenges each day, before any measurement VACUUM (${r.challengeVacuums ?? 0} plain VACUUMs of the table): ${r.challengeSamples.map((x) => `d${x.day} ${(x.bytes / MIB).toFixed(2)} MiB, ${x.live} live, ${x.dead} dead`).join("; ")}.`, "");
+    }
     if (r.authFootprint) md.push(`Auth footprint: audit ${r.authFootprint.auditBytesPerRow.toFixed(0)} B/row, auth session ${r.authFootprint.authSessionBytesPerRow.toFixed(0)} B/row (${r.authFootprint.rows} rows each).`, "");
     if (r.alternatives) md.push("Alternatives:", "", "```json", JSON.stringify(r.alternatives, null, 2), "```", "");
     if (r.shape) {
