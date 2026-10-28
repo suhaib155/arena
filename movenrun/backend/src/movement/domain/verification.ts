@@ -13,6 +13,13 @@ import { inspectFix } from "@movenrun/shared/measurement";
 import { sessionMetadataProblems } from "@movenrun/shared/session";
 import { evaluateSealing } from "@movenrun/shared/sealing";
 import { hasEvidenceBreak, hasExplicitBreak } from "@movenrun/shared/evidence";
+import {
+  assessStationaryRisk,
+  DEFAULT_STATIONARY_RISK_RULE,
+  STATIONARY_RISK_RULE_V1,
+  STATIONARY_RISK_REVIEW_REASON,
+  type StationaryRiskRuleId,
+} from "./stationaryRisk.js";
 
 import type {
   MovementObservation,
@@ -35,6 +42,12 @@ export interface VerifyMovementDeps {
   traversedHexIds: (points: ObservedPoint[]) => string[];
   /** Injected for determinism. */
   now: () => number;
+  /**
+   * Versioned stationary-risk rule (see ./stationaryRisk.ts). Absent means the
+   * default, which is off: today's live behaviour. Selected in production by
+   * MOVEMENT_STATIONARY_RISK_RULE and in tests by passing it here.
+   */
+  stationaryRiskRule?: StationaryRiskRuleId;
 }
 
 /** A session may not be reported from further ahead than this (clock skew). */
@@ -172,6 +185,32 @@ export function verifyMovement(
       rejectionReasons: anomaly.reasons,
       sealEvaluation: null,
     };
+  }
+
+  /* Stationary-risk (versioned, default off). Runs only on a route that passed
+     every check above, and can only withhold the XP-bearing verdict: it never
+     rejects a route the rules above would have rejected differently, and it
+     names the rule so the verdict can be traced to the version that made it.
+     The wire contract has two statuses, and "rejected" is the existing
+     not-XP-eligible verdict the app already shows as needing review; a
+     separate eligibility field would need a client release (see the rule doc). */
+  if ((deps.stationaryRiskRule ?? DEFAULT_STATIONARY_RISK_RULE) === STATIONARY_RISK_RULE_V1) {
+    const risk = assessStationaryRisk(observation.points.map((p) => ({
+      latitude: p.lat, longitude: p.lng, timestamp: p.timestamp, accuracy: p.accuracy,
+      ...(p.breakBefore === true ? { breakBefore: true } : {}),
+    })), observation.session?.pauses ?? []);
+    if (risk.verdict === "review") {
+      return {
+        status: "rejected",
+        distanceMeters: null,
+        durationSeconds,
+        traversedHexIds: [],
+        confidence: anomaly.confidence,
+        rejectionReasons: [STATIONARY_RISK_REVIEW_REASON],
+        sealEvaluation: null,
+        stationaryRisk: risk,
+      };
+    }
   }
 
   return {
