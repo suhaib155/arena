@@ -421,3 +421,83 @@ REVIEWED UNAPPLIED. Branch `integration/g34-0011-1002-unapplied`, based on #121 
 
 **1001 unchanged.** Its config digest is the same as at 685852b (`d4199ec6…41cd6`), the shared economy code and its worked examples are byte-identical, the seeded stream fingerprint is unchanged, and a fixed PostgreSQL scenario gives the same stored game state (schema-independent projection, recorded by running the same test file on 685852b).
 
+
+## 17. Settlement invariants, halt and proof immutability
+
+**Credits, not tokens.** The books and `gameplay_day_settlements.minted_micro` say "minted". That is the V3 source's word for credits created inside the day pool. They are off-chain credits in integer micro-units. Nothing in the settlement mints, transfers or converts a token. The only 18-decimal arithmetic in the backend is the legacy `TokenService` estimate, which is not reached by gameplay. It is now exact (see below). Any token needs an audited chain authorization first.
+
+**Invariants (`backend/src/gameplay/invariants.ts`).** These are checked exactly, in bigint, against the server's own pinned economy rules: the sha256 of the registry's canonical JSON for each version. For version 1 that is `8af5766c…ab76cc`. A version with no pin, or a changed one, fails closed with `economy_rules_not_pinned`.
+
+1. minted + returned = pool, and the pool is the season's daily pool.
+2. minted = credited + toll credited + burned.
+3. Toll debits = toll credits, both in the books and in the lines.
+4. No amount is negative, and every net balance is 0 or more.
+5. The lines add up to the books, and each line's net follows from its parts.
+6. Each line stays within the day ceiling, the 2% toll and the 60% automatic-charge cap.
+
+They are asserted in two places:
+
+- **At every day close**, together with `reconcileDay`, on exactly what is about to be stored. Any violation stores the day as refused, with `invariant:` problems and no lines.
+- **In `verifyDay`'s read-only replay**:
+  - the input digest must match, as before;
+  - the stored header and lines are checked on their own (`closed_day_books_invalid`);
+  - they are compared with a fresh settlement of the same inputs under the pinned rules (`closed_day_replay_mismatch`). Before this change, a credit line edited after close passed, because only the digest was compared.
+
+`verifySeason(season)` re-verifies every closed day of a season, read-only. It refuses the season, with no totals, in any of these cases:
+
+- a closed day is missing;
+- a day was refused;
+- any day fails `verifyDay`;
+- the days use more than one economy version.
+
+It reports the rule sets the days are pinned to. The shared `settleCreditsSeason` does the same for in-memory days: it re-checks books, pool and lines, refuses days outside the season (`firstDay`), and reports missing days and the pool nobody settled (`requireAllDays` fails a closed season).
+
+Erasure removes credit lines, so after an account deletion the affected day's replay reports a mismatch. That is expected and documented (section 9). Repairing it is an operator incident, not a re-settlement.
+
+**Exact integers.** Every amount and pool must be a non-negative safe integer (`Number.isSafeInteger`), and anything else is refused. The toll shares are computed in bigint. Conversions to an 18-decimal unit use `shared/src/domain/creditUnits.ts`:
+
+- multiplication is bigint;
+- sub-micro dust is refused, never rounded;
+- amounts are bounded by uint256;
+- a decimal factor is read by its written digits.
+
+The source's rate factors (effort, consistency, kit rates, the zones^0.25 upkeep) are still applied once as floats and floored. They cannot be exact (√ and ^0.25), and changing them would change 1001's worked examples. The books built from them are checked exactly.
+
+**Operator halt (halt-only) runbook.** The halt log is `gameplay_settlement_halts`: append-only, and the latest row is the status. It has no HTTP route. An operator calls the service methods from a server shell against the API's database.
+
+- `haltSettlement({ actor, reason, day? })` stops every day close that starts after it commits:
+  - `settleDay` answers 503 `settlement_halted`;
+  - the maintenance loop settles nothing;
+  - nothing is written.
+- `actor` is a role label (`ops-oncall`, `reconciler`), never a name or an address.
+- `resumeSettlement({ actor, reason })` settles nothing itself. The next maintenance run settles the due days exactly as a server that never halted would (tested).
+- `verifyDayOrHalt(day)` is the reconciler's check. On a replay mismatch or invalid stored books it halts, with actor `reconciler` and the day recorded.
+- A halt cannot settle, re-settle, repair, credit, mint or override anything, and it does not bypass any authorization. Repairing a day is its own authorized incident.
+- A day already being settled when the halt commits completes under the normal rules.
+- Late data needs no special handling: a session the server received after its day's close counts for nothing, however long the halt lasts.
+
+**Player day proofs: immutability and erasure.** `gameplay_player_day_proofs` is append-only in the unapplied 0011. An UPDATE is always refused. A DELETE is refused unless the player is already gone. The proof row holds only a player number, counts and a sha256, and `player_no` still cascades from `gameplay_players`, which cascades from `users`. Account erasure therefore removes a person's proofs, and a proof is never a reason to keep anyone's data.
+
+The cost of this is that after an erasure, nobody can show that the erased player's archived ledger partition was unaltered. The day's settlement header, which holds totals and no person, still stands.
+
+The alternatives each have a drawback:
+
+- keeping the proofs under a number unlinked from the person still keeps a per-person record of activity;
+- `ON DELETE RESTRICT` would block erasure.
+
+Neither is adopted.
+
+These are owner and legal decisions that are not made here:
+
+- **Legal hold:** suspend erasure for named accounts before deleting.
+- **Archive destruction:** dropping a partition or the table fires no row trigger.
+- **The retention period for proofs.**
+
+The 0011 file stays outside `drizzle/` and is not applied. Revision 3 with these amendments has the following sha256 values:
+
+- up: `e3f355a994657e143e875a55a3892bfd16561c1cc67144c19778b1e80850b59e`
+- down: `c134da41a828c4175d598551295bba5260870088bbbc05aa7c3265504902d69a`
+
+The previous values were up `9a62dc7f…c4cb` and down `34d13e92…c0cd`.
+
+**1001 unchanged.** Its config digest stays `d4199ec6…41cd6`, and 1002's is also unchanged, because the rule-set configs were not touched. The fixed PostgreSQL scenario stores the same game state. The shared economy code is no longer byte-identical: the toll now uses bigint, and amounts are now validated. All of the source's worked examples give the same results.

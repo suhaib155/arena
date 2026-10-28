@@ -546,6 +546,28 @@ CREATE TABLE IF NOT EXISTS "gameplay_player_day_proofs" (
   CONSTRAINT "gameplay_player_day_proofs_day_rules" FOREIGN KEY ("day", "holding_rules_version") REFERENCES "gameplay_day_rules" ("day", "holding_rules_version")
 );--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "gameplay_player_day_proofs_day_idx" ON "gameplay_player_day_proofs" ("day");--> statement-breakpoint
+-- Append-only: a proof is never updated, and is deleted only once its player
+-- is gone (account erasure cascades from users through gameplay_players).
+-- Proofs carry no personal data beyond the player number, and they do not
+-- outlive the person: erasure removes them, so a proof is not a reason to
+-- keep anyone's data (docs/G34_SERVER_ARCHITECTURE.md, "Player day proofs").
+-- A legal hold or archive destruction is an owner decision outside this
+-- trigger; dropping or truncating the table fires no row trigger.
+CREATE OR REPLACE FUNCTION public.gameplay_player_day_proofs_append_only()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM public.gameplay_players WHERE player_no = OLD.player_no) THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'gameplay_player_day_proofs is append-only' USING ERRCODE = 'restrict_violation';
+END
+$$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_player_day_proofs_append_only" ON "gameplay_player_day_proofs";--> statement-breakpoint
+CREATE TRIGGER "gameplay_player_day_proofs_append_only" BEFORE UPDATE OR DELETE ON "gameplay_player_day_proofs"
+  FOR EACH ROW EXECUTE FUNCTION public.gameplay_player_day_proofs_append_only();--> statement-breakpoint
 
 -- ── day settlements: one header per closed day ─────────────────────────────
 CREATE TABLE IF NOT EXISTS "gameplay_day_settlements" (
@@ -659,6 +681,34 @@ DROP TRIGGER IF EXISTS "gameplay_credit_lines_final" ON "gameplay_credit_lines";
 CREATE TRIGGER "gameplay_credit_lines_final" BEFORE UPDATE OR DELETE ON "gameplay_credit_lines"
   FOR EACH ROW EXECUTE FUNCTION public.gameplay_settlements_final();--> statement-breakpoint
 
+-- ── settlement halts: the operator's halt-only switch, audited ─────────────
+-- Each row is one halt or resume; the latest row is the status. A halt only
+-- stops day close (nothing settles while the latest row is 'halt'); it
+-- writes, overrides or credits nothing, and a resume settles nothing by
+-- itself. The reconciler adds a halt row when a closed day's replay fails.
+-- actor is a role label (e.g. ops-oncall, reconciler), never a name or an
+-- address. Append-only: rows are never changed or removed.
+CREATE TABLE IF NOT EXISTS "gameplay_settlement_halts" (
+  "id" bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  "action" text NOT NULL CHECK ("action" IN ('halt', 'resume')),
+  "actor" text NOT NULL CHECK ("actor" ~ '^[a-z0-9][a-z0-9_.:-]{0,63}$'),
+  "reason" text NOT NULL CHECK (length("reason") BETWEEN 1 AND 500),
+  "day" integer CHECK ("day" >= 0),
+  "created_at" timestamptz DEFAULT now() NOT NULL
+);--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.gameplay_settlement_halts_append_only()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  RAISE EXCEPTION 'gameplay_settlement_halts is append-only' USING ERRCODE = 'restrict_violation';
+END
+$$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_settlement_halts_append_only" ON "gameplay_settlement_halts";--> statement-breakpoint
+CREATE TRIGGER "gameplay_settlement_halts_append_only" BEFORE UPDATE OR DELETE ON "gameplay_settlement_halts"
+  FOR EACH ROW EXECUTE FUNCTION public.gameplay_settlement_halts_append_only();--> statement-breakpoint
+
 -- ── clubs ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "gameplay_clubs" (
   "club_id" text PRIMARY KEY NOT NULL CHECK ("club_id" ~ '^[A-Za-z0-9_-]{8,64}$'),
@@ -751,6 +801,7 @@ ALTER TABLE "gameplay_day_rules" ENABLE ROW LEVEL SECURITY;--> statement-breakpo
 ALTER TABLE "gameplay_walker_days" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_unit_challenges" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_session_paths" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "gameplay_settlement_halts" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 
 REVOKE ALL ON FUNCTION public.gameplay_reset_erased_holder() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_reset_erased_state_holder() FROM PUBLIC;--> statement-breakpoint
@@ -762,6 +813,8 @@ REVOKE ALL ON FUNCTION public.gameplay_check_take_budget() FROM PUBLIC;--> state
 REVOKE ALL ON FUNCTION public.gameplay_check_challenge() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_ensure_day_partitions(integer, integer) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_movement_receipt_immutable() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_settlement_halts_append_only() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_player_day_proofs_append_only() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_push_seq" FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_source_no_seq" FROM PUBLIC;--> statement-breakpoint
 
@@ -776,7 +829,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY['gameplay_players', 'gameplay_units', 'gameplay_unit_day_states', 'gameplay_push_events', 'gameplay_applied_sessions',
     'gameplay_player_day_proofs', 'gameplay_day_settlements', 'gameplay_credit_lines', 'gameplay_clubs', 'gameplay_club_memberships',
     'gameplay_unit_districts', 'gameplay_club_days', 'gameplay_district_days',
-    'gameplay_day_rules', 'gameplay_walker_days', 'gameplay_unit_challenges', 'gameplay_session_paths'] LOOP
+    'gameplay_day_rules', 'gameplay_walker_days', 'gameplay_unit_challenges', 'gameplay_session_paths', 'gameplay_settlement_halts'] LOOP
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', t);
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', t);
