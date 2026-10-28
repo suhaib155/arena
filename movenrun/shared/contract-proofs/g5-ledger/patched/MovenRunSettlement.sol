@@ -40,6 +40,14 @@ import {IMovenRunRewards} from "./interfaces/IMovenRunRewards.sol";
 ///        zeroing the allowance and refusing every raise, including one already queued in the
 ///        timelock, until the delayed administrator resumes it;
 ///      - the minimum timelock delay is enforced by MovenRunTimelock (MIN_DELAY_FLOOR).
+///
+///      G5 DRAFT PATCH (issue ledger, 28 Oct, RESEARCH/PROPOSED, unaudited):
+///      - rolling liquid window: liquid movement rewards are also charged to the wall-clock day
+///        they are published on, and the sum over the current day and the previous
+///        ROLLING_WINDOW_DAYS days may not exceed LIQUID_EPOCH_CAP. Any 30-day interval touches at
+///        most 31 day buckets, so no 30-day interval can issue more than one epoch cap, whatever
+///        the calendar epoch boundary or the order in which withheld days are published;
+///      - a halted valve also refuses toll credits, so a halt stops every new liquid reward.
 contract MovenRunSettlement is AccessControl, EIP712 {
     /// @notice Role permitted to pause new settlement publication and nothing else.
     bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
@@ -129,6 +137,10 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     uint256 public lifetimeLiquidAuthorized;
     /// @notice G5 valve patch: true while the valve is halted.
     bool public valveHalted;
+    /// @notice G5 issue-ledger patch: days before the current one that the rolling window covers.
+    uint64 public constant ROLLING_WINDOW_DAYS = 30;
+    /// @notice G5 issue-ledger patch: liquid movement rewards published on each wall-clock day.
+    mapping(uint64 wallDay => uint256 issued) public liquidPublishedOnDay;
     /// @notice Highest settlement day published so far.
     uint32 public lastSettledDay;
     /// @notice Highest season whose budget has been derived.
@@ -198,6 +210,7 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     error PublicationAboveDailyCeiling(uint256 grossIssuance, uint256 ceiling);
     error AuthorizationLifetimeTooLong(uint64 expiry, uint64 maximum);
     error ValveIsHalted();
+    error RollingLiquidCapExceeded(uint256 requested, uint256 remainingInWindow);
     error EpochReleaseCapExceeded(uint256 requested, uint256 remainingThisEpoch);
     error LifetimeLiquidBudgetExceeded(uint256 requested, uint256 remaining);
 
@@ -302,13 +315,16 @@ contract MovenRunSettlement is AccessControl, EIP712 {
             }
         }
 
-        if (authorization.liquidMovementClaims > 0 && valveHalted) revert ValveIsHalted();
+        if ((authorization.liquidMovementClaims > 0 || authorization.tollCredits > 0) && valveHalted) {
+            revert ValveIsHalted();
+        }
         {
             uint256 available = liquidIssuanceAllowance();
             if (authorization.liquidMovementClaims > available) {
                 revert LiquidIssuanceAllowanceExceeded(authorization.liquidMovementClaims, available);
             }
         }
+        if (authorization.liquidMovementClaims > 0) _chargeRollingWindow(authorization.liquidMovementClaims);
 
         uint256 remainingAllocation = PLAYER_MOVEMENT_ALLOCATION - lifetimeMovementIssued;
         if (authorization.grossIssuance > remainingAllocation) {
@@ -563,6 +579,26 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     function liquidIssuanceAllowance() public view returns (uint256) {
         if (valveHalted || _allowanceEpoch != currentValveEpoch()) return 0;
         return _liquidAllowance;
+    }
+
+    /// @notice G5 issue-ledger patch: liquid published in the current rolling window.
+    function rollingLiquidPublished() public view returns (uint256 total) {
+        uint64 today = uint64(block.timestamp) / SETTLEMENT_DAY;
+        for (uint64 i = 0; i <= ROLLING_WINDOW_DAYS && i <= today; ++i) {
+            total += liquidPublishedOnDay[today - i];
+        }
+    }
+
+    /// @notice G5 issue-ledger patch: liquid that may still be published today under the rolling window.
+    function rollingLiquidRemaining() public view returns (uint256) {
+        uint256 used = rollingLiquidPublished();
+        return used >= LIQUID_EPOCH_CAP ? 0 : LIQUID_EPOCH_CAP - used;
+    }
+
+    function _chargeRollingWindow(uint256 amount) private {
+        uint256 remaining = rollingLiquidRemaining();
+        if (amount > remaining) revert RollingLiquidCapExceeded(amount, remaining);
+        liquidPublishedOnDay[uint64(block.timestamp) / SETTLEMENT_DAY] += amount;
     }
 
     /// @notice G5 valve patch: index of the current valve epoch, counted from genesis.

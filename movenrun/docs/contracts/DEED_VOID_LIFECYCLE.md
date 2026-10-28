@@ -97,6 +97,8 @@ signatures. This is bounded by D3, but it is still a policy choice for the owner
 | Emergency halt | `haltValve` (guardian or timelock) zeroes the allowance and refuses raises, including one already queued in the timelock, and liquid publication; locked rewards continue; only the timelock can call `resumeValve`, and the allowance restarts at zero | E4 |
 | Minimum timelock delay | `MovenRunTimelock.MIN_DELAY_FLOOR` = 1 hour, enforced in the constructor and in `updateDelay`, so a 1-second delay is refused | E5, 06 C5 |
 
+**Update 28 Oct:** the rolling-window remedy below is now in the patched prototype (FIXED E6, E7), and the counter release model gained a void-aware lifetime ceiling and a FAULT-void evidence nullifier. See `G5_ISSUE_LEDGER.md`; the text below is the original analysis.
+
 **Epoch boundary (limit of the design, not fixed here; test E6).** The cap bounds what is
 *raised* per calendar epoch counted from genesis, not what is issued in any rolling 30-day
 window. Settlement days can be published late and in order, so the two settlement keys can
@@ -133,6 +135,8 @@ Residual risks of the approver role (not fixed here):
   independent if those keys belong to different parties.
 
 ## 7. Open items (documented, not fixed here)
+
+Current status of each item, with its counterexample test, is in `G5_ISSUE_LEDGER.md` (28 Oct).
 
 - **Liquid toll escape** (06 B1–B3, valve V3/M4): tolls are issued liquid even with the valve
   shut, and no setting turns this off. The options are an all-locked global fallback or

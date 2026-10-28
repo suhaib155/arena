@@ -253,14 +253,15 @@ describe("G5 hardening: void lifecycle, valve, signer roles (patched, RESEARCH/P
       await execViaTimelock(f, f.addresses.timelock, f.timelock.interface.encodeFunctionData("updateDelay", [2 * DAY]), ethers.id("e5b"));
       expect(await f.timelock.getMinDelay()).to.equal(BigInt(2 * DAY));
     });
-    it("E6 epoch boundary (documented limit): the cap is per calendar epoch, not a rolling window, so withheld closed days let more than one cap be drawn within hours across a boundary", async () => {
+    // Rewritten by the issue-ledger patch (28 Oct). Was "E6 epoch boundary (documented limit)",
+    // which asserted that more than one epoch cap could be drawn within about three hours.
+    it("FIXED E6 epoch boundary: withheld days spent across the boundary are refused by the rolling window; no 30-day interval issues more than one epoch cap", async () => {
       const f = await fx();
       const genesis = Number(await f.settlement.genesis());
       const CEIL = 200_000n * ONE;
-      // Nothing is published for 59 days; the raise for epoch 1 lands 2 hours before it ends.
+      // Same attack as before: nothing published for 59 days, raise 2 hours before epoch 1 ends.
       await time.increaseTo(genesis + 2 * VALVE_EPOCH - 3 * 3600);
       await raise(f, EPOCH_CAP, "e6a");
-      const t0 = await time.latest();
       let day = 31;
       let liquid = 0n;
       const publishMax = async (lastDay: number) => {
@@ -278,16 +279,48 @@ describe("G5 hardening: void lifecycle, valve, signer roles (patched, RESEARCH/P
         }
       };
       await publishMax(59);
-      expect(await f.settlement.currentValveEpoch()).to.equal(1n);
       expect(liquid).to.equal(EPOCH_CAP);
+      expect(await f.settlement.rollingLiquidRemaining()).to.equal(0n);
+      // The calendar epoch cap alone would allow a second burst: the raise itself still succeeds.
       await time.increaseTo(genesis + 2 * VALVE_EPOCH);
       await raise(f, EPOCH_CAP, "e6b");
-      await publishMax(60);
-      expect(await f.settlement.epochLiquidRaised(1)).to.equal(EPOCH_CAP);
       expect(await f.settlement.epochLiquidRaised(2)).to.equal(EPOCH_CAP);
-      // More than one epoch cap issued liquid inside about three hours (two timelock delays).
-      expect(liquid).to.be.gt(EPOCH_CAP);
-      expect((await time.latest()) - t0).to.be.lt(4 * 3600);
+      expect(await f.settlement.liquidIssuanceAllowance()).to.equal(EPOCH_CAP);
+      // But the rolling window refuses even one wei of liquid for the next 30 days.
+      await expect(publishSettlement(f, await settlementAuthorization(f, {
+        dayId: 60, grossIssuance: ONE, lockedClaims: 0n, liquidMovementClaims: ONE,
+      }))).to.be.revertedWithCustomError(f.settlement, "RollingLiquidCapExceeded").withArgs(ONE, 0n);
+      // Locked rewards are unaffected.
+      await (await publishSettlement(f, await settlementAuthorization(f, { dayId: 60, grossIssuance: ONE }))).wait();
+      expect(liquid).to.equal(EPOCH_CAP);
+    });
+
+    it("E7 rolling window recovers: 31 wall-clock days after a full burst, liquid capacity is available again (within that epoch's raise)", async () => {
+      const f = await fx();
+      const genesis = Number(await f.settlement.genesis());
+      await time.increaseTo(genesis + 40 * DAY);
+      await raise(f, EPOCH_CAP, "e7a");
+      for (let d = 1; d <= 40; d += 1) {
+        const left: bigint = await f.settlement.rollingLiquidRemaining();
+        if (left === 0n) break;
+        let gross: bigint = await f.settlement.dailyPoolOf(d);
+        if (gross > 200_000n * ONE) gross = 200_000n * ONE;
+        if (gross > left) gross = left;
+        await (await publishSettlement(f, await settlementAuthorization(f, {
+          dayId: d, grossIssuance: gross, lockedClaims: 0n, liquidMovementClaims: gross,
+        }))).wait();
+      }
+      expect(await f.settlement.rollingLiquidPublished()).to.equal(EPOCH_CAP);
+      const burstDay = Math.floor((await time.latest()) / DAY);
+      await time.increaseTo((burstDay + 30) * DAY + 10);
+      expect(await f.settlement.rollingLiquidRemaining()).to.equal(0n);
+      await time.increaseTo((burstDay + 31) * DAY + 10);
+      expect(await f.settlement.rollingLiquidRemaining()).to.equal(EPOCH_CAP);
+      await raise(f, 100_000n * ONE, "e7b");
+      const next = Number(await f.settlement.lastSettledDay()) + 1;
+      await (await publishSettlement(f, await settlementAuthorization(f, {
+        dayId: next, grossIssuance: 100_000n * ONE, lockedClaims: 0n, liquidMovementClaims: 100_000n * ONE,
+      }))).wait();
     });
   });
 
