@@ -10,8 +10,8 @@ security code being good is not an approval to deploy.
 |---|---|
 | Service | `movenrun-staging-api`, `srv-db7a49dg1s2s739nleog` (Render Free, Virginia, auto-deploy off) |
 | Source branch | `integration/security-staging-preflight-28oct` (not a deploy branch, no PR yet) |
-| Candidate SHA (code) | `18983bb58a9c7848e54bd73a54cb8e6b745e803b` |
-| Branch head | adds only this document on top of the candidate. `git diff 18983bb <head> --stat` lists this file alone, so both deploy the same code |
+| Candidate SHA (code) | `efd381bb6fc9e3be0229859d26ddee59cdbd410d` |
+| Branch head | adds only this document on top of the candidate. `git diff efd381b <head> --stat` lists this file alone, so both deploy the same code |
 | Base | `2192de6930be18d7e4bc07a94b93828d46b0a7d5`, the last recorded live code on `deploy/render-free-staging` (X-27). It is an ancestor of the candidate, so the deploy branch could move forward with no merge |
 | Current deploy ID | **UNKNOWN**: not checked today (no Render access from here). Last recorded live deploy: `dep-db9m51qjnfac73cqh6eg` at `2192de6` (X-27). That deploy is the rollback target |
 | CI | CI: pending PR |
@@ -28,7 +28,7 @@ touch only `movenrun/docs` and are left out.
 | #143 legacy-secret fail-closed | `5a06c69` | `09642b2` |
 | #144 key outage is 503 (stacked on #143) | `88a5bc3`, `db929f9` | `c12ae04`, `9f63831` |
 | #148 deletion queue compare-and-set, wallet handoff expiry | `0b74c89`, `b52ae9b` | `c6591cd`, `4051f48` |
-| this branch | | `647e9a9` Retry-After on the deletion-in-flight 503, `no-store` on every identity response; `18983bb` acceptance tests |
+| this branch | | `647e9a9` Retry-After on the deletion-in-flight 503, `no-store` on every identity response; `18983bb` acceptance tests; `e70953f` merge of `ci/test-discovery` (complete test runner, CI uses it); `efd381b` `no-store` set before the global rate limiter, so its 429 is not cached either (review finding) |
 
 Checks after the cherry-picks: `supabaseAuth.ts`, its tests and `jwksOutage.test.ts`
 match #144 byte for byte. `signInStores.ts`, `providerDeletionQueue.test.ts`,
@@ -37,8 +37,8 @@ from #148 is #143/#144 content.
 
 ## Tree comparison against 2192de6
 
-`git diff --stat 2192de6..18983bb`: 17 files, +1712 / −111. Only backend identity
-and API code, their tests, and two runbooks change:
+`git diff --stat 2192de6..efd381b`: 22 files, +2092 / −123. Backend identity
+and API code, their tests, two runbooks, and the test runner from `ci/test-discovery`:
 
 ```
 backend/src/api/app.ts                                  (no-store on /identity; deletion-age report)
@@ -54,18 +54,22 @@ backend/src/identity/providers/supabaseAuth.test.ts
 backend/src/identity/services/{providerDeletionQueue,supabaseSignIn.service}.test.ts
 docs/play-launch/X26_SIGNING_KEY_RUNBOOK.md
 docs/security/A2_DELETION_QUEUE.md
+scripts/run-tests.mjs                                   (complete test discovery, from ci/test-discovery)
+backend/package.json, shared/package.json               (test scripts call the runner; no dependency change)
+.github/workflows/backend-checks.yml                    (CI runs the runner with --strict)
 ```
 
 Unchanged: `render.yaml`, `backend/src/middleware/` (CORS, helmet, rate limits),
 `backend/src/api/config.ts`, `trustedProxies.ts`, all gameplay, mobile, website,
-contracts and shared code. No new dependency and no lockfile change.
+contracts and shared source code. No new dependency and no lockfile change; the
+two package.json edits change test scripts only.
 
 ## Migrations: unchanged
 
 No new migration. `backend/drizzle/` (0000–0010, `meta/_journal.json`,
 `CHECKSUMS.sha256`) is byte-identical to `2192de6`:
 
-- `git diff --quiet 2192de6 18983bb -- movenrun/backend/drizzle` exits 0
+- `git diff --quiet 2192de6 efd381b -- movenrun/backend/drizzle` exits 0
 - tree object `461b9314a086524240025a39538618de8ea7892d` at both commits
 - `sha256sum -c CHECKSUMS.sha256`: 0000–0010 all OK
 - `meta/_journal.json` sha256 `ba6655ac100565bfec878ed0fbe6f87d75c5d87284ca3de81cfa5f80fc3595a5`
@@ -102,7 +106,7 @@ X-30 status today: **UNKNOWN** (not checked from here).
 ## Approved deploy, if and only if
 
 1. X-30 shows both names ABSENT, re-checked just now.
-2. The owner has approved `18983bb58a9c7848e54bd73a54cb8e6b745e803b` (or the
+2. The owner has approved `efd381bb6fc9e3be0229859d26ddee59cdbd410d` (or the
    docs-only branch head above) by exact SHA.
 3. CI is green at that SHA (fill the CI line above).
 
@@ -161,9 +165,9 @@ Node v22.22.0, PostgreSQL 16.15 (local cluster, a fresh database per run).
 | Run | Executed | Pass | Fail | Skipped |
 |---|---|---|---|---|
 | `tsc -p tsconfig.json`, `tsc -p tsconfig.api.json` | clean | | | |
-| Backend suite, complete discovery (bash globstar, `--test-concurrency=1`, DB set) | 466 | 466 | 0 | 0 |
-| `test:api` (DB set, built API) | 25 | 25 | 0 | 0 |
-| Backend `test` script as written (plain sh globs, no DB), for comparison | 340 | 328 | 0 | 12 (the PostgreSQL-only cases: 11 deletion-queue `[postgres]` and the auth hook) |
+| Backend `test` (`run-tests.mjs --strict`, unit + db, fresh DB) | 486 (424 unit, 62 db, 48 files) | 486 | 0 | 0 |
+| `test:api` (`--strict`, fresh DB, built API) | 20 | 20 | 0 | 0 |
+| Old backend `test` script at `2192de6` style (plain sh globs, no DB), for comparison | 340 | 328 | 0 | 12 (the PostgreSQL-only cases: 11 deletion-queue `[postgres]` and the auth hook) |
 
 The plain-sh `test` script misses 126 tests (see `ci/test-discovery`).
 
@@ -178,6 +182,17 @@ with passwords) found nothing. Every key in the tests is generated at run time.
 | Only ES256/RS256 keys from the JWKS. HS256, `none`, unknown or missing kid, algorithm mix-ups, `crit`, future `nbf`, missing or duplicated OAuth `amr`, stale sign-in, replayed session are all refused | `authThreats.test.ts` "only the project's ES256 and RS256 signing keys sign in…", plus `supabaseAuth.test.ts` and `supabaseSignIn.service.test.ts` |
 | Startup refused when either name is present, empty included, with no value logged | `config.test.ts` (in-process and both names empty at process level), `supabaseAuth.test.ts` |
 | Key outage is 503 `provider_unavailable` with Retry-After, forged or malformed is 401, sessions survive, nothing leaks | `authThreats.test.ts` "a key-set outage is 503 only for…", `jwksOutage.test.ts`. The first fails on `2192de6`: stale keys still signed people in |
-| Retry-After on the deletion-in-flight 503, `no-store` on pre-router refusals | `supabaseSignIn.service.test.ts` "a sign-in refused while a deletion is in flight…" and the `runtime.test.ts` 413 assertion. Both fail before `647e9a9` |
+| Retry-After on the deletion-in-flight 503, `no-store` on pre-router refusals | `supabaseSignIn.service.test.ts` "a sign-in refused while a deletion is in flight…" and the `runtime.test.ts` 413 assertion. Both fail before `647e9a9`. The global-limiter 429 is covered by middleware order (`efd381b`) only, with no dedicated test |
 | Deletion exactly once: overlapping workers, sign-back-in, retries, delayed provider removal, handoff expiry, never finished while cleanup is pending | `providerDeletionQueue.test.ts`, memory and PostgreSQL (11 cases each), and `supabaseSignIn.service.test.ts` "account deletion while the provider is down reports … pending" |
 | CORS apex only, rate limits and admission intact | `renderBlueprint.test.ts` CORS preflight test, middleware untouched, existing `rateLimit`/`security`/quota/cap tests pass |
+
+## Independent review
+
+A separate reviewer checked `e70953f`: verdict ACCEPT WITH NOTES. Cherry-picks
+match their PRs by patch id, scope is as listed, drizzle checksums pass, the
+secret scan is clean. Mutation checks: removing the stale-key bound fails 1
+test and removing Retry-After fails 3. Removing the `alg` match check fails
+none, because a mismatched key type already fails signature verification, so
+the algorithm mix-up cases prove "401" rather than that one guard. Notes fixed
+since: the global-limiter 429 now carries `no-store` (`efd381b`), and this page
+now names `efd381b` with current counts.
