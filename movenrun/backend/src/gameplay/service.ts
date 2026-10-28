@@ -63,7 +63,7 @@ import {
 } from "@movenrun/shared/clubsDistricts";
 import type { DaySettlement } from "@movenrun/shared/economy-v3";
 import {
-  dayCloseMs, dayOf, dayStartMs, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, seasonOf,
+  dayCloseMs, dayOf, dayStartMs, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, sealProblem, seasonOf,
   UnknownRulesVersionError, zoneOfUnder,
   type GameplayRules,
 } from "./rules.js";
@@ -379,7 +379,8 @@ export class GameplayService {
   /* ── pushes ──────────────────────────────────────────────────────────── */
 
   /**
-   * Turn one of the caller's verified movement sessions into pushes. Keyed by
+   * Turn one of the caller's verified, server-sealed movement sessions into
+   * pushes (V3 rule 3: unsealed sessions claim nothing). Keyed by
    * the authenticated user and the client's own session id, so a retry (or a
    * guess at someone else's id) can never apply anything twice or for anyone
    * else. Every traversed unit is a stepped-on push: the traversed cells are
@@ -390,8 +391,10 @@ export class GameplayService {
     const now = this.now();
     try {
       return await this.withPartitions(() => this.db.transaction(async (tx) => {
-        const [mv] = await rows<{ id: string; status: string; end_time: string; traversed_hex_ids: string[] | null; received_ms: number }>(tx, sql`
-          SELECT id, status, end_time, traversed_hex_ids, ${RECEIVED_MS} AS received_ms FROM movement_verifications
+        const [mv] = await rows<{ id: string; status: string; end_time: string; traversed_hex_ids: string[] | null; received_ms: number;
+          sealed: boolean | null; seal_methods: string[] | null; seal_event_count: number | null; rules_version: number | null }>(tx, sql`
+          SELECT id, status, end_time, traversed_hex_ids, ${RECEIVED_MS} AS received_ms, sealed, seal_methods, seal_event_count, rules_version
+            FROM movement_verifications
            WHERE user_id = ${userId} AND client_session_id = ${clientSessionId}
            FOR UPDATE`);
         if (!mv) throw new GameplayError(404, "session_not_found");
@@ -413,6 +416,11 @@ export class GameplayService {
         // whatever this instance's clock says. It changes nothing on that day.
         if (!receivedInTime(this.rules, day, Number(mv.received_ms))) throw new GameplayError(409, "day_closed");
         if (seasonOf(this.rules, day) === null) throw new GameplayError(409, "season_not_started");
+        // V3 rule 3: no holding is created or changed without the server's own
+        // seal of this route under a listed sealing rules version. Nothing is
+        // written; the route and its verification are untouched.
+        const unsealed = sealProblem(this.rules, mv);
+        if (unsealed) throw new GameplayError(409, unsealed);
         // 1001: the stored cells, in unit id order. 1002: the canonical path the
         // server derived from the verified fixes, in walk order.
         const source = this.rules.units.source;

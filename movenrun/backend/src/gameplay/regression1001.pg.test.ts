@@ -15,7 +15,11 @@
  * left out. `projection()` reads either shape, and this file is
  * self-contained, so it can be copied onto commit 685852b (revision 1, before
  * rule set 1002's work and before the storage revisions) and run there; the
- * recorded value below was produced that way. Skipped without
+ * recorded value below was produced that way. Since V3 rule 3 is enforced
+ * (no territory without a server seal), every fixture session carries the
+ * seal summary the real sealing engine computes for a closed loop
+ * (sealFixtures.ts); seal columns are not in the projection, so the recorded
+ * value is unchanged. To rerun on 685852b, inline SEALED_LOOP. Skipped without
  * MOVENRUN_TEST_DATABASE_URL.
  */
 import { test, before, after } from "node:test";
@@ -30,6 +34,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { Db } from "../db/client.js";
 import { DAY_MS, PILOT_PROPOSAL, type GameplayRules } from "./rules.js";
 import { GameplayService } from "./service.js";
+import { SEALED_LOOP, SEAL_COLUMNS, sealLiteral } from "./sealFixtures.js";
 
 const DATABASE_URL = process.env.MOVENRUN_TEST_DATABASE_URL;
 const SKIP = DATABASE_URL ? false : "MOVENRUN_TEST_DATABASE_URL is not set — the 1001 PostgreSQL regression was NOT verified";
@@ -90,8 +95,8 @@ const RECEIVED = "(to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting(
 
 async function walk(user: string, sid: string, endMs: number, units: string[]) {
   await pool.query(
-    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
-     VALUES ($1, $2, $3, 'verified', 2500, 1500, $4, $5, $6, ${RECEIVED})`, [`mv-${sid}`, user, sid, units, endMs - 1_500_000, endMs, clock]);
+    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
+     VALUES ($1, $2, $3, 'verified', 2500, 1500, $4, $5, $6, ${RECEIVED}, ${sealLiteral(SEALED_LOOP)})`, [`mv-${sid}`, user, sid, units, endMs - 1_500_000, endMs, clock]);
   return svc.applySession(user, sid);
 }
 
@@ -145,8 +150,8 @@ test("1001 on PostgreSQL: the stored game state of a fixed scenario is the one r
   out.push(await walk("ben", "b1", at(D, 10), [C[1]!])); // one push a day on someone else's ground
   out.push(await walk("cal", "c0", at(D, 11), [C[3]!, C[4]!]));
   // Concurrent applies of one session: applied once.
-  await pool.query(`INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
-     VALUES ('mv-d0', 'dee', 'd0', 'verified', 900, 700, $1, $2, $3, ${RECEIVED.replace("$7", "$4")})`, [[C[0]!, C[5]!], at(D, 11.5) - 700_000, at(D, 11.5), clock]);
+  await pool.query(`INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
+     VALUES ('mv-d0', 'dee', 'd0', 'verified', 900, 700, $1, $2, $3, ${RECEIVED.replace("$7", "$4")}, ${sealLiteral(SEALED_LOOP)})`, [[C[0]!, C[5]!], at(D, 11.5) - 700_000, at(D, 11.5), clock]);
   const same = await Promise.all([1, 2, 3, 4, 5].map(() => svc.applySession("dee", "d0")));
   out.push(same.filter((r) => !r.replayed).length);
   clock = at(D + 1, 12);

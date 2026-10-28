@@ -16,6 +16,7 @@ import { gridDisk, latLngToCell } from "h3-js";
 import type { Db } from "../db/client.js";
 import { DAY_MS, PILOT_PROPOSAL, dayCloseMs, type GameplayRules } from "./rules.js";
 import { GameplayError, GameplayService } from "./service.js";
+import { SEALED_LOOP, SEAL_COLUMNS, sealLiteral } from "./sealFixtures.js";
 import { createTestDb, type TestDb } from "./pgTestDb.js";
 
 const DATABASE_URL = process.env.MOVENRUN_TEST_DATABASE_URL;
@@ -51,8 +52,8 @@ async function world(prefix: string, wrap?: (db: Db) => Db): Promise<World> {
     async session(userId, sid, endMs, receivedMs, units = [C[0]!]) {
       const id = randomUUID();
       await t.pool.query(
-        `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at)
-         VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')))`,
+        `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
+         VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
         [id, userId, sid, units, endMs - 1_800_000, endMs, receivedMs]);
       return id;
     },
