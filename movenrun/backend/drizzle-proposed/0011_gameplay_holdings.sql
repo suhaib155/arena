@@ -116,11 +116,11 @@
 -- deletes the user row. That step deletes every row naming the person (their
 -- player number, ledger rows, day rows, proofs, memberships, held ground and
 -- challenges), replaces each of their settled credit lines with a random
--- per-erasure tombstone, and appends one hash-chained erasure record per
--- affected settled day (gameplay_erasure_records) binding the day's stored
--- input digest to its digest after the erasure. The reconciler accepts a
--- day's changed inputs only through that chain. The tombstone is a random
--- uuid: nothing maps it back to the person. gameplay_players,
+-- per-line tombstone, and advances each affected settled day's erasure state
+-- (gameplay_erasure_days: one row per day, never per erasure) from the
+-- day's stored input digest to its digest after the erasure. The reconciler
+-- accepts a day's changed inputs only through that state. The tombstone is a
+-- random uuid: nothing maps it back to the person or to their other days. gameplay_players,
 -- gameplay_credit_lines and gameplay_club_memberships no longer cascade from
 -- users (RESTRICT / NO ACTION): deleting a user without the erasure step
 -- fails instead of silently breaking a closed day's books.
@@ -630,74 +630,57 @@ CREATE TABLE IF NOT EXISTS "gameplay_day_settlements" (
 );--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "gameplay_day_settlements_season_idx" ON "gameplay_day_settlements" ("season", "day");--> statement-breakpoint
 
--- ── erasure records: how account erasure changed a closed day ─────────────
--- One row per (erasure, settled day whose inputs it changed). record_id is a
--- random uuid made for that row alone: the tombstone that replaces the
--- erased person's credit line of that day. Nothing stored anywhere maps it
--- back to the person or to their other days' records, and no timestamp is
--- kept. pre_digest is the day's digest before the erasure (the header's
--- input_digest, or the previous record's post_digest), post_digest the
--- digest of the day's inputs right after it, computed in the same
--- transaction. pre_verified: the day passed the reconciler's full check
--- just before the erasure, so an erasure can never launder an earlier
--- mismatch. Each day's records form a hash chain (prev_hash, record_hash)
--- that this table's insert trigger checks and recomputes; rows are never
--- updated, and go only with a refused header an operator removes so the day
--- can be settled again.
-CREATE TABLE IF NOT EXISTS "gameplay_erasure_records" (
-  "seq" bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  "record_id" uuid NOT NULL UNIQUE,
-  "day" integer NOT NULL REFERENCES "gameplay_day_settlements"("day") ON DELETE CASCADE,
-  "pre_digest" text NOT NULL CHECK ("pre_digest" ~ '^[0-9a-f]{64}$'),
-  "post_digest" text NOT NULL CHECK ("post_digest" ~ '^[0-9a-f]{64}$'),
-  "pre_verified" boolean NOT NULL,
-  "line_tombstoned" boolean NOT NULL,
-  "prev_hash" text NOT NULL CHECK ("prev_hash" ~ '^[0-9a-f]{64}$'),
-  "record_hash" text NOT NULL UNIQUE CHECK ("record_hash" ~ '^[0-9a-f]{64}$'),
-  CONSTRAINT "gameplay_erasure_records_day_record" UNIQUE ("day", "record_id")
+-- ── erasure days: how account erasure changed a closed day ────────────────
+-- One row per settled day that any erasure changed, updated in place, never
+-- one row per erasure: nothing here orders, counts per person or groups one
+-- person's days. No identity column, sequence or timestamp. base_digest is
+-- the header's input_digest (fixed at the first erasure), head_digest the
+-- digest of the day's inputs after the latest erasure, computed in that
+-- erasure's transaction. all_pre_verified: every erasure of the day found the
+-- day passing the reconciler's full check just before it, so an erasure can
+-- never launder an earlier mismatch (once false, never true again).
+-- tombstones: how many of the day's credit lines are tombstoned. Removed only
+-- with a refused header an operator deletes so the day settles afresh.
+CREATE TABLE IF NOT EXISTS "gameplay_erasure_days" (
+  "day" integer PRIMARY KEY NOT NULL REFERENCES "gameplay_day_settlements"("day") ON DELETE CASCADE,
+  "base_digest" text NOT NULL CHECK ("base_digest" ~ '^[0-9a-f]{64}$'),
+  "head_digest" text NOT NULL CHECK ("head_digest" ~ '^[0-9a-f]{64}$'),
+  "erasures" integer NOT NULL CHECK ("erasures" >= 1),
+  "tombstones" integer NOT NULL CHECK ("tombstones" >= 0 AND "tombstones" <= "erasures"),
+  "all_pre_verified" boolean NOT NULL
 );--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "gameplay_erasure_records_day_idx" ON "gameplay_erasure_records" ("day", "seq");--> statement-breakpoint
 
-CREATE OR REPLACE FUNCTION public.gameplay_erasure_record_hash(prev text, rid uuid, d integer, pre text, post text, verified boolean, tomb boolean)
-RETURNS text
-LANGUAGE sql
-IMMUTABLE
-SET search_path = public, pg_temp
-AS $$
-  SELECT encode(sha256(convert_to(concat_ws('|', 'erasure-record-v1', prev, rid::text, d::text, pre, post, verified::text, tomb::text), 'UTF8')), 'hex')
-$$;--> statement-breakpoint
-
-CREATE OR REPLACE FUNCTION public.gameplay_erasure_records_guard()
+CREATE OR REPLACE FUNCTION public.gameplay_erasure_days_guard()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public, pg_temp
 AS $$
-DECLARE
-  head text;
-  prev text;
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    SELECT post_digest, record_hash INTO head, prev FROM public.gameplay_erasure_records WHERE day = NEW.day ORDER BY seq DESC LIMIT 1;
-    IF head IS NULL THEN
-      SELECT input_digest INTO head FROM public.gameplay_day_settlements WHERE day = NEW.day;
-      prev := repeat('0', 64);
-    END IF;
-    IF NEW.pre_digest IS DISTINCT FROM head OR NEW.prev_hash IS DISTINCT FROM prev
-       OR NEW.record_hash IS DISTINCT FROM public.gameplay_erasure_record_hash(NEW.prev_hash, NEW.record_id, NEW.day, NEW.pre_digest, NEW.post_digest, NEW.pre_verified, NEW.line_tombstoned) THEN
-      RAISE EXCEPTION 'erasure record for day % does not extend the day''s chain', NEW.day USING ERRCODE = 'check_violation';
+    IF NEW.base_digest IS DISTINCT FROM (SELECT input_digest FROM public.gameplay_day_settlements WHERE day = NEW.day)
+       OR NEW.erasures <> 1 OR NEW.tombstones > 1 THEN
+      RAISE EXCEPTION 'erasure state of day % does not start from its stored digest', NEW.day USING ERRCODE = 'check_violation';
     END IF;
     RETURN NEW;
   END IF;
-  -- Removed only with its refused header (the day is then settled afresh).
-  IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM public.gameplay_day_settlements WHERE day = OLD.day) THEN
+  IF TG_OP = 'UPDATE' THEN
+    -- One more erasure: same day and base, one more count, at most one more
+    -- tombstone, and verification can only be lost, never regained.
+    IF NEW.day = OLD.day AND NEW.base_digest = OLD.base_digest AND NEW.erasures = OLD.erasures + 1
+       AND NEW.tombstones IN (OLD.tombstones, OLD.tombstones + 1) AND (OLD.all_pre_verified OR NOT NEW.all_pre_verified) THEN
+      RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'erasure state of day % may only advance by one erasure', OLD.day USING ERRCODE = 'check_violation';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.gameplay_day_settlements WHERE day = OLD.day) THEN
     RETURN OLD;
   END IF;
-  RAISE EXCEPTION 'gameplay_erasure_records is append-only' USING ERRCODE = 'restrict_violation';
+  RAISE EXCEPTION 'gameplay_erasure_days rows go only with a refused header' USING ERRCODE = 'restrict_violation';
 END
 $$;--> statement-breakpoint
-DROP TRIGGER IF EXISTS "gameplay_erasure_records_guard" ON "gameplay_erasure_records";--> statement-breakpoint
-CREATE TRIGGER "gameplay_erasure_records_guard" BEFORE INSERT OR UPDATE OR DELETE ON "gameplay_erasure_records"
-  FOR EACH ROW EXECUTE FUNCTION public.gameplay_erasure_records_guard();--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_erasure_days_guard" ON "gameplay_erasure_days";--> statement-breakpoint
+CREATE TRIGGER "gameplay_erasure_days_guard" BEFORE INSERT OR UPDATE OR DELETE ON "gameplay_erasure_days"
+  FOR EACH ROW EXECUTE FUNCTION public.gameplay_erasure_days_guard();--> statement-breakpoint
 
 -- One row. Every day close takes it FOR SHARE and every erasure UPDATEs it,
 -- so a day never settles from inputs an erasure is changing: the close waits,
@@ -708,15 +691,15 @@ CREATE TABLE IF NOT EXISTS "gameplay_erasure_fence" (
 );--> statement-breakpoint
 INSERT INTO "gameplay_erasure_fence" ("id") VALUES (true) ON CONFLICT DO NOTHING;--> statement-breakpoint
 
--- A credit line names its player, or (after erasure) the tombstone of that
--- day's erasure record, never both. player_id has no ON DELETE action: a
--- user row cannot go while a line names it. line_key is the line's id either
--- way, and amounts never change.
+-- A credit line names its player, or (after erasure) a tombstone: a random
+-- uuid made for that one line, linked to nothing else. Never both.
+-- player_id has no ON DELETE action: a user row cannot go while a line names
+-- it. line_key is the line's id either way, and amounts never change.
 CREATE TABLE IF NOT EXISTS "gameplay_credit_lines" (
   "day" integer NOT NULL REFERENCES "gameplay_day_settlements"("day"),
   "player_id" text REFERENCES "users"("id"),
-  "erasure_record_id" uuid,
-  "line_key" text GENERATED ALWAYS AS (coalesce("player_id", 'erased:' || "erasure_record_id"::text)) STORED,
+  "tombstone_id" uuid UNIQUE,
+  "line_key" text GENERATED ALWAYS AS (coalesce("player_id", 'erased:' || "tombstone_id"::text)) STORED,
   "earned_micro" bigint NOT NULL CHECK ("earned_micro" >= 0),
   "toll_paid_micro" bigint NOT NULL CHECK ("toll_paid_micro" >= 0),
   "toll_received_micro" bigint NOT NULL CHECK ("toll_received_micro" >= 0),
@@ -726,9 +709,7 @@ CREATE TABLE IF NOT EXISTS "gameplay_credit_lines" (
   "zones_held" integer NOT NULL CHECK ("zones_held" >= 0),
   "net_micro" bigint NOT NULL CHECK ("net_micro" >= 0),
   PRIMARY KEY ("day", "line_key"),
-  CONSTRAINT "gameplay_credit_lines_one_owner" CHECK (("player_id" IS NULL) <> ("erasure_record_id" IS NULL)),
-  CONSTRAINT "gameplay_credit_lines_one_per_record" UNIQUE ("day", "erasure_record_id"),
-  CONSTRAINT "gameplay_credit_lines_erasure_record" FOREIGN KEY ("day", "erasure_record_id") REFERENCES "gameplay_erasure_records" ("day", "record_id"),
+  CONSTRAINT "gameplay_credit_lines_one_owner" CHECK (("player_id" IS NULL) <> ("tombstone_id" IS NULL)),
   CONSTRAINT "gameplay_credit_lines_net_adds_up" CHECK (
     "net_micro" = "earned_micro" - "toll_paid_micro" - "recharge_micro" - "upkeep_taken_micro" + "toll_received_micro")
 );--> statement-breakpoint
@@ -770,8 +751,9 @@ CREATE CONSTRAINT TRIGGER "gameplay_day_settlements_lines_add_up" AFTER INSERT O
 -- goes, and its lines are never deleted. A refused header may be deleted so
 -- the day can be settled again once its problem is fixed. Erasure may only:
 -- replace a line's player with the tombstone of an erasure record of the
--- same day (amounts unchanged), and rewrite the problem texts of a header
--- that has an erasure record (same number of problems, nothing else).
+-- tombstone while the day's erasure state allows one more (amounts
+-- unchanged), and rewrite the problem texts of a header the day's erasure
+-- state covers (same number of problems, nothing else).
 CREATE OR REPLACE FUNCTION public.gameplay_settlements_final()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -784,15 +766,16 @@ BEGIN
        AND (to_jsonb(NEW) - 'problems' - 'clubs_problems') = (to_jsonb(OLD) - 'problems' - 'clubs_problems')
        AND jsonb_array_length(NEW.problems) = jsonb_array_length(OLD.problems)
        AND jsonb_array_length(NEW.clubs_problems) = jsonb_array_length(OLD.clubs_problems)
-       AND EXISTS (SELECT 1 FROM public.gameplay_erasure_records r WHERE r.day = OLD.day) THEN
+       AND EXISTS (SELECT 1 FROM public.gameplay_erasure_days e WHERE e.day = OLD.day) THEN
       RETURN NEW;
     END IF;
     RAISE EXCEPTION 'a settled day is final' USING ERRCODE = 'restrict_violation';
   END IF;
   IF TG_OP = 'UPDATE' AND OLD.player_id IS NOT NULL AND NEW.player_id IS NULL
-     AND OLD.erasure_record_id IS NULL AND NEW.erasure_record_id IS NOT NULL
-     AND (to_jsonb(NEW) - 'player_id' - 'erasure_record_id' - 'line_key') = (to_jsonb(OLD) - 'player_id' - 'erasure_record_id' - 'line_key')
-     AND EXISTS (SELECT 1 FROM public.gameplay_erasure_records r WHERE r.record_id = NEW.erasure_record_id AND r.day = NEW.day AND r.line_tombstoned) THEN
+     AND OLD.tombstone_id IS NULL AND NEW.tombstone_id IS NOT NULL
+     AND (to_jsonb(NEW) - 'player_id' - 'tombstone_id' - 'line_key') = (to_jsonb(OLD) - 'player_id' - 'tombstone_id' - 'line_key')
+     AND (SELECT e.tombstones FROM public.gameplay_erasure_days e WHERE e.day = NEW.day)
+         > (SELECT count(*) FROM public.gameplay_credit_lines l WHERE l.day = NEW.day AND l.player_id IS NULL) THEN
     RETURN NEW;
   END IF;
   RAISE EXCEPTION 'credit lines are final' USING ERRCODE = 'restrict_violation';
@@ -1010,7 +993,7 @@ ALTER TABLE "gameplay_walker_days" ENABLE ROW LEVEL SECURITY;--> statement-break
 ALTER TABLE "gameplay_unit_challenges" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_session_paths" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_settlement_halts" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "gameplay_erasure_records" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "gameplay_erasure_days" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_erasure_fence" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_resume_requests" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_resume_approvals" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -1027,8 +1010,7 @@ REVOKE ALL ON FUNCTION public.gameplay_ensure_day_partitions(integer, integer) F
 REVOKE ALL ON FUNCTION public.gameplay_movement_receipt_immutable() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_settlement_halts_append_only() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_player_day_proofs_append_only() FROM PUBLIC;--> statement-breakpoint
-REVOKE ALL ON FUNCTION public.gameplay_erasure_record_hash(text, uuid, integer, text, text, boolean, boolean) FROM PUBLIC;--> statement-breakpoint
-REVOKE ALL ON FUNCTION public.gameplay_erasure_records_guard() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.gameplay_erasure_days_guard() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.gameplay_resume_approvals_guard() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_push_seq" FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON SEQUENCE "gameplay_source_no_seq" FROM PUBLIC;--> statement-breakpoint
@@ -1045,7 +1027,7 @@ BEGIN
     'gameplay_player_day_proofs', 'gameplay_day_settlements', 'gameplay_credit_lines', 'gameplay_clubs', 'gameplay_club_memberships',
     'gameplay_unit_districts', 'gameplay_club_days', 'gameplay_district_days',
     'gameplay_day_rules', 'gameplay_walker_days', 'gameplay_unit_challenges', 'gameplay_session_paths', 'gameplay_settlement_halts',
-    'gameplay_erasure_records', 'gameplay_erasure_fence', 'gameplay_resume_requests', 'gameplay_resume_approvals'] LOOP
+    'gameplay_erasure_days', 'gameplay_erasure_fence', 'gameplay_resume_requests', 'gameplay_resume_approvals'] LOOP
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', t);
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', t);

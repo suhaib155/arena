@@ -122,8 +122,8 @@ The owner's 17 Oct rule says a walker may push a unit that someone else holds at
 Superseded by the erasure amendment: see `G34_ERASURE_TOMBSTONES.md`. In short, account deletion runs a gameplay erasure step whenever the 0011 tables exist.
 
 - The step deletes every row naming the person.
-- It replaces each settled credit line of theirs with a random per-day tombstone (amounts kept).
-- It appends a hash-chained erasure record for each settled day whose inputs changed, so closed days still reconcile.
+- It replaces each settled credit line of theirs with a random per-line tombstone (amounts kept).
+- It advances a single per-day erasure state (no per-erasure row) for each settled day whose inputs changed, so closed days still reconcile.
 - `gameplay_players`, credit lines and memberships no longer cascade from `users`. A deletion without the step fails closed.
 
 Tested: `erasureTombstones.pg.test.ts`, and the earlier erasure tests in `gameplay.pg.test.ts`, `gameplayRules.pg.test.ts` and `gameplay1002.pg.test.ts` still pass.
@@ -452,7 +452,7 @@ They are asserted in two places:
 
 It reports the rule sets the days are pinned to. The shared `settleCreditsSeason` does the same for in-memory days: it re-checks books, pool and lines, refuses days outside the season (`firstDay`), and reports missing days and the pool nobody settled (`requireAllDays` fails a closed season).
 
-Erasure no longer breaks the replay. A day an erasure changed is verified through its erasure records and tombstoned lines (`G34_ERASURE_TOMBSTONES.md`). Proofs are recomputed on every verification.
+Erasure no longer breaks the replay. A day an erasure changed is verified through its per-day erasure state and tombstoned lines (`G34_ERASURE_TOMBSTONES.md`). Proofs are recomputed on every verification.
 
 **Exact integers.** Every amount and pool must be a non-negative safe integer (`Number.isSafeInteger`), and anything else is refused. The toll shares are computed in bigint. Conversions to an 18-decimal unit use `shared/src/domain/creditUnits.ts`:
 
@@ -480,9 +480,9 @@ The source's rate factors (effort, consistency, kit rates, the zones^0.25 upkeep
 
 The 0011 file stays outside `drizzle/` and is not applied. Revision 3 with these amendments has the following sha256 values:
 
-- up: `2ddc530af035c4648459fb8b8122fe6a4da6985e1ddaee22879d3852c476089c`
-- down: `820f4e992c09728d5a1f7ee08de99569e752899b8001e8d87916d5a7e55f6456`
+- up: `bad2e6ce7a9d48e00e13c9cd10be6e88f98292e575e2a6a9c0ab68b9869f4119`
+- down: `bfdc1d68482b69ae5503185fbeb8e58f2f3cce63ee66fa7bab0b6e0c80a25ebb`
 
-These are the values after the erasure amendment. The values at #156 were up `e3f355a994657e143e875a55a3892bfd16561c1cc67144c19778b1e80850b59e` and down `c134da41a828c4175d598551295bba5260870088bbbc05aa7c3265504902d69a`. Before that they were up `9a62dc7f…c4cb` and down `34d13e92…c0cd`.
+These are the values after the erasure amendment with a per-day erasure state. The first amendment, which kept per-erasure records (22df335), had up `2ddc530a…6089c` and down `820f4e99…f6456`. The values at #156 were up `e3f355a994657e143e875a55a3892bfd16561c1cc67144c19778b1e80850b59e` and down `c134da41a828c4175d598551295bba5260870088bbbc05aa7c3265504902d69a`. Before that they were up `9a62dc7f…c4cb` and down `34d13e92…c0cd`.
 
 **1001 unchanged.** Its config digest stays `d4199ec6…41cd6`, and 1002's is also unchanged, because the rule-set configs were not touched. The fixed PostgreSQL scenario stores the same game state. The shared economy code is no longer byte-identical: the toll now uses bigint, and amounts are now validated. All of the source's worked examples give the same results.

@@ -364,13 +364,6 @@ function proofsOf(
     .map(([n, p]) => [n, { accepted: p.accepted, takes: p.takes, refused: p.refused, unitsUsed: p.unitsUsed, hv: p.hv, sha: createHash("sha256").update(p.lines.join("\n")).digest("hex") }]);
 }
 
-/** The hash an erasure record carries; the same text 0011's gameplay_erasure_record_hash hashes. */
-function erasureRecordHash(prev: string, recordId: string, day: number, pre: string, post: string, verified: boolean, tomb: boolean): string {
-  return createHash("sha256").update(["erasure-record-v1", prev, recordId, String(day), pre, post, String(verified), String(tomb)].join("|")).digest("hex");
-}
-
-const ZERO_HASH = "0".repeat(64);
-
 /** Codes on which the reconciler halts settlement. */
 const RECONCILER_HALT_CODES = new Set(["closed_day_replay_mismatch", "closed_day_books_invalid", "closed_day_erasure_invalid", "closed_day_proof_mismatch"]);
 
@@ -388,7 +381,7 @@ export type GameplayTx = Tx;
 /** What the first erasure phase saw, per settled day it may change. Holds no identity beyond the call. */
 export interface ErasurePlan {
   userId: string;
-  days: { day: number; season: number; head: string; prevHash: string; verified: boolean }[];
+  days: { day: number; season: number; head: string; verified: boolean }[];
 }
 
 export class GameplayService {
@@ -1129,8 +1122,10 @@ export class GameplayService {
   /**
    * `verifyDay` inside a caller's transaction. A day an erasure changed
    * (docs/G34_ERASURE_TOMBSTONES.md) is accepted only through its erasure
-   * records: a hash chain from the stored input digest to the digest of the
-   * inputs as they are now, every link made while the day still verified.
+   * state (gameplay_erasure_days): based on the stored input digest, with a
+   * head equal to the digest of the inputs as they are now, every erasure
+   * made while the day still verified, and one tombstoned line per counted
+   * tombstone.
    * Its stored books and lines (tombstoned lines included) must still pass
    * every invariant, and every stored proof must recompute from the ledger.
    * The fresh-settlement comparison is not possible once a person's inputs
@@ -1148,20 +1143,10 @@ export class GameplayService {
     const rules = await this.pinnedRules(tx, day);
     const season = Number(stored.season);
     const { inputDigest, credits, entryRows, refusalRows } = await this.dayInputs(tx, day, season, rules);
-    const records = await rows<{ record_id: string; pre_digest: string; post_digest: string; pre_verified: boolean; line_tombstoned: boolean;
-      prev_hash: string; record_hash: string }>(tx, sql`
-      SELECT record_id::text AS record_id, pre_digest, post_digest, pre_verified, line_tombstoned, prev_hash, record_hash
-        FROM gameplay_erasure_records WHERE day = ${day} ORDER BY seq`);
-    let head = stored.input_digest;
-    let prev = ZERO_HASH;
-    for (const r of records) {
-      if (r.prev_hash !== prev || r.pre_digest !== head || r.pre_verified !== true
-        || erasureRecordHash(r.prev_hash, r.record_id, day, r.pre_digest, r.post_digest, r.pre_verified, r.line_tombstoned) !== r.record_hash) {
-        throw new GameplayError(409, "closed_day_erasure_invalid");
-      }
-      head = r.post_digest;
-      prev = r.record_hash;
-    }
+    const [erased] = await rows<{ base_digest: string; head_digest: string; tombstones: number; all_pre_verified: boolean }>(tx, sql`
+      SELECT base_digest, head_digest, tombstones, all_pre_verified FROM gameplay_erasure_days WHERE day = ${day}`);
+    if (erased && (erased.base_digest !== stored.input_digest || erased.all_pre_verified !== true)) throw new GameplayError(409, "closed_day_erasure_invalid");
+    const head = erased ? erased.head_digest : stored.input_digest;
     if (inputDigest !== head) throw new GameplayError(409, "closed_day_replay_mismatch");
     if (Number(stored.economy_rules_version) !== rules.economyRulesVersion) throw new GameplayError(409, "closed_day_replay_mismatch");
 
@@ -1182,17 +1167,17 @@ export class GameplayService {
       SELECT line_key AS player_id, player_id IS NULL AS erased, earned_micro::text, toll_paid_micro::text, toll_received_micro::text, recharge_micro::text,
              upkeep_taken_micro::text, upkeep_in_condition_micro::text, zones_held::text, net_micro::text
         FROM gameplay_credit_lines WHERE day = ${day} ORDER BY line_key`);
-    if (lineRows.filter((l) => l.erased).length !== records.filter((r) => r.line_tombstoned).length) throw new GameplayError(409, "closed_day_erasure_invalid");
+    if (lineRows.filter((l) => l.erased).length !== (erased ? Number(erased.tombstones) : 0)) throw new GameplayError(409, "closed_day_erasure_invalid");
 
     // The books as STORED, checked on their own (invariants.ts), then
     // against a fresh settlement of the same inputs under the pinned rules.
     if (stored.status === "refused") {
       if (lineRows.length > 0) throw new GameplayError(409, "closed_day_books_invalid");
-      if (records.length > 0) return { day, inputDigest };
+      if (erased) return { day, inputDigest };
       if (credits.status !== "refused" || JSON.stringify(stored.problems) !== JSON.stringify(credits.problems)) throw new GameplayError(409, "closed_day_replay_mismatch");
       return { day, inputDigest };
     }
-    if (records.length === 0 && credits.status !== "settled") throw new GameplayError(409, "closed_day_replay_mismatch");
+    if (!erased && credits.status !== "settled") throw new GameplayError(409, "closed_day_replay_mismatch");
     let books: BooksRow;
     let lines: (LineRow & { zonesHeld: bigint })[];
     try {
@@ -1211,7 +1196,7 @@ export class GameplayService {
     if (dayInvariantProblems({ economyRulesVersion: rules.economyRulesVersion, season, books, lines }).length > 0) {
       throw new GameplayError(409, "closed_day_books_invalid");
     }
-    if (records.length > 0 || credits.status !== "settled") return { day, inputDigest };
+    if (erased || credits.status !== "settled") return { day, inputDigest };
     const fresh = booksOf(credits);
     const freshLines = linesOf(credits).map((l) => ({ ...l, zonesHeld: 0n }));
     const zones = new Map(credits.lines.map((l) => [l.playerId, BigInt(l.zonesHeld)]));
@@ -1461,8 +1446,7 @@ export class GameplayService {
       SELECT day, season, input_digest FROM gameplay_day_settlements WHERE day >= ${Number(first.d)} ORDER BY day`);
     for (const h of headers) {
       const day = Number(h.day);
-      const [last] = await rows<{ post_digest: string; record_hash: string }>(tx, sql`
-        SELECT post_digest, record_hash FROM gameplay_erasure_records WHERE day = ${day} ORDER BY seq DESC LIMIT 1`);
+      const [state] = await rows<{ head_digest: string }>(tx, sql`SELECT head_digest FROM gameplay_erasure_days WHERE day = ${day}`);
       let verified = true;
       try {
         await this.verifyDayIn(tx, day);
@@ -1470,7 +1454,7 @@ export class GameplayService {
         if (!(err instanceof GameplayError)) throw err;
         verified = false;
       }
-      plan.days.push({ day, season: Number(h.season), head: last?.post_digest ?? h.input_digest, prevHash: last?.record_hash ?? ZERO_HASH, verified });
+      plan.days.push({ day, season: Number(h.season), head: state?.head_digest ?? h.input_digest, verified });
     }
     return plan;
   }
@@ -1479,16 +1463,19 @@ export class GameplayService {
    * Erasure phase 2, after the person's movement sessions are deleted and
    * before the user row is. Deletes every gameplay row naming them, then, for
    * each settled day whose inputs changed (or that holds their line or names
-   * them in a problem), appends an erasure record chaining the old digest to
-   * the new one, replaces their credit line with that record's random
-   * tombstone, and rewrites their id out of the day's problem texts. Nobody
-   * else's line, proof or balance is touched. Returns the records written.
+   * them in a problem), advances that day's single erasure state from the
+   * old digest to the new one, replaces their credit line with a random
+   * tombstone made for that line alone, and rewrites their id out of the
+   * day's problem texts. Nothing per erasure is stored, and the units they
+   * held keep only the day of their last change. Nobody else's line, proof
+   * or balance is touched. Returns the days advanced.
    */
   async eraseComplete(tx: Tx, plan: ErasurePlan): Promise<number> {
     const u = plan.userId;
     await tx.execute(sql`DELETE FROM gameplay_unit_challenges WHERE walker_id = ${u} OR unit IN (SELECT unit FROM gameplay_units WHERE holder_id = ${u})`);
     await tx.execute(sql`
-      UPDATE gameplay_units SET holder_id = NULL, strength = 0, ground = 'solid', level = 1, fortified = false, deeded = false, version = version + 1, updated_at = now()
+      UPDATE gameplay_units SET holder_id = NULL, strength = 0, ground = 'solid', level = 1, fortified = false, deeded = false, version = version + 1,
+             updated_at = date_trunc('day', updated_at)
        WHERE holder_id = ${u}`);
     await tx.execute(sql`DELETE FROM gameplay_club_memberships WHERE walker_id = ${u}`);
     await tx.execute(sql`DELETE FROM gameplay_applied_sessions WHERE user_id = ${u}`);
@@ -1498,7 +1485,6 @@ export class GameplayService {
     // that) and resets the unit day states they held (0011 triggers).
     await tx.execute(sql`DELETE FROM gameplay_players WHERE user_id = ${u}`);
 
-    if (plan.days.length > 0) await tx.execute(sql`LOCK TABLE gameplay_erasure_records IN SHARE ROW EXCLUSIVE MODE`);
     let written = 0;
     for (const d of plan.days) {
       const rules = await this.pinnedRules(tx, d.day);
@@ -1509,17 +1495,24 @@ export class GameplayService {
       const named = (list: unknown) => Array.isArray(list) && list.some((p) => typeof p === "string" && p.includes(u));
       const mentions = named(header?.problems) || named(header?.clubs_problems);
       if (post === d.head && !line && !mentions) continue;
-      const recordId = randomUUID();
-      const tomb = Boolean(line);
-      const hash = erasureRecordHash(d.prevHash, recordId, d.day, d.head, post, d.verified, tomb);
-      await tx.execute(sql`
-        INSERT INTO gameplay_erasure_records (record_id, day, pre_digest, post_digest, pre_verified, line_tombstoned, prev_hash, record_hash)
-        VALUES (${recordId}::uuid, ${d.day}, ${d.head}, ${post}, ${d.verified}, ${tomb}, ${d.prevHash}, ${hash})`);
-      if (tomb) {
-        await tx.execute(sql`UPDATE gameplay_credit_lines SET player_id = NULL, erasure_record_id = ${recordId}::uuid WHERE day = ${d.day} AND player_id = ${u}`);
+      const tomb = line ? 1 : 0;
+      // The day's one erasure state advances (the fence serialises erasures);
+      // no per-erasure row, so nothing groups this person's days.
+      const [advanced] = await rows(tx, sql`
+        UPDATE gameplay_erasure_days SET head_digest = ${post}, erasures = erasures + 1, tombstones = tombstones + ${tomb},
+               all_pre_verified = all_pre_verified AND ${d.verified}
+         WHERE day = ${d.day} AND head_digest = ${d.head} RETURNING day`);
+      if (!advanced) {
+        await tx.execute(sql`
+          INSERT INTO gameplay_erasure_days (day, base_digest, head_digest, erasures, tombstones, all_pre_verified)
+          VALUES (${d.day}, ${d.head}, ${post}, 1, ${tomb}, ${d.verified})`);
+      }
+      const tombstoneId = randomUUID();
+      if (line) {
+        await tx.execute(sql`UPDATE gameplay_credit_lines SET player_id = NULL, tombstone_id = ${tombstoneId}::uuid WHERE day = ${d.day} AND player_id = ${u}`);
       }
       if (mentions) {
-        const scrub = (list: unknown) => JSON.stringify((list as unknown[]).map((p) => (typeof p === "string" ? p.split(u).join(`erased:${recordId}`) : p)));
+        const scrub = (list: unknown) => JSON.stringify((list as unknown[]).map((p) => (typeof p === "string" ? p.split(u).join(`erased:${tombstoneId}`) : p)));
         await tx.execute(sql`
           UPDATE gameplay_day_settlements SET problems = ${scrub(header!.problems)}::jsonb, clubs_problems = ${scrub(header!.clubs_problems)}::jsonb
            WHERE day = ${d.day}`);

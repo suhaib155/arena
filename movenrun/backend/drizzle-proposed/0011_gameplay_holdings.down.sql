@@ -20,7 +20,7 @@
 --   - the sequences behind ledger order and source numbers;
 --   - the settlement halt log (every operator and reconciler halt/resume),
 --     resume requests and their approvals;
---   - the erasure records (the hash chains that let erased days reconcile)
+--   - the per-day erasure states (what lets erased days reconcile)
 --     and the erasure fence.
 -- Settled days are meant to be final; after this they cannot be reconciled
 -- or replayed. Take a pg_dump of the gameplay_* tables and the
@@ -42,7 +42,7 @@ DROP TABLE IF EXISTS "gameplay_unit_districts";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_club_memberships";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_clubs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_credit_lines";--> statement-breakpoint
-DROP TABLE IF EXISTS "gameplay_erasure_records";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_erasure_days";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_erasure_fence";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_day_settlements";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_player_day_proofs";--> statement-breakpoint
@@ -72,6 +72,5 @@ DROP FUNCTION IF EXISTS public.gameplay_check_take_budget();--> statement-breakp
 DROP FUNCTION IF EXISTS public.gameplay_day_rules_final();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_settlement_halts_append_only();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_player_day_proofs_append_only();--> statement-breakpoint
-DROP FUNCTION IF EXISTS public.gameplay_erasure_records_guard();--> statement-breakpoint
-DROP FUNCTION IF EXISTS public.gameplay_erasure_record_hash(text, uuid, integer, text, text, boolean, boolean);--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_erasure_days_guard();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_resume_approvals_guard();

@@ -107,7 +107,7 @@ async function projection(): Promise<unknown[]> {
     await rows("SELECT day, season, ruleset, holding_rules_version, takeover_policy, take_budget, unit_zone_rule, config, config_digest FROM gameplay_day_rules ORDER BY day"),
     await rows(`SELECT day, season, status, ruleset, economy_rules_version, holding_rules_version, pool_micro, minted_micro, credited_micro, toll_paid_micro, toll_received_micro,
       burned_micro, returned_micro, day_share_micro, players, problems, clubs_status, clubs_problems FROM gameplay_day_settlements ORDER BY day`),
-    // The columns every revision has (the erasure amendment adds erasure_record_id and line_key, both empty here).
+    // The columns every revision has (the erasure amendment adds tombstone_id and line_key, both empty here).
     await rows(`SELECT day, player_id, earned_micro, toll_paid_micro, toll_received_micro, recharge_micro, upkeep_taken_micro, upkeep_in_condition_micro,
       zones_held, net_micro FROM gameplay_credit_lines ORDER BY day, player_id`),
     await rows("SELECT user_id, day, applied, skipped, rejected FROM gameplay_applied_sessions WHERE user_id IS NOT NULL ORDER BY user_id, day, applied, skipped, rejected"),

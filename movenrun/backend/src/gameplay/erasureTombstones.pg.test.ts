@@ -154,15 +154,15 @@ test("erasure: no row names the walker, their line becomes a random tombstone, a
     assert.equal((await w.q("SELECT 1 FROM gameplay_session_paths p LEFT JOIN movement_verifications m ON m.id = p.movement_verification_id WHERE m.id IS NULL")).length, 0);
 
     // Her lines are tombstones: same amounts, a random id per day, nothing linking them to her or to each other.
-    const tombs = await w.q<{ day: number; erasure_record_id: string; line_key: string }>(`
-      SELECT day, erasure_record_id::text AS erasure_record_id, line_key, earned_micro, toll_paid_micro, toll_received_micro, net_micro
+    const tombs = await w.q<{ day: number; tombstone_id: string; line_key: string }>(`
+      SELECT day, tombstone_id::text AS tombstone_id, line_key, earned_micro, toll_paid_micro, toll_received_micro, net_micro
         FROM gameplay_credit_lines WHERE player_id IS NULL ORDER BY day`);
     assert.deepEqual(tombs.map(({ day, earned_micro, toll_paid_micro, toll_received_micro, net_micro }: Record<string, unknown>) =>
       ({ day, earned_micro, toll_paid_micro, toll_received_micro, net_micro })), before.anaLines);
-    assert.notEqual(tombs[0]!.erasure_record_id, tombs[1]!.erasure_record_id, "one tombstone per day");
+    assert.notEqual(tombs[0]!.tombstone_id, tombs[1]!.tombstone_id, "one tombstone per line");
     for (const tb of tombs) assert.match(tb.line_key, /^erased:[0-9a-f-]{36}$/);
-    const recordCols = (await w.q<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'gameplay_erasure_records' ORDER BY 1")).map((c) => c.column_name);
-    assert.deepEqual(recordCols, ["day", "line_tombstoned", "post_digest", "pre_digest", "pre_verified", "prev_hash", "record_hash", "record_id", "seq"], "no user, player or time column");
+    const stateCols = (await w.q<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'gameplay_erasure_days' ORDER BY 1")).map((c) => c.column_name);
+    assert.deepEqual(stateCols, ["all_pre_verified", "base_digest", "day", "erasures", "head_digest", "tombstones"], "no user, player, order or time column");
 
     // Headers are untouched, every closed day reconciles, and the reconciler does not halt.
     assert.deepEqual([await header(D), await header(D + 1)], before.h);
@@ -203,12 +203,12 @@ test("replayed and duplicated erasure is idempotent: a retry or a concurrent sec
     const runs = await Promise.all([store.erase(ANA), store.erase(ANA)]);
     assert.deepEqual(runs.map((r) => r.users).sort(), [0, 1], "exactly one erasure did the work");
     const snapshot = async () => ({
-      records: await w.q("SELECT * FROM gameplay_erasure_records ORDER BY seq"),
+      states: await w.q("SELECT * FROM gameplay_erasure_days ORDER BY day"),
       lines: await w.q("SELECT * FROM gameplay_credit_lines ORDER BY day, line_key"),
       fence: await w.q("SELECT 1 FROM gameplay_erasure_fence"),
     });
     const first = await snapshot();
-    assert.equal(first.records.length, 2);
+    assert.deepEqual(first.states.map((r) => Number(r.erasures)), [1, 1]);
     const again = await store.erase(ANA);
     assert.equal(again.users, 0);
     assert.equal(again.movementSessions, 0);
@@ -219,7 +219,7 @@ test("replayed and duplicated erasure is idempotent: a retry or a concurrent sec
   }
 });
 
-test("two walkers erased one after the other: the day's records chain, and the day still reconciles", { skip: SKIP }, async () => {
+test("two walkers erased one after the other: the day's single erasure state advances twice, and the day still reconciles", { skip: SKIP }, async () => {
   const w = await world("erase_chain");
   try {
     await history(w);
@@ -227,13 +227,13 @@ test("two walkers erased one after the other: the day's records chain, and the d
     const store = createDrizzleAccountDeletionStore(w.t.db);
     await store.erase(ANA);
     await store.erase(CAL);
-    const recs = await w.q<{ day: number; pre_digest: string; post_digest: string; prev_hash: string; record_hash: string }>(
-      "SELECT day, pre_digest, post_digest, prev_hash, record_hash FROM gameplay_erasure_records WHERE day = $1 ORDER BY seq", [D]);
-    assert.equal(recs.length, 2);
+    const states = await w.q<{ base_digest: string; head_digest: string; erasures: number; tombstones: number; all_pre_verified: boolean }>(
+      "SELECT base_digest, head_digest, erasures, tombstones, all_pre_verified FROM gameplay_erasure_days WHERE day = $1", [D]);
+    assert.equal(states.length, 1, "one row per day, never one per erasure");
     const h = (await w.q<{ input_digest: string }>("SELECT input_digest FROM gameplay_day_settlements WHERE day = $1", [D]))[0]!;
-    assert.equal(recs[0]!.pre_digest, h.input_digest);
-    assert.equal(recs[1]!.pre_digest, recs[0]!.post_digest);
-    assert.equal(recs[1]!.prev_hash, recs[0]!.record_hash);
+    assert.equal(states[0]!.base_digest, h.input_digest);
+    assert.notEqual(states[0]!.head_digest, h.input_digest);
+    assert.deepEqual([states[0]!.erasures, states[0]!.tombstones, states[0]!.all_pre_verified], [2, 2, true]);
     for (const d of [D, D + 1]) await w.svc.verifyDay(d);
     assert.deepEqual(await w.svc.myCredits(BEN, 1), benBefore);
   } finally {
@@ -241,24 +241,28 @@ test("two walkers erased one after the other: the day's records chain, and the d
   }
 });
 
-test("erasure records and tombstones are append-only, the chain is checked, and a tampered chain halts the reconciler", { skip: SKIP }, async () => {
+test("erasure state only advances, tombstones are final, and a tampered state halts the reconciler", { skip: SKIP }, async () => {
   const w = await world("erase_tamper");
   try {
     await history(w);
     await createDrizzleAccountDeletionStore(w.t.db).erase(ANA);
-    assert.equal(await code(w.t.pool.query("UPDATE gameplay_erasure_records SET pre_verified = pre_verified")), "23001");
-    assert.equal(await code(w.t.pool.query("DELETE FROM gameplay_erasure_records")), "23001");
-    assert.equal(await code(w.t.pool.query("UPDATE gameplay_credit_lines SET player_id = $1, erasure_record_id = NULL WHERE player_id IS NULL", [BEN])), "23001", "a tombstone is never re-identified");
+    assert.equal(await code(w.t.pool.query("UPDATE gameplay_erasure_days SET head_digest = head_digest")), "23514", "only one more erasure at a time");
+    assert.equal(await code(w.t.pool.query("UPDATE gameplay_erasure_days SET erasures = erasures + 1, all_pre_verified = true, tombstones = tombstones + 2")), "23514");
+    assert.equal(await code(w.t.pool.query("DELETE FROM gameplay_erasure_days")), "23001");
+    assert.equal(await code(w.t.pool.query("UPDATE gameplay_credit_lines SET player_id = $1, tombstone_id = NULL WHERE player_id IS NULL", [BEN])), "23001", "a tombstone is never re-identified");
+    assert.equal(await code(w.t.pool.query("UPDATE gameplay_credit_lines SET player_id = NULL, tombstone_id = gen_random_uuid() WHERE player_id = $1", [BEN])), "23001", "no tombstone beyond the erasures counted");
     assert.equal(await code(w.t.pool.query("DELETE FROM gameplay_credit_lines")), "23001", "credit lines are never deleted");
-    // A forged record that does not extend the day's chain is refused by the database.
-    assert.equal(await code(w.t.pool.query(`INSERT INTO gameplay_erasure_records (record_id, day, pre_digest, post_digest, pre_verified, line_tombstoned, prev_hash, record_hash)
-      VALUES ($1, $2, $3, $3, true, false, $3, $3)`, [randomUUID(), D, "a".repeat(64)])), "23514");
-    // Editing a record past the triggers is caught by the reconciler, which halts.
+    // A forged state for a day that does not start from its stored digest is refused by the database.
+    w.setClock(CLOSE(D + 2) + 60_000);
+    await w.svc.settleDay(D + 2);
+    assert.equal(await code(w.t.pool.query(`INSERT INTO gameplay_erasure_days (day, base_digest, head_digest, erasures, tombstones, all_pre_verified)
+      VALUES ($1, $2, $2, 1, 0, true)`, [D + 2, "a".repeat(64)])), "23514");
+    // Editing the state past the trigger is caught by the reconciler, which halts.
     const c = await w.t.pool.connect();
     try {
-      await c.query("ALTER TABLE gameplay_erasure_records DISABLE TRIGGER gameplay_erasure_records_guard");
-      await c.query("UPDATE gameplay_erasure_records SET post_digest = $1 WHERE day = $2", ["b".repeat(64), D]);
-      await c.query("ALTER TABLE gameplay_erasure_records ENABLE TRIGGER gameplay_erasure_records_guard");
+      await c.query("ALTER TABLE gameplay_erasure_days DISABLE TRIGGER gameplay_erasure_days_guard");
+      await c.query("UPDATE gameplay_erasure_days SET base_digest = $1 WHERE day = $2", ["b".repeat(64), D]);
+      await c.query("ALTER TABLE gameplay_erasure_days ENABLE TRIGGER gameplay_erasure_days_guard");
     } finally {
       c.release();
     }
@@ -276,8 +280,8 @@ test("erasure cannot launder an earlier mismatch: a day that failed before the e
     await w.t.pool.query("UPDATE movement_verifications SET distance_meters = 9000 WHERE user_id = $1", [BEN]);
     assert.equal(await code(w.svc.verifyDay(D)), "closed_day_replay_mismatch");
     await createDrizzleAccountDeletionStore(w.t.db).erase(ANA);
-    const recs = await w.q<{ pre_verified: boolean }>("SELECT pre_verified FROM gameplay_erasure_records WHERE day = $1", [D]);
-    assert.deepEqual(recs.map((r) => r.pre_verified), [false]);
+    const states = await w.q<{ all_pre_verified: boolean }>("SELECT all_pre_verified FROM gameplay_erasure_days WHERE day = $1", [D]);
+    assert.deepEqual(states.map((r) => r.all_pre_verified), [false]);
     assert.equal(await code(w.svc.verifyDay(D)), "closed_day_erasure_invalid");
   } finally {
     await w.t.drop();
@@ -391,5 +395,52 @@ test("without 0011 (flag off, applied chain only) account deletion still works a
     assert.deepEqual((await t.pool.query("SELECT relname FROM pg_class WHERE relname LIKE 'gameplay%'")).rows, []);
   } finally {
     await t.drop();
+  }
+});
+
+test("unlinkable: two walkers erased over two days leave nothing that orders or groups either one's days", { skip: SKIP }, async () => {
+  const w = await world("erase_unlinkable");
+  try {
+    // Ana and Cal are both active and credited on D and D+1, then erased one after the other.
+    for (const u of [ANA, BEN, CAL]) await w.user(u);
+    for (const [day, cells] of [[D, [C[0]!, C[1]!, C[2]!]], [D + 1, [C[3]!, C[4]!, C[5]!]]] as const) {
+      w.setClock(at(day, 9));
+      for (const [i, u] of [ANA, BEN, CAL].entries()) {
+        await w.walk(u, `${u}-${day}`, at(day, 8 + i / 10), [cells[i]!]);
+        await w.svc.applySession(u, `${u}-${day}`);
+      }
+    }
+    w.setClock(CLOSE(D + 1) + 60_000);
+    await w.svc.settleDay(D);
+    await w.svc.settleDay(D + 1);
+    const store = createDrizzleAccountDeletionStore(w.t.db);
+    await store.erase(ANA);
+    await store.erase(CAL);
+    for (const d of [D, D + 1]) await w.svc.verifyDay(d);
+
+    // Every erasure table: no counter, sequence, identity or time column, and never more than one row per day.
+    const tables = (await w.q<{ t: string }>("SELECT tablename AS t FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE 'gameplay\\_erasure\\_%' AND tablename <> 'gameplay_erasure_fence'")).map((r) => r.t);
+    assert.ok(tables.length > 0);
+    for (const t of tables) {
+      const ordering = await w.q(`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1
+        AND (is_identity = 'YES' OR column_default LIKE 'nextval%' OR data_type IN ('date', 'timestamp without time zone', 'timestamp with time zone'))`, [t]);
+      assert.deepEqual(ordering, [], `${t}: a column that orders rows by when they were written`);
+      const perDay = await w.q<{ n: number }>(`SELECT count(*)::int AS n FROM ${t} GROUP BY day HAVING count(*) > 1`);
+      assert.deepEqual(perDay, [], `${t}: one row per erasure (rather than per day) groups a person's days`);
+    }
+    // The four tombstoned lines: apart from the day and the amounts, every value is unique to its line.
+    const tomb = await w.q<Record<string, unknown>>("SELECT * FROM gameplay_credit_lines WHERE player_id IS NULL");
+    assert.equal(tomb.length, 4);
+    const gameData = new Set(["day", "player_id", "earned_micro", "toll_paid_micro", "toll_received_micro", "recharge_micro", "upkeep_taken_micro",
+      "upkeep_in_condition_micro", "zones_held", "net_micro"]);
+    for (const col of Object.keys(tomb[0]!).filter((c) => !gameData.has(c))) {
+      assert.equal(new Set(tomb.map((r) => String(r[col]))).size, 4, `credit line column ${col} is shared by tombstones`);
+    }
+    // The units they held keep only the day of their last change, not the erasure instant.
+    const stamps = await w.q<{ t: string }>("SELECT updated_at::text AS t FROM gameplay_units WHERE holder_id IS NULL AND unit IN (SELECT unit FROM gameplay_unit_day_states)");
+    assert.ok(stamps.length > 0);
+    for (const s of stamps) assert.match(s.t, /00:00:00$/, "erasure leaves no time of day on a unit");
+  } finally {
+    await w.t.drop();
   }
 });
