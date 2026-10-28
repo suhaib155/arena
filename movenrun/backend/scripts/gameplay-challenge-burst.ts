@@ -14,6 +14,10 @@
  *                      24-slot diurnal curve (a compressed 24 h: S = 600 is 144x)
  *   --seed N           same seed = same batch trace for every variant
  *   --units N --contested N   pool of units and how many start with open challenges (defaults 20000 / 5000)
+ *   --change-rate P    chance (0..1, default 0) that a kept row's first_day changes in a batch (the service re-inserts it)
+ *   --rollover F       fraction (0..1, default none) of the run after which the rules version moves 1002 -> 1003, so every
+ *                      kept row of a touched unit needs a new stamp. "diff" (blind) leaves them stale; the report counts them
+ *   --no-autovacuum    autovacuum_enabled = false on the challenge table for the run (the 'never vacuumed' bound)
  *   --out <json>       result file
  *   --server-log <path> cluster log (log_autovacuum_min_duration=0) to read autovacuum CPU from
  *
@@ -21,7 +25,8 @@
  * (SELECT ... FOR UPDATE), read their challenges, update the units, then write the challenges one of three ways:
  *   delete-insert  today's code: DELETE all touched units' challenges, INSERT those left open (unchanged rows included)
  *   inplace        UPDATE the rows that stay open in place (no indexed column in the SET list), DELETE closed, INSERT new
- *   diff           write nothing for unchanged rows; DELETE closed, INSERT new
+ *   diff           write nothing for kept rows (blind: wrong once a kept row's value changes; kept for the record)
+ *   diff-cmp       DELETE closed, UPDATE a kept row only when first_day / holding_rules_version / opened_received_at differs, INSERT new
  * Calibration (200 players, 14 days, real bench): 31 units a batch, about 36 challenge rows rewritten a batch,
  * live rows roughly stable (inserts about equal deletes + unchanged).
  *
@@ -36,7 +41,7 @@ import pg from "pg";
 const HERE = join(dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined; };
 
-export type WriteMode = "delete-insert" | "inplace" | "diff";
+export type WriteMode = "delete-insert" | "inplace" | "diff" | "diff-cmp";
 export interface Variant { name: string; mode: WriteMode; fillfactor: number | null; challengeAv: boolean }
 export const VARIANTS: Variant[] = [
   { name: "baseline", mode: "delete-insert", fillfactor: null, challengeAv: false },
@@ -47,6 +52,12 @@ export const VARIANTS: Variant[] = [
   { name: "diff-ff100", mode: "diff", fillfactor: null, challengeAv: false },
   { name: "diff-ff80", mode: "diff", fillfactor: 80, challengeAv: false },
   { name: "diff-ff80-av", mode: "diff", fillfactor: 80, challengeAv: true },
+  // "diff" above skips kept rows blindly (it never models a changed value). "diff-cmp" is the service's writeChallenges diff mode:
+  // it updates a kept row only when first_day, holding_rules_version or opened_received_at differs.
+  { name: "diff-cmp-ff100", mode: "diff-cmp", fillfactor: null, challengeAv: false },
+  { name: "diff-cmp-ff80", mode: "diff-cmp", fillfactor: 80, challengeAv: false },
+  { name: "diff-cmp-ff80-av", mode: "diff-cmp", fillfactor: 80, challengeAv: true },
+  { name: "diff-cmp-av", mode: "diff-cmp", fillfactor: null, challengeAv: true },
 ];
 /** The per-table autovacuum settings proposed in G34_DATA_LIFECYCLE.md section 5, option A. */
 export const TARGETED_AV = "autovacuum_vacuum_scale_factor = 0, autovacuum_vacuum_threshold = 200, autovacuum_vacuum_cost_delay = 0, autovacuum_analyze_scale_factor = 0.05";
@@ -74,7 +85,7 @@ async function runInTx(pool: pg.Pool, statements: string[]) {
   catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); }
 }
 
-interface ChallengeRow { unit: string; walker_id: string; first_day: number; opened: string }
+interface ChallengeRow { unit: string; walker_id: string; first_day: number; opened: string; hv: number }
 const pct = (xs: number[], p: number) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(s.length * p))]!; };
 
 /** CPU seconds (user + system) of a process from /proc, or null. */
@@ -104,7 +115,8 @@ export interface BurstResult {
   lockWaitSamples: { sampled: number; withLockWait: number; peakWaiters: number };
   retries: { lockTimeout: number; deadlock: number; other: number; gaveUp: number };
   deadlocksDb: number;
-  rowsWritten: { inserted: number; updated: number; deleted: number; rewrittenUnchanged: number };
+  rowsWritten: { inserted: number; updated: number; deleted: number; rewrittenUnchanged: number; keptValueChanged: number };
+  changeRate: number; rollover: number | null; staleRowsAfterRollover: number;
   challengeTable: {
     live: number; dead: number; heapBytes: number; indexBytes: number; toastBytes: number; totalBytes: number;
     peakTotalBytes: number; startTotalBytes: number; ins: number; upd: number; hotUpd: number; del: number; autovacuumCount: number; autoanalyzeCount: number;
@@ -137,6 +149,9 @@ async function main() {
   const BATCH_UNITS = 31;
   const CLOSE_P = 0.04;
   const serverLog = arg("server-log");
+  const changeRate = Number(arg("change-rate") ?? 0);
+  const rolloverArg = arg("rollover");
+  const rollover = rolloverArg === undefined ? null : Number(rolloverArg);
 
   const admin = new pg.Pool({ connectionString: URL_ENV, max: 2 });
   const dbName = `challenge_burst_${randomBytes(5).toString("hex")}`;
@@ -153,6 +168,7 @@ async function main() {
     const opts: string[] = [];
     if (variant.fillfactor) opts.push(`fillfactor = ${variant.fillfactor}`);
     if (variant.challengeAv) opts.push(TARGETED_AV);
+    if (process.argv.includes("--no-autovacuum")) opts.push("autovacuum_enabled = false"); // worst case: nothing reclaims dead rows during the run
     if (opts.length) await pool.query(`ALTER TABLE gameplay_unit_challenges SET (${opts.join(", ")})`);
 
     const rng = mulberry32(seed);
@@ -188,7 +204,7 @@ async function main() {
 
     // The batch trace is built up front from the seed, so every variant sees the same windows and decisions.
     // 30% of batches land in a 400-unit hot area (a busy district), the rest spread over the pool.
-    interface Job { at: number; start: number; seed: number }
+    interface Job { at: number; start: number; seed: number; idx: number }
     const jobs: Job[] = [];
     const weights = [1, 1, 1, 1, 1, 2, 4, 6, 6, 5, 4, 4, 5, 5, 4, 4, 5, 7, 8, 7, 5, 3, 2, 1].map((x) => x); // diurnal curve, 24 slots
     const wsum = weights.reduce((a, b) => a + b, 0);
@@ -202,14 +218,17 @@ async function main() {
         while (slot < 23 && r >= weights[slot]!) { r -= weights[slot]!; slot++; }
         at = ((slot + r / weights[slot]!) / 24) * paceSeconds;
       }
-      jobs.push({ at, start, seed: Math.floor(traceRng() * 2 ** 31) });
+      jobs.push({ at, start, seed: Math.floor(traceRng() * 2 ** 31), idx: 0 });
     }
     jobs.sort((a, b) => a.at - b.at);
+    jobs.forEach((j, i) => { j.idx = i; });
+    const rolloverIdx = rollover === null ? Infinity : Math.floor(sessions * rollover);
+    const touchedAfterRollover = new Set<string>();
 
     // Instrumentation.
     const lat: number[] = [], lockPhase: number[] = [];
     const retries = { lockTimeout: 0, deadlock: 0, other: 0, gaveUp: 0 };
-    const rows = { inserted: 0, updated: 0, deleted: 0, rewrittenUnchanged: 0 };
+    const rows = { inserted: 0, updated: 0, deleted: 0, rewrittenUnchanged: 0, keptValueChanged: 0 };
     let next = 0;
     let peakTotal = startTotal;
     let running = true;
@@ -240,6 +259,7 @@ async function main() {
       const r = mulberry32(job.seed);
       const units = Array.from({ length: BATCH_UNITS }, (_, i) => job.start + i).filter((n) => n < U);
       const ids = units.map(unitId);
+      const hv = job.idx >= rolloverIdx ? 1003 : 1002;
       for (let attempt = 0; ; attempt++) {
         const tStart = Date.now();
         try {
@@ -247,7 +267,7 @@ async function main() {
           const tl = Date.now();
           await c.query(`SELECT unit FROM gameplay_units WHERE unit = ANY($1::bigint[]) ORDER BY unit FOR UPDATE`, [ids]);
           lockPhase.push(Date.now() - tl);
-          const cur = (await c.query(`SELECT unit::text AS unit, walker_id, first_day, opened_received_at::text AS opened FROM gameplay_unit_challenges
+          const cur = (await c.query(`SELECT unit::text AS unit, walker_id, first_day, holding_rules_version AS hv, opened_received_at::text AS opened FROM gameplay_unit_challenges
             WHERE unit = ANY($1::bigint[]) ORDER BY unit, walker_id`, [ids])).rows as ChallengeRow[];
           // The decisions: each open row closes with CLOSE_P; a touched unit gains a challenger at the matching rate.
           const kept: ChallengeRow[] = [], closed: ChallengeRow[] = [], opened: { unit: string; walker_id: string }[] = [];
@@ -265,27 +285,39 @@ async function main() {
             }
           }
           // The unit rows move on (strength and version), as the batch does.
-          await c.query(`UPDATE gameplay_units u SET strength = 40 + (v.n % 50), version = u.version + 1, updated_at = now()
+          await c.query(`UPDATE gameplay_units u SET strength = 40 + (v.n % 50), holding_rules_version = ${hv}, version = u.version + 1, updated_at = now()
             FROM unnest($1::bigint[], $2::int[]) AS v(unit, n) WHERE u.unit = v.unit`, [ids, ids.map((_, i) => Math.floor(r() * 1000) + i)]);
+          // What each kept row must read after this batch: a possibly new first_day, and this batch's rules version.
+          const want = kept.map((k) => ({ ...k, d: r() < changeRate ? (k.first_day === 100 ? 99 : 100) : k.first_day }));
+          const changedKept = kept.filter((k, i) => want[i]!.d !== k.first_day || k.hv !== hv);
+          rows.keptValueChanged += changedKept.length;
+          if (job.idx >= rolloverIdx) for (const id of ids) touchedAfterRollover.add(id);
           if (variant.mode === "delete-insert") {
             await c.query(`DELETE FROM gameplay_unit_challenges WHERE unit = ANY($1::bigint[])`, [ids]);
-            const all = [...kept.map((k) => ({ u: k.unit, w: k.walker_id, d: k.first_day, o: k.opened })), ...opened.map((o) => ({ u: o.unit, w: o.walker_id, d: 100, o: "" }))];
+            const all = [...want.map((k) => ({ u: k.unit, w: k.walker_id, d: k.d, o: k.opened })), ...opened.map((o) => ({ u: o.unit, w: o.walker_id, d: 100, o: "" }))];
             if (all.length) await c.query(`INSERT INTO gameplay_unit_challenges (unit, walker_id, first_day, holding_rules_version, opened_received_at)
-              SELECT v.u, v.w, v.d, 1002, coalesce(nullif(v.o, '')::timestamptz, now()) FROM unnest($1::bigint[], $2::text[], $3::int[], $4::text[]) AS v(u, w, d, o)`,
-              [all.map((x) => x.u), all.map((x) => x.w), all.map((x) => x.d), all.map((x) => x.o)]);
+              SELECT v.u, v.w, v.d, $5::int, coalesce(nullif(v.o, '')::timestamptz, now()) FROM unnest($1::bigint[], $2::text[], $3::int[], $4::text[]) AS v(u, w, d, o)`,
+              [all.map((x) => x.u), all.map((x) => x.w), all.map((x) => x.d), all.map((x) => x.o), hv]);
             rows.deleted += cur.length; rows.inserted += all.length; rows.rewrittenUnchanged += kept.length;
           } else {
             if (closed.length) await c.query(`DELETE FROM gameplay_unit_challenges t USING unnest($1::bigint[], $2::text[]) AS v(u, w) WHERE t.unit = v.u AND t.walker_id = v.w`,
               [closed.map((x) => x.unit), closed.map((x) => x.walker_id)]);
             if (variant.mode === "inplace" && kept.length) {
-              // Same values, written in place: only non-indexed columns in the SET list, so the update can be heap-only.
-              await c.query(`UPDATE gameplay_unit_challenges t SET first_day = v.d, holding_rules_version = 1002, opened_received_at = v.o::timestamptz
+              // Every kept row written in place: only non-indexed columns in the SET list, so the update can be heap-only.
+              await c.query(`UPDATE gameplay_unit_challenges t SET first_day = v.d, holding_rules_version = $5::int, opened_received_at = v.o::timestamptz
                 FROM unnest($1::bigint[], $2::text[], $3::int[], $4::text[]) AS v(u, w, d, o) WHERE t.unit = v.u AND t.walker_id = v.w`,
-                [kept.map((x) => x.unit), kept.map((x) => x.walker_id), kept.map((x) => x.first_day), kept.map((x) => x.opened)]);
-              rows.updated += kept.length; rows.rewrittenUnchanged += kept.length;
+                [want.map((x) => x.unit), want.map((x) => x.walker_id), want.map((x) => x.d), want.map((x) => x.opened), hv]);
+              rows.updated += kept.length; rows.rewrittenUnchanged += kept.length - changedKept.length;
+            }
+            if (variant.mode === "diff-cmp" && kept.length) {
+              const res = await c.query(`UPDATE gameplay_unit_challenges t SET first_day = v.d, holding_rules_version = $5::int, opened_received_at = v.o::timestamptz
+                FROM unnest($1::bigint[], $2::text[], $3::int[], $4::text[]) AS v(u, w, d, o) WHERE t.unit = v.u AND t.walker_id = v.w
+                  AND (t.first_day IS DISTINCT FROM v.d OR t.holding_rules_version IS DISTINCT FROM $5::int OR t.opened_received_at IS DISTINCT FROM v.o::timestamptz)`,
+                [want.map((x) => x.unit), want.map((x) => x.walker_id), want.map((x) => x.d), want.map((x) => x.opened), hv]);
+              rows.updated += res.rowCount ?? 0;
             }
             if (opened.length) await c.query(`INSERT INTO gameplay_unit_challenges (unit, walker_id, first_day, holding_rules_version, opened_received_at)
-              SELECT v.u, v.w, 100, 1002, now() FROM unnest($1::bigint[], $2::text[]) AS v(u, w)`, [opened.map((x) => x.unit), opened.map((x) => x.walker_id)]);
+              SELECT v.u, v.w, 100, $3::int, now() FROM unnest($1::bigint[], $2::text[]) AS v(u, w)`, [opened.map((x) => x.unit), opened.map((x) => x.walker_id), hv]);
             rows.deleted += closed.length; rows.inserted += opened.length;
           }
           await c.query("COMMIT");
@@ -338,6 +370,8 @@ async function main() {
       const t = (await pool.query(`SELECT free_percent, dead_tuple_percent FROM pgstattuple('gameplay_unit_challenges')`)).rows[0];
       ptuple = { freePercent: Number(t.free_percent), deadTuplePercent: Number(t.dead_tuple_percent) };
     } catch { /* extension not installed */ }
+    // Rows of units touched after the rollover that still carry the old rules version (0 for any correct writer).
+    const staleRowsAfterRollover = rollover === null ? 0 : Number((await pool.query(`SELECT count(*) n FROM gameplay_unit_challenges WHERE unit = ANY($1::bigint[]) AND holding_rules_version <> 1003`, [[...touchedAfterRollover]])).rows[0].n);
     const dbBefore = Number((await pool.query(`SELECT pg_database_size(current_database()) b`)).rows[0].b);
     // What a plain VACUUM leaves (it only truncates a free tail), then, for the diagnostic column only, VACUUM FULL on this throwaway database.
     await pool.query("VACUUM gameplay_unit_challenges");
@@ -364,7 +398,7 @@ async function main() {
       variant, clients, sessions, paceSeconds, seed, units: U, contested: C, wallSeconds, batchesPerSecond: sessions / wallSeconds,
       latencyMs: { p50: pct(lat, 0.5), p95: pct(lat, 0.95), p99: pct(lat, 0.99), max: Math.max(0, ...lat) },
       lockPhaseMs: { sum: lockPhase.reduce((a, b) => a + b, 0), p95: pct(lockPhase, 0.95), p99: pct(lockPhase, 0.99), max: Math.max(0, ...lockPhase) },
-      lockWaitSamples: waitSamples, retries, deadlocksDb: dl - dl0, rowsWritten: rows,
+      lockWaitSamples: waitSamples, changeRate, rollover, staleRowsAfterRollover, retries, deadlocksDb: dl - dl0, rowsWritten: rows,
       challengeTable: { live, dead: Number(st.n_dead_tup), heapBytes: Number(sz.h), indexBytes: Number(sz.i), toastBytes: Number(sz.toast), totalBytes: Number(sz.t), peakTotalBytes: peakTotal, startTotalBytes: startTotal,
         ins: d("n_tup_ins"), upd: d("n_tup_upd"), hotUpd: d("n_tup_hot_upd"), del: d("n_tup_del"), autovacuumCount: d("autovacuum_count"), autoanalyzeCount: d("autoanalyze_count"), ...ptuple },
       afterPlainVacuumBytes: afterVac, diagnosticAfterVacuumFullBytes: afterFull,
@@ -374,7 +408,7 @@ async function main() {
     };
     const out = arg("out");
     if (out) writeFileSync(out, JSON.stringify(result, null, 2)); else console.log(JSON.stringify(result, null, 2));
-    console.error(`${variant.name}: ${wallSeconds.toFixed(1)} s, table ${(Number(sz.t) / MIB).toFixed(2)} MiB (peak ${(peakTotal / MIB).toFixed(2)}), live ${live}, dead ${st.n_dead_tup}, hot ${d("n_tup_hot_upd")}/${d("n_tup_upd")}, WAL ${(Number(walEnd) / MIB).toFixed(1)} MiB, retries ${JSON.stringify(retries)}`);
+    console.error(`${variant.name}: ${wallSeconds.toFixed(1)} s, table ${(Number(sz.t) / MIB).toFixed(2)} MiB (peak ${(peakTotal / MIB).toFixed(2)}), live ${live}, dead ${st.n_dead_tup}, hot ${d("n_tup_hot_upd")}/${d("n_tup_upd")}, WAL ${(Number(walEnd) / MIB).toFixed(1)} MiB, retries ${JSON.stringify(retries)}, rows ${JSON.stringify(rows)}, stale ${staleRowsAfterRollover}`);
   } finally {
     await pool.end().catch(() => undefined);
     await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`).catch(() => undefined);
