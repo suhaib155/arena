@@ -240,8 +240,20 @@ interface Source { sourceNo: number; applied: boolean }
 /** What the capacity guard allows this batch. */
 interface Allowance { factor: number }
 
+/**
+ * How a push batch rewrites the touched units' open challenges.
+ *  - "delete-insert": delete every row of the touched units and insert those left open (the live behaviour).
+ *  - "diff": delete the closed rows, insert the new ones, and update a kept row only when first_day,
+ *    holding_rules_version or opened_received_at actually differs. The table ends identical to delete-insert.
+ */
+export type ChallengeWriteMode = "delete-insert" | "diff";
+/** Live semantics unless a deployment chooses otherwise. */
+export const DEFAULT_CHALLENGE_WRITE_MODE: ChallengeWriteMode = "delete-insert";
+
 export interface GameplayServiceDeps {
   db: Db;
+  /** Challenge write strategy (default DEFAULT_CHALLENGE_WRITE_MODE). */
+  challengeWrites?: ChallengeWriteMode;
   rules: GameplayRules;
   now?: () => number;
   /**
@@ -253,6 +265,46 @@ export interface GameplayServiceDeps {
   capacityGuard?: CapacityGuard;
   /** work_mem for the settlement transaction, in kB (default 16 MiB), so the day's sorts stay in memory. */
   settlementWorkMemKb?: number;
+}
+
+export interface OpenChallenge { unit: string; walkerId: string; day: number; openedMs: number }
+
+/**
+ * Replace the open challenges of `units` (whose gameplay_units rows the caller holds locked) with `open`,
+ * all stamped with rules version `hv`. Both modes leave the table with identical contents; "diff" writes
+ * only what differs, so a kept row that is unchanged is neither deleted nor rewritten.
+ */
+export async function writeChallenges(tx: Exec, mode: ChallengeWriteMode, units: readonly string[], open: readonly OpenChallenge[], hv: number): Promise<void> {
+  if (mode === "delete-insert") {
+    await tx.execute(sql`DELETE FROM gameplay_unit_challenges WHERE unit = ANY(${arr(units)}::bigint[])`);
+    if (open.length > 0) {
+      await tx.execute(sql`
+        INSERT INTO gameplay_unit_challenges (unit, walker_id, first_day, holding_rules_version, opened_received_at)
+        SELECT v.unit, v.walker_id, v.first_day, ${hv}::int, to_timestamp(v.opened_ms / 1000.0)
+          FROM unnest(${arr(open.map((c) => c.unit))}::bigint[], ${arr(open.map((c) => c.walkerId))}::text[], ${arr(open.map((c) => c.day))}::int[],
+                      ${arr(open.map((c) => c.openedMs))}::float8[])
+            AS v(unit, walker_id, first_day, opened_ms)`);
+    }
+    return;
+  }
+  const ou = arr(open.map((c) => c.unit)), ow = arr(open.map((c) => c.walkerId)), od = arr(open.map((c) => c.day)), om = arr(open.map((c) => c.openedMs));
+  await tx.execute(sql`
+    DELETE FROM gameplay_unit_challenges t
+     WHERE t.unit = ANY(${arr(units)}::bigint[])
+       AND NOT EXISTS (SELECT 1 FROM unnest(${ou}::bigint[], ${ow}::text[]) AS v(unit, walker_id) WHERE v.unit = t.unit AND v.walker_id = t.walker_id)`);
+  if (open.length === 0) return;
+  // A kept row is written only when first_day, the rules version or the receipt time really differs.
+  await tx.execute(sql`
+    UPDATE gameplay_unit_challenges t SET first_day = v.first_day, holding_rules_version = ${hv}::int, opened_received_at = to_timestamp(v.opened_ms / 1000.0)
+      FROM unnest(${ou}::bigint[], ${ow}::text[], ${od}::int[], ${om}::float8[]) AS v(unit, walker_id, first_day, opened_ms)
+     WHERE t.unit = v.unit AND t.walker_id = v.walker_id
+       AND (t.first_day IS DISTINCT FROM v.first_day OR t.holding_rules_version IS DISTINCT FROM ${hv}::int
+            OR t.opened_received_at IS DISTINCT FROM to_timestamp(v.opened_ms / 1000.0))`);
+  await tx.execute(sql`
+    INSERT INTO gameplay_unit_challenges (unit, walker_id, first_day, holding_rules_version, opened_received_at)
+    SELECT v.unit, v.walker_id, v.first_day, ${hv}::int, to_timestamp(v.opened_ms / 1000.0)
+      FROM unnest(${ou}::bigint[], ${ow}::text[], ${od}::int[], ${om}::float8[]) AS v(unit, walker_id, first_day, opened_ms)
+     WHERE NOT EXISTS (SELECT 1 FROM gameplay_unit_challenges t WHERE t.unit = v.unit AND t.walker_id = v.walker_id)`);
 }
 
 type SettledCredits = Extract<CreditsDayResult, { status: "settled" }>;
@@ -284,6 +336,7 @@ export class GameplayService {
   private readonly unitBudget: number | null;
   private readonly capacityGuard: CapacityGuard | undefined;
   private readonly settlementWorkMemKb: number;
+  private readonly challengeWrites: ChallengeWriteMode;
 
   constructor(deps: GameplayServiceDeps) {
     this.db = deps.db;
@@ -292,6 +345,8 @@ export class GameplayService {
     this.unitBudget = deps.unitBudget === undefined ? DEFAULT_UNIT_BUDGET : deps.unitBudget;
     if (this.unitBudget !== null && !(Number.isInteger(this.unitBudget) && this.unitBudget >= 1)) throw new Error("unitBudget must be a whole number, 1 or more, or null");
     this.capacityGuard = deps.capacityGuard;
+    this.challengeWrites = deps.challengeWrites ?? DEFAULT_CHALLENGE_WRITE_MODE;
+    if (this.challengeWrites !== "delete-insert" && this.challengeWrites !== "diff") throw new Error("challengeWrites must be delete-insert or diff");
     this.settlementWorkMemKb = deps.settlementWorkMemKb ?? 16_384;
     if (!(Number.isInteger(this.settlementWorkMemKb) && this.settlementWorkMemKb >= 64 && this.settlementWorkMemKb <= 1_048_576)) throw new Error("settlementWorkMemKb must be 64 to 1048576");
   }
@@ -748,7 +803,6 @@ export class GameplayService {
           holder_no = EXCLUDED.holder_no, strength = EXCLUDED.strength, shade = EXCLUDED.shade, deeded = EXCLUDED.deeded,
           masked = EXCLUDED.masked, level = EXCLUDED.level, fortified = EXCLUDED.fortified, holding_rules_version = EXCLUDED.holding_rules_version`);
       // The touched units' open challenges, replaced as the model left them.
-      await tx.execute(sql`DELETE FROM gameplay_unit_challenges WHERE unit = ANY(${arr(cols.unit)}::bigint[])`);
       // A challenge that was already open keeps its receipt time; a new one
       // takes this batch's server receipt time.
       const openedAt = (unitId: string, walkerId: string): number => {
@@ -759,14 +813,7 @@ export class GameplayService {
       const open = next.flatMap((s) => (s.challenges ?? []).map((c) => ({
         unit: cellToInt8(s.unitId), walkerId: c.walkerId, day: c.day, openedMs: openedAt(s.unitId, c.walkerId),
       })));
-      if (open.length > 0) {
-        await tx.execute(sql`
-          INSERT INTO gameplay_unit_challenges (unit, walker_id, first_day, holding_rules_version, opened_received_at)
-          SELECT v.unit, v.walker_id, v.first_day, ${hv}::int, to_timestamp(v.opened_ms / 1000.0)
-            FROM unnest(${arr(open.map((c) => c.unit))}::bigint[], ${arr(open.map((c) => c.walkerId))}::text[], ${arr(open.map((c) => c.day))}::int[],
-                        ${arr(open.map((c) => c.openedMs))}::float8[])
-              AS v(unit, walker_id, first_day, opened_ms)`);
-      }
+      await writeChallenges(tx, this.challengeWrites, cols.unit, open, hv);
     }
 
     // Accepted pushes are ledger rows; WITH ORDINALITY … ORDER BY: seq follows the order they were applied.
