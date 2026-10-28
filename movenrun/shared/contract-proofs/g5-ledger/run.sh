@@ -5,7 +5,8 @@
 #
 #   bash movenrun/shared/contract-proofs/g5-ledger/run.sh [commit]
 #   G5_MODE=patched bash movenrun/shared/contract-proofs/g5-ledger/run.sh [commit]
-#   G5_PORTED_SUITE=1 G5_MODE=patched ...   runs the ported v3 suite (suite-port/) against the patches
+#   G5_PORTED_SUITE=1 G5_MODE=patched ...   runs the ported v3 suite (suite-port/) against the patches,
+#     plus the legacy greatBurn probe (legacy-harness/, legacy src/SeasonController.sol unmodified)
 #   G5_BRANCH_SUITE=1 ...   additionally runs the branch's own test/v3 suite in that mode
 #
 # G5_MODE=original (default): ledger.proof.ts (issue proofs), valve.proof.ts (valve, fallback
@@ -44,6 +45,13 @@ fi
 if [ "${G5_PORTED_SUITE:-0}" = "1" ]; then
   # Ported v3 suite (RESEARCH ONLY): suite-port/*.ts next to regression.proof.ts, patched mode.
   cp "$HERE"/suite-port/*.ts "$C/test/ledger/"
+  # Legacy greatBurn probe (issue ledger I-04): the unmodified legacy SeasonController and the
+  # files it imports, plus minimal stand-ins, compiled next to v3 under src/v3/legacy-probe.
+  L="$C/src/v3/legacy-probe"
+  mkdir -p "$L/interfaces"
+  cp "$C/src/SeasonController.sol" "$C/src/MoveToken.sol" "$C/src/ZoneNFT.sol" "$L/"
+  cp "$C/src/interfaces/IGPSOracle.sol" "$L/interfaces/"
+  cp "$HERE"/legacy-harness/*.sol "$L/"
 fi
 cp "$HERE/proof.config.ts" "$C/"
 cd "$C"

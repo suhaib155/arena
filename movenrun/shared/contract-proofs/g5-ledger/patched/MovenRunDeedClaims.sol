@@ -44,6 +44,16 @@ import {IMovenRunDeed} from "./interfaces/IMovenRunDeed.sol";
 ///      - adding an eligibility signer (registration or rotation) needs a prior, expiring
 ///        approval from SIGNER_APPROVER_ROLE, a self-administered role the delayed
 ///        administrator cannot grant itself. Removing a signer needs no approval (fails closed).
+///
+///      G5 DRAFT PATCH (counter release model, 28 Oct, RESEARCH/PROPOSED, unaudited):
+///      - the lifetime ceiling bounds claims that were NOT voided (totalClaims - voidedClaims),
+///        so voiding fraud never uses up capacity honest claimants need; totalClaims stays the
+///        monotonic claim id and attempt count;
+///      - the per-city daily count, the attestation nonce and the burned fee are never released
+///        (rate limit on attempts and replay protection);
+///      - a FAULT void nullifies its evidence commitment for that (city, cluster), so the same
+///        evidence cannot back another claim even where the cluster cap allows more than one;
+///        a successful appeal lifts that nullifier together with the fault finding.
 contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     /// @notice Role permitted to pause new deed claims and nothing else.
     bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
@@ -134,6 +144,7 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
         uint64 voidedAt;
         bytes32 clusterId;
         uint256 tokenId;
+        bytes32 evidenceHash;
     }
     mapping(uint256 claimId => ClaimRecord) public claimRecord;
     /// @notice Live claim id behind a deed; cleared on void.
@@ -142,6 +153,11 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     mapping(uint32 cityId => mapping(bytes32 clusterId => bool used)) public clusterRestorationUsed;
     /// @notice Earliest time a restored (city, cluster) may claim again.
     mapping(uint32 cityId => mapping(bytes32 clusterId => uint64 at)) public clusterReclaimAfter;
+    /// @notice Claims voided so far (either class). Monotonic. The lifetime ceiling counts
+    ///         totalClaims - voidedClaims, so voided claims do not hold ceiling capacity.
+    uint256 public voidedClaims;
+    /// @notice Evidence commitments found faulty, keyed by keccak256(cityId, clusterId, evidenceHash).
+    mapping(bytes32 nullifier => bool used) public evidenceNullified;
 
     // ---- signer roles (RESEARCH/PROPOSED) ----
     /// @notice Independent role that must approve every new eligibility signer.
@@ -207,6 +223,7 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
     error NotAFaultVoid(uint256 claimId);
     error AppealWindowClosed(uint256 claimId, uint64 closedAt);
     error SignerAdditionNotApproved(address signer);
+    error EvidenceNullified(bytes32 evidenceHash);
 
     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
     /// @param guardian Emergency address permitted to pause new claims only.
@@ -299,6 +316,9 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
 
         _verifyCity(attestation.h3CellId, attestation.cityId, cityProof);
         _applyIssuanceLimits(attestation.cityId, attestation.clusterId);
+        if (evidenceNullified[evidenceNullifier(attestation.cityId, attestation.clusterId, attestation.evidenceHash)]) {
+            revert EvidenceNullified(attestation.evidenceHash);
+        }
 
         (uint256 capPerHolder, bool cityConfigured) = deed.cityConcentrationCap(attestation.cityId);
         if (!cityConfigured) revert CityCapNotConfigured(attestation.cityId);
@@ -322,7 +342,8 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
                 status: CLAIM_LIVE,
                 voidedAt: 0,
                 clusterId: attestation.clusterId,
-                tokenId: tokenId
+                tokenId: tokenId,
+                evidenceHash: attestation.evidenceHash
             });
             claimIdOfToken[tokenId] = claimId;
         }
@@ -363,7 +384,7 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
         uint64 day = uint64(block.timestamp / 1 days);
         uint32 today = cityClaimsOnDay[cityId][day];
         if (today >= maxClaimsPerCityPerDay) revert CityDailyClaimLimitReached(cityId);
-        if (totalClaims >= maxTotalClaims) revert TotalClaimCeilingReached(maxTotalClaims);
+        if (totalClaims - voidedClaims >= maxTotalClaims) revert TotalClaimCeilingReached(maxTotalClaims);
         clusterClaimCount[cityId][clusterId] = clusterCount + 1;
         cityClaimsOnDay[cityId][day] = today + 1;
         totalClaims += 1;
@@ -381,7 +402,13 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
         if (claimId == 0 || r.status != CLAIM_LIVE || r.tokenId != tokenId) return;
         delete claimIdOfToken[tokenId];
         r.voidedAt = uint64(block.timestamp);
-        r.status = administrative ? _restoreOnce(claimId, r) : CLAIM_VOIDED_FAULT;
+        voidedClaims += 1;
+        if (administrative) {
+            r.status = _restoreOnce(claimId, r);
+        } else {
+            r.status = CLAIM_VOIDED_FAULT;
+            evidenceNullified[evidenceNullifier(r.cityId, r.clusterId, r.evidenceHash)] = true;
+        }
         emit ClaimVoided(claimId, tokenId, holder, r.status);
     }
 
@@ -393,6 +420,7 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
         if (r.status != CLAIM_VOIDED_FAULT) revert NotAFaultVoid(claimId);
         uint64 closesAt = r.voidedAt + APPEAL_WINDOW;
         if (block.timestamp > closesAt) revert AppealWindowClosed(claimId, closesAt);
+        delete evidenceNullified[evidenceNullifier(r.cityId, r.clusterId, r.evidenceHash)];
         r.status = _restoreOnce(claimId, r);
         emit FaultVoidReclassified(claimId, r.status);
     }
@@ -408,6 +436,16 @@ contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
         clusterReclaimAfter[cityId][clusterId] = reclaimAfter;
         emit ClusterCapacityRestored(claimId, cityId, clusterId, reclaimAfter);
         return CLAIM_VOIDED_ADMIN_RESTORED;
+    }
+
+    /// @notice Key under which a FAULT void nullifies an evidence commitment.
+    function evidenceNullifier(uint32 cityId, bytes32 clusterId, bytes32 evidenceHash) public pure returns (bytes32) {
+        return keccak256(abi.encode(cityId, clusterId, evidenceHash));
+    }
+
+    /// @notice Claims that count against the lifetime ceiling (not voided).
+    function effectiveClaims() external view returns (uint256) {
+        return totalClaims - voidedClaims;
     }
 
     /// @notice Parent of an H3 cell at CITY_REGION_RESOLUTION (resolution field set, finer digits unused).

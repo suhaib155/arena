@@ -8,7 +8,7 @@
  import {IMovenRunToken} from "./interfaces/IMovenRunToken.sol";
  import {IMovenRunDeed} from "./interfaces/IMovenRunDeed.sol";
  
-@@ -20,6 +21,29 @@
+@@ -20,6 +21,39 @@
  ///      The cap bounds what a single holder may accumulate inside one city, so one claimant
  ///      reaching their own limit leaves the city open to everyone else. The claim fee comes
  ///      from the signed quote, is bounded by a caller-supplied maximum, and is genuinely burned.
@@ -35,10 +35,20 @@
 +///      - adding an eligibility signer (registration or rotation) needs a prior, expiring
 +///        approval from SIGNER_APPROVER_ROLE, a self-administered role the delayed
 +///        administrator cannot grant itself. Removing a signer needs no approval (fails closed).
++///
++///      G5 DRAFT PATCH (counter release model, 28 Oct, RESEARCH/PROPOSED, unaudited):
++///      - the lifetime ceiling bounds claims that were NOT voided (totalClaims - voidedClaims),
++///        so voiding fraud never uses up capacity honest claimants need; totalClaims stays the
++///        monotonic claim id and attempt count;
++///      - the per-city daily count, the attestation nonce and the burned fee are never released
++///        (rate limit on attempts and replay protection);
++///      - a FAULT void nullifies its evidence commitment for that (city, cluster), so the same
++///        evidence cannot back another claim even where the cluster cap allows more than one;
++///        a successful appeal lifts that nullifier together with the fault finding.
  contract MovenRunDeedClaims is AccessControl, EIP712, ReentrancyGuard {
      /// @notice Role permitted to pause new deed claims and nothing else.
      bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
-@@ -27,7 +51,7 @@
+@@ -27,7 +61,7 @@
      /// @notice EIP-712 type of a deed eligibility attestation.
      bytes32 public constant ELIGIBILITY_ATTESTATION_TYPEHASH =
          keccak256(
@@ -47,7 +57,7 @@
          );
  
      /// @notice Authoritative MovenRun statement that a claimant already holds eligible ground.
-@@ -40,6 +64,8 @@
+@@ -40,6 +74,8 @@
          uint32 distinctCrossers;
          uint32 trafficDays;
          bool relatedTrafficExcluded;
@@ -56,7 +66,7 @@
          uint256 claimFee;
          uint16 rulesVersion;
          uint256 nonce;
-@@ -67,6 +93,63 @@
+@@ -67,6 +103,69 @@
  
      mapping(uint256 nonce => bool used) public attestationNonceUsed;
  
@@ -101,6 +111,7 @@
 +        uint64 voidedAt;
 +        bytes32 clusterId;
 +        uint256 tokenId;
++        bytes32 evidenceHash;
 +    }
 +    mapping(uint256 claimId => ClaimRecord) public claimRecord;
 +    /// @notice Live claim id behind a deed; cleared on void.
@@ -109,6 +120,11 @@
 +    mapping(uint32 cityId => mapping(bytes32 clusterId => bool used)) public clusterRestorationUsed;
 +    /// @notice Earliest time a restored (city, cluster) may claim again.
 +    mapping(uint32 cityId => mapping(bytes32 clusterId => uint64 at)) public clusterReclaimAfter;
++    /// @notice Claims voided so far (either class). Monotonic. The lifetime ceiling counts
++    ///         totalClaims - voidedClaims, so voided claims do not hold ceiling capacity.
++    uint256 public voidedClaims;
++    /// @notice Evidence commitments found faulty, keyed by keccak256(cityId, clusterId, evidenceHash).
++    mapping(bytes32 nullifier => bool used) public evidenceNullified;
 +
 +    // ---- signer roles (RESEARCH/PROPOSED) ----
 +    /// @notice Independent role that must approve every new eligibility signer.
@@ -120,7 +136,7 @@
      event DeedClaimed(
          uint256 indexed tokenId,
          address indexed claimant,
-@@ -82,6 +165,16 @@
+@@ -82,6 +181,16 @@
      );
      event RulesVersionUpdated(uint16 previousVersion, uint16 newVersion);
      event ClaimsPauseUpdated(bool paused, address indexed actor);
@@ -137,7 +153,7 @@
  
      error ZeroAddress();
      error ClaimsArePaused();
-@@ -98,6 +191,22 @@
+@@ -98,6 +207,23 @@
      error CityCapNotConfigured(uint32 cityId);
      error HolderCityCapReached(address claimant, uint32 cityId, uint256 capPerHolder);
      error ClaimFeeAboveMaximum(uint256 quotedFee, uint256 maxFee);
@@ -157,10 +173,11 @@
 +    error NotAFaultVoid(uint256 claimId);
 +    error AppealWindowClosed(uint256 claimId, uint64 closedAt);
 +    error SignerAdditionNotApproved(address signer);
++    error EvidenceNullified(bytes32 evidenceHash);
  
      /// @param admin Delayed administrator, expected to be MovenRunTimelock.
      /// @param guardian Emergency address permitted to pause new claims only.
-@@ -124,6 +233,12 @@
+@@ -124,6 +250,12 @@
          moveToken = IMovenRunToken(moveToken_);
          deed = IMovenRunDeed(deed_);
          eligibilitySigner = eligibilitySigner_;
@@ -173,7 +190,7 @@
          rulesVersion = initialRulesVersion;
  
          minTenureDays = 21;
-@@ -132,6 +247,11 @@
+@@ -132,6 +264,11 @@
  
          _grantRole(DEFAULT_ADMIN_ROLE, admin);
          _grantRole(GUARDIAN_ROLE, guardian);
@@ -185,7 +202,7 @@
  
          emit EligibilityThresholdsUpdated(21, 30, 10);
      }
-@@ -140,13 +260,18 @@
+@@ -140,13 +277,18 @@
      // Claiming
      // ---------------------------------------------------------------------
  
@@ -210,7 +227,7 @@
          uint256 maxFee
      ) external nonReentrant returns (uint256 tokenId) {
          if (claimsPaused) revert ClaimsArePaused();
-@@ -158,9 +283,7 @@
+@@ -158,9 +300,7 @@
          if (attestationNonceUsed[attestation.nonce]) {
              revert AttestationAlreadyUsed(attestation.nonce);
          }
@@ -221,7 +238,7 @@
  
          if (!attestation.solidGround) revert GroundNotSolid();
          if (!attestation.relatedTrafficExcluded) revert RelatedTrafficNotExcluded();
-@@ -174,34 +297,125 @@
+@@ -174,34 +314,146 @@
              revert TooFewTrafficDays(attestation.trafficDays, minTrafficDays);
          }
  
@@ -230,6 +247,9 @@
 -        // than being the place the rule is enforced.
 +        _verifyCity(attestation.h3CellId, attestation.cityId, cityProof);
 +        _applyIssuanceLimits(attestation.cityId, attestation.clusterId);
++        if (evidenceNullified[evidenceNullifier(attestation.cityId, attestation.clusterId, attestation.evidenceHash)]) {
++            revert EvidenceNullified(attestation.evidenceHash);
++        }
 +
          (uint256 capPerHolder, bool cityConfigured) = deed.cityConcentrationCap(attestation.cityId);
          if (!cityConfigured) revert CityCapNotConfigured(attestation.cityId);
@@ -256,7 +276,8 @@
 +                status: CLAIM_LIVE,
 +                voidedAt: 0,
 +                clusterId: attestation.clusterId,
-+                tokenId: tokenId
++                tokenId: tokenId,
++                evidenceHash: attestation.evidenceHash
 +            });
 +            claimIdOfToken[tokenId] = claimId;
 +        }
@@ -304,7 +325,7 @@
 +        uint64 day = uint64(block.timestamp / 1 days);
 +        uint32 today = cityClaimsOnDay[cityId][day];
 +        if (today >= maxClaimsPerCityPerDay) revert CityDailyClaimLimitReached(cityId);
-+        if (totalClaims >= maxTotalClaims) revert TotalClaimCeilingReached(maxTotalClaims);
++        if (totalClaims - voidedClaims >= maxTotalClaims) revert TotalClaimCeilingReached(maxTotalClaims);
 +        clusterClaimCount[cityId][clusterId] = clusterCount + 1;
 +        cityClaimsOnDay[cityId][day] = today + 1;
 +        totalClaims += 1;
@@ -322,7 +343,13 @@
 +        if (claimId == 0 || r.status != CLAIM_LIVE || r.tokenId != tokenId) return;
 +        delete claimIdOfToken[tokenId];
 +        r.voidedAt = uint64(block.timestamp);
-+        r.status = administrative ? _restoreOnce(claimId, r) : CLAIM_VOIDED_FAULT;
++        voidedClaims += 1;
++        if (administrative) {
++            r.status = _restoreOnce(claimId, r);
++        } else {
++            r.status = CLAIM_VOIDED_FAULT;
++            evidenceNullified[evidenceNullifier(r.cityId, r.clusterId, r.evidenceHash)] = true;
++        }
 +        emit ClaimVoided(claimId, tokenId, holder, r.status);
 +    }
 +
@@ -334,6 +361,7 @@
 +        if (r.status != CLAIM_VOIDED_FAULT) revert NotAFaultVoid(claimId);
 +        uint64 closesAt = r.voidedAt + APPEAL_WINDOW;
 +        if (block.timestamp > closesAt) revert AppealWindowClosed(claimId, closesAt);
++        delete evidenceNullified[evidenceNullifier(r.cityId, r.clusterId, r.evidenceHash)];
 +        r.status = _restoreOnce(claimId, r);
 +        emit FaultVoidReclassified(claimId, r.status);
 +    }
@@ -351,6 +379,16 @@
 +        return CLAIM_VOIDED_ADMIN_RESTORED;
 +    }
 +
++    /// @notice Key under which a FAULT void nullifies an evidence commitment.
++    function evidenceNullifier(uint32 cityId, bytes32 clusterId, bytes32 evidenceHash) public pure returns (bytes32) {
++        return keccak256(abi.encode(cityId, clusterId, evidenceHash));
++    }
++
++    /// @notice Claims that count against the lifetime ceiling (not voided).
++    function effectiveClaims() external view returns (uint256) {
++        return totalClaims - voidedClaims;
++    }
++
 +    /// @notice Parent of an H3 cell at CITY_REGION_RESOLUTION (resolution field set, finer digits unused).
 +    function parentCell(uint64 h3CellId) public pure returns (uint64) {
 +        uint64 lowBits = 3 * (15 - uint64(CITY_REGION_RESOLUTION));
@@ -360,7 +398,7 @@
      }
  
      /// @notice EIP-712 digest the eligibility signer authorizes.
-@@ -212,21 +426,29 @@
+@@ -212,21 +464,29 @@
      {
          return
              _hashTypedDataV4(
@@ -404,7 +442,7 @@
                      )
                  )
              );
-@@ -272,7 +494,17 @@
+@@ -272,7 +532,17 @@
      /// @notice Rotates the eligibility signer. Delayed administration only.
      function setEligibilitySigner(address newSigner) external onlyRole(DEFAULT_ADMIN_ROLE) {
          if (newSigner == address(0)) revert ZeroAddress();
@@ -422,7 +460,7 @@
          eligibilitySigner = newSigner;
      }
  
-@@ -282,6 +514,66 @@
+@@ -282,6 +552,66 @@
          rulesVersion = newVersion;
      }
  

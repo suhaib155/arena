@@ -114,7 +114,11 @@ describe("G5 focused: valve, toll leakage, signer concentration (patched)", () =
         const pool: bigint = await f.settlement.dailyPoolOf(day);
         const gross = pool < CEILING ? pool : CEILING;
         const allowance: bigint = await f.settlement.liquidIssuanceAllowance();
-        const liq = gross < allowance ? gross : allowance;
+        let liq = gross < allowance ? gross : allowance;
+        // Test adjustment (issue-ledger rolling window, 28 Oct): liquid is also bounded by what
+        // the 31-bucket rolling window has left, so steady nominal days are partly locked.
+        const rolling: bigint = await f.settlement.rollingLiquidRemaining();
+        if (liq > rolling) liq = rolling;
         await (await publishSettlement(f, await settlementAuthorization(f, {
           dayId: day, grossIssuance: gross, lockedClaims: gross - liq, liquidMovementClaims: liq,
         }))).wait();
