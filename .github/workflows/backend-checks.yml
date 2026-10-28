@@ -102,15 +102,35 @@ jobs:
       - name: Build isolated V3 API
         run: yarn workspace @movenrun/backend build
 
-      - name: Test V3 deployment runtime
+      # One discovery runner for the whole backend suite (45 files). It walks
+      # the tree itself instead of relying on shell globs, which do not recurse
+      # under sh. --strict turns any skipped database test into a failure, so a
+      # green run here means every database test really executed. It needs the
+      # API build above for src/api/runtime.test.ts.
+      - name: Test @movenrun/backend (all, with PostgreSQL)
         env:
           MOVENRUN_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/movenrun_test
-        run: yarn workspace @movenrun/backend test:api
+        run: yarn workspace @movenrun/backend test --strict
 
-      - name: Test @movenrun/backend
-        # The database URL switches the migration/end-to-end suite on. Without
-        # it those tests SKIP loudly rather than passing vacuously, so a green
-        # run here means they actually executed.
-        env:
-          MOVENRUN_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/movenrun_test
-        run: yarn workspace @movenrun/backend test
+  # Fast job: no database, no service container. Runs every test file that does
+  # not need PostgreSQL; the database set runs in the job above.
+  backend-fast:
+    name: Backend fast tests (no database)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: movenrun
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies (immutable)
+        run: yarn install --immutable
+      - name: Test @movenrun/shared
+        run: yarn workspace @movenrun/shared test
+      - name: Test @movenrun/backend (unit category)
+        run: yarn workspace @movenrun/backend test:unit
