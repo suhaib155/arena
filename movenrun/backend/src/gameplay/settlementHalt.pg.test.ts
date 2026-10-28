@@ -1,6 +1,6 @@
 /**
  * Operator halt (settlement invariants, item 4) against real PostgreSQL.
- * A halt is an audited, reversible status that can only STOP settlement: it
+ * A halt is an audited status that can only STOP settlement: it
  * writes no settlement, line or credit, overrides nothing, and a day settled
  * after a resume is exactly the day an unhalted server settles. The
  * reconciler halts settlement itself when a closed day's replay fails.
@@ -54,6 +54,13 @@ async function world(prefix: string) {
   };
 }
 
+/** A resume under dual review: a fresh proof requested by one actor, approved by two others. */
+async function dualResume(svc: GameplayService, reason: string) {
+  const { requestId } = await svc.requestResume({ actor: "ops-oncall", reason });
+  assert.equal((await svc.approveResume({ requestId, approver: "ops-review-a" })).resumed, false, "one approval is not enough");
+  return svc.approveResume({ requestId, approver: "ops-review-b" });
+}
+
 async function code(p: Promise<unknown>): Promise<string | undefined> {
   try {
     await p;
@@ -85,8 +92,9 @@ test("halt stops settlement and writes nothing; resume settles exactly what an u
     assert.equal(status.actor, "ops-oncall");
     assert.equal(status.reason, "books under review");
 
-    const r = await halted.svc.resumeSettlement({ actor: "ops-oncall", reason: "reviewed" });
-    assert.equal(r.halted, false);
+    const r = await dualResume(halted.svc, "reviewed");
+    assert.equal(r.resumed, true);
+    assert.equal((await halted.svc.settlementStatus()).halted, false);
     assert.deepEqual(await halted.counts(), { days: 0, lines: 0 }, "a resume settles nothing by itself");
     await halted.svc.settleDay(D);
     await plain.svc.settleDay(D);
@@ -111,8 +119,8 @@ test("retry and double close: a repeated halt is a no-op, a settled day is retur
     assert.equal((await w.svc.haltSettlement({ actor: "ops-oncall", reason: "again" })).changed, false, "already halted");
     assert.equal((await w.svc.settleDay(D)).created, false, "a closed day is read back, never re-settled");
     for (let i = 0; i < 3; i++) assert.equal(await code(w.svc.settleDay(D + 1)), "settlement_halted", `retry ${i}`);
-    await w.svc.resumeSettlement({ actor: "ops-oncall", reason: "done" });
-    assert.equal((await w.svc.resumeSettlement({ actor: "ops-oncall", reason: "again" })).changed, false, "already running");
+    await dualResume(w.svc, "done");
+    assert.equal(await code(w.svc.requestResume({ actor: "ops-oncall", reason: "again" })), "not_halted", "already running");
     assert.equal((await w.svc.settleDay(D + 1)).created, true);
     assert.equal((await w.svc.settleDay(D + 1)).created, false, "double close");
     assert.deepEqual(await w.counts(), { days: 2, lines: 2 });
@@ -131,7 +139,7 @@ test("late data: a session the server received after the close counts for nothin
     await w.svc.haltSettlement({ actor: "ops-oncall", reason: "maintenance" });
     await w.session("late", "l1", at(D, 22), CLOSE(D) + 2 * 3_600_000);
     w.setClock(CLOSE(D) + 3 * DAY_MS);
-    await w.svc.resumeSettlement({ actor: "ops-oncall", reason: "back" });
+    await dualResume(w.svc, "back");
     await w.svc.settleDay(D);
     const { l } = await w.books(D);
     assert.deepEqual(l.map((x) => x.player_id), ["ana"]);
@@ -181,8 +189,11 @@ test("corrupted book: an edited credit line halts settlement; the halt neither r
     const corrupted = await w.books(D);
     assert.equal(await code(w.svc.verifyDayOrHalt(D)), "closed_day_books_invalid");
     assert.equal((await w.svc.settlementStatus()).halted, true);
-    await w.svc.resumeSettlement({ actor: "ops-oncall", reason: "incident opened separately" });
-    assert.deepEqual(await w.books(D), corrupted, "resume repairs nothing; repair is its own authorised incident");
+    // No resume while a closed day fails its replay: the fresh proof is refused, nothing is recorded.
+    assert.equal(await code(w.svc.requestResume({ actor: "ops-oncall", reason: "incident opened separately" })), "resume_proof_failed");
+    assert.equal((await w.svc.settlementStatus()).halted, true);
+    assert.equal(Number((await w.t.pool.query("SELECT count(*) AS n FROM gameplay_resume_requests")).rows[0].n), 0);
+    assert.deepEqual(await w.books(D), corrupted, "nothing repairs the day; repair is its own authorised incident");
     assert.equal(await code(w.t.pool.query(`UPDATE gameplay_day_settlements SET minted_micro = 0 WHERE day = ${D}`)), "23001", "a settled day is final");
   } finally {
     await w.t.drop();

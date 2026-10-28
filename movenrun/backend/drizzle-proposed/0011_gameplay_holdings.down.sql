@@ -18,13 +18,20 @@
 --   - every stored 1002 session path: an unapplied 1002 session can then
 --     never be applied (its raw fixes were never stored);
 --   - the sequences behind ledger order and source numbers;
---   - the settlement halt log (every operator and reconciler halt/resume).
+--   - the settlement halt log (every operator and reconciler halt/resume),
+--     resume requests and their approvals;
+--   - the erasure records (the hash chains that let erased days reconcile)
+--     and the erasure fence.
 -- Settled days are meant to be final; after this they cannot be reconciled
 -- or replayed. Take a pg_dump of the gameplay_* tables and the
 -- gameplay_partitions schema first, and treat running this as its own owner
 -- decision. If 0011 was promoted into drizzle/, also delete its row from
 -- drizzle.__drizzle_migrations in the same transaction, or a later
 -- `drizzle-kit migrate` will not re-apply it.
+DROP TABLE IF EXISTS "gameplay_resume_approvals";--> statement-breakpoint
+-- The halt log and the resume requests reference each other: unlink first.
+ALTER TABLE IF EXISTS "gameplay_settlement_halts" DROP CONSTRAINT IF EXISTS "gameplay_settlement_halts_resume_request";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_resume_requests";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_settlement_halts";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_session_paths";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_unit_challenges";--> statement-breakpoint
@@ -35,6 +42,8 @@ DROP TABLE IF EXISTS "gameplay_unit_districts";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_club_memberships";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_clubs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_credit_lines";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_erasure_records";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_erasure_fence";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_day_settlements";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_player_day_proofs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_applied_sessions";--> statement-breakpoint
@@ -62,4 +71,7 @@ DROP FUNCTION IF EXISTS public.gameplay_check_challenge();--> statement-breakpoi
 DROP FUNCTION IF EXISTS public.gameplay_check_take_budget();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_day_rules_final();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_settlement_halts_append_only();--> statement-breakpoint
-DROP FUNCTION IF EXISTS public.gameplay_player_day_proofs_append_only();
+DROP FUNCTION IF EXISTS public.gameplay_player_day_proofs_append_only();--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_erasure_records_guard();--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_erasure_record_hash(text, uuid, integer, text, text, boolean, boolean);--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_resume_approvals_guard();
