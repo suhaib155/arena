@@ -92,6 +92,12 @@ if (phases.includes("db") && groups.db.length) {
   }
 }
 
+function redact(line) {
+  const v = process.env[DB_ENV];
+  if (v) line = line.split(v).join("[redacted]");
+  return line.replace(/\b([a-z][a-z0-9+.-]*):\/\/[^\s/@]*@/gi, "$1://[redacted]@");
+}
+
 function runPhase(name, list) {
   return new Promise((resolve) => {
     const args = ["--import", "tsx", "--test", "--test-reporter=tap", `--test-timeout=${opts.testTimeoutMs}`];
@@ -101,6 +107,7 @@ function runPhase(name, list) {
     const stats = { tests: 0, pass: 0, fail: 0, cancelled: 0, skipped: 0, todo: 0 };
     const skipped = [];
     let timedOut = false;
+    let inFailure = false;
     let buf = "";
     const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, opts.timeoutMs);
     const onLine = (line) => {
@@ -108,7 +115,11 @@ function runPhase(name, list) {
       if (m) stats[m[1]] = Number(m[2]);
       const s = /^\s*ok \d+ - (.*?) # SKIP\b\s*(.*)$/.exec(line);
       if (s) skipped.push(s[1]);
-      if (/^\s*not ok /.test(line)) console.log(line);
+      if (/^\s*not ok /.test(line)) { console.log(line); inFailure = true; return; }
+      if (/^\s*(ok \d+|# )/.test(line)) inFailure = false;
+      // Print the diagnostic block of a failing test so CI logs say why,
+      // with the database URL and any URL credentials removed.
+      if (inFailure) console.log(redact(line));
     };
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\n")) >= 0) { onLine(buf.slice(0, i)); buf = buf.slice(i + 1); } });

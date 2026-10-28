@@ -133,4 +133,6 @@ jobs:
       - name: Test @movenrun/shared
         run: yarn workspace @movenrun/shared test
       - name: Test @movenrun/backend (unit category)
-        run: yarn workspace @movenrun/backend test:unit
+        # --strict: a database test misclassified as unit would skip here
+        # without a database; strict turns that into a failure.
+        run: yarn workspace @movenrun/backend test:unit --strict
