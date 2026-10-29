@@ -450,7 +450,8 @@ test("day close under 1002: books balance, every holder of a mixed zone holds it
   const raw = (await pool.query(`SELECT source_no, unit::text AS unit, outcome_code, previous_holder_no, new_holder_no, strength_before, strength_after, shade_strength
     FROM ${LEDGER} WHERE walker_no = $1 AND day = $2 ORDER BY seq`, [heavyNo, D + 1])).rows;
   const dayRow = (await pool.query("SELECT refused_deeded, refused_masked, refused_daily_limit, refused_take_budget, visit_units::text[] AS v FROM gameplay_walker_days WHERE walker_no = $1 AND day = $2", [heavyNo, D + 1])).rows[0];
-  const proofLines = raw.map((e) => [e.source_no, e.unit, e.outcome_code, e.previous_holder_no ?? "", e.new_holder_no ?? "", `${e.strength_before}>${e.strength_after}`, e.shade_strength].join(":"));
+  // Proof encoding 2: no other player's number, so erasing a holder never changes this proof.
+  const proofLines = raw.map((e) => [e.source_no, e.unit, e.outcome_code, `${e.strength_before}>${e.strength_after}`, e.shade_strength].join(":"));
   proofLines.push(["refused", dayRow.refused_deeded, dayRow.refused_masked, dayRow.refused_daily_limit, dayRow.refused_take_budget, dayRow.v.join(",")].join(":"));
   assert.equal(createHash("sha256").update(proofLines.join("\n")).digest("hex"), hp.sha);
 });

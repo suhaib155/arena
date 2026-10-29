@@ -18,7 +18,10 @@
 --   - every stored 1002 session path: an unapplied 1002 session can then
 --     never be applied (its raw fixes were never stored);
 --   - the sequences behind ledger order and source numbers;
---   - the settlement halt log (every operator and reconciler halt/resume);
+--   - the settlement halt log (every operator and reconciler halt/resume),
+--     resume requests and their approvals;
+--   - the per-day erasure states (what lets erased days reconcile)
+--     and the erasure fence;
 --   - the sealing v2 territory seal and claimable-cell columns on
 --     movement_verifications (the movement rows themselves and their v1 seal
 --     summary stay).
@@ -28,6 +31,10 @@
 -- decision. If 0011 was promoted into drizzle/, also delete its row from
 -- drizzle.__drizzle_migrations in the same transaction, or a later
 -- `drizzle-kit migrate` will not re-apply it.
+DROP TABLE IF EXISTS "gameplay_resume_approvals";--> statement-breakpoint
+-- The halt log and the resume requests reference each other: unlink first.
+ALTER TABLE IF EXISTS "gameplay_settlement_halts" DROP CONSTRAINT IF EXISTS "gameplay_settlement_halts_resume_request";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_resume_requests";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_settlement_halts";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_session_paths";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_unit_challenges";--> statement-breakpoint
@@ -38,6 +45,8 @@ DROP TABLE IF EXISTS "gameplay_unit_districts";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_club_memberships";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_clubs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_credit_lines";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_erasure_days";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_erasure_fence";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_day_settlements";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_player_day_proofs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_applied_sessions";--> statement-breakpoint
@@ -73,4 +82,6 @@ DROP FUNCTION IF EXISTS public.gameplay_check_challenge();--> statement-breakpoi
 DROP FUNCTION IF EXISTS public.gameplay_check_take_budget();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_day_rules_final();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_settlement_halts_append_only();--> statement-breakpoint
-DROP FUNCTION IF EXISTS public.gameplay_player_day_proofs_append_only();
+DROP FUNCTION IF EXISTS public.gameplay_player_day_proofs_append_only();--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_erasure_days_guard();--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_resume_approvals_guard();

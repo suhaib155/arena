@@ -58,12 +58,12 @@ import { decayTo, stageOf, type Ground, type LandLevel, type PushOutcome, type U
 import { applyLedger, type LedgerEntry, type PushEvent } from "@movenrun/shared/holdingLedger";
 import { holdingsAtDayClose, settleCreditsDay, type CreditsDayResult, type CreditsPlayerInput } from "@movenrun/shared/holdingSettlement";
 import {
-  clubContributions, clubSnapshot, districtControl, seasonLeaderboard,
+  clubContributions, clubSnapshot, districtControl, rankRows, seasonLeaderboard,
   type DistrictControlResult, type DistrictStanding, type LeaderboardMetric, type Membership, type SeasonDay,
 } from "@movenrun/shared/clubsDistricts";
 import { reconcileDay, seasonPoolMicro, type DaySettlement } from "@movenrun/shared/economy-v3";
 import {
-  claimCellOptionsOf, dayCloseMs, dayOf, dayStartMs, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, sealProblem, seasonOf,
+  claimCellOptionsOf, DAY_MS, dayCloseMs, dayOf, dayStartMs, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, sealProblem, seasonOf,
   territorySealOf,
   UnknownRulesVersionError, zoneOfUnder,
   type GameplayRules,
@@ -329,6 +329,61 @@ function linesOf(c: SettledCredits): LineRow[] {
 
 /** Key-sorted, bigints as text: two rows compare equal exactly when every field does. */
 const stringify = (o: object) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => byString(a, b)).map(([k, v]) => [k, typeof v === "bigint" ? v.toString() : v]));
+
+/**
+ * Each walker's day proof from the day's accepted ledger rows (seq order) and
+ * day rows. Proof encoding 2: a ledger row is hashed as source, unit,
+ * outcome, strengths and shade only, never another player's number, so
+ * erasing a previous or new holder (their numbers become NULL) leaves every
+ * other walker's proof unchanged. The outcome already says whose ground it
+ * was (claimed: nobody's, reinforced: the walker's, eroded or flipped:
+ * someone else's).
+ */
+function proofsOf(
+  entryRows: readonly { walker_no: number; holding_rules_version: number; source_no: number; unit: string; outcome: number; strength_before: number; strength_after: number; shade_strength: number }[],
+  refusalRows: readonly ({ walker_no: number; holding_rules_version: number; units_used: number; visit_units: string[] | null } & Record<RefusedOutcome, number>)[],
+): [number, { accepted: number; takes: number; refused: number; unitsUsed: number; hv: number; sha: string }][] {
+  const proofs = new Map<number, { accepted: number; takes: number; refused: number; unitsUsed: number; lines: string[]; hv: number }>();
+  const proofOf = (walkerNo: number, hv: number) => {
+    let p = proofs.get(walkerNo);
+    if (!p) { p = { accepted: 0, takes: 0, refused: 0, unitsUsed: 0, lines: [], hv }; proofs.set(walkerNo, p); }
+    return p;
+  };
+  for (const e of entryRows) {
+    const p = proofOf(Number(e.walker_no), Number(e.holding_rules_version));
+    p.accepted += 1;
+    if (Number(e.outcome) === 3 || Number(e.outcome) === 4) p.takes += 1;
+    p.lines.push([e.source_no, e.unit, e.outcome, `${e.strength_before}>${e.strength_after}`, e.shade_strength].join(":"));
+  }
+  for (const r of refusalRows) {
+    const p = proofOf(Number(r.walker_no), Number(r.holding_rules_version));
+    p.refused = REFUSED_OUTCOMES.reduce((a, o) => a + Number(r[o]), 0);
+    p.unitsUsed = Number(r.units_used);
+    p.lines.push(["refused", ...REFUSED_OUTCOMES.map((o) => Number(r[o])), (r.visit_units ?? []).join(",")].join(":"));
+  }
+  return [...proofs.entries()].filter(([, p]) => p.accepted + p.refused > 0).sort((a, b) => a[0] - b[0])
+    .map(([n, p]) => [n, { accepted: p.accepted, takes: p.takes, refused: p.refused, unitsUsed: p.unitsUsed, hv: p.hv, sha: createHash("sha256").update(p.lines.join("\n")).digest("hex") }]);
+}
+
+/** Codes on which the reconciler halts settlement. */
+const RECONCILER_HALT_CODES = new Set(["closed_day_replay_mismatch", "closed_day_books_invalid", "closed_day_erasure_invalid", "closed_day_proof_mismatch"]);
+
+function checkActor(actor: unknown): void {
+  if (typeof actor !== "string" || !/^[a-z0-9][a-z0-9_.:-]{0,63}$/.test(actor)) throw new GameplayError(400, "invalid_actor");
+}
+
+function checkReason(reason: unknown): void {
+  if (typeof reason !== "string" || reason.length < 1 || reason.length > 500) throw new GameplayError(400, "invalid_reason");
+}
+
+/** The transaction type erasure runs in (account deletion's). */
+export type GameplayTx = Tx;
+
+/** What the first erasure phase saw, per settled day it may change. Holds no identity beyond the call. */
+export interface ErasurePlan {
+  userId: string;
+  days: { day: number; season: number; head: string; verified: boolean }[];
+}
 
 export class GameplayService {
   private readonly db: Db;
@@ -983,6 +1038,10 @@ export class GameplayService {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
     const existing = await this.daySummary(tx, day);
     if (existing) return { ...existing, created: false };
+    // The erasure fence: an erasure in flight makes this close wait, and one
+    // that committed after this snapshot fails it (40001, retried afresh), so
+    // a day never settles from inputs an erasure is changing.
+    await tx.execute(sql`SELECT 1 FROM gameplay_erasure_fence FOR SHARE`);
     // Halted: nothing is written; the day stays unsettled until a resume.
     if (await this.haltedIn(tx)) throw new GameplayError(503, "settlement_halted");
     // The day's sorts (entries, the session week, the latest unit states) in memory, not on disk.
@@ -1048,32 +1107,14 @@ export class GameplayService {
     // One proof per walker of the day, whatever the books said: counts and the
     // sha256 of their accepted rows (seq order) and refusal counters. Player
     // numbers only; it outlives the raw partitions (retention, owner decision).
-    const proofs = new Map<number, { accepted: number; takes: number; refused: number; unitsUsed: number; lines: string[]; hv: number }>();
-    const proofOf = (walkerNo: number, hv: number) => {
-      let p = proofs.get(walkerNo);
-      if (!p) { p = { accepted: 0, takes: 0, refused: 0, unitsUsed: 0, lines: [], hv }; proofs.set(walkerNo, p); }
-      return p;
-    };
-    for (const e of entryRows) {
-      const p = proofOf(Number(e.walker_no), Number(e.holding_rules_version));
-      p.accepted += 1;
-      if (Number(e.outcome) === 3 || Number(e.outcome) === 4) p.takes += 1;
-      p.lines.push([e.source_no, e.unit, e.outcome, e.previous_holder_no ?? "", e.new_holder_no ?? "", `${e.strength_before}>${e.strength_after}`, e.shade_strength].join(":"));
-    }
-    for (const r of refusalRows) {
-      const p = proofOf(Number(r.walker_no), Number(r.holding_rules_version));
-      p.refused = REFUSED_OUTCOMES.reduce((a, o) => a + Number(r[o]), 0);
-      p.unitsUsed = Number(r.units_used);
-      p.lines.push(["refused", ...REFUSED_OUTCOMES.map((o) => Number(r[o])), (r.visit_units ?? []).join(",")].join(":"));
-    }
-    const proofList = [...proofs.entries()].filter(([, p]) => p.accepted + p.refused > 0).sort((a, b) => a[0] - b[0]);
+    const proofList = proofsOf(entryRows, refusalRows);
     if (proofList.length > 0) {
       await tx.execute(sql`
         INSERT INTO gameplay_player_day_proofs (player_no, day, holding_rules_version, accepted, takes, refused, units_used, events_sha256)
         SELECT v.player_no, ${day}::int, v.hv, v.accepted, v.takes, v.refused, v.units_used, decode(v.sha, 'hex')
           FROM unnest(${arr(proofList.map(([n]) => n))}::int[], ${arr(proofList.map(([, p]) => p.hv))}::int[], ${arr(proofList.map(([, p]) => p.accepted))}::int[],
                       ${arr(proofList.map(([, p]) => p.takes))}::int[], ${arr(proofList.map(([, p]) => p.refused))}::int[], ${arr(proofList.map(([, p]) => p.unitsUsed))}::int[],
-                      ${arr(proofList.map(([, p]) => createHash("sha256").update(p.lines.join("\n")).digest("hex")))}::text[])
+                      ${arr(proofList.map(([, p]) => p.sha))}::text[])
             AS v(player_no, hv, accepted, takes, refused, units_used, sha)
         ON CONFLICT (player_no, day) DO NOTHING`);
     }
@@ -1088,64 +1129,100 @@ export class GameplayService {
    * the closed books still follow from the record. A mismatch fails closed
    * with 409 `closed_day_replay_mismatch`: nothing is rewritten, re-settled
    * or paid, and repairing the day is an operator incident that needs its own
-   * authorization. Account erasure after the day legitimately changes its
-   * inputs and also reports a mismatch.
+   * authorization. An account erasure after the day changes its inputs and
+   * is accepted only through its erasure records (verifyDayIn).
    */
   async verifyDay(day: number): Promise<{ day: number; inputDigest: string }> {
     if (!Number.isInteger(day) || day < 0) throw new GameplayError(400, "invalid_day");
-    return this.db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
-      const [stored] = await rows<{ season: number; input_digest: string; status: "settled" | "refused"; problems: unknown; economy_rules_version: number;
-        pool_micro: string; minted_micro: string; credited_micro: string; toll_paid_micro: string; toll_received_micro: string; burned_micro: string;
-        returned_micro: string; players: number }>(tx, sql`
-        SELECT season, input_digest, status, problems, economy_rules_version, pool_micro::text, minted_micro::text, credited_micro::text,
-               toll_paid_micro::text, toll_received_micro::text, burned_micro::text, returned_micro::text, players
-          FROM gameplay_day_settlements WHERE day = ${day}`);
-      if (!stored) throw new GameplayError(404, "day_not_settled");
-      const rules = await this.pinnedRules(tx, day);
-      const season = Number(stored.season);
-      const { inputDigest, credits } = await this.dayInputs(tx, day, season, rules);
-      if (inputDigest !== stored.input_digest) throw new GameplayError(409, "closed_day_replay_mismatch");
-      if (Number(stored.economy_rules_version) !== rules.economyRulesVersion) throw new GameplayError(409, "closed_day_replay_mismatch");
+    return this.db.transaction((tx) => this.verifyDayIn(tx, day), { isolationLevel: "repeatable read", accessMode: "read only" });
+  }
 
-      // The books as STORED, checked on their own (invariants.ts), then
-      // against a fresh settlement of the same inputs under the pinned rules.
-      if (stored.status !== credits.status) throw new GameplayError(409, "closed_day_replay_mismatch");
-      if (credits.status === "refused") {
-        if (JSON.stringify(stored.problems) !== JSON.stringify(credits.problems)) throw new GameplayError(409, "closed_day_replay_mismatch");
-        return { day, inputDigest };
-      }
-      const lineRows = await rows<Record<string, string>>(tx, sql`
-        SELECT player_id, earned_micro::text, toll_paid_micro::text, toll_received_micro::text, recharge_micro::text, upkeep_taken_micro::text,
-               upkeep_in_condition_micro::text, zones_held::text, net_micro::text
-          FROM gameplay_credit_lines WHERE day = ${day} ORDER BY player_id`);
-      let books: BooksRow;
-      let lines: (LineRow & { zonesHeld: bigint })[];
-      try {
-        books = {
-          pool: exact(stored.pool_micro), minted: exact(stored.minted_micro), credited: exact(stored.credited_micro), tollPaid: exact(stored.toll_paid_micro),
-          tollReceived: exact(stored.toll_received_micro), burned: exact(stored.burned_micro), returned: exact(stored.returned_micro), players: exact(String(stored.players)),
-        };
-        lines = lineRows.map((l) => ({
-          playerId: l.player_id!, earned: exact(l.earned_micro), tollPaid: exact(l.toll_paid_micro), tollReceived: exact(l.toll_received_micro),
-          recharge: exact(l.recharge_micro), upkeepTaken: exact(l.upkeep_taken_micro), upkeepInCondition: exact(l.upkeep_in_condition_micro),
-          zonesHeld: exact(l.zones_held), net: exact(l.net_micro),
-        }));
-      } catch {
-        throw new GameplayError(409, "closed_day_books_invalid");
-      }
-      if (dayInvariantProblems({ economyRulesVersion: rules.economyRulesVersion, season, books, lines }).length > 0) {
-        throw new GameplayError(409, "closed_day_books_invalid");
-      }
-      const fresh = booksOf(credits);
-      const freshLines = linesOf(credits).map((l) => ({ ...l, zonesHeld: 0n }));
-      const zones = new Map(credits.lines.map((l) => [l.playerId, BigInt(l.zonesHeld)]));
-      for (const l of freshLines) l.zonesHeld = zones.get(l.playerId)!;
-      const same = JSON.stringify(stringify(fresh)) === JSON.stringify(stringify(books))
-        && JSON.stringify(freshLines.map(stringify)) === JSON.stringify(lines.map(stringify));
-      if (!same) throw new GameplayError(409, "closed_day_replay_mismatch");
+  /**
+   * `verifyDay` inside a caller's transaction. A day an erasure changed
+   * (docs/G34_ERASURE_TOMBSTONES.md) is accepted only through its erasure
+   * state (gameplay_erasure_days): based on the stored input digest, with a
+   * head equal to the digest of the inputs as they are now, every erasure
+   * made while the day still verified, and one tombstoned line per counted
+   * tombstone.
+   * Its stored books and lines (tombstoned lines included) must still pass
+   * every invariant, and every stored proof must recompute from the ledger.
+   * The fresh-settlement comparison is not possible once a person's inputs
+   * are gone, and is not attempted for such a day.
+   */
+  private async verifyDayIn(tx: Tx, day: number): Promise<{ day: number; inputDigest: string }> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
+    const [stored] = await rows<{ season: number; input_digest: string; status: "settled" | "refused"; problems: unknown; economy_rules_version: number;
+      pool_micro: string; minted_micro: string; credited_micro: string; toll_paid_micro: string; toll_received_micro: string; burned_micro: string;
+      returned_micro: string; players: number }>(tx, sql`
+      SELECT season, input_digest, status, problems, economy_rules_version, pool_micro::text, minted_micro::text, credited_micro::text,
+             toll_paid_micro::text, toll_received_micro::text, burned_micro::text, returned_micro::text, players
+        FROM gameplay_day_settlements WHERE day = ${day}`);
+    if (!stored) throw new GameplayError(404, "day_not_settled");
+    const rules = await this.pinnedRules(tx, day);
+    const season = Number(stored.season);
+    const { inputDigest, credits, entryRows, refusalRows } = await this.dayInputs(tx, day, season, rules);
+    const [erased] = await rows<{ base_digest: string; head_digest: string; tombstones: number; all_pre_verified: boolean }>(tx, sql`
+      SELECT base_digest, head_digest, tombstones, all_pre_verified FROM gameplay_erasure_days WHERE day = ${day}`);
+    if (erased && (erased.base_digest !== stored.input_digest || erased.all_pre_verified !== true)) throw new GameplayError(409, "closed_day_erasure_invalid");
+    const head = erased ? erased.head_digest : stored.input_digest;
+    if (inputDigest !== head) throw new GameplayError(409, "closed_day_replay_mismatch");
+    if (Number(stored.economy_rules_version) !== rules.economyRulesVersion) throw new GameplayError(409, "closed_day_replay_mismatch");
+
+    // Every stored proof recomputes from the day's ledger and day rows (while
+    // its partitions exist; retention may drop them, and then the proof is
+    // what remains).
+    const [parts] = await rows<{ ok: boolean }>(tx, sql`
+      SELECT to_regclass(${`gameplay_partitions.gameplay_push_events_d${day}`}) IS NOT NULL
+         AND to_regclass(${`gameplay_partitions.gameplay_walker_days_d${day}`}) IS NOT NULL AS ok`);
+    if (parts?.ok) {
+      const storedProofs = await rows<{ player_no: number; sha: string }>(tx, sql`
+        SELECT player_no, encode(events_sha256, 'hex') AS sha FROM gameplay_player_day_proofs WHERE day = ${day} ORDER BY player_no`);
+      const fresh = proofsOf(entryRows, refusalRows).map(([n, p]) => `${n}:${p.sha}`);
+      if (JSON.stringify(fresh) !== JSON.stringify(storedProofs.map((p) => `${Number(p.player_no)}:${p.sha}`))) throw new GameplayError(409, "closed_day_proof_mismatch");
+    }
+
+    const lineRows = await rows<Record<string, string> & { erased: boolean }>(tx, sql`
+      SELECT line_key AS player_id, player_id IS NULL AS erased, earned_micro::text, toll_paid_micro::text, toll_received_micro::text, recharge_micro::text,
+             upkeep_taken_micro::text, upkeep_in_condition_micro::text, zones_held::text, net_micro::text
+        FROM gameplay_credit_lines WHERE day = ${day} ORDER BY line_key`);
+    if (lineRows.filter((l) => l.erased).length !== (erased ? Number(erased.tombstones) : 0)) throw new GameplayError(409, "closed_day_erasure_invalid");
+
+    // The books as STORED, checked on their own (invariants.ts), then
+    // against a fresh settlement of the same inputs under the pinned rules.
+    if (stored.status === "refused") {
+      if (lineRows.length > 0) throw new GameplayError(409, "closed_day_books_invalid");
+      if (erased) return { day, inputDigest };
+      if (credits.status !== "refused" || JSON.stringify(stored.problems) !== JSON.stringify(credits.problems)) throw new GameplayError(409, "closed_day_replay_mismatch");
       return { day, inputDigest };
-    }, { isolationLevel: "repeatable read", accessMode: "read only" });
+    }
+    if (!erased && credits.status !== "settled") throw new GameplayError(409, "closed_day_replay_mismatch");
+    let books: BooksRow;
+    let lines: (LineRow & { zonesHeld: bigint })[];
+    try {
+      books = {
+        pool: exact(stored.pool_micro), minted: exact(stored.minted_micro), credited: exact(stored.credited_micro), tollPaid: exact(stored.toll_paid_micro),
+        tollReceived: exact(stored.toll_received_micro), burned: exact(stored.burned_micro), returned: exact(stored.returned_micro), players: exact(String(stored.players)),
+      };
+      lines = lineRows.map((l) => ({
+        playerId: l.player_id!, earned: exact(l.earned_micro), tollPaid: exact(l.toll_paid_micro), tollReceived: exact(l.toll_received_micro),
+        recharge: exact(l.recharge_micro), upkeepTaken: exact(l.upkeep_taken_micro), upkeepInCondition: exact(l.upkeep_in_condition_micro),
+        zonesHeld: exact(l.zones_held), net: exact(l.net_micro),
+      }));
+    } catch {
+      throw new GameplayError(409, "closed_day_books_invalid");
+    }
+    if (dayInvariantProblems({ economyRulesVersion: rules.economyRulesVersion, season, books, lines }).length > 0) {
+      throw new GameplayError(409, "closed_day_books_invalid");
+    }
+    if (erased || credits.status !== "settled") return { day, inputDigest };
+    const fresh = booksOf(credits);
+    const freshLines = linesOf(credits).map((l) => ({ ...l, zonesHeld: 0n }));
+    const zones = new Map(credits.lines.map((l) => [l.playerId, BigInt(l.zonesHeld)]));
+    for (const l of freshLines) l.zonesHeld = zones.get(l.playerId)!;
+    const same = JSON.stringify(stringify(fresh)) === JSON.stringify(stringify(books))
+      && JSON.stringify(freshLines.map(stringify)) === JSON.stringify(lines.map(stringify));
+    if (!same) throw new GameplayError(409, "closed_day_replay_mismatch");
+    return { day, inputDigest };
   }
 
   /**
@@ -1251,22 +1328,226 @@ export class GameplayService {
     return { halted: true, changed: await this.recordHalt("halt", input) };
   }
 
-  /** Resume settlement. It settles nothing itself; the next day-close run does, under the normal rules. */
-  async resumeSettlement(input: { actor: string; reason: string }): Promise<{ halted: false; changed: boolean }> {
-    return { halted: false, changed: await this.recordHalt("resume", input) };
+  /**
+   * A single operator cannot resume settlement: refused with 403
+   * `dual_review_required`. Use `requestResume` and two `approveResume`
+   * calls by distinct actors (docs/G34_ERASURE_TOMBSTONES.md, "Resume").
+   */
+  async resumeSettlement(_input: { actor: string; reason: string }): Promise<never> {
+    throw new GameplayError(403, "dual_review_required");
   }
 
-  private async recordHalt(action: "halt" | "resume", input: { actor: string; reason: string; day?: number }): Promise<boolean> {
-    if (typeof input.actor !== "string" || !/^[a-z0-9][a-z0-9_.:-]{0,63}$/.test(input.actor)) throw new GameplayError(400, "invalid_actor");
-    if (typeof input.reason !== "string" || input.reason.length < 1 || input.reason.length > 500) throw new GameplayError(400, "invalid_reason");
+  private async recordHalt(action: "halt", input: { actor: string; reason: string; day?: number }): Promise<boolean> {
+    checkActor(input.actor);
+    checkReason(input.reason);
     if (input.day !== undefined && !(Number.isSafeInteger(input.day) && input.day >= 0)) throw new GameplayError(400, "invalid_day");
     return this.db.transaction(async (tx) => {
       // One writer at a time, so two operators never interleave halt and resume.
       await tx.execute(sql`LOCK TABLE gameplay_settlement_halts IN SHARE ROW EXCLUSIVE MODE`);
-      if ((await this.haltedIn(tx)) === (action === "halt")) return false;
+      if (await this.haltedIn(tx)) return false;
       await tx.execute(sql`INSERT INTO gameplay_settlement_halts (action, actor, reason, day) VALUES (${action}, ${input.actor}, ${input.reason}, ${input.day ?? null})`);
       return true;
     });
+  }
+
+  /**
+   * A fresh reconciliation proof: every stored day header re-verified
+   * (`verifyDayIn`: input digest or erasure chain, stored invariants, proofs,
+   * and a fresh settlement where no erasure intervened), in one snapshot.
+   * Any failing day refuses the proof (409 `resume_proof_failed`, the failing
+   * days and codes in `problems`). The sha256 binds the halt it is for.
+   */
+  private async reconciliationProof(tx: Tx, haltId: number): Promise<{ sha256: string; days: number }> {
+    const headers = await rows<{ day: number; status: string }>(tx, sql`SELECT day, status FROM gameplay_day_settlements ORDER BY day`);
+    const verified: [number, string, string][] = [];
+    const problems: string[] = [];
+    for (const h of headers) {
+      try {
+        const v = await this.verifyDayIn(tx, Number(h.day));
+        verified.push([Number(h.day), h.status, v.inputDigest]);
+      } catch (err) {
+        if (err instanceof GameplayError) problems.push(`day ${h.day}: ${err.code}`);
+        else throw err;
+      }
+    }
+    if (problems.length > 0) throw Object.assign(new GameplayError(409, "resume_proof_failed"), { problems });
+    return { sha256: digest({ proof: "reconciliation-v1", haltId, days: verified }), days: verified.length };
+  }
+
+  private async currentHalt(tx: Tx): Promise<{ id: number; action: string } | null> {
+    const [r] = await rows<{ id: string; action: string }>(tx, sql`SELECT id::text AS id, action FROM gameplay_settlement_halts ORDER BY id DESC LIMIT 1`);
+    return r ? { id: Number(r.id), action: r.action } : null;
+  }
+
+  /**
+   * Step 1 of a resume: while halted, run a fresh reconciliation proof of
+   * every closed day and record a request carrying its sha256. Writes no
+   * resume; refused (409 `resume_proof_failed`) if any day fails, and
+   * (409 `not_halted`) when settlement is running.
+   */
+  async requestResume(input: { actor: string; reason: string }): Promise<{ requestId: number; proofSha256: string; proofDays: number }> {
+    checkActor(input.actor);
+    checkReason(input.reason);
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`LOCK TABLE gameplay_settlement_halts IN SHARE ROW EXCLUSIVE MODE`);
+      const halt = await this.currentHalt(tx);
+      if (!halt || halt.action !== "halt") throw new GameplayError(409, "not_halted");
+      const proof = await this.reconciliationProof(tx, halt.id);
+      const [r] = await rows<{ id: string }>(tx, sql`
+        INSERT INTO gameplay_resume_requests (halt_id, requested_by, reason, proof_sha256, proof_days)
+        VALUES (${halt.id}, ${input.actor}, ${input.reason}, ${proof.sha256}, ${proof.days}) RETURNING id::text AS id`);
+      return { requestId: Number(r!.id), proofSha256: proof.sha256, proofDays: proof.days };
+    }, { isolationLevel: "repeatable read" });
+  }
+
+  /**
+   * Step 2: an approval by an actor who is not the requester. It re-runs the
+   * reconciliation proof and must get the request's sha256 (409
+   * `resume_proof_stale` otherwise: something changed since). The second
+   * distinct approval writes the resume row, in the same transaction; the
+   * database refuses a resume row without it. Expired (24 h), superseded or
+   * used requests are refused with 409 `resume_request_invalid`.
+   */
+  async approveResume(input: { requestId: number; approver: string }): Promise<{ resumed: boolean; approvals: number }> {
+    checkActor(input.approver);
+    if (!Number.isSafeInteger(input.requestId) || input.requestId < 1) throw new GameplayError(400, "invalid_request");
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`LOCK TABLE gameplay_settlement_halts IN SHARE ROW EXCLUSIVE MODE`);
+      const [req] = await rows<{ halt_id: string; requested_by: string; reason: string; proof_sha256: string; expired: boolean; used: boolean }>(tx, sql`
+        SELECT halt_id::text AS halt_id, requested_by, reason, proof_sha256, created_at < now() - interval '24 hours' AS expired,
+               EXISTS (SELECT 1 FROM gameplay_settlement_halts h WHERE h.resume_request_id = r.id) AS used
+          FROM gameplay_resume_requests r WHERE id = ${input.requestId}`);
+      if (!req) throw new GameplayError(404, "resume_request_not_found");
+      const halt = await this.currentHalt(tx);
+      if (req.used || req.expired || !halt || halt.action !== "halt" || halt.id !== Number(req.halt_id)) throw new GameplayError(409, "resume_request_invalid");
+      if (req.requested_by === input.approver) throw new GameplayError(403, "approver_is_requester");
+      const [dup] = await rows(tx, sql`SELECT 1 FROM gameplay_resume_approvals WHERE request_id = ${input.requestId} AND approver = ${input.approver}`);
+      if (dup) throw new GameplayError(409, "already_approved");
+      const proof = await this.reconciliationProof(tx, halt.id);
+      if (proof.sha256 !== req.proof_sha256) throw new GameplayError(409, "resume_proof_stale");
+      await tx.execute(sql`INSERT INTO gameplay_resume_approvals (request_id, approver, proof_sha256) VALUES (${input.requestId}, ${input.approver}, ${proof.sha256})`);
+      const [n] = await rows<{ n: number }>(tx, sql`SELECT count(*)::int AS n FROM gameplay_resume_approvals WHERE request_id = ${input.requestId}`);
+      const approvals = Number(n!.n);
+      if (approvals < 2) return { resumed: false, approvals };
+      await tx.execute(sql`
+        INSERT INTO gameplay_settlement_halts (action, actor, reason, resume_request_id)
+        VALUES ('resume', ${req.requested_by}, ${req.reason}, ${input.requestId})`);
+      return { resumed: true, approvals };
+    }, { isolationLevel: "repeatable read" });
+  }
+
+  /* ── account erasure (docs/G34_ERASURE_TOMBSTONES.md) ───────────────── */
+
+  /**
+   * The erasure fence, taken first in the account deletion transaction, before
+   * the user row is locked. A day close takes the fence before anything else
+   * too, so the two always lock in the same order and cannot deadlock (a close
+   * holding the fence and then needing a key-share lock on rows the deletion
+   * had already locked was a 40P01 cycle).
+   */
+  async takeErasureFence(tx: Tx): Promise<void> {
+    await tx.execute(sql`UPDATE gameplay_erasure_fence SET erasures = erasures + 1`);
+  }
+
+  /**
+   * Erasure phase 1, in the account deletion transaction after the user row
+   * is locked and before anything is deleted, with the fence already held (no
+   * day closes until this transaction ends). It finds the settled days the person's
+   * data can reach (from the first day any of it touches), and runs the
+   * reconciler's full check on each, so a record can only chain from a day
+   * that verified.
+   */
+  async eraseBegin(tx: Tx, userId: string): Promise<ErasurePlan> {
+    const [first] = await rows<{ d: number | null }>(tx, sql`
+      SELECT least(
+        (SELECT min(day) FROM gameplay_credit_lines WHERE player_id = ${userId}),
+        (SELECT min(from_day) FROM gameplay_club_memberships WHERE walker_id = ${userId}),
+        (SELECT (floor(min(end_time)::float8 / ${DAY_MS}))::int - 1 FROM movement_verifications WHERE user_id = ${userId}),
+        (SELECT min(w.day) FROM gameplay_walker_days w JOIN gameplay_players p ON p.player_no = w.walker_no WHERE p.user_id = ${userId}),
+        (SELECT min(e.day) FROM gameplay_push_events e JOIN gameplay_players p ON p.player_no IN (e.walker_no, e.previous_holder_no, e.new_holder_no) WHERE p.user_id = ${userId}),
+        (SELECT min(s.day) FROM gameplay_unit_day_states s JOIN gameplay_players p ON p.player_no = s.holder_no WHERE p.user_id = ${userId}),
+        (SELECT min(x.day) FROM gameplay_player_day_proofs x JOIN gameplay_players p ON p.player_no = x.player_no WHERE p.user_id = ${userId})
+      ) AS d`);
+    const plan: ErasurePlan = { userId, days: [] };
+    if (first?.d === null || first?.d === undefined) return plan;
+    const headers = await rows<{ day: number; season: number; input_digest: string }>(tx, sql`
+      SELECT day, season, input_digest FROM gameplay_day_settlements WHERE day >= ${Number(first.d)} ORDER BY day`);
+    for (const h of headers) {
+      const day = Number(h.day);
+      const [state] = await rows<{ head_digest: string }>(tx, sql`SELECT head_digest FROM gameplay_erasure_days WHERE day = ${day}`);
+      let verified = true;
+      try {
+        await this.verifyDayIn(tx, day);
+      } catch (err) {
+        if (!(err instanceof GameplayError)) throw err;
+        verified = false;
+      }
+      plan.days.push({ day, season: Number(h.season), head: state?.head_digest ?? h.input_digest, verified });
+    }
+    return plan;
+  }
+
+  /**
+   * Erasure phase 2, after the person's movement sessions are deleted and
+   * before the user row is. Deletes every gameplay row naming them, then, for
+   * each settled day whose inputs changed (or that holds their line or names
+   * them in a problem), advances that day's single erasure state from the
+   * old digest to the new one, replaces their credit line with a random
+   * tombstone made for that line alone, and rewrites their id out of the
+   * day's problem texts. Nothing per erasure is stored, and the units they
+   * held keep only the day of their last change. Nobody else's line, proof
+   * or balance is touched. Returns the days advanced.
+   */
+  async eraseComplete(tx: Tx, plan: ErasurePlan): Promise<number> {
+    const u = plan.userId;
+    await tx.execute(sql`DELETE FROM gameplay_unit_challenges WHERE walker_id = ${u} OR unit IN (SELECT unit FROM gameplay_units WHERE holder_id = ${u})`);
+    await tx.execute(sql`
+      UPDATE gameplay_units SET holder_id = NULL, strength = 0, ground = 'solid', level = 1, fortified = false, deeded = false, version = version + 1,
+             updated_at = date_trunc('day', updated_at)
+       WHERE holder_id = ${u}`);
+    await tx.execute(sql`DELETE FROM gameplay_club_memberships WHERE walker_id = ${u}`);
+    await tx.execute(sql`DELETE FROM gameplay_applied_sessions WHERE user_id = ${u}`);
+    await tx.execute(sql`UPDATE gameplay_clubs SET created_by = NULL WHERE created_by = ${u}`);
+    // Cascades the ledger rows they walked, their day rows and proofs; nulls
+    // them as previous or new holder (the append-only trigger allows exactly
+    // that) and resets the unit day states they held (0011 triggers).
+    await tx.execute(sql`DELETE FROM gameplay_players WHERE user_id = ${u}`);
+
+    let written = 0;
+    for (const d of plan.days) {
+      const rules = await this.pinnedRules(tx, d.day);
+      const { inputDigest: post } = await this.dayInputs(tx, d.day, d.season, rules);
+      const [line] = await rows(tx, sql`SELECT 1 FROM gameplay_credit_lines WHERE day = ${d.day} AND player_id = ${u}`);
+      const [header] = await rows<{ problems: string[]; clubs_problems: string[] }>(tx, sql`
+        SELECT problems, clubs_problems FROM gameplay_day_settlements WHERE day = ${d.day}`);
+      const named = (list: unknown) => Array.isArray(list) && list.some((p) => typeof p === "string" && p.includes(u));
+      const mentions = named(header?.problems) || named(header?.clubs_problems);
+      if (post === d.head && !line && !mentions) continue;
+      const tomb = line ? 1 : 0;
+      // The day's one erasure state advances (the fence serialises erasures);
+      // no per-erasure row, so nothing groups this person's days.
+      const [advanced] = await rows(tx, sql`
+        UPDATE gameplay_erasure_days SET head_digest = ${post}, erasures = erasures + 1, tombstones = tombstones + ${tomb},
+               all_pre_verified = all_pre_verified AND ${d.verified}
+         WHERE day = ${d.day} AND head_digest = ${d.head} RETURNING day`);
+      if (!advanced) {
+        await tx.execute(sql`
+          INSERT INTO gameplay_erasure_days (day, base_digest, head_digest, erasures, tombstones, all_pre_verified)
+          VALUES (${d.day}, ${d.head}, ${post}, 1, ${tomb}, ${d.verified})`);
+      }
+      const tombstoneId = randomUUID();
+      if (line) {
+        await tx.execute(sql`UPDATE gameplay_credit_lines SET player_id = NULL, tombstone_id = ${tombstoneId}::uuid WHERE day = ${d.day} AND player_id = ${u}`);
+      }
+      if (mentions) {
+        const scrub = (list: unknown) => JSON.stringify((list as unknown[]).map((p) => (typeof p === "string" ? p.split(u).join(`erased:${tombstoneId}`) : p)));
+        await tx.execute(sql`
+          UPDATE gameplay_day_settlements SET problems = ${scrub(header!.problems)}::jsonb, clubs_problems = ${scrub(header!.clubs_problems)}::jsonb
+           WHERE day = ${d.day}`);
+      }
+      written += 1;
+    }
+    return written;
   }
 
   /**
@@ -1278,7 +1559,7 @@ export class GameplayService {
     try {
       return await this.verifyDay(day);
     } catch (err) {
-      if (err instanceof GameplayError && (err.code === "closed_day_replay_mismatch" || err.code === "closed_day_books_invalid")) {
+      if (err instanceof GameplayError && RECONCILER_HALT_CODES.has(err.code)) {
         await this.haltSettlement({ actor: "reconciler", reason: `${err.code} on day ${day}`, day });
       }
       throw err;
@@ -1649,10 +1930,13 @@ export class GameplayService {
              burned_micro, returned_micro, day_share_micro, clubs_status
         FROM gameplay_day_settlements WHERE season = ${season} ORDER BY day`);
     const dayList = headers.map((h) => Number(h.day));
-    const lineRows = dayList.length === 0 ? [] : await rows<{ day: number; player_id: string; net_micro: string; earned_micro: string; toll_paid_micro: string;
+    // Tombstoned lines (erased players) still count in the books the board
+    // re-verifies, under their line key, but never appear as a row.
+    const lineRows = dayList.length === 0 ? [] : await rows<{ day: number; player_id: string; erased: boolean; net_micro: string; earned_micro: string; toll_paid_micro: string;
       toll_received_micro: string; recharge_micro: string; upkeep_taken_micro: string; upkeep_in_condition_micro: string; zones_held: number }>(this.db, sql`
-      SELECT day, player_id, net_micro, earned_micro, toll_paid_micro, toll_received_micro, recharge_micro, upkeep_taken_micro, upkeep_in_condition_micro, zones_held
-        FROM gameplay_credit_lines WHERE day = ANY(${arr(dayList)}::int[]) ORDER BY day, player_id`);
+      SELECT day, line_key AS player_id, player_id IS NULL AS erased, net_micro, earned_micro, toll_paid_micro, toll_received_micro, recharge_micro, upkeep_taken_micro, upkeep_in_condition_micro, zones_held
+        FROM gameplay_credit_lines WHERE day = ANY(${arr(dayList)}::int[]) ORDER BY day, line_key`);
+    const erasedKeys = new Set(lineRows.filter((l) => l.erased).map((l) => l.player_id));
     const memberships = metric === "player_credits" ? [] : (await rows<{ walker_id: string; club_id: string; from_day: number; to_day: number | null }>(this.db, sql`
       SELECT walker_id, club_id, from_day, to_day FROM gameplay_club_memberships ORDER BY walker_id, club_id, from_day`))
       .map((m): Membership => ({ walkerId: m.walker_id, clubId: m.club_id, fromDay: Number(m.from_day), toDay: m.to_day === null ? null : Number(m.to_day) }));
@@ -1708,7 +1992,10 @@ export class GameplayService {
     }
     const base = { status: "settled" as const, basis: board.basis, season, metric, daysSettled: board.daysSettled, throughDay: board.throughDay, seasonComplete: board.seasonComplete };
     if (metric === "player_credits") {
-      return { ...base, rows: board.rows.map((r) => ({ rank: r.rank, score: r.score, self: r.id === userId })) };
+      // An erased player has left the board: their tombstoned lines are not
+      // a player, so the remaining rows are ranked again among themselves.
+      const kept = new Map(board.rows.filter((r) => !erasedKeys.has(r.id)).map((r) => [r.id, r.score]));
+      return { ...base, rows: rankRows(kept).map((r) => ({ rank: r.rank, score: r.score, self: r.id === userId })) };
     }
     const ids = board.rows.map((r) => r.id);
     const names = ids.length === 0 ? [] : await rows<{ club_id: string; name: string }>(this.db, sql`SELECT club_id, name FROM gameplay_clubs WHERE club_id = ANY(${arr(ids)}::text[])`);

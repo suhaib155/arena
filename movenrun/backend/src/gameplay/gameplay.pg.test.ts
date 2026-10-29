@@ -172,7 +172,7 @@ test("0011 applies on the committed chain, rolls back cleanly, and applies again
   assert.ok(!before.some((t) => t.startsWith("gameplay_")));
   await migrateUp();
   const withGameplay = await tables();
-  assert.equal(withGameplay.filter((t) => t.startsWith("gameplay_")).length, 18);  // 17 + the settlement halt log
+  assert.equal(withGameplay.filter((t) => t.startsWith("gameplay_")).length, 22);  // 17 + the halt log, erasure records and fence, resume requests and approvals
   assert.ok(withGameplay.includes("gameplay_session_paths"), "revision 3 folds in 1002's session paths");
   // The ledger and the walker days are partitioned by day; partitions are made ahead of use.
   const parted = await pool.query("SELECT c.relname FROM pg_partitioned_table p JOIN pg_class c ON c.oid = p.partrelid ORDER BY 1");
@@ -200,7 +200,7 @@ test("0011 applies on the committed chain, rolls back cleanly, and applies again
 
 test("default deny: no privilege and no policy at all for anon or the signed-in role on any gameplay table", { skip: SKIP }, async () => {
   const gameplay = (await pool.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE 'gameplay_%'")).rows.map((r) => r.tablename as string);
-  assert.equal(gameplay.length, 18);  // 17 + the settlement halt log
+  assert.equal(gameplay.length, 22);  // 17 + the halt log, erasure records and fence, resume requests and approvals
   for (const t of gameplay) {
     for (const role of ["anon", "authenticated"]) {
       for (const priv of ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"]) {

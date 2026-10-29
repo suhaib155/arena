@@ -119,14 +119,14 @@ The owner's 17 Oct rule says a walker may push a unit that someone else holds at
 
 ## 9. Account deletion
 
-The existing account deletion (`identity/accountDeletion.ts`) deletes the user's movement sessions and then the user row. 0011 keeps that working without code changes, and none of it depends on the gameplay tables existing:
+Superseded by the erasure amendment: see `G34_ERASURE_TOMBSTONES.md`. In short, account deletion runs a gameplay erasure step whenever the 0011 tables exist.
 
-- the push events of a deleted session or walker cascade away. The append-only trigger allows a delete only when the walker or the source session is gone;
-- other players' events naming the person as previous or new holder have those ids set to NULL. The trigger allows that one update only when the named user is gone;
-- held units and unit day states have the holder set to NULL. A trigger puts the unit back on the map exactly as the model's `unheld()` does (strength 0, solid, level 1, not fortified, not deeded), so the CHECKs hold;
-- credit lines, applied sessions and memberships cascade. Club creator is set to NULL. Settled day headers stay: they hold totals only. After an erasure, a day's remaining lines can sum to less than its header. The header is the record of what was settled.
+- The step deletes every row naming the person.
+- It replaces each settled credit line of theirs with a random per-line tombstone (amounts kept).
+- It advances a single per-day erasure state (no per-erasure row) for each settled day whose inputs changed, so closed days still reconcile.
+- `gameplay_players`, credit lines and memberships no longer cascade from `users`. A deletion without the step fails closed.
 
-Tested: erasing a player who holds ground, has pushes and credit lines, and appears as previous holder in others' events succeeds and leaves no gameplay row naming them.
+Tested: `erasureTombstones.pg.test.ts`, and the earlier erasure tests in `gameplay.pg.test.ts`, `gameplayRules.pg.test.ts` and `gameplay1002.pg.test.ts` still pass.
 
 ## 10. Feature flag and routes
 
@@ -452,7 +452,7 @@ They are asserted in two places:
 
 It reports the rule sets the days are pinned to. The shared `settleCreditsSeason` does the same for in-memory days: it re-checks books, pool and lines, refuses days outside the season (`firstDay`), and reports missing days and the pool nobody settled (`requireAllDays` fails a closed season).
 
-Erasure removes credit lines, so after an account deletion the affected day's replay reports a mismatch. That is expected and documented (section 9). Repairing it is an operator incident, not a re-settlement.
+Erasure no longer breaks the replay. A day an erasure changed is verified through its per-day erasure state and tombstoned lines (`G34_ERASURE_TOMBSTONES.md`). Proofs are recomputed on every verification.
 
 **Exact integers.** Every amount and pool must be a non-negative safe integer (`Number.isSafeInteger`), and anything else is refused. The toll shares are computed in bigint. Conversions to an 18-decimal unit use `shared/src/domain/creditUnits.ts`:
 
@@ -470,35 +470,20 @@ The source's rate factors (effort, consistency, kit rates, the zones^0.25 upkeep
   - the maintenance loop settles nothing;
   - nothing is written.
 - `actor` is a role label (`ops-oncall`, `reconciler`), never a name or an address.
-- `resumeSettlement({ actor, reason })` settles nothing itself. The next maintenance run settles the due days exactly as a server that never halted would (tested).
+- Resume needs dual review and a fresh proof (`G34_ERASURE_TOMBSTONES.md` §3): `requestResume`, then `approveResume` by two distinct actors other than the requester. `resumeSettlement` always refuses (`dual_review_required`). A resume settles nothing itself. The next maintenance run settles the due days exactly as a server that never halted would (tested).
 - `verifyDayOrHalt(day)` is the reconciler's check. On a replay mismatch or invalid stored books it halts, with actor `reconciler` and the day recorded.
 - A halt cannot settle, re-settle, repair, credit, mint or override anything, and it does not bypass any authorization. Repairing a day is its own authorized incident.
 - A day already being settled when the halt commits completes under the normal rules.
 - Late data needs no special handling: a session the server received after its day's close counts for nothing, however long the halt lasts.
 
-**Player day proofs: immutability and erasure.** `gameplay_player_day_proofs` is append-only in the unapplied 0011. An UPDATE is always refused. A DELETE is refused unless the player is already gone. The proof row holds only a player number, counts and a sha256, and `player_no` still cascades from `gameplay_players`, which cascades from `users`. Account erasure therefore removes a person's proofs, and a proof is never a reason to keep anyone's data.
-
-The cost of this is that after an erasure, nobody can show that the erased player's archived ledger partition was unaltered. The day's settlement header, which holds totals and no person, still stands.
-
-The alternatives each have a drawback:
-
-- keeping the proofs under a number unlinked from the person still keeps a per-person record of activity;
-- `ON DELETE RESTRICT` would block erasure.
-
-Neither is adopted.
-
-These are owner and legal decisions that are not made here:
-
-- **Legal hold:** suspend erasure for named accounts before deleting.
-- **Archive destruction:** dropping a partition or the table fires no row trigger.
-- **The retention period for proofs.**
+**Player day proofs: immutability and erasure.** `gameplay_player_day_proofs` is append-only. An UPDATE is always refused, and a DELETE is refused unless the player is already gone. The erasure step deletes the player row, and the person's proofs cascade with it. Other walkers' proofs no longer hash anyone else's player number (proof encoding 2), so they survive an erasure unchanged. There is no legal-hold exception (`G34_ERASURE_TOMBSTONES.md`).
 
 The 0011 file stays outside `drizzle/` and is not applied. Revision 3 with these amendments has the following sha256 values:
 
-- up: `e3f355a994657e143e875a55a3892bfd16561c1cc67144c19778b1e80850b59e`
-- down: `c134da41a828c4175d598551295bba5260870088bbbc05aa7c3265504902d69a`
+- up: `bad2e6ce7a9d48e00e13c9cd10be6e88f98292e575e2a6a9c0ab68b9869f4119`
+- down: `bfdc1d68482b69ae5503185fbeb8e58f2f3cce63ee66fa7bab0b6e0c80a25ebb`
 
-The previous values were up `9a62dc7f…c4cb` and down `34d13e92…c0cd`.
+These are the values after the erasure amendment with a per-day erasure state. The first amendment, which kept per-erasure records (22df335), had up `2ddc530a…6089c` and down `820f4e99…f6456`. The values at #156 were up `e3f355a994657e143e875a55a3892bfd16561c1cc67144c19778b1e80850b59e` and down `c134da41a828c4175d598551295bba5260870088bbbc05aa7c3265504902d69a`. Before that they were up `9a62dc7f…c4cb` and down `34d13e92…c0cd`.
 
 **1001 unchanged.** Its config digest stays `d4199ec6…41cd6`, and 1002's is also unchanged, because the rule-set configs were not touched. The fixed PostgreSQL scenario stores the same game state. The shared economy code is no longer byte-identical: the toll now uses bigint, and amounts are now validated. All of the source's worked examples give the same results.
 

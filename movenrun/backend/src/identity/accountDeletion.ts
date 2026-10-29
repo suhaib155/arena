@@ -15,6 +15,11 @@
  *  - wallet rows and wallet-link challenges (none exist in Play v1, but any
  *    left by an earlier preview build go too);
  *  - the account's security audit history;
+ *  - gameplay (only where the proposed migration 0011 exists, whatever the
+ *    feature flag says): every row naming the person; each settled credit
+ *    line of theirs is replaced by a random per-day tombstone and each
+ *    settled day they touched gets a hash-chained erasure record, so closed
+ *    books still reconcile (docs/G34_ERASURE_TOMBSTONES.md);
  *  - the user row itself;
  *  - the Supabase Auth user behind "Continue with Google" / "Continue with
  *    Wallet": queued in the same transaction and removed at the provider right
@@ -29,7 +34,7 @@
  * Deliberately not a soft delete. A `disabled` flag would keep the email and
  * the movement history, which is exactly what the person asked us to remove.
  */
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/client.js";
 import {
@@ -43,6 +48,17 @@ import {
   wallets,
 } from "../db/identity.schema.js";
 import { movementVerifications } from "../db/movement.schema.js";
+import { GameplayService, type ErasurePlan } from "../gameplay/service.js";
+import { PILOT_PROPOSAL } from "../gameplay/rules.js";
+
+/**
+ * The gameplay service used only for erasure. Erasure replays each day under
+ * the rule set that day is pinned to, so the season start configured here
+ * is never read.
+ */
+function erasureService(db: Db): GameplayService {
+  return new GameplayService({ db, rules: { ...PILOT_PROPOSAL, holding: { ...PILOT_PROPOSAL.holding }, seasonOneStartDay: 0 } });
+}
 
 /** Rows removed per table. Counts only; never contents. */
 export interface ErasureCounts {
@@ -77,11 +93,22 @@ export function createDrizzleAccountDeletionStore(db: Db): AccountDeletionStore 
   return {
     async erase(userId) {
       return db.transaction(async (tx) => {
+        // The gameplay erasure fence comes first, before the account row, in
+        // the same order a day close takes it. A database without 0011 has no
+        // fence and no gameplay relation.
+        const present = await tx.execute(sql`SELECT to_regclass('public.gameplay_erasure_fence') IS NOT NULL AS ok`);
+        const hasGameplay = Boolean((present.rows[0] as { ok?: boolean } | undefined)?.ok);
+        if (hasGameplay) await erasureService(db).takeErasureFence(tx);
+
         // Lock the account row. Two deletion requests serialise on it, and a
         // session or identity insert for this user (its foreign-key check takes
         // a key-share lock) waits for the erase and then fails, so no new
         // sign-in can survive the deletion.
         const locked = await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+
+        // Gameplay erasure, phase 1, before anything is deleted.
+        let gameplay: ErasurePlan | null = null;
+        if (locked.length && hasGameplay) gameplay = await erasureService(db).eraseBegin(tx, userId);
 
         const emailRows = await tx
           .select({ subject: authIdentities.providerSubject, email: authIdentities.normalizedEmail, provider: authIdentities.provider })
@@ -109,6 +136,9 @@ export function createDrizzleAccountDeletionStore(db: Db): AccountDeletionStore 
           ? await tx.delete(emailOtpChallenges).where(inArray(emailOtpChallenges.normalizedEmail, emails)).returning({ id: emailOtpChallenges.id })
           : [];
         const auditEvents = await tx.delete(securityAuditEvents).where(eq(securityAuditEvents.userId, userId)).returning({ id: securityAuditEvents.id });
+        // Phase 2: the person's sessions are gone; erase and tombstone their
+        // gameplay rows before the user row (which they would otherwise block).
+        if (gameplay) await erasureService(db).eraseComplete(tx, gameplay);
         const userRows = locked.length
           ? await tx.delete(users).where(eq(users.id, userId)).returning({ id: users.id })
           : [];
