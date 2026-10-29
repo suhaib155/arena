@@ -73,6 +73,31 @@ test("gameplay router: every route is enumerated and the source registers no oth
   assert.ok(!registrations.some((m) => m[1] === "use" || m[1] === "all" || m[1] === "route"), "router.use/all/route in router.ts: extend the enumeration");
 });
 
+test("app.ts registers only known non-gameplay path prefixes, and /gameplay only inside the flag guard", () => {
+  const source = readFileSync(join(HERE, "app.ts"), "utf8");
+  const allowed = new Set(["/health", "/ready", "/identity/auth", "/identity", "/movement"]);
+  const guard = /if \(gameplay\) \{([\s\S]*?)\n  \}/.exec(source);
+  assert.ok(guard, "app.ts no longer has an `if (gameplay) { ... }` block; update this test");
+  const registration = /\bapp\.(use|all|get|post|put|patch|delete|options|head)\(\s*(?:(["'`])([^"'`]*)\2)?/g;
+  const inside = guard[1] ?? "";
+  const insideStart = guard.index + guard[0].indexOf(inside);
+  let count = 0;
+  for (const m of source.matchAll(registration)) {
+    count += 1;
+    const path = m[3];
+    if (path === undefined) continue; // global middleware: covered by the behavioural sweep
+    const where = `app.${m[1]}(${JSON.stringify(path)})`;
+    if (path === "/gameplay" || path.startsWith("/gameplay/")) {
+      const at = m.index ?? -1;
+      assert.ok(at >= insideStart && at < insideStart + inside.length, `${where} in app.ts is outside the \`if (gameplay)\` guard`);
+      continue;
+    }
+    assert.ok(allowed.has(path), `${where} in app.ts is not in the allow-list of known non-gameplay prefixes (${[...allowed].join(", ")}); add it only if it is not gameplay`);
+  }
+  assert.ok(count >= 8, "the scan found the registrations in app.ts");
+  assert.ok(!/gameplay/i.test(source.replace(inside, "").split("\n").filter((l) => /\bapp\.(use|all|get|post|put|patch|delete)\(/.test(l)).join("\n")), "a gameplay registration outside the guard");
+});
+
 test("only the exact value \"true\" turns gameplay on", () => {
   for (const value of [undefined, "", "false", "TRUE", "True", "1", "yes", " true", "true "]) {
     const env: NodeJS.ProcessEnv = { MOVENRUN_GAMEPLAY_SEASON_START_DAY: "100" };
@@ -217,6 +242,27 @@ test("flag unset, database 0000-0010 only: no gameplay route, no gameplay query,
     for (const route of routes) assert.ok(seen.has(`${route.method} ${route.path}`), `route not covered: ${route.method} ${route.path}`);
     for (const path of ["/gameplay", "/gameplay/", "/gameplay/unknown", "/gameplay/me/holdings/x"]) {
       assert.equal((await get(path)).status, 404, path);
+    }
+
+    // Sweep: paths no router in this file knows about. An app.get/app.all in
+    // app.ts outside the gameplay router would answer here, so each must be
+    // byte-identical to the answer for a random unknown path.
+    const unknown = await get(`/no-such-${randomBytes(6).toString("hex")}`);
+    assert.equal(unknown.status, 404);
+    const unknownBody = await unknown.json();
+    for (const probe of ["/gameplay", "/gameplay/anything", "/gameplay/extra", "/gameplay/me/holdings", "/holdings/me", "/seasons", "/days", "/clubs",
+      "/districts", "/territory", "/settlement", "/erasure", "/admin/gameplay", "/me/holdings", "/leaderboards/1"]) {
+      for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
+        for (const auth of [false, true]) {
+          const res = await get(probe, {
+            method,
+            headers: { ...(auth ? { authorization: "Bearer not-a-real-token" } : {}), ...(method === "GET" ? {} : { "content-type": "application/json" }) },
+            ...(method === "GET" ? {} : { body: "{}" }),
+          });
+          assert.equal(res.status, 404, `${method} ${probe} (bearer: ${auth}) must be 404`);
+          assert.deepEqual(await res.json(), unknownBody, `${method} ${probe} (bearer: ${auth}) must match an unknown path`);
+        }
+      }
     }
 
     // (b) the maintenance tasks, driven by the real app. Wait until the three
