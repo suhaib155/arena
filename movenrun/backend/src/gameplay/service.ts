@@ -874,8 +874,9 @@ export class GameplayService {
           holder_no = EXCLUDED.holder_no, strength = EXCLUDED.strength, shade = EXCLUDED.shade, deeded = EXCLUDED.deeded,
           masked = EXCLUDED.masked, level = EXCLUDED.level, fortified = EXCLUDED.fortified, holding_rules_version = EXCLUDED.holding_rules_version`);
       // The touched units' open challenges, replaced as the model left them.
-      // A challenge that was already open keeps its receipt time; a new one
-      // takes this batch's server receipt time.
+      // A stored receipt time is kept only for a challenge that was already
+      // open with the same first day; a new or restarted challenge takes a
+      // new receipt time (this batch's server receipt time).
       const openedAt = (unitId: string, walkerId: string, day: number): number => {
         const k = challengeKey(unitId, walkerId);
         if (openedBefore.has(k) && firstDayBefore.get(k) === day) return openedBefore.get(k)!;

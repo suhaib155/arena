@@ -99,7 +99,7 @@ export interface ServerLedgerResult {
   takesUsed: Map<string, number>;
   /** Units this batch counted against each walker's unit budget: every applied push, refusals included. */
   unitsUsed: Map<string, number>;
-  /** With `secondPush`: receipt times of open challenges after the batch (input ones plus any opened by it). */
+  /** With `secondPush`: receipt times of open challenges after the batch (input ones, whose stored receipt time is kept only for a challenge with the same first day, plus any opened or restarted by it, which take a new receipt time). */
   challengeOpenedMs: Map<string, number>;
 }
 
