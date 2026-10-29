@@ -19,7 +19,9 @@ MOVENRUN_BENCH_DATABASE_URL=postgres://bench@127.0.0.1:55432/postgres \
 ## What was seeded
 
 200 synthetic users (`erasebench-walker-NNN`), seed 29, 6 simulated days (D .. D+5), written through the real
-`GameplayService` (`applySession`, `createClub`, `joinClub`, `settleDay`) so the rows are the ones the service writes.
+`GameplayService` (`applySession`, `createClub`, `joinClub`, `settleDay`) and the real erasure store. The user, auth
+identity and `movement_verifications` rows (and, under rule 1002, the session-path rows) are inserted directly by SQL;
+sessions, ledger, challenges, settlement, clubs and erasure go through the real service/store.
 34 players are "heavy" (about 95% active, 2 sessions a day, 6 to 12 cells), the rest are active 35 to 75% of days
 (1 to 2 sessions, 2 to 7 cells). Each player has a 30-cell home zone; 20% of visits go to a shared 40/60-cell hotspot, so
 cells are contested. 10 clubs, 124 memberships. Days D .. D+2 are settled; D+3 .. D+5 are closed but unsettled (so
@@ -146,13 +148,13 @@ does not accumulate bloat on its own in this run.
 - Deadlocks: 0 in every phase of both runs. `pg_stat_database.deadlocks` delta was 0 per clone, and the server log has
   no `deadlock detected` / `40P01`. No erasure returned an error in any phase (200/200 and 10/10 succeeded).
 - Serialisation failures (40001) are expected by design (the fence makes a day close that overlapped an erasure fail
-  and retry): 5 to 6 per run in the server log, all in conc10. `settleDay` retries 5 times with no backoff. In 2 of the 3
-  conc10 runs made while developing the script (the first 1001 run, discarded after a script fix, and the 1002 run reported
-  here) the settlement of the first unsettled day exhausted its 5 attempts and surfaced `40001` to the caller after about
-  1.3 to 1.5 s; a plain retry afterwards settled it, and `verifyDay` passed for all days. In the reported 1001 run it
-  did not exhaust. So the maintenance loop will see occasional `40001` errors from a day close during a burst of
+  and retry): 5 to 6 per run in the server log, all in conc10. `settleDay` retries 5 times with no backoff. The reported runs are one per rule set. In
+  the review re-run, `settleDay` exhausted its five no-backoff retries on D+3 under 1001 and saw only a single 40001 on
+  D+4 under 1002 (the original run saw the reverse), so exhaustion is possible under either rule set and the day it
+  hits varies. When it exhausted, `40001` reached the caller after about 1.3 to 1.5 s; a plain retry afterwards settled
+  it, and `verifyDay` passed for all days. So the maintenance loop will see occasional `40001` errors from a day close during a burst of
   erasures and must simply try again next tick (it does, as `settleDueDays` re-selects unsettled days); worth knowing
-  when reading logs. This is one observation per rule set, not a rate.
+  when reading logs. This is one observation each, not a rate.
 
 ## Caveats
 

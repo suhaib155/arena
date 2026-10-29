@@ -2,7 +2,7 @@
  * Gameplay account-erasure cost bench, 200 synthetic players. LOCAL, SINGLE RUN, not a capacity figure.
  *
  *   MOVENRUN_BENCH_DATABASE_URL=postgres://bench@127.0.0.1:55432/postgres \
- *     node --import tsx scripts/gameplay-erasure-bench.ts --out /tmp/erasure.json [--players 200] [--seed 29]
+ *     node --import tsx scripts/gameplay-erasure-bench.ts --out /tmp/erasure.json [--players 200] [--seed 29] [--keep]
  *
  * Seeds one template database (committed chain 0000-0010 plus the PROPOSED 0011) through the real GameplayService
  * (applySession, settleDay, createClub, joinClub), then clones the template for every phase so each phase starts
@@ -12,6 +12,10 @@
  *   seq200      erase all players sequentially
  *   conc10      erase 10 players at once while settlement of the still-unsettled closed days runs
  *   settle-only control for conc10: the same settlement with no erasures (to separate settlement WAL from erasure WAL)
+ *
+ * Unless --keep is given, the template and every clone database are dropped at the end (also on failure).
+ * The script refuses to start if the cluster holds any database other than postgres, template0, template1 and its own
+ * erase_* databases.
  *
  * Erasure runs through the real store (createDrizzleAccountDeletionStore). Safety: the URL must be this machine;
  * the cluster should be a throwaway one (scripts/gameplay-bench-cluster.sh) with autovacuum off so dead-tuple
@@ -39,7 +43,12 @@ if (!URL_ENV) { console.error("MOVENRUN_BENCH_DATABASE_URL is not set (a local, 
   const u = new URL(URL_ENV);
   const host = u.hostname.replace(/^\[|\]$/g, "");
   if (!(["localhost", "127.0.0.1", "::1"].includes(host))) { console.error(`Refusing ${host || "(empty host)"}: local PostgreSQL only.`); process.exit(2); }
+  if (decodeURIComponent(u.username) !== "bench" && (u.port || "5432") === "5432") {
+    console.error("Refusing: connect as user `bench` or on a non-default port (not 5432); this script creates and drops databases and must only run on a throwaway cluster (scripts/gameplay-bench-cluster.sh).");
+    process.exit(2);
+  }
 }
+const KEEP = process.argv.includes("--keep");
 const PLAYERS = Number(arg("players") ?? 200);
 const SEED = Number(arg("seed") ?? 29);
 const OUT = arg("out");
@@ -89,6 +98,7 @@ interface Player { id: string; zone: string[]; activity: number; heavy: boolean;
 async function seed(): Promise<{ template: string; players: Player[]; seedStats: Record<string, number> }> {
   const t = await createTestDb(URL_ENV, "erase_tpl", { gameplay: true });
   const name = new URL((t.pool as unknown as { options: { connectionString: string } }).options.connectionString).pathname.slice(1);
+  created.push(name);
   let clock = at(D, 9);
   const svc = new GameplayService({ db: t.db, rules: RULES, now: () => clock });
   const players: Player[] = [];
@@ -187,10 +197,34 @@ interface PhaseResult {
   tombstoneState: Record<string, unknown>; settlement?: Record<string, unknown>;
 }
 
+const created: string[] = [];
+
 async function cloneOf(template: string, phase: string): Promise<string> {
   const name = `erase_${phase}_${randomBytes(4).toString("hex")}`;
+  created.push(name);
   await admin.query(`CREATE DATABASE "${name}" TEMPLATE "${template}"`);
   return name;
+}
+
+/** Refuse unless the cluster holds only the system databases and this script's own erase_* databases. */
+async function assertThrowawayCluster(): Promise<void> {
+  const rows = await q(admin, "SELECT datname FROM pg_database WHERE datname NOT IN ('postgres','template0','template1') AND datname NOT LIKE 'erase\\_%' ORDER BY 1");
+  if (rows.length) {
+    console.error(`Refusing: the cluster has other databases (${rows.map((r) => r.datname).join(", ")}). Run this only on a throwaway cluster that holds nothing but postgres, template0, template1 and erase_* databases.`);
+    await admin.end();
+    process.exit(2);
+  }
+}
+
+async function cleanup(): Promise<void> {
+  const names = [...new Set(created)];
+  if (KEEP) { console.log(`--keep: kept ${names.length} database(s): ${names.join(", ") || "(none)"}`); return; }
+  const dropped: string[] = [];
+  for (const n of names) {
+    try { await admin.query(`DROP DATABASE IF EXISTS "${n}" WITH (FORCE)`); dropped.push(n); }
+    catch (e) { console.error(`could not drop ${n}: ${String(e).slice(0, 120)}`); }
+  }
+  console.log(`dropped ${dropped.length} of ${names.length} database(s)`);
 }
 
 async function tombstoneState(pool: pg.Pool, namingPatterns: string[]): Promise<Record<string, unknown>> {
@@ -296,9 +330,15 @@ async function main() {
   console.log(`LOCAL, SINGLE RUN, NOT A CAPACITY FIGURE. players=${PLAYERS} seed=${SEED}`);
   const ver = (await q(admin, "SHOW server_version"))[0]!.server_version;
   const av = (await q(admin, "SHOW autovacuum"))[0]!.autovacuum;
-  const { template, players, seedStats } = await seed();
+  await assertThrowawayCluster();
+  let template: string | undefined;
+  try {
+  const seeded = await seed();
+  const { players, seedStats } = seeded;
+  template = seeded.template;
   console.log(`seeded template ${template} in ${((Date.now() - t0) / 1000).toFixed(1)} s`, seedStats);
-  const tplPool = new pg.Pool({ connectionString: (() => { const u = new URL(URL_ENV); u.pathname = `/${template}`; return u.toString(); })(), max: 2 });
+  const tplName = template;
+  const tplPool = new pg.Pool({ connectionString: (() => { const u = new URL(URL_ENV); u.pathname = `/${tplName}`; return u.toString(); })(), max: 2 });
   const tables = await tableList(tplPool);
   const tplRows = await rowCounts(tplPool, tables);
   await tplPool.end();
@@ -306,11 +346,14 @@ async function main() {
   for (const ph of ["single", "seq10", "seq200", "settle-only", "conc10"] as const) {
     const r = await runPhase(template, ph, players);
     phases.push(r);
-    console.log(`${ph}: erased ${r.erased}/${ph === "settle-only" ? 0 : r.erased + r.errors.length} wall ${r.wallMs} ms per-erasure`, r.perErasure, `WAL ${r.walBytesClusterWide} B deadlocks(db) ${r.deadlocksDb} errors ${r.errors.length}`);
+    console.log(`${ph}: ${ph === "settle-only" ? "no erasures (settlement only)" : `erased ${r.erased}/${r.erased + r.errors.length}`} wall ${r.wallMs} ms per-erasure`, r.perErasure, `WAL ${r.walBytesClusterWide} B deadlocks(db) ${r.deadlocksDb} errors ${r.errors.length}`);
   }
   const result = { rules: RULESET, label: "LOCAL, SINGLE RUN, NOT A CAPACITY FIGURE", postgres: ver, autovacuum: av, players: PLAYERS, seed: SEED, days: DAYS, settledInTemplate: SETTLED_DAYS, seedStats, templateRows: tplRows, phases, totalSeconds: (Date.now() - t0) / 1000 };
   if (OUT) writeFileSync(OUT, JSON.stringify(result, null, 2));
-  console.log("done", ((Date.now() - t0) / 1000).toFixed(1), "s; template db kept:", template, "(drop with DROP DATABASE)");
-  await admin.end();
+  console.log("done", ((Date.now() - t0) / 1000).toFixed(1), "s");
+  } finally {
+    await cleanup();
+    await admin.end();
+  }
 }
 main().catch((e) => { console.error(e); process.exit(1); });
