@@ -95,13 +95,17 @@ test("sparse accurate GPS: the stored path keeps inferred units, but only steppe
   assert.equal(record.status, "verified");
   assert.equal(record.sealed, true);
   assert.ok(inferred.length >= 3, `inferred ${inferred.length}, stepped ${stepped.length}`);
+  // Sealing v2 claim scope: of the stepped units, only those on or inside the dense square claim; the sparse leg claims nothing.
+  const claimCells = new Set(((await t.pool.query("SELECT territory_claim_units::text[] AS u FROM movement_verifications WHERE id = $1", [record.id])).rows[0].u as string[]).map(int8ToCell));
+  const claimable = stepped.filter((u) => claimCells.has(u));
+  assert.ok(claimable.length > 0 && claimable.length < stepped.length, `claimable ${claimable.length} of ${stepped.length} stepped`);
   const r = await p2.applySession("ivy", "sparse");
-  assert.equal(r.applied, stepped.length);
-  assert.equal(r.outcomes.claimed, stepped.length);
+  assert.equal(r.applied, claimable.length);
+  assert.equal(r.outcomes.claimed, claimable.length);
   const pushed = (await t.pool.query("SELECT unit::text AS unit FROM gameplay_push_events ORDER BY seq")).rows.map((x) => int8ToCell(x.unit));
-  assert.deepEqual(pushed, stepped, "walk order, stepped units only");
+  assert.deepEqual(pushed, claimable, "walk order, stepped and claimable units only");
   const used = (await t.pool.query("SELECT units_used FROM gameplay_walker_days d JOIN gameplay_players p ON p.player_no = d.walker_no WHERE p.user_id = 'ivy'")).rows[0];
-  assert.equal(Number(used.units_used), stepped.length, "the unit budget counts physical steps only");
+  assert.equal(Number(used.units_used), claimable.length, "the unit budget counts physical, claimable steps only");
   const held = Number((await t.pool.query("SELECT count(*)::int AS n FROM gameplay_units WHERE holder_id = 'ivy' AND unit = ANY($1::bigint[])", [inferred.map(cellToInt8)])).rows[0].n);
   assert.equal(held, 0, "no inferred unit is held");
 });

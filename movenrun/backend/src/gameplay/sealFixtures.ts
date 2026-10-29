@@ -75,10 +75,12 @@ export const OPEN_ROUTE: Readonly<SealColumns> = (() => {
  * The seal columns as an SQL literal list (column order of `SEAL_COLUMNS`),
  * from a real engine result. A fixture that writes its own cells (not the
  * route the seal was computed on) names the cells its loop encloses as
- * `claimUnits` (H3 cells, one resolution); without them, or when none is a
- * valid cell, the result's own claimable cells are written.
+ * `claimUnits` (H3 cells, one resolution); with null, or when none is a
+ * valid cell, the result's own claimable cells are written. `claimResolution`
+ * overrides the resolution recorded with them (a row as the pipeline of a
+ * rule set at that resolution would have stamped it).
  */
-export function sealLiteral(c: SealColumns, claimUnits?: readonly string[]): string {
+export function sealLiteral(c: SealColumns, claimUnits: readonly string[] | null, claimResolution?: number): string {
   const lit = (v: unknown) => (v === null ? "NULL" : typeof v === "string" ? `'${v.replace(/'/g, "''")}'` : String(v));
   const methods = c.seal_methods === null ? "NULL" : `ARRAY[${c.seal_methods.map(lit).join(", ")}]::text[]`;
   // Claimable cells exist only on a true territory seal (the database refuses anything else).
@@ -88,6 +90,7 @@ export function sealLiteral(c: SealColumns, claimUnits?: readonly string[]): str
     const given = [...new Set(claimUnits.filter((u) => isValidCell(u)))];
     if (given.length > 0) { units = given; res = getResolution(given[0]!); }
   }
+  if (units !== null && claimResolution !== undefined) res = claimResolution;
   const claim = units === null ? "NULL" : `ARRAY[${units.map((u) => BigInt(`0x${u}`).toString(10)).join(", ")}]::bigint[]`;
   return `${lit(c.sealed)}, ${methods}, ${lit(c.seal_event_count)}, ${lit(c.rules_version)}, ${lit(c.territory_seal_version)}, ${lit(c.territory_sealed)}, ${lit(c.territory_seal_reason)}, ${claim}, ${lit(res)}`;
 }

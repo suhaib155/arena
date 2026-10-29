@@ -52,7 +52,7 @@
  * claimable** (claim scope, an owner-changeable hypothesis): the stick, a
  * spur outside the loop, and any stretch neither on nor inside a qualifying
  * loop claim nothing, and no step across a gap is filled. Every
- * candidate is measured (largest first, skipping one whose fixes are already
+ * candidate is measured (smallest first, skipping one whose fixes are already
  * claimable), within a work budget (`maxWorkUnits`, counted in elementary
  * steps: distance tests, segment tests, ring points handled). When the
  * budget runs out before any loop qualifies the answer is no, with reason

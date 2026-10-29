@@ -45,7 +45,7 @@ async function haltedWorld(prefix: string) {
     await t.pool.query("INSERT INTO users (id) VALUES ($1)", [u]);
     await t.pool.query(
       `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-       VALUES ($1, $2, 's1', 'verified', 3000, 1800, $3, $4, $5, (to_timestamp($6::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+       VALUES ($1, $2, 's1', 'verified', 3000, 1800, $3, $4, $5, (to_timestamp($6::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, [cell])})`,
       [randomUUID(), u, [cell], at(D, 8) - 1_800_000, at(D, 8), at(D, 8.5)]);
     await svc.applySession(u, "s1");
   }
