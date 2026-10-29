@@ -5,7 +5,7 @@ Branch `fix/movement-stationary-risk`, based on `integration/android-qa0-28oct` 
 
 All evidence on this page is **local and synthetic**. No real GPS, no device, no hosted service. The rates below hold only under the stated synthetic assumptions. They are not a claim that the rule catches every stationary upload, or that it can't be fooled: a scripted upload that looks coherent passes by construction.
 
-Known bypass (independent review): pauses (`breakBefore`) come from the client and end a stretch, and a window needs at least 6 segments. An upload that marks a break every few points therefore leaves nothing to assess. The test "a pause splits windows" shows this with a break every 4th point. The rule targets honest drift, not a malicious client. A follow-up could treat a high break rate or many short stretches as a risk signal in its own right. The client-pipeline figures (FP 0/1558, FN 10/650) come from an untracked harness and cannot be reproduced from committed code; the corpus figures (FP 0/1400, FN 5/650) can, with `node --import tsx src/movement/testing/stationaryRiskRates.ts 50`. No test yet covers the production router refusing to start on an unknown rule value.
+Known bypass (independent review): pauses (`breakBefore`) come from the client and end a stretch, and a window needs at least 6 segments. An upload that marks a break every few points therefore leaves nothing to assess. The test "a pause splits windows" shows this with a break every 4th point. The rule targets honest drift, not a malicious client. A follow-up could treat a high break rate or many short stretches as a risk signal in its own right. The client-pipeline figures (FP 0/1558, FN 10/650) come from an untracked harness and cannot be reproduced from committed code; the corpus figures (FP 0/1400, FN 5/650) can, and are pinned by `src/movement/stationaryRiskHarness.test.ts` (see "Committed harness" below). No test yet covers the production router refusing to start on an unknown rule value.
 
 ## Problem
 
@@ -193,3 +193,21 @@ Typecheck is clean for backend (`tsconfig.json` and `tsconfig.api.json`), shared
    - short drift spells of 2-3 min are missed about 1 % of the time.
 3. **Separate eligibility from distance.** Should `review` keep the measured distance on record and mark only XP as ineligible? That needs a protocol field, a new nullable column (a new migration, not 0000-0010) and a client release that reads it. Today the flag-on path uses the existing "rejected / not eligible" verdict.
 4. **Device evidence.** Real Android reported-accuracy versus true-error ratios, beside buildings and in the open, are the assumption that moves FP the most (0.6 → 0.4 %, 0.8 → 5.6 %). Capture that data in the H-series handset script before any threshold is fixed.
+
+## Committed harness
+
+`backend/src/movement/testing/stationaryRiskHarness.ts` (report: `node --import tsx src/movement/testing/stationaryRiskHarness.ts 50` from `backend/`) and `backend/src/movement/stationaryRiskHarness.test.ts` (about 15 s) pin the generator B numbers at harness version `sr-harness/1`, seed base `0x5eed`, 50 seeds per family. Synthetic only. A threshold change moves these numbers and fails the test until they are updated on purpose.
+
+| Group (reported separately) | Pinned result |
+|---|---|
+| Headline, main corpus | FP 0/1400, FN 5/650, stress withheld 82/150 |
+| Real error 0.8x / 1.5x reported accuracy | FP 78/1400 / 323/1400 |
+| Honest loop 30 m / 50 m / 50 m at 3 m/s / 75 m | withheld 28/33, 14/49, 23/49, 0/50 |
+| Slow drift, still, rho 0.5 / 0.7 / 0.99 | still XP-eligible 0/50, 0/50, 8/50 |
+| Slow genuine walks 0.3 and 0.5 m/s | withheld 0/100 |
+| Vehicle-like (2 km at 12 m/s; walk, bus, walk; bike) | verified today 7, 50, 50; withheld by v1: none |
+| KNOWN BYPASS: break marker every 4th point on S03 drift | withheld without markers 50/50, with markers 0/50 (all 50 bypass) |
+| W04, I02, C01 | identical rule off and on (50/50 seeds) |
+| S03 | verified off, withheld on (50/50), which is the rule's purpose |
+
+The small-loop and accuracy-mismatch rows are known limits, pinned so they stay visible, not targets. The harness does not run the real mobile client modules (generator A), so its figures differ from FP 0/1558, FN 10/650.
