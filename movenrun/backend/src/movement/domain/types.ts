@@ -105,6 +105,9 @@ export interface TerritorySealResult {
   version: number;
   sealed: boolean;
   reason: string;
+  /** The claimable cells (on or inside a qualifying loop) at `claimResolution`; null unless sealed. */
+  claimUnits: string[] | null;
+  claimResolution: number | null;
 }
 
 /** The shape of `gameplay/path.ts`'s `SessionPath`, restated so this domain imports nothing from gameplay. */

@@ -19,8 +19,9 @@
 --     never be applied (its raw fixes were never stored);
 --   - the sequences behind ledger order and source numbers;
 --   - the settlement halt log (every operator and reconciler halt/resume);
---   - the sealing v2 territory seal columns on movement_verifications
---     (the movement rows themselves and their v1 seal summary stay).
+--   - the sealing v2 territory seal and claimable-cell columns on
+--     movement_verifications (the movement rows themselves and their v1 seal
+--     summary stay).
 -- Settled days are meant to be final; after this they cannot be reconciled
 -- or replayed. Take a pg_dump of the gameplay_* tables and the
 -- gameplay_partitions schema first, and treat running this as its own owner
@@ -56,6 +57,8 @@ DROP FUNCTION IF EXISTS public.gameplay_movement_receipt_immutable();--> stateme
 DROP TRIGGER IF EXISTS "gameplay_movement_territory_seal_once" ON "movement_verifications";--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_movement_territory_seal_once();--> statement-breakpoint
 ALTER TABLE "movement_verifications" DROP CONSTRAINT IF EXISTS "movement_verifications_territory_seal";--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_claim_resolution";--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_claim_units";--> statement-breakpoint
 ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_seal_reason";--> statement-breakpoint
 ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_sealed";--> statement-breakpoint
 ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_seal_version";--> statement-breakpoint

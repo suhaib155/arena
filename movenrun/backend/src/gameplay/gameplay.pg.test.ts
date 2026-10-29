@@ -105,7 +105,7 @@ async function session(userId: string, clientSessionId: string, endMs: number, u
   const id = randomUUID();
   await pool.query(
     `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-     VALUES ($1, $2, $3, $4, 3000, 1800, $5, $6, $7, (to_timestamp($8::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+     VALUES ($1, $2, $3, $4, 3000, 1800, $5, $6, $7, (to_timestamp($8::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, units)})`,
     [id, userId, clientSessionId, status, units, endMs - 1_800_000, endMs, clock],
   );
   return id;

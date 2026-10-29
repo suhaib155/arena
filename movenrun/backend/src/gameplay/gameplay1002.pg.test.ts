@@ -89,7 +89,7 @@ async function session(userId: string, sid: string, endMs: number, units: string
   const id = `mv-${sid}`;
   await t.pool.query(
     `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, units)})`,
     [id, userId, sid, [], endMs - 1_800_000, endMs, opts.receivedMs ?? clock]);
   if (opts.path !== false) {
     await t.pool.query(
@@ -118,7 +118,7 @@ function pipeline(withPath: boolean, db = t.db, ids = { n: 0 }) {
     traversedHexIds: (points: ObservedPoint[]) => cellsForObservations(points.map((p) => ({ latitude: p.lat, longitude: p.lng }))),
     ...(withPath ? { sessionPath: sessionPathFor(VERIFIED_STEPS_V1) } : {}),
     // Gameplay on: both rule sets name sealing v2, so the territory seal is computed at verification, as in production.
-    ...(withPath ? { territorySeal: territorySealFor(ENCLOSED_LOOP_V1) } : {}),
+    ...(withPath ? { territorySeal: territorySealFor(ENCLOSED_LOOP_V1, { resolution: VERIFIED_STEPS_V1.resolution, stepMeters: VERIFIED_STEPS_V1.stepMeters }) } : {}),
   });
 }
 /** A real-looking verified walk: a route fixture moved to `origin`, a fix every 10 s at 1.4 m/s, accuracy 5 m. */
@@ -293,7 +293,7 @@ test("mid-season rule change fails closed: 1001 cannot touch a 1002 season, and 
     await session(w, `race-p2-${i}`, end, [U[400 + i]!]);
     await t.pool.query(
       `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, [R8[i + 1]!])})`,
       [`mv-race-a9-${i}`, w, `race-a9-${i}`, [R8[i + 1]!], end - 1_800_000, end, clock]);
   }
   const settled = await Promise.allSettled(racers.flatMap((w, i) => [p2.applySession(w, `race-p2-${i}`), a9.applySession(w, `race-a9-${i}`)]));

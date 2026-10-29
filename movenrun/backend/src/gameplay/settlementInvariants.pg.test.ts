@@ -38,7 +38,7 @@ async function world(prefix: string) {
     async session(userId: string, sid: string, endMs: number, minutes = 30) {
       await t.pool.query(
         `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-         VALUES ($1, $2, $3, 'verified', 3000, $4, $5, $6, $7, (to_timestamp($8::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+         VALUES ($1, $2, $3, 'verified', 3000, $4, $5, $6, $7, (to_timestamp($8::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, [C[0]!])})`,
         [randomUUID(), userId, sid, minutes * 60, [C[0]!], endMs - minutes * 60_000, endMs, endMs + 60_000]);
     },
     /** One statement with a finality trigger off: what a corrupted or hand-edited book looks like. */

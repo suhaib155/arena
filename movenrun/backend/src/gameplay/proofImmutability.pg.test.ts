@@ -43,7 +43,7 @@ test("a day proof cannot be updated or deleted while its player exists; erasure 
       await t.pool.query("INSERT INTO users (id) VALUES ($1)", [u]);
       await t.pool.query(
         `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-         VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+         VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, u === "ana" ? [C[0]!, C[1]!] : [C[2]!])})`,
         [randomUUID(), u, `${u}-1`, u === "ana" ? [C[0]!, C[1]!] : [C[2]!], at(D, 8) - 1_800_000, at(D, 8), at(D, 8.5)]);
       clock = at(D, 9);
       await svc.applySession(u, `${u}-1`);

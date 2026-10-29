@@ -52,7 +52,7 @@ const pipeline = () => new MovementVerificationService({
   calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
   traversedHexIds: (points: ObservedPoint[]) => cellsForObservations(points.map((p) => ({ latitude: p.lat, longitude: p.lng }))),
   sessionPath: sessionPathFor(VERIFIED_STEPS_V1),
-  territorySeal: territorySealFor(ENCLOSED_LOOP_V1),
+  territorySeal: territorySealFor(ENCLOSED_LOOP_V1, { resolution: VERIFIED_STEPS_V1.resolution, stepMeters: VERIFIED_STEPS_V1.stepMeters }),
 });
 
 /**
@@ -114,7 +114,7 @@ test("an inferred unit never erodes or takes a rival's ground", { skip: SKIP }, 
   await t.pool.query("INSERT INTO users (id) VALUES ('kim') ON CONFLICT DO NOTHING");
   await t.pool.query(
     `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-     VALUES ('mv-kim', 'kim', 'kim-1', 'verified', 3000, 1800, '{}', $1, $2, (to_timestamp($3::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+     VALUES ('mv-kim', 'kim', 'kim-1', 'verified', 3000, 1800, '{}', $1, $2, (to_timestamp($3::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, [target])})`,
     [at(D + 1, 7) - 1_800_000, at(D + 1, 7), clock]);
   await t.pool.query(`INSERT INTO gameplay_session_paths (movement_verification_id, path_version, resolution, unit_ids, interpolated, skipped_segments, truncated)
     VALUES ('mv-kim', 1, 10, $1::bigint[], B'0', 0, false)`, [[cellToInt8(target)]]);

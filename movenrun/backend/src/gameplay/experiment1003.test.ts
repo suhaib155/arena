@@ -14,7 +14,7 @@ import { EXPERIMENTS_1003, RULES_1003A, RULES_1003B, RULES_1003C, RULES_1003C0, 
 import { DEFAULT_RULES_VERSION, PILOT_PROPOSAL, RULESETS, SIM_PILOT_2_PROPOSAL, rulesetDigest, rulesetFor } from "./rules.js";
 
 // 1001 with sealing v2 named (was d4199ec6… before docs/g34/SEALING_V2_28OCT.md).
-const DIGEST_1001 = "9222df56287d481afd39c0b4296af4f89b8ae0327f4616c3fd1ba43c6da3fb7d";
+const DIGEST_1001 = "ff372572d7b754ad6c6dde3dbcc7535f7f62e13e94e718f8424eb0b1e0923bb2";
 const DAY = 20_000;
 const H = 3_600_000;
 const SMALL = {

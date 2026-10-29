@@ -99,7 +99,7 @@ const RECEIVED = "(to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting(
 async function walk(user: string, sid: string, endMs: number, units: string[]) {
   await pool.query(
     `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-     VALUES ($1, $2, $3, 'verified', 2500, 1500, $4, $5, $6, ${RECEIVED}, ${sealLiteral(SEALED_LOOP)})`, [`mv-${sid}`, user, sid, units, endMs - 1_500_000, endMs, clock]);
+     VALUES ($1, $2, $3, 'verified', 2500, 1500, $4, $5, $6, ${RECEIVED}, ${sealLiteral(SEALED_LOOP, units)})`, [`mv-${sid}`, user, sid, units, endMs - 1_500_000, endMs, clock]);
   return svc.applySession(user, sid);
 }
 
@@ -154,7 +154,7 @@ test("1001 on PostgreSQL: the stored game state of a fixed scenario is the one r
   out.push(await walk("cal", "c0", at(D, 11), [C[3]!, C[4]!]));
   // Concurrent applies of one session: applied once.
   await pool.query(`INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-     VALUES ('mv-d0', 'dee', 'd0', 'verified', 900, 700, $1, $2, $3, ${RECEIVED.replace("$7", "$4")}, ${sealLiteral(SEALED_LOOP)})`, [[C[0]!, C[5]!], at(D, 11.5) - 700_000, at(D, 11.5), clock]);
+     VALUES ('mv-d0', 'dee', 'd0', 'verified', 900, 700, $1, $2, $3, ${RECEIVED.replace("$7", "$4")}, ${sealLiteral(SEALED_LOOP, [C[0]!, C[5]!])})`, [[C[0]!, C[5]!], at(D, 11.5) - 700_000, at(D, 11.5), clock]);
   const same = await Promise.all([1, 2, 3, 4, 5].map(() => svc.applySession("dee", "d0")));
   out.push(same.filter((r) => !r.replayed).length);
   clock = at(D + 1, 12);

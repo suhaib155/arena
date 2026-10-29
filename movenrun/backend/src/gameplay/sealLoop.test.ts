@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { latLngToCell } from "h3-js";
+import { getResolution, latLngToCell } from "h3-js";
 import { evaluateSealing } from "@movenrun/shared/sealing";
 import { DEFAULT_MOVEMENT_MODE, SESSION_RULES_VERSION } from "@movenrun/shared/session";
 import { territorySealFor } from "../movement/http/productionRouter.js";
@@ -121,14 +121,14 @@ test("H3 boundaries do not matter: the same block seals inside one resolution 8 
   assert.ok(Math.abs(a.best!.areaM2 - b.best!.areaM2) < 1);
 });
 
-test("bounded and deterministic: a noisy 10 km out-and-back measures at most the candidate cap and gives the same answer twice", () => {
+test("bounded and deterministic: a noisy 10 km out-and-back stays within the work budget and gives the same answer twice", () => {
   const f: SealFixture = { name: "long", group: "out-and-back", shouldSeal: false, legs: [{ vertices: [[0, 0], [5000, 0], [0, 0]] }] };
   const fixes = fixtureFixes(f, 15, 3);
   const started = performance.now();
   const r = evaluateSealLoop(fixes, [], R);
   const ms = performance.now() - started;
   assert.equal(r.sealed, false);
-  assert.ok(r.candidates <= R.maxCandidates);
+  assert.ok(r.work <= R.maxWorkUnits);
   assert.deepEqual(evaluateSealLoop(fixes, [], R), r);
   assert.ok(ms < 5_000, `${Math.round(ms)} ms`);
 });
@@ -147,7 +147,11 @@ test("the rule's numbers are checked, and the stored result is a version, a verd
   assert.ok(sealLoopRuleProblems({ ...R, maxSpeedMetersPerSecond: 20 }).length > 0);
   assert.ok(sealLoopRuleProblems({ ...R, version: 2 as never }).length > 0);
   const fixes = walk([[0, 0], [200, 0], [200, 200], [0, 200], [0, 0]]);
-  const stored = territorySealFor(R)({ startTime: fixes[0]!.timestamp, endTime: fixes[fixes.length - 1]!.timestamp,
+  const stored = territorySealFor(R, { resolution: 10 })({ startTime: fixes[0]!.timestamp, endTime: fixes[fixes.length - 1]!.timestamp,
     points: fixes.map((p) => ({ lat: p.lat, lng: p.lng, accuracy: 5, timestamp: p.timestamp })) });
-  assert.deepEqual(stored, { version: 1, sealed: true, reason: "enclosed" });
+  assert.deepEqual(Object.keys(stored).sort(), ["claimResolution", "claimUnits", "reason", "sealed", "version"]);
+  assert.equal(stored.sealed, true);
+  assert.equal(stored.reason, "enclosed");
+  assert.equal(stored.claimResolution, 10);
+  assert.ok(stored.claimUnits!.length > 0 && stored.claimUnits!.every((c) => getResolution(c) === 10));
 });

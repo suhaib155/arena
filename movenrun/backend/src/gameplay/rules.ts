@@ -33,6 +33,7 @@ import { cellToParent, getResolution, isValidCell } from "h3-js";
 import { sessionPathRuleProblems, VERIFIED_STEPS_V1, type SessionPathRule } from "./path.js";
 import { ENCLOSED_LOOP_V1, SEAL_LOOP_REASONS, sealLoopRuleProblems, type SealLoopRule } from "./sealLoop.js";
 import type { HoldingRules, TakeoverRule } from "@movenrun/shared/holding";
+import { H3_RESOLUTION } from "@movenrun/shared/h3";
 import { isSealMethod } from "@movenrun/shared/sealing";
 import type { DistrictControlRule, LeaderboardMetric } from "@movenrun/shared/clubsDistricts";
 
@@ -209,6 +210,16 @@ export interface TerritorySealV2 {
   version: 2;
   sealingRulesVersions: readonly number[];
   loop: SealLoopRule;
+  /**
+   * Claim scope (an owner-changeable hypothesis). `loop-units`: a qualifying
+   * session claims only its units that are among the server's claimable
+   * cells (`territory_claim_units`: cells on or inside a qualifying loop, at
+   * the rule set's unit resolution); the stick, retraced spurs and anything
+   * across a gap claim nothing. `session-units`: once the session qualifies,
+   * every unit of it claims (the reviewed loophole: a long stick plus one
+   * small block claimed the whole stick).
+   */
+  claim: "loop-units" | "session-units";
 }
 
 export const TERRITORY_SEAL_V1: Readonly<TerritorySealV1> = Object.freeze({ rule: "server-verified-seal", version: 1, sealingRulesVersions: Object.freeze([1]) });
@@ -220,7 +231,7 @@ export const TERRITORY_SEAL_V1: Readonly<TerritorySealV1> = Object.freeze({ rule
  * because 0011 is unapplied and no day was ever pinned).
  */
 export const TERRITORY_SEAL_V2_PILOT: Readonly<TerritorySealV2> = Object.freeze({
-  rule: "server-enclosed-loop", version: 2, sealingRulesVersions: Object.freeze([1]), loop: ENCLOSED_LOOP_V1,
+  rule: "server-enclosed-loop", version: 2, sealingRulesVersions: Object.freeze([1]), loop: ENCLOSED_LOOP_V1, claim: "loop-units",
 });
 
 export const RECEIPT_CUTOFF_V1: Readonly<ReceiptCutoff> = Object.freeze({ rule: "server-receipt-before-day-close", version: 1 });
@@ -437,7 +448,10 @@ export function rulesetProblems(r: Omit<GameplayRules, "seasonOneStartDay">): st
     const t = r.territorySeal;
     const known = (t.rule === "server-verified-seal" && t.version === 1) || (t.rule === "server-enclosed-loop" && t.version === 2);
     if (!known || t.sealingRulesVersions.length === 0 || !t.sealingRulesVersions.every((v) => Number.isInteger(v) && v >= 1)) p.push("unknown territory seal rule");
-    else if (t.rule === "server-enclosed-loop") p.push(...sealLoopRuleProblems(t.loop));
+    else if (t.rule === "server-enclosed-loop") {
+      p.push(...sealLoopRuleProblems(t.loop));
+      if (t.claim !== "loop-units" && t.claim !== "session-units") p.push("unknown territory claim scope");
+    }
   }
   if (r.receiptCutoff !== undefined && (r.receiptCutoff.rule !== "server-receipt-before-day-close" || r.receiptCutoff.version !== 1)) p.push("unknown receipt cutoff rule");
   if (!(Number.isInteger(r.dayCloseGraceMs) && r.dayCloseGraceMs >= 0 && r.dayCloseGraceMs < DAY_MS)) p.push("day close grace must be 0 to under a day");
@@ -523,6 +537,18 @@ export function territorySealOf(rules: Pick<GameplayRules, "territorySeal">): Te
   return rules.territorySeal ?? TERRITORY_SEAL_V1;
 }
 
+/**
+ * Where sealing v2's claimable cells are computed: the rule set's unit
+ * resolution (1002: the session path's resolution and fill step; an `h3`
+ * unit: its resolution; `stored`: the movement pipeline's resolution 8).
+ */
+export function claimCellOptionsOf(rules: Pick<GameplayRules, "units">): { resolution: number; stepMeters?: number } {
+  const u = rules.units;
+  if (u.source?.kind === "session-path") return { resolution: u.source.rule.resolution, stepMeters: u.source.rule.stepMeters };
+  if (u.unit.kind === "h3") return { resolution: u.unit.resolution };
+  return { resolution: H3_RESOLUTION };
+}
+
 /** The seal columns of a verified movement row that decide whether it may claim. */
 export interface SealRow {
   sealed: boolean | null;
@@ -533,6 +559,9 @@ export interface SealRow {
   territory_seal_version?: number | null;
   territory_sealed?: boolean | null;
   territory_seal_reason?: string | null;
+  /** Claimable cells (H3 ids) and their resolution; null unless the territory seal is true. */
+  territory_claim_units?: string[] | null;
+  territory_claim_resolution?: number | null;
 }
 
 export type SealProblem = "seal_missing" | "session_not_sealed" | "seal_inconsistent" | "seal_rules_version_unsupported"
@@ -565,6 +594,11 @@ export function sealProblem(rules: Pick<GameplayRules, "territorySeal">, row: Se
   if (Number(version) !== need.loop.version) return "territory_seal_version_unsupported";
   const reason = row.territory_seal_reason ?? null;
   if (reason === null || !(SEAL_LOOP_REASONS as readonly string[]).includes(reason) || (reason === "enclosed") !== territory) return "seal_inconsistent";
+  if (need.claim === "loop-units") {
+    const units = row.territory_claim_units ?? null;
+    const res = row.territory_claim_resolution ?? null;
+    if (territory ? (units === null || units.length === 0 || res === null) : (units !== null || res !== null)) return "seal_inconsistent";
+  }
   return territory ? null : "seal_not_enclosed";
 }
 

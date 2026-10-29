@@ -9,7 +9,9 @@ import { evaluateSealing } from "@movenrun/shared/sealing";
 import { DEFAULT_MOVEMENT_MODE, SESSION_RULES_VERSION, type SessionMetadata } from "@movenrun/shared/session";
 import { toSealSummary } from "../movement/domain/types.js";
 import { fixesOf, poly, ROUTE_FIXTURES } from "./pathFixtures.js";
-import { ENCLOSED_LOOP_V1, evaluateSealLoop } from "./sealLoop.js";
+import { getResolution, isValidCell } from "h3-js";
+import { H3_RESOLUTION } from "@movenrun/shared/h3";
+import { claimCellsOf, ENCLOSED_LOOP_V1, evaluateSealLoop } from "./sealLoop.js";
 
 export interface SealColumns {
   sealed: boolean | null;
@@ -20,6 +22,9 @@ export interface SealColumns {
   territory_seal_version: number | null;
   territory_sealed: boolean | null;
   territory_seal_reason: string | null;
+  /** Claimable cells (H3 ids, resolution 8 here) and their resolution; null unless the territory seal is true. */
+  territory_claim_units: string[] | null;
+  territory_claim_resolution: number | null;
 }
 
 /** Session metadata for a capture that spans `points`, under the current session rules. */
@@ -33,8 +38,13 @@ export function sessionFor(points: readonly { timestamp: number }[], rulesVersio
  * seal under the pilot loop rule, the fixes reporting 5 m accuracy.
  */
 export function sealColumnsFor(points: readonly { lat: number; lng: number; timestamp: number }[], rulesVersion = SESSION_RULES_VERSION): SealColumns {
-  const loop = evaluateSealLoop(points.map((p) => ({ ...p, accuracy: 5 })), [], ENCLOSED_LOOP_V1);
-  const territory = { territory_seal_version: loop.version, territory_sealed: loop.sealed, territory_seal_reason: loop.reason };
+  const fixes = points.map((p) => ({ ...p, accuracy: 5 }));
+  const loop = evaluateSealLoop(fixes, [], ENCLOSED_LOOP_V1);
+  const cells = claimCellsOf(fixes, loop, { resolution: H3_RESOLUTION });
+  const territory = {
+    territory_seal_version: loop.version, territory_sealed: loop.sealed, territory_seal_reason: loop.reason,
+    territory_claim_units: cells, territory_claim_resolution: cells === null ? null : H3_RESOLUTION,
+  };
   const evaluation = evaluateSealing({
     session: sessionFor(points, rulesVersion),
     points: points.map((p) => ({ latitude: p.lat, longitude: p.lng, timestamp: p.timestamp })),
@@ -61,11 +71,25 @@ export const OPEN_ROUTE: Readonly<SealColumns> = (() => {
   return Object.freeze(c);
 })();
 
-/** The seal columns as an SQL literal list (column order of `SEAL_COLUMNS`), from a real engine result. */
-export function sealLiteral(c: SealColumns): string {
+/**
+ * The seal columns as an SQL literal list (column order of `SEAL_COLUMNS`),
+ * from a real engine result. A fixture that writes its own cells (not the
+ * route the seal was computed on) names the cells its loop encloses as
+ * `claimUnits` (H3 cells, one resolution); without them, or when none is a
+ * valid cell, the result's own claimable cells are written.
+ */
+export function sealLiteral(c: SealColumns, claimUnits?: readonly string[]): string {
   const lit = (v: unknown) => (v === null ? "NULL" : typeof v === "string" ? `'${v.replace(/'/g, "''")}'` : String(v));
   const methods = c.seal_methods === null ? "NULL" : `ARRAY[${c.seal_methods.map(lit).join(", ")}]::text[]`;
-  return `${lit(c.sealed)}, ${methods}, ${lit(c.seal_event_count)}, ${lit(c.rules_version)}, ${lit(c.territory_seal_version)}, ${lit(c.territory_sealed)}, ${lit(c.territory_seal_reason)}`;
+  // Claimable cells exist only on a true territory seal (the database refuses anything else).
+  let units = c.territory_sealed === true ? c.territory_claim_units : null;
+  let res = c.territory_sealed === true ? c.territory_claim_resolution : null;
+  if (c.territory_sealed === true && claimUnits) {
+    const given = [...new Set(claimUnits.filter((u) => isValidCell(u)))];
+    if (given.length > 0) { units = given; res = getResolution(given[0]!); }
+  }
+  const claim = units === null ? "NULL" : `ARRAY[${units.map((u) => BigInt(`0x${u}`).toString(10)).join(", ")}]::bigint[]`;
+  return `${lit(c.sealed)}, ${methods}, ${lit(c.seal_event_count)}, ${lit(c.rules_version)}, ${lit(c.territory_seal_version)}, ${lit(c.territory_sealed)}, ${lit(c.territory_seal_reason)}, ${claim}, ${lit(res)}`;
 }
 
-export const SEAL_COLUMNS = "sealed, seal_methods, seal_event_count, rules_version, territory_seal_version, territory_sealed, territory_seal_reason";
+export const SEAL_COLUMNS = "sealed, seal_methods, seal_event_count, rules_version, territory_seal_version, territory_sealed, territory_seal_reason, territory_claim_units, territory_claim_resolution";

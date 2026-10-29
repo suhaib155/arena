@@ -14,6 +14,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { latLngToCell } from "h3-js";
 import { cellsForObservations } from "@movenrun/shared/h3";
 import { GpsService } from "../services/gps.service.js";
 import { DrizzleMovementVerificationRepository } from "../movement/repositories/drizzle/store.js";
@@ -68,7 +69,7 @@ function pipeline(t: TestDb, withPath: boolean) {
     traversedHexIds: (points: ObservedPoint[]) => cellsForObservations(points.map((p) => ({ latitude: p.lat, longitude: p.lng }))),
     ...(withPath ? { sessionPath: sessionPathFor(VERIFIED_STEPS_V1) } : {}),
     // Both rule sets name sealing v2, so the pipeline computes the territory seal as production would.
-    territorySeal: territorySealFor(ENCLOSED_LOOP_V1),
+    territorySeal: territorySealFor(ENCLOSED_LOOP_V1, withPath ? { resolution: VERIFIED_STEPS_V1.resolution, stepMeters: VERIFIED_STEPS_V1.stepMeters } : { resolution: 8 }),
   });
 }
 
@@ -237,7 +238,7 @@ test("missing, stale, inconsistent or forged seals fail closed", { skip: SKIP },
     await a9db.pool.query("INSERT INTO users (id) VALUES ($1) ON CONFLICT DO NOTHING", [userId]);
     await a9db.pool.query(
       `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(c)})`,
+       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(c, [legacy.traversedHexIds[0]!])})`,
       [`mv-${sid}`, userId, sid, [legacy.traversedHexIds[0]!], at(D, 9) - 1_800_000, at(D, 9), clock]);
     return a9.applySession(userId, sid);
   };
@@ -258,6 +259,54 @@ test("missing, stale, inconsistent or forged seals fail closed", { skip: SKIP },
     assert.equal(await code(forged(`w-${name}`, name, c)), expected, name);
     assert.deepEqual(await territoryOf(a9db, `w-${name}`), NOTHING, name);
   }
+  // Claimable cells at another resolution than the rule set's units (resolution 10 under 1001's resolution 8).
+  const fine = latLngToCell(51.52, -0.1, 10);
+  await a9db.pool.query("INSERT INTO users (id) VALUES ('w-claim-res') ON CONFLICT DO NOTHING");
+  await a9db.pool.query(
+    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
+     VALUES ('mv-claim-res', 'w-claim-res', 'claim-res', 'verified', 3000, 1800, $1, $2, $3, (to_timestamp($4::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, [fine])})`,
+    [[legacy.traversedHexIds[0]!], at(D, 9) - 1_800_000, at(D, 9), clock]);
+  assert.equal(await code(a9.applySession("w-claim-res", "claim-res")), "territory_claim_resolution_mismatch");
+  assert.deepEqual(await territoryOf(a9db, "w-claim-res"), NOTHING);
+  // The database refuses a true territory seal without claimable cells, and claimable cells on an unsealed row.
+  await assert.rejects(a9db.pool.query("UPDATE movement_verifications SET territory_claim_units = NULL WHERE id = 'mv-claim-res'"));
+  await assert.rejects(a9db.pool.query(
+    `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, ${SEAL_COLUMNS})
+     VALUES ('mv-claim-bad', 'w-claim-res', 'claim-bad', 'verified', 3000, 1800, $1, $2, $3, true, ARRAY['return_to_start']::text[], 1, 1, 1, false, 'loop_too_thin', ARRAY[1]::bigint[], 8)`,
+    [[legacy.traversedHexIds[0]!], at(D, 9) - 1_800_000, at(D, 9)]), /movement_verifications_territory_seal/);
+});
+
+test("claim scope: a 2 km stick plus one 100x100 m block claims only the block's units, under 1001 (resolution 8) and 1002 (resolution 10)", { skip: SKIP }, async () => {
+  const L = 2_000;
+  const lollipop: XY[] = [[0, 0], [L, 0], [L, 50], [L + 100, 50], [L + 100, -50], [L, -50], [L, 0], [0, 0]];
+  const origin = { latitude: 51.52, longitude: -0.1 };
+  // Cells (at `res`) of every point of the block, sampled every 2 m: the most the session may claim.
+  const blockCells = (res: number) => {
+    const out = new Set<string>();
+    for (const f of fixesOf(poly([[L - 25, 0], [L, 0], [L, 50], [L + 100, 50], [L + 100, -50], [L, -50], [L, 0]], 2), origin, 1_000)) out.add(latLngToCell(f.lat, f.lng, res));
+    return out;
+  };
+  for (const [t, svc, withPath, res, day, w] of [[a9db, a9, false, 8, D, "c-a9"], [p2db, p2, true, 10, D + 200, "c-p2"]] as const) {
+    clock = at(day, 12);
+    const rec = await submit(t, w, "lollipop", route([lollipop], at(day, 10)), withPath);
+    assert.equal(rec.status, "verified");
+    assert.equal(rec.sealed, true);
+    const stored = (await t.pool.query("SELECT territory_sealed, territory_claim_resolution, territory_claim_units::text[] AS u FROM movement_verifications WHERE id = $1", [rec.id])).rows[0];
+    assert.equal(stored.territory_sealed, true);
+    assert.equal(Number(stored.territory_claim_resolution), res);
+    const r = await svc.applySession(w, "lollipop");
+    assert.ok(r.outcomes.claimed > 0, `${res}: the block claims`);
+    const held = (await t.pool.query("SELECT unit::text AS u FROM gameplay_units WHERE holder_id = $1", [w])).rows
+      .map((x: { u: string }) => BigInt(x.u).toString(16));
+    const allowed = blockCells(res);
+    for (const u of held) assert.ok(allowed.has(u), `${res}: held unit ${u} is not on or in the block`);
+    const sessionUnits = withPath
+      ? Number((await t.pool.query("SELECT cardinality(unit_ids) AS n FROM gameplay_session_paths WHERE movement_verification_id = $1", [rec.id])).rows[0].n)
+      : rec.traversedHexIds.length;
+    assert.ok(held.length < sessionUnits, `${res}: ${held.length} held of ${sessionUnits} session units; the stick claims nothing`);
+    assert.equal(r.applied, held.length);
+  }
+  clock = at(D, 12);
 });
 
 test("concurrent retries: an unsealed session refused five times at once writes nothing; a sealed one applies exactly once", { skip: SKIP }, async () => {

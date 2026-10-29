@@ -58,7 +58,9 @@ async function insertSessionPath(tx: Tx, movementVerificationId: string, path: S
  */
 async function writeTerritorySeal(tx: Tx, movementVerificationId: string, seal: TerritorySealResult): Promise<void> {
   await tx.execute(sql`
-    UPDATE movement_verifications SET territory_seal_version = ${seal.version}, territory_sealed = ${seal.sealed}, territory_seal_reason = ${seal.reason}
+    UPDATE movement_verifications SET territory_seal_version = ${seal.version}, territory_sealed = ${seal.sealed}, territory_seal_reason = ${seal.reason},
+           territory_claim_units = ${seal.claimUnits === null ? null : sql.param(seal.claimUnits.map(cellToInt8))}::bigint[],
+           territory_claim_resolution = ${seal.claimResolution}
      WHERE id = ${movementVerificationId}`);
 }
 

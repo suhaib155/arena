@@ -23,7 +23,7 @@ const DIGEST_1001 = "d4199ec60958750007bfa8884c88aad1bf810aed6bd2a054abb5dc74ffe
  * the one deliberate identity change since 685852b. Without that key the
  * config is the recorded one, byte for byte.
  */
-const DIGEST_1001_SEALING_V2 = "9222df56287d481afd39c0b4296af4f89b8ae0327f4616c3fd1ba43c6da3fb7d";
+const DIGEST_1001_SEALING_V2 = "ff372572d7b754ad6c6dde3dbcc7535f7f62e13e94e718f8424eb0b1e0923bb2";
 const STREAM_FINGERPRINT_1001 = "438a3ea0ddb1ad928a04207634d3b8bdbafc5e9c6f250cde58d58c7ee4148a87";
 
 function prng(seed: number) {
