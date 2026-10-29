@@ -4,7 +4,9 @@
  * "Start exploring" must work with Google and wallet sign-in off, refused,
  * at the account cap or while the account service is down. These checks read
  * the code path: the guest choice is a local first-run transition and touches
- * no identity, Supabase or network code.
+ * no identity, Supabase or network code. This is a static, keyword-based
+ * tripwire: a sign-in reached through a helper with an unlisted name would
+ * not be caught.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
