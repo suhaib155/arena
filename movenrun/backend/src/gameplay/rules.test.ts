@@ -102,7 +102,7 @@ test("0011 is proposed only: not in drizzle/, its journal or its checksums", () 
 
 test("0011 enables RLS on every table it creates, grants nothing to anon or authenticated, and its rollback drops them all", () => {
   const created = [...up.matchAll(/CREATE TABLE IF NOT EXISTS "([a-z_]+)"/g)].map((m) => m[1]!);
-  assert.equal(created.length, 18);  // 17 + the settlement halt log
+  assert.equal(created.length, 22);  // 17 + the halt log, erasure records and fence, resume requests and approvals
   assert.ok(created.includes("gameplay_session_paths"), "revision 3 folds in 1002's session paths");
   for (const t of created) {
     assert.match(up, new RegExp(`ALTER TABLE "${t}" ENABLE ROW LEVEL SECURITY`), t);
