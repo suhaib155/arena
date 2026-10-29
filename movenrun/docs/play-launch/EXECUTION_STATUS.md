@@ -337,6 +337,7 @@ app CTAs (D-35). Done:
   (E-122); the old deployment stays live. Supabase restored and verified
   (E-123). Deploy branch left at `efd381b`. No retry until X-33.
 - #169 to #172 merged, #173 draft (E-124). Restart bug confirmed (E-125, X-34).
+- Later 29 Oct: X-34 decided by the owner and implemented (#176); #173 to #176 merged into the gameplay line (E-126 to E-129). No Render or deploy-branch action; X-33 still required.
 - Report: `reports/MOVENRUN_2026-10-29_STAGING_RETRY_READINESS_NEXT_SPRINT_FINAL_REPORT_efd381b.md`.
 
 ## Open owner decisions
