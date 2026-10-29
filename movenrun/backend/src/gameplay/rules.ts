@@ -134,6 +134,14 @@ export type TakeoverPolicy =
     name: "two-day-challenge"; policyVersion: 2; windowDays: number; floor: number; immediateBelowStrength: number;
     /** The second push must also come this long after the first, by the server's clock (see `SecondPushGap`). */
     secondPush: SecondPushGap;
+    /**
+     * SOURCE-CORRECTNESS FIX (receipt time of a restarted challenge), not byte-identical behaviour: before it, a
+     * challenge that lapsed out of the window and was restarted kept the lapsed row's receipt time, so the 20-hour
+     * gap was measured from the old challenge and a restart late on a day could flip just after midnight. A
+     * restarted challenge (a new first day) is now stamped with its own receipt time; one that stays open keeps its
+     * receipt time. The ruleset config digest does not change (no configuration changed) and rule 1001 has no
+     * second-push gap, so it is untouched.
+     */
   };
 
 /**

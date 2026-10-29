@@ -182,3 +182,5 @@ for s in before after thin3 thin6 distance2 hostile2; do node --import tsx scrip
 ```
 
 Writes `docs/sim/after-authoritative/<scenario>.csv` (mean, sd, min, max, pooled numerator and denominator for each metric and rule set). Tests: `backend/src/gameplay/afterAuthoritative.test.ts`.
+
+> **Note, 29 October 2026.** The 1002 figures in this document and in the committed CSVs under `docs/sim/after-authoritative` and `docs/sim/1003` were produced by code that predates the fix to the receipt time of a restarted challenge. A re-run with the fix changes 1002 rows only (for example blocked honest pushes 41000 / 81012 become 41003 / 81015 on 2 seeds x 30 days); 1001 and 1003 rows are identical. The 1002 figures have not been regenerated and differ slightly from a fresh run. No CSV was edited. `backend/src/gameplay/experiments/ledger1003.ts` (around lines 106 and 115) still keeps a stale opening time for restarted challenges; that is tracked separately and affects the simulation only.
