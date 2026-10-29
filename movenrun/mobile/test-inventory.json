@@ -50,6 +50,7 @@
     "src/lib/__tests__/profileView.test.ts",
     "src/lib/__tests__/questResult.test.ts",
     "src/lib/__tests__/recapView.test.ts",
+    "src/lib/__tests__/releaseCandidateMovementRules.test.ts",
     "src/lib/__tests__/releaseNavigation.test.ts",
     "src/lib/__tests__/releaseScope.test.ts",
     "src/lib/__tests__/responsiveNavigation.test.ts",
