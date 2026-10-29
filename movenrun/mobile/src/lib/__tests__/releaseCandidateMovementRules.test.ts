@@ -71,6 +71,56 @@ test("no app source can name or select the server stationary-risk rule", () => {
   assert.deepEqual(hits.map((f) => relative(MOVENRUN, f)), []);
 });
 
+/**
+ * Names of environment variables a source text reads. Comments are removed
+ * first, so a placeholder named only in a doc comment (for example the
+ * `process.env.SOMETHING` example in mapAvailability.ts) is not a read and
+ * needs no exception. Three read shapes are recognised:
+ *   process.env.NAME, process.env["NAME"] / process.env['NAME'],
+ *   and destructuring: const { NAME, OTHER: alias = "x" } = process.env.
+ * A computed read such as process.env[key] is reported as "<computed>", which
+ * is never in the allow-list.
+ */
+export function envReads(text: string): string[] {
+  const code = text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
+  const names: string[] = [];
+  for (const m of code.matchAll(/process\.env\.([A-Za-z_][A-Za-z0-9_]*)/g)) names.push(m[1]!);
+  for (const m of code.matchAll(/process\.env\[\s*(?:"([^"]*)"|'([^']*)')\s*\]/g)) names.push((m[1] ?? m[2])!);
+  for (const m of code.matchAll(/process\.env\[\s*(?!["'])/g)) {
+    void m;
+    names.push("<computed>");
+  }
+  for (const m of code.matchAll(/\{([^{}]*)\}\s*=\s*process\.env\b(?!\s*[.\[])/g)) {
+    for (const part of m[1]!.split(",")) {
+      const name = part.trim().split(/[\s:=]/)[0];
+      if (name) names.push(name);
+    }
+  }
+  return names;
+}
+
+test("envReads recognises every read shape and ignores comments (pins the check itself)", () => {
+  const positives: Array<[string, string[]]> = [
+    ["const a = process.env.EXPO_PUBLIC_API_URL;", ["EXPO_PUBLIC_API_URL"]],
+    ['const a = process.env["EXPO_PUBLIC_WEB_URL"];', ["EXPO_PUBLIC_WEB_URL"]],
+    ["const a = process.env['SECRET_X'];", ["SECRET_X"]],
+    ["const { SECRET_A } = process.env;", ["SECRET_A"]],
+    ["const { A, B: renamed, C = 'x' } = process.env;", ["A", "B", "C"]],
+    ["let k = 'X'; const a = process.env[k];", ["<computed>"]],
+    ["const a = process.env.lower_case;", ["lower_case"]],
+  ];
+  for (const [sample, expected] of positives) assert.deepEqual(envReads(sample), expected, sample);
+  const negatives = [
+    "/* process.env.SOMETHING */ const a = 1;",
+    "// process.env['SECRET_X']\nconst a = 1;",
+    "/**\n * `app.config` that interpolates `process.env.SOMETHING`\n */\n",
+    'const url = "https://example.test/x"; const b = 2;',
+    "const env = getEnv(); const { A } = env;",
+    "const a = process.environment;",
+  ];
+  for (const sample of negatives) assert.deepEqual(envReads(sample), [], sample);
+});
+
 test("the app reads only the documented public build variables", () => {
   const allowed = new Set([
     "EXPO_PUBLIC_API_URL",
@@ -80,9 +130,8 @@ test("the app reads only the documented public build variables", () => {
   ]);
   const seen = new Set<string>();
   for (const file of [join(MOBILE, "app"), join(MOBILE, "src")].flatMap((d) => sources(d))) {
-    for (const m of readFileSync(file, "utf8").matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/g)) seen.add(m[1]!);
+    for (const name of envReads(readFileSync(file, "utf8"))) seen.add(name);
   }
-  /* SOMETHING is a placeholder inside a doc comment in mapAvailability.ts. */
-  const unexpected = [...seen].filter((name) => !allowed.has(name) && name !== "SOMETHING");
+  const unexpected = [...seen].filter((name) => !allowed.has(name));
   assert.deepEqual(unexpected.sort(), []);
 });

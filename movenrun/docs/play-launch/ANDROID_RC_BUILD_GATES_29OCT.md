@@ -91,14 +91,14 @@ Commands are for the operator. This file runs nothing. Variable and key
 |---|---|---|---|
 | P1 | Choose the commit: the head of this branch (or a successor) whose `mobile-checks` run is green. Its app tree must equal `a2a3eec` plus test and document files only. Record the full SHA | owner | open |
 | P2 | Clean tree: `git status --porcelain` empty; `git rev-parse HEAD` equals P1. GitHub's dispatch builds a branch head, so point a dedicated branch at that SHA and build that branch | owner | open |
-| P3 | Version: `version` 1.0.0 in `app.json` (versionName); no `versionCode` in `app.json`; `appVersionSource: remote`. Preview builds reuse the current remote versionCode; production adds 1 (`autoIncrement`). Check the current value, without building, with `eas build:version:get -p android` | owner | open |
+| P3 | Version: `version` 1.0.0 in `app.json` (versionName); no `versionCode` in `app.json`; `appVersionSource: remote`. Preview builds reuse the current remote versionCode; production adds 1 (`autoIncrement`). Check the current value, without building, with `eas build:version:get -p android`; this is a hosted read and needs an Expo login | owner | open |
 | P4 | Profile: **`preview`** (APK, internal, EAS environment `preview`) for the handset gate, because it installs by `adb` with no Play account. **`production`** (AAB) only after the merge (X-14) and only for Play upload, which is blocked on X-01 | owner | decided by `eas.json` |
 | P5 | EAS environment `preview` holds `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, optionally `EXPO_PUBLIC_WEB_URL`, and `GOOGLE_MAPS_ANDROID_API_KEY` (Sensitive). Check the names in the Expo dashboard; never read the values here | owner (X-08) | not checked |
-| P6 | Keystore: the EAS-managed Android upload keystore for `io.movenrun.app` (D-09). Created or viewed with `eas credentials -p android`; that uses no build. Copy its SHA-1 into the Maps key restriction (X-08) | owner | not checked |
+| P6 | Keystore: the EAS-managed Android upload keystore for `io.movenrun.app` (D-09). Viewed with `eas credentials -p android`, which is interactive; for this gate use it view-only and do NOT generate a new keystore unless the owner has decided to. It uses no build. Copy its SHA-1 into the Maps key restriction (X-08) | owner | not checked |
 | P7 | GitHub secret `EXPO_TOKEN` present and not revoked; for production, GitHub environment `play-release` with a required reviewer (X-09) | owner | not checked |
 | P8 | Providers: Google, then wallet, enabled in Supabase project `movenrun` (X-05); the wallet page served at `movenrun.xyz` (X-21). Without them H-8 is BLOCKED; H-1 to H-7 and H-9 to H-12 can still run | owner | not done |
 | P9 | Backend: decide which API the phone talks to (O-3) | owner | open |
-| P10 | Quota: expo.dev Usage shows Free build allowance left and nothing queued. Budget: **3 Android builds** for this release: 1 preview APK (P11), 1 spare only after a fix commit, 1 production AAB after the merge. Every started build counts, including a failed one | owner | open |
+| P10 | Quota: expo.dev Usage shows Free build allowance left and nothing queued. Budget: **3 Android builds** for this release: 1 preview APK (P11), 1 spare only after a fix commit, 1 production AAB after the merge. Assume every started build counts, including a failed one (Expo billing rules not verified here) | owner | open |
 | P11 | Written owner approval naming the exact SHA and profile (X-04) | owner | **not given** |
 
 ### 4.2 Commands (owner/operator only)
@@ -107,7 +107,7 @@ Commands are for the operator. This file runs nothing. Variable and key
 |---|---|---|
 | C1 | From `movenrun/`: `yarn install --immutable`, then `yarn workspace @movenrun/mobile lint` and `yarn workspace @movenrun/mobile test` | no |
 | C2 | From `movenrun/mobile`: `npx expo export --platform android` and `npx expo prebuild -p android --no-install` in a scratch copy; the manifest checks of `eas-production-aab.yml` (gates job) | no |
-| C3 | `npx eas-cli@24.8.0 credentials -p android` to read the upload certificate fingerprints (P6) | no |
+| C3 | `npx eas-cli@24.8.0 credentials -p android` to read the upload certificate fingerprints (P6); interactive, view-only, do not generate a keystore; needs an Expo login | no |
 | C4 | GitHub, Actions, **EAS APK Build**, Run workflow on the P2 branch. It runs `eas-cli@24.8.0 build -p android --profile preview --non-interactive`. It does **not** run tests, so C1 must be green first | **1 build** |
 | C5 | After the merge: Actions, **EAS Production AAB**, confirm `build`; the `play-release` reviewer approves. Runs lint, tests, Hermes export and the manifest check, then `build -p android --profile production` | **1 build** |
 | C6 | Never: `eas submit`, `eas update`, a second run "to try again", or a local `eas build`. Play upload is a person in the Play Console, blocked on X-01 | n/a |
