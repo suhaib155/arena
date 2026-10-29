@@ -1421,15 +1421,25 @@ export class GameplayService {
   /* ── account erasure (docs/G34_ERASURE_TOMBSTONES.md) ───────────────── */
 
   /**
+   * The erasure fence, taken first in the account deletion transaction, before
+   * the user row is locked. A day close takes the fence before anything else
+   * too, so the two always lock in the same order and cannot deadlock (a close
+   * holding the fence and then needing a key-share lock on rows the deletion
+   * had already locked was a 40P01 cycle).
+   */
+  async takeErasureFence(tx: Tx): Promise<void> {
+    await tx.execute(sql`UPDATE gameplay_erasure_fence SET erasures = erasures + 1`);
+  }
+
+  /**
    * Erasure phase 1, in the account deletion transaction after the user row
-   * is locked and before anything is deleted. Takes the erasure fence (no day
-   * closes until this transaction ends), finds the settled days the person's
+   * is locked and before anything is deleted, with the fence already held (no
+   * day closes until this transaction ends). It finds the settled days the person's
    * data can reach (from the first day any of it touches), and runs the
    * reconciler's full check on each, so a record can only chain from a day
    * that verified.
    */
   async eraseBegin(tx: Tx, userId: string): Promise<ErasurePlan> {
-    await tx.execute(sql`UPDATE gameplay_erasure_fence SET erasures = erasures + 1`);
     const [first] = await rows<{ d: number | null }>(tx, sql`
       SELECT least(
         (SELECT min(day) FROM gameplay_credit_lines WHERE player_id = ${userId}),

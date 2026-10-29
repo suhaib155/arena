@@ -93,19 +93,22 @@ export function createDrizzleAccountDeletionStore(db: Db): AccountDeletionStore 
   return {
     async erase(userId) {
       return db.transaction(async (tx) => {
+        // The gameplay erasure fence comes first, before the account row, in
+        // the same order a day close takes it. A database without 0011 has no
+        // fence and no gameplay relation.
+        const present = await tx.execute(sql`SELECT to_regclass('public.gameplay_erasure_fence') IS NOT NULL AS ok`);
+        const hasGameplay = Boolean((present.rows[0] as { ok?: boolean } | undefined)?.ok);
+        if (hasGameplay) await erasureService(db).takeErasureFence(tx);
+
         // Lock the account row. Two deletion requests serialise on it, and a
         // session or identity insert for this user (its foreign-key check takes
         // a key-share lock) waits for the erase and then fails, so no new
         // sign-in can survive the deletion.
         const locked = await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
 
-        // Gameplay erasure, phase 1, before anything is deleted. A database
-        // without 0011 has no gameplay relation and this step does nothing.
+        // Gameplay erasure, phase 1, before anything is deleted.
         let gameplay: ErasurePlan | null = null;
-        if (locked.length) {
-          const present = await tx.execute(sql`SELECT to_regclass('public.gameplay_erasure_fence') IS NOT NULL AS ok`);
-          if ((present.rows[0] as { ok?: boolean } | undefined)?.ok) gameplay = await erasureService(db).eraseBegin(tx, userId);
-        }
+        if (locked.length && hasGameplay) gameplay = await erasureService(db).eraseBegin(tx, userId);
 
         const emailRows = await tx
           .select({ subject: authIdentities.providerSubject, email: authIdentities.normalizedEmail, provider: authIdentities.provider })

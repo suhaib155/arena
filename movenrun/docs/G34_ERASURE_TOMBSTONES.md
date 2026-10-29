@@ -14,8 +14,8 @@ Directive 28 Oct 2026, section 5 items 2, 5 and 6. This closes three problems #1
 
 Account deletion (`identity/accountDeletion.ts`) runs a two-phase gameplay erasure step inside its one transaction. The step runs whenever the 0011 tables exist, whatever the flag says. On a database without 0011 it does nothing (one catalog lookup).
 
+0. **Fence.** The deletion transaction first takes the erasure fence (`gameplay_erasure_fence`, one row, `UPDATE`), before it locks the user row.
 1. **Begin** runs after the user row is locked and before anything is deleted.
-   - It takes the erasure fence (`gameplay_erasure_fence`, one row, `UPDATE`).
    - It finds the first day any of the person's data touches: their lines, memberships, sessions, ledger rows as walker or holder, unit day states and proofs.
    - For every settled day from then on, it runs the reconciler's full check (`verifyDayIn`) and notes the day's current digest head.
 2. The existing deletion removes the person's movement sessions. Their 1002 session paths cascade with them.
@@ -86,6 +86,7 @@ All four codes make `verifyDayOrHalt` halt.
 ### 1.5 Concurrency
 
 - **Settlement.** Every day close takes the fence `FOR SHARE` inside its serializable transaction, and erasure `UPDATE`s it.
+  - Both take the fence before any other row lock, so they cannot deadlock. An earlier version locked the user row first; under CI's parallel load a close holding the fence then needed a lock the deletion held, and the database aborted the deletion with 40P01.
   - A close that starts during an erasure waits.
   - A close whose snapshot predates a committed erasure fails with 40001 and is retried afresh. The existing retry loop handles this.
   - So no day settles from inputs that an erasure is changing.
