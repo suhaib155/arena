@@ -142,6 +142,11 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-113 | M | 23 Oct docs #139 f0fb32fd3ce09f41276d90b7c719e89339fec5bc, #141 1a9431d75be362e55c10bf538c65017e89319838, #142 4eeeb51803d9a53e51288f2835c26e55c4e74299 | Rendered claims audit (10 hits); deletion page says pending; H-1..H-12 worksheet all NOT RUN; Play declarations workbook with official help pages fetched 23 Oct | UI freeze, website promote, X-01 |
 | E-114 | O | 23 Oct 11:40Z hosted re-check refused | Remote sandbox returned 403 and this workspace's egress proxy refused onrender.com and movenrun.xyz. Not retried by another route. Render, website and providers stay UNKNOWN/REVERIFY since 18 Oct | Reverify |
 | E-115 | O | 23 Oct 00:35Z-10:43Z Vercel Hobby daily cap (api-deployments-free-per-day) | Reached on arena, then movenrun-website, arena-pchb, arena-qg9n, arena-vv61. Previews fail; production dpl_ABCfgjsFiJ4DHtRnrLPCc8npLAuD untouched | X-29 |
+| E-116 | CI | 28 Oct security staging candidate #162, code efd381b | CI runs 40764349297, 40764349298, 40764349310 green; backend 486/0/0 `--strict`, test:api 20/0/0 on fresh PG16. Independent review accepted. Draft, not merged, not deployed | X-30 |
+| E-117 | CI | 28 Oct gameplay merges into `feat/g34-server-holdings` (non-deploying) | #164 (CI 40766204444), #165 (CI 40765657829), #167 (CI 40802448555), #168 (CI 40804354697, 40804354701); head 224a49e. Flag off, 0011 unapplied | X-31 |
+| E-118 | B | 28 Oct settlement/erasure deadlock (40P01) found in CI on #167 | Lock-order inversion between erasure and settlement; fixed by taking the erasure fence before the user row lock (1a5d86e). 641/641 c=1, 625/625 parallel | — |
+| E-119 | O | 28 Oct about 20:42Z Vercel Hobby daily cap reached again | Same five projects as E-115. Previews fail; production dpl_ABCfgjsFiJ4DHtRnrLPCc8npLAuD untouched | X-29 |
+| E-120 | B | 0011 hashes after #168 | up 709ff82ab51d2cc6f1800488f3859aaebcd6916bf11052a8bf64877e1fa72951, down 276cd12bea47e5514b187bbba9b65d0c8fa1560a3363009293e2d12107c5b2f3 (supersede E-110). Still unapplied | X-31 |
 
 ## Evidence level by capability
 

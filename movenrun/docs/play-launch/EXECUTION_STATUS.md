@@ -317,6 +317,19 @@ app CTAs (D-35). Done:
   pending.
 - Report: `reports/MOVENRUN_2026-10-23_SECURITY_MOVEMENT_GAMEPLAY_FINAL_REPORT_6429a30.md`.
 
+## Checkpoint 2026-10-28
+
+- Security staging candidate #162 (code efd381b) green and reviewed; draft,
+  not deployed. Blocked on X-30 (name-only check of two legacy variables),
+  then an exact-SHA staging approval (E-116).
+- Android QA0 source candidate #161; stationary-risk rule #166 off by default.
+- Gameplay: #164, #165, #167, #168 merged into `feat/g34-server-holdings`
+  (224a49e, E-117). Deadlock found and fixed (E-118). Flag off; 0011 hashes
+  changed again (E-120), still unapplied.
+- Contracts: #163 research only.
+- Vercel daily cap hit again (E-119, X-29). Hosted checks not re-run.
+- Report: `reports/MOVENRUN_2026-10-28_SECURITY_RELEASE_PRODUCT_CONTINUATION_FINAL_REPORT_efd381b.md`.
+
 ## Open owner decisions
 
 - X-01a: Play account type, chosen truthfully (Personal unless MovenRun is a
