@@ -156,6 +156,33 @@ does not accumulate bloat on its own in this run.
   erasures and must simply try again next tick (it does, as `settleDueDays` re-selects unsettled days); worth knowing
   when reading logs. This is one observation each, not a rate.
 
+## After the fence-order fix (re-run, 29 Oct)
+
+Cause of the 40001s above: the day close took its advisory day lock (a query, which fixes a SERIALIZABLE snapshot)
+before the fence row `FOR SHARE`. Every erasure that committed while the close waited on the fence aborted it ("could
+not serialize access due to concurrent update", logged on `SELECT 1 FROM gameplay_erasure_fence FOR SHARE` in a base
+re-run, five times, then the raw 40001 reached the caller on D+3 under 1001). The close now takes
+`LOCK TABLE gameplay_erasure_fence IN SHARE MODE` before any query, so its snapshot is taken after the erasures ahead of
+it have committed, and remaining contention is retried with bounded, jittered backoff and a typed
+`settlement_retry_exhausted` outcome (`docs/G34_ERASURE_TOMBSTONES.md` section 1.5).
+
+Re-run on the same kind of throwaway local cluster, same seed, one run per rule set:
+
+| | 1001 | 1002 |
+|---|---|---|
+| 40001 in the server log | 0 | 0 |
+| 40P01 / `pg_stat_database.deadlocks` delta | 0 / 0 | 0 / 0 |
+| conc10 settlement, all three days settled in the burst | yes | yes |
+| conc10 phase wall | 1.71 s | 2.64 s |
+| conc10 per-erasure p50 / max | 874 / 1,649 ms | 1,292 / 2,526 ms |
+| erasure errors | 0 / 10 | 0 / 10 |
+| verifyDay after conc10 | all 6 days pass | all 6 days pass |
+| halted | no | no |
+
+The close now waits for the erasures queued ahead of it instead of failing and retrying, so one day's close in conc10
+took 1.1 to 1.6 s (the queue), and the follow-up "next tick" pass found nothing left to settle. One run each, not a rate;
+the deterministic evidence is `backend/src/gameplay/settlementErasureRace.pg.test.ts`.
+
 ## Caveats
 
 - Local, one machine, one run per rule set; concurrency outcomes (who wins the fence, whether the settlement exhausts
