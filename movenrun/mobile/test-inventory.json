@@ -48,6 +48,7 @@
     "src/lib/__tests__/pressLayout.test.ts",
     "src/lib/__tests__/privacyTruth.test.ts",
     "src/lib/__tests__/profileView.test.ts",
+    "src/lib/__tests__/queryStringReachability.test.ts",
     "src/lib/__tests__/questResult.test.ts",
     "src/lib/__tests__/recapView.test.ts",
     "src/lib/__tests__/releaseCandidateMovementRules.test.ts",
