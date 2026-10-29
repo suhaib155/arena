@@ -97,6 +97,28 @@ test("C: incidental erosion at reduced strength still opens the challenge; past 
   assert.equal(s0.get("u")!.holderId, "y");
 });
 
+test("a restarted challenge takes the new session's receipt time in the simulation ledger, around midnight; a same-day challenge keeps its first time", () => {
+  const MS_DAY = 86_400_000;
+  const key = "u\u0000y";
+  const oldAt = DAY * MS_DAY + 10 * H;
+  const restartDay = DAY + 4; // past the 3-day window, so the old challenge lapsed
+  // The soft path (C past its budget) only handles deliberate returns inside the window, which never restart a challenge, so only the normal path is reachable.
+  for (const [name, exp, used] of [["A, budget open", RULES_1003A, 0], ["A, budget used up (first contact is free)", RULES_1003A, 13], ["C0", RULES_1003C0, 0]] as const) {
+    for (const at of [restartDay * MS_DAY - 1_000, restartDay * MS_DAY, restartDay * MS_DAY + 1_000]) {
+      const states = new Map([["u", held("u", "x", 100, DAY, { challenges: [{ walkerId: "y", day: DAY }], pushedBy: { day: DAY, walkerIds: ["y"] } })]]);
+      const opened = new Map([[key, oldAt]]);
+      step(exp, states, [ev(1, "u", "y", restartDay)], used, at, opened);
+      assert.deepEqual(states.get("u")!.challenges, [{ walkerId: "y", day: restartDay }], `${name}: challenge restarted`);
+      assert.equal(opened.get(key), at, `${name}: opening time is the restarting session's receipt time (${at - restartDay * MS_DAY} ms from midnight)`);
+    }
+    // Control: a return inside the window keeps the challenge's first day and its first receipt time.
+    const states = new Map([["u", held("u", "x", 100, DAY, { challenges: [{ walkerId: "y", day: DAY }], pushedBy: { day: DAY, walkerIds: ["y"] } })]]);
+    const opened = new Map([[key, oldAt]]);
+    step(exp, states, [ev(2, "u", "y", DAY + 1)], used, (DAY + 1) * MS_DAY + 5 * H, opened);
+    assert.equal(opened.get(key), oldAt, `${name}: same first day keeps the first receipt time`);
+  }
+});
+
 test("the one-push-per-walker-per-unit-per-day rule holds under every variant, with or without budget left, and never counts", () => {
   for (const exp of EXPERIMENTS_1003) for (const used of [0, 13]) {
     const states = new Map([["u", held("u", "x", 100, DAY)]]);

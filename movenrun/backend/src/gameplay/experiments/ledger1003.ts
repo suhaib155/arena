@@ -101,6 +101,7 @@ export function applySession1003(input: Session1003Input): Session1003Result {
       // Soft budget: the push applies at reduced strength and never flips.
       const s = weakened(decayed, e.walkerId, e.day, b.softStrength ?? 25, windowDays, after.pushedBy);
       states.set(e.unitId, s);
+      // A soft push is deliberate, so the walker's challenge is already open inside the window and keeps its first day: it is never restarted here.
       const key = challengeKey(e.unitId, e.walkerId);
       if (!opened.has(key)) opened.set(key, input.receivedMs);
       entries.push({ ...base, cls: deliberate ? "contested" : "pass_through", outcome: "eroded", blocked: "soft", counted: false });
@@ -112,7 +113,8 @@ export function applySession1003(input: Session1003Input): Session1003Result {
       next = { ...after, strength: Math.min(decayed.strength, Math.max(after.strength, decayed.strength - cut)) };
     }
     states.set(e.unitId, next);
-    for (const [k, v] of trial.challengeOpenedMs) if (!opened.has(k)) opened.set(k, v);
+    // The step keeps the stored time for a challenge with the same first day and sets a new one for a challenge it opened or restarted.
+    for (const [k, v] of trial.challengeOpenedMs) opened.set(k, v);
     if (counted) used += 1;
     entries.push({ ...base, cls, outcome: entry.outcome, blocked: null, counted });
   }
