@@ -192,7 +192,9 @@ export function applyServerLedger(input: ServerLedgerInput): ServerLedgerResult 
     }
     const after = one.states.get(event.unitId)!;
     states.set(event.unitId, after);
-    if (input.secondPush && after.challenges?.some((c) => c.walkerId === event.walkerId) && !before?.challenges?.some((c) => c.walkerId === event.walkerId)) {
+    const was = before?.challenges?.find((c) => c.walkerId === event.walkerId);
+    const now = after.challenges?.find((c) => c.walkerId === event.walkerId);
+    if (input.secondPush && now && (!was || was.day !== now.day)) {
       const at = input.secondPush.eventReceivedMs.get(event.eventId);
       if (at !== undefined) opened.set(challengeKey(event.unitId, event.walkerId), at);
     }
