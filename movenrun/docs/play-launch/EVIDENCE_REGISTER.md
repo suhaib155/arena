@@ -147,6 +147,11 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-118 | B | 28 Oct settlement/erasure deadlock (40P01) found in CI on #167 | Lock-order inversion between erasure and settlement; fixed by taking the erasure fence before the user row lock (1a5d86e). 641/641 c=1, 625/625 parallel | — |
 | E-119 | O | 28 Oct about 20:42Z Vercel Hobby daily cap reached again | Same five projects as E-115. Previews fail; production dpl_ABCfgjsFiJ4DHtRnrLPCc8npLAuD untouched | X-29 |
 | E-120 | B | 0011 hashes after #168 | up 709ff82ab51d2cc6f1800488f3859aaebcd6916bf11052a8bf64877e1fa72951, down 276cd12bea47e5514b187bbba9b65d0c8fa1560a3363009293e2d12107c5b2f3 (supersede E-110). Still unapplied | X-31 |
+| E-121 | O | 29 Oct 06:19Z owner message | X-30 cleared: both variable names absent in the full Render Environment list, checked by names only, no values seen | X-30 |
+| E-122 | O | 29 Oct staging deploy dep-dbhn0cugekts73bn7hig (code efd381b) | Build succeeded; `db:migrate` failed with `tenant/user not found` because the Supabase project was paused. No migration ran. Previous deployment dep-db9m51qjnfac73cqh6eg stays live. Hosted smoke tests not run (remote shell 403, not worked around) | X-33 |
+| E-123 | O | 29 Oct after Supabase restore | Project ACTIVE_HEALTHY; 11 rows in drizzle.__drizzle_migrations, hashes equal CHECKSUMS.sha256; deploy branch at efd381b; rollback target live | X-33 |
+| E-124 | CI | 29 Oct #169 (a2a3eec), #170 (1aad4a0), #171 (71f4fff), #172 (662dc04) merged | Real check runs green on the exact heads; strict suite 76 files, 665 tests, 0 skipped on the gameplay line | |
+| E-125 | B | 29 Oct restart bug, found reviewing #173 (41d1bdf) | Challenge restarted late on a day keeps the old receipt time; a push just after midnight flips it. Reproduced in both write modes. Trial fix about 7 added lines in policy.ts and service.ts, not applied. Changes 1002 behaviour, digest unchanged; 1001 unaffected | X-34 |
 
 ## Evidence level by capability
 

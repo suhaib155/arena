@@ -330,13 +330,22 @@ app CTAs (D-35). Done:
 - Vercel daily cap hit again (E-119, X-29). Hosted checks not re-run.
 - Report: `reports/MOVENRUN_2026-10-28_SECURITY_RELEASE_PRODUCT_CONTINUATION_FINAL_REPORT_efd381b.md`.
 
+## 29 Oct checkpoint
+
+- X-30 cleared by the owner (E-121). The one approved staging deployment of
+  `efd381b` failed at `db:migrate` because the Supabase project was paused
+  (E-122); the old deployment stays live. Supabase restored and verified
+  (E-123). Deploy branch left at `efd381b`. No retry until X-33.
+- #169 to #172 merged, #173 draft (E-124). Restart bug confirmed (E-125, X-34).
+- Report: `reports/MOVENRUN_2026-10-29_STAGING_RETRY_READINESS_NEXT_SPRINT_FINAL_REPORT_efd381b.md`.
+
 ## Open owner decisions
 
 - X-01a: Play account type, chosen truthfully (Personal unless MovenRun is a
   registered entity with a D-U-N-S number).
 - X-05 approval (X-06, X-07 and X-21 done).
 - X-25 retention matrix; G0 decisions D1–D13.
-- X-30 Render name-only check and P0 staging deploy; X-31 gameplay decisions;
+- X-33 new staging deployment authorization; X-31 and X-34 gameplay decisions;
   X-32 dependency exception before 21 Nov.
 
 ## Safety record
