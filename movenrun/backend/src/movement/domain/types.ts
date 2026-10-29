@@ -1,5 +1,6 @@
 import type { SessionMetadata } from "@movenrun/shared/session";
 import type { SealEvaluation, SealMethod } from "@movenrun/shared/sealing";
+import type { StationaryRiskAssessment } from "./stationaryRisk.js";
 
 /**
  * Movement-verification domain vocabulary.
@@ -85,6 +86,12 @@ export interface MovementVerificationResult {
    * {@link sealSummary}, which carries no indices and no geometry.
    */
   sealEvaluation: SealEvaluation | null;
+  /**
+   * The stationary-risk assessment that withheld the verdict, when a selected
+   * rule did (transient, not stored: aggregates only, no geometry). Absent
+   * when the rule is off or the route was judged eligible.
+   */
+  stationaryRisk?: StationaryRiskAssessment;
 }
 
 /**

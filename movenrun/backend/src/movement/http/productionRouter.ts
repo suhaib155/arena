@@ -23,6 +23,7 @@ import { MovementVerificationService } from "../services/movementVerification.se
 import { createMovementRouter } from "./router.js";
 import { createWriteRateLimiter } from "../../middleware/rateLimit.js";
 import type { MovementObservation, ObservedPoint } from "../domain/types.js";
+import { parseStationaryRiskRule, STATIONARY_RISK_RULE_ENV } from "../domain/stationaryRisk.js";
 
 /** GpsService speaks the shared GPSRoute shape; only points/startTime/endTime
  *  are read by validateRoute and calculateDistance, so the chain-specific
@@ -102,6 +103,9 @@ export function createProductionMovementRouter(
     detectAnomalies: (observation) => detectMovementAnomalies(gps, observation),
     calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
     traversedHexIds: (points: ObservedPoint[]) => hex.getHexIdsForPoints(points),
+    // Versioned stationary-risk rule. Unset = off (current live behaviour);
+    // an unrecognised value refuses to start rather than guessing.
+    stationaryRiskRule: parseStationaryRiskRule(process.env[STATIONARY_RISK_RULE_ENV]),
   });
 
   return createMovementRouter({
