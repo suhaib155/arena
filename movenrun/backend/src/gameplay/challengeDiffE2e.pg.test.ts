@@ -22,9 +22,6 @@
  * diff mode is covered at the writeChallenges level by challengeDiff.pg.test.ts; here the
  * route is shown to fail closed and leave the rows untouched.
  *
- * The two KNOWN BUG todo tests at the end of this file (a restarted challenge keeps the lapsed receipt time) are
- * covered by the branch fix/g34-challenge-restart-receipt-time; this file keeps them as todo until that fix lands.
- *
  * Skipped, loudly, without MOVENRUN_TEST_DATABASE_URL. Synthetic ids and cells only.
  */
 import { test, before, after } from "node:test";
@@ -289,8 +286,6 @@ async function scenario(mode: ChallengeWriteMode): Promise<void> {
     assert.equal((await walk(ben, "ben-d4", 9.5, [u1, u2], D + 4)).body.outcomes.eroded, 2);
     const afterDay = await h.q(PHYS);
     assert.deepEqual(logical(afterDay).map((r) => `${r.walker_id}:${r.first_day}`).sort(), [`${ben}:${D + 4}`, `${ben}:${D + 4}`]);
-    // NOT asserted here: the receipt time of a restarted challenge. It keeps the old row's time in both modes
-    // (see the KNOWN BUG test at the end of this file).
     assert.ok(afterDay.every((r) => r.hv === 1002));
     if (mode === "diff") {
       // Same keys as before: updated in place by key (first_day), not deleted and re-inserted.
@@ -420,15 +415,12 @@ test("default and diff modes give identical logical results at every step", { sk
 });
 
 /**
- * KNOWN BUG (found by this suite, present in both write modes, not caused by the diff mode): a challenge that
- * lapsed out of the window and is restarted keeps the OLD row's opened_received_at, because service.ts reuses
- * `openedBefore` for any key that still has a row (service.ts openedAt, around line 878) and policy.ts only
- * records a new receipt time when the walker had no row at all (policy.ts, applyServerLedger, around line 195).
- * The 20-hour second-push gap is then measured from the lapsed challenge, so a restart at 23:50 can be completed
- * by a push at 00:20. Marked todo so the suite stays green while the report is open; remove `todo` with the fix.
+ * A challenge that lapsed out of the window and is restarted is stamped with its own receipt time, so the 20-hour
+ * second-push gap is measured from the restart, not from the lapsed challenge. A restart at 23:50 must not be
+ * completable by a push at 00:20 (midnight boundary), in both write modes.
  */
 for (const mode of MODES) {
-  test(`KNOWN BUG (${mode}): a restarted challenge measures the 20-hour gap from its own restart, not from the lapsed one`, { skip: SKIP, todo: "restarted challenge keeps the lapsed receipt time (service.ts openedAt / policy.ts applyServerLedger)" }, async () => {
+  test(`(${mode}): a restarted challenge measures the 20-hour gap from its own restart, not from the lapsed one`, { skip: SKIP }, async () => {
     const h = await harness(mode);
     try {
       const [ana, ben] = await Promise.all(["ana", "ben"].map(h.user));

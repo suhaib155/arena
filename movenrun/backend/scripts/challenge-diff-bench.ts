@@ -113,6 +113,20 @@ async function readStat(q: Q): Promise<StatRow> {
   return { ins: Number(r.n_tup_ins), upd: Number(r.n_tup_upd), del: Number(r.n_tup_del), hot: Number(r.n_tup_hot_upd), dead: Number(r.n_dead_tup) };
 }
 
+/** Baseline read: polls (every 500 ms, up to 20 s) until the ins+upd+del total is unchanged for three reads. */
+async function settledBaseline(q: Q): Promise<StatRow> {
+  const total = (s: StatRow) => s.ins + s.upd + s.del;
+  let last = await readStat(q), stable = 0;
+  const started = performance.now();
+  while (performance.now() - started < 20_000 && stable < 3) {
+    await sleep(500);
+    const now = await readStat(q);
+    stable = total(now) === total(last) ? stable + 1 : 0;
+    last = now;
+  }
+  return last;
+}
+
 /**
  * Counter deltas after the timed loop. Polls (every 500 ms, up to 20 s) until the ins+upd+del total has moved
  * and then stayed unchanged for three consecutive reads. Returns the deltas and the method, or "not measured"
@@ -161,7 +175,7 @@ async function run(mode: ChallengeWriteMode, w: ReturnType<typeof workload>) {
     await q(`VACUUM (ANALYZE) gameplay_unit_challenges`);
     let checkpoint = "done";
     try { await q("CHECKPOINT"); } catch (e) { checkpoint = `not permitted (${(e as { code?: string }).code})`; }
-    const stat0 = await readStat(q);
+    const stat0 = await settledBaseline(q);
     const lsn0 = (await q(`SELECT pg_current_wal_lsn() AS l`))[0].l as string;
     const started = performance.now();
     for (const b of w.batches) await t.db.transaction((tx) => writeChallenges(tx, mode, b.units, b.open, HV));
