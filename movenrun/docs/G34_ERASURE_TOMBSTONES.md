@@ -85,10 +85,11 @@ All four codes make `verifyDayOrHalt` halt.
 
 ### 1.5 Concurrency
 
-- **Settlement.** Every day close takes the fence `FOR SHARE` inside its serializable transaction, and erasure `UPDATE`s it.
-  - Both take the fence before any other row lock, so they cannot deadlock. An earlier version locked the user row first; under CI's parallel load a close holding the fence then needed a lock the deletion held, and the database aborted the deletion with 40P01.
-  - A close that starts during an erasure waits.
-  - A close whose snapshot predates a committed erasure fails with 40001 and is retried afresh. The existing retry loop handles this.
+- **Settlement.** Every day close first takes `LOCK TABLE gameplay_erasure_fence IN SHARE MODE`, as the first statement of its serializable transaction, then the day's advisory lock, then the fence row `FOR SHARE`. Erasure `UPDATE`s the fence row, which takes the table's ROW EXCLUSIVE lock; SHARE and ROW EXCLUSIVE conflict.
+  - Both take the fence before any other lock (a close before its day lock, an erasure before the account row and the day locks of its replays), so they cannot deadlock. An earlier version locked the user row first; under CI's parallel load a close holding the fence then needed a lock the deletion held, and the database aborted the deletion with 40P01.
+  - `LOCK TABLE` is not a query, so the close's snapshot is taken only after the lock is granted. A close that starts during an erasure waits, and then sees that erasure's result in its snapshot. No erasure can commit while the close runs. Two closes do not block each other on the fence.
+  - Until 29 Oct the close took the advisory lock (a query, so the snapshot) first and the fence row second. Every erasure that committed while the close waited then aborted it with 40001. With ten erasures queued, the five immediate retries ran out (the 200-player erasure benchmark). The test `settlementErasureRace.pg.test.ts` forces that interleaving with five erasures: before, five attempts and a raw 40001; now, one attempt.
+  - A close can still lose to another serializable transaction (40001) or a deadlock (40P01). It is then retried at most five times in all, with capped exponential backoff and full jitter (50 ms doubling to 1 s, at most 10 s overall). When that runs out it fails with `SettlementRetryExhaustedError` (503 `settlement_retry_exhausted`), having written nothing. Settlement is not halted for it, and the next day-close run selects the day again.
   - So no day settles from inputs that an erasure is changing.
 - **Two erasures** serialise on the fence. Two deletions of the same account serialise on the user row lock. The second sees no user and does nothing.
 - **Pushes.** A push by the person being erased waits on the user row through its foreign key, and then fails.
