@@ -99,7 +99,7 @@ export interface ServerLedgerResult {
   takesUsed: Map<string, number>;
   /** Units this batch counted against each walker's unit budget: every applied push, refusals included. */
   unitsUsed: Map<string, number>;
-  /** With `secondPush`: receipt times of open challenges after the batch (input ones plus any opened by it). */
+  /** With `secondPush`: receipt times of open challenges after the batch (input ones, whose stored receipt time is kept only for a challenge with the same first day, plus any opened or restarted by it, which take a new receipt time). */
   challengeOpenedMs: Map<string, number>;
 }
 
@@ -192,7 +192,9 @@ export function applyServerLedger(input: ServerLedgerInput): ServerLedgerResult 
     }
     const after = one.states.get(event.unitId)!;
     states.set(event.unitId, after);
-    if (input.secondPush && after.challenges?.some((c) => c.walkerId === event.walkerId) && !before?.challenges?.some((c) => c.walkerId === event.walkerId)) {
+    const was = before?.challenges?.find((c) => c.walkerId === event.walkerId);
+    const now = after.challenges?.find((c) => c.walkerId === event.walkerId);
+    if (input.secondPush && now && (!was || was.day !== now.day)) {
       const at = input.secondPush.eventReceivedMs.get(event.eventId);
       if (at !== undefined) opened.set(challengeKey(event.unitId, event.walkerId), at);
     }

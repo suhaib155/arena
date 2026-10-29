@@ -789,6 +789,7 @@ export class GameplayService {
         FROM gameplay_unit_challenges
        WHERE unit = ANY(${arr(unitInts)}::bigint[]) ORDER BY unit, walker_id`);
     const openedBefore = new Map(challengeRows.map((c) => [challengeKey(int8ToCell(c.unit), c.walker_id), Number(c.opened_ms)]));
+    const firstDayBefore = new Map(challengeRows.map((c) => [challengeKey(int8ToCell(c.unit), c.walker_id), Number(c.first_day)]));
     const receivedAt = opts.receivedMs ?? now;
 
     // 1002's day-boundary guard: when the server received the session that opened each open challenge.
@@ -873,15 +874,16 @@ export class GameplayService {
           holder_no = EXCLUDED.holder_no, strength = EXCLUDED.strength, shade = EXCLUDED.shade, deeded = EXCLUDED.deeded,
           masked = EXCLUDED.masked, level = EXCLUDED.level, fortified = EXCLUDED.fortified, holding_rules_version = EXCLUDED.holding_rules_version`);
       // The touched units' open challenges, replaced as the model left them.
-      // A challenge that was already open keeps its receipt time; a new one
-      // takes this batch's server receipt time.
-      const openedAt = (unitId: string, walkerId: string): number => {
+      // A stored receipt time is kept only for a challenge that was already
+      // open with the same first day; a new or restarted challenge takes a
+      // new receipt time (this batch's server receipt time).
+      const openedAt = (unitId: string, walkerId: string, day: number): number => {
         const k = challengeKey(unitId, walkerId);
-        if (openedBefore.has(k)) return openedBefore.get(k)!;
+        if (openedBefore.has(k) && firstDayBefore.get(k) === day) return openedBefore.get(k)!;
         return ledger.challengeOpenedMs.get(k) ?? receivedAt;
       };
       const open = next.flatMap((s) => (s.challenges ?? []).map((c) => ({
-        unit: cellToInt8(s.unitId), walkerId: c.walkerId, day: c.day, openedMs: openedAt(s.unitId, c.walkerId),
+        unit: cellToInt8(s.unitId), walkerId: c.walkerId, day: c.day, openedMs: openedAt(s.unitId, c.walkerId, c.day),
       })));
       await writeChallenges(tx, this.challengeWrites, cols.unit, open, hv);
     }

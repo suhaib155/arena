@@ -24,6 +24,20 @@ const WALLET = new ethers.Wallet(TEST_PK);
 const OTHER_WALLET = ethers.Wallet.createRandom();
 const CHAIN_ID = 84532n;
 
+/**
+ * Returns a signature that is guaranteed to differ in its r component (bytes
+ * 1..32), so it can never decode to the same (r, s, v) triple as the input.
+ * Replacing the trailing hex digits instead is unsafe: the last byte is the
+ * recovery id v, and ethers accepts 27/28, 0/1 and >= 35 encodings, so a
+ * suffix such as "dead" (v = 0xad = 173, normalised to 27) leaves a signature
+ * ending in "de1b" fully valid.
+ */
+function corruptSignature(sig: string): string {
+  const i = 10; // inside r
+  const flipped = sig[i] === "0" ? "1" : "0";
+  return sig.slice(0, i) + flipped + sig.slice(i + 1);
+}
+
 interface Eligibility {
   isEligible: boolean;
   topMover: string;
@@ -131,7 +145,7 @@ test("POST /zones/mint rejects a bad signature and produces no oracle signature"
 
   await withTestServer(app, async (base) => {
     const headers = await buildAuthHeaders({ wallet: WALLET, method: "POST", path: "/zones/mint", body, chainId: CHAIN_ID });
-    headers["x-movenrun-signature"] = headers["x-movenrun-signature"].slice(0, -4) + "dead";
+    headers["x-movenrun-signature"] = corruptSignature(headers["x-movenrun-signature"]);
     const res = await fetch(`${base}/zones/mint`, {
       method: "POST",
       headers: { "content-type": "application/json", ...headers },
@@ -181,5 +195,59 @@ test("POST /zones/mint: valid auth but not the top mover is rejected before sign
     assert.equal(res.status, 403);
   });
 
+  assert.equal(signed, 0);
+});
+
+test("signature mutation helper: the old 'dead' suffix is a no-op for signatures ending in de1b, corruptSignature never is", async () => {
+  // Signing is deterministic (RFC 6979), so grinding the message finds, for the
+  // fixed test key, a signature whose last two bytes are 0xde 0x1b (about 1 in
+  // 512). The previous mutation turned exactly these into a still-valid signature.
+  let message = "";
+  let sig = "";
+  for (let n = 0; n < 200_000; n++) {
+    message = `grind-${n}`;
+    sig = await WALLET.signMessage(message);
+    if (sig.endsWith("de1b")) break;
+  }
+  assert.ok(sig.endsWith("de1b"), "found a signature ending in de1b");
+
+  const oldMutation = sig.slice(0, -4) + "dead";
+  assert.notEqual(oldMutation, sig, "string differs");
+  assert.equal(ethers.verifyMessage(message, oldMutation), WALLET.address, "old mutation still verifies (the flake)");
+
+  const fixed = corruptSignature(sig);
+  assert.notEqual(fixed, sig);
+  assert.notEqual(ethers.Signature.from(fixed).r, ethers.Signature.from(sig).r);
+  let recovered: string | null = null;
+  try {
+    recovered = ethers.verifyMessage(message, fixed);
+  } catch {
+    recovered = null;
+  }
+  assert.notEqual(recovered, WALLET.address, "corrupted signature must not verify as the signer");
+});
+
+test("POST /zones/mint rejects a corrupted signature even when the original ends in de1b", async () => {
+  let signed = 0;
+  const app = buildMirrorApp({ checkEligibility: () => {}, sign: () => signed++ }, ELIGIBLE);
+  const body = { hexId: "8a2a1072b59ffff", walletAddress: WALLET.address };
+  const issuedAt = Date.now();
+
+  let headers: Record<string, string> = {};
+  for (let n = 0; n < 200_000; n++) {
+    headers = await buildAuthHeaders({ wallet: WALLET, method: "POST", path: "/zones/mint", body, chainId: CHAIN_ID, nonce: `grind-${n}`, issuedAt });
+    if (headers["x-movenrun-signature"].endsWith("de1b")) break;
+  }
+  assert.ok(headers["x-movenrun-signature"].endsWith("de1b"));
+  headers["x-movenrun-signature"] = corruptSignature(headers["x-movenrun-signature"]);
+
+  await withTestServer(app, async (base) => {
+    const res = await fetch(`${base}/zones/mint`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    });
+    assert.equal(res.status, 401);
+  });
   assert.equal(signed, 0);
 });
