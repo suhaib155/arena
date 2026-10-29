@@ -25,7 +25,7 @@ import {
   type MovementVerificationRepository,
   type VerificationExtras,
 } from "../interfaces.js";
-import type { SessionPath } from "../../domain/types.js";
+import type { SessionPath, TerritorySealResult } from "../../domain/types.js";
 
 /** H3 index as a decimal bigint (8 bytes per unit in a bigint[] column). */
 function cellToInt8(cell: string): string {
@@ -48,6 +48,25 @@ async function insertSessionPath(tx: Tx, movementVerificationId: string, path: S
     INSERT INTO gameplay_session_paths (movement_verification_id, path_version, resolution, unit_ids, interpolated, skipped_segments, truncated)
     VALUES (${movementVerificationId}, ${path.pathVersion}, ${path.resolution}, ${sql.param(ids)}::bigint[], ${bits}::varbit,
             ${path.skippedSegments}, ${path.truncated})`);
+}
+
+/**
+ * Sealing v2's territory seal, written on the new row in its own insert
+ * transaction (columns proposed with migration 0011). Only reached when
+ * gameplay asked for it, so with gameplay off no column outside 0000-0010 is
+ * touched.
+ */
+async function writeTerritorySeal(tx: Tx, movementVerificationId: string, seal: TerritorySealResult): Promise<void> {
+  await tx.execute(sql`
+    UPDATE movement_verifications SET territory_seal_version = ${seal.version}, territory_sealed = ${seal.sealed}, territory_seal_reason = ${seal.reason},
+           territory_claim_units = ${seal.claimUnits === null ? null : sql.param(seal.claimUnits.map(cellToInt8))}::bigint[],
+           territory_claim_resolution = ${seal.claimResolution}
+     WHERE id = ${movementVerificationId}`);
+}
+
+async function writeExtras(tx: Tx, movementVerificationId: string, extras: VerificationExtras | undefined): Promise<void> {
+  if (extras?.sessionPath) await insertSessionPath(tx, movementVerificationId, extras.sessionPath);
+  if (extras?.territorySeal) await writeTerritorySeal(tx, movementVerificationId, extras.territorySeal);
 }
 
 const UNIQUE_INDEX = "movement_verifications_user_session_unique";
@@ -123,16 +142,16 @@ export class DrizzleMovementVerificationRepository
     admission?: DailyAdmission,
     extras?: VerificationExtras,
   ): Promise<MovementVerificationRecord> {
-    const path = extras?.sessionPath;
+    const anyExtras = Boolean(extras?.sessionPath || extras?.territorySeal);
     try {
       if (!admission) {
-        if (!path) {
+        if (!anyExtras) {
           const [row] = await this.db.insert(movementVerifications).values(input).returning();
           return toRecord(row);
         }
         return await this.db.transaction(async (tx) => {
           const [row] = await tx.insert(movementVerifications).values(input).returning();
-          await insertSessionPath(tx, row.id, path);
+          await writeExtras(tx, row.id, extras);
           return toRecord(row);
         });
       }
@@ -150,7 +169,7 @@ export class DrizzleMovementVerificationRepository
           .where(and(eq(movementVerifications.userId, input.userId), gte(movementVerifications.createdAt, admission.since)));
         if ((counted?.n ?? 0) >= admission.max) throw new MovementDailyLimitError();
         const [row] = await tx.insert(movementVerifications).values(input).returning();
-        if (path) await insertSessionPath(tx, row.id, path);
+        await writeExtras(tx, row.id, extras);
         return toRecord(row);
       });
     } catch (err) {

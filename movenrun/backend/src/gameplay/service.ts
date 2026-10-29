@@ -63,7 +63,8 @@ import {
 } from "@movenrun/shared/clubsDistricts";
 import { reconcileDay, seasonPoolMicro, type DaySettlement } from "@movenrun/shared/economy-v3";
 import {
-  DAY_MS, dayCloseMs, dayOf, dayStartMs, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, sealProblem, seasonOf,
+  claimCellOptionsOf, DAY_MS, dayCloseMs, dayOf, dayStartMs, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, sealProblem, seasonOf,
+  territorySealOf,
   UnknownRulesVersionError, zoneOfUnder,
   type GameplayRules,
 } from "./rules.js";
@@ -525,8 +526,12 @@ export class GameplayService {
     try {
       return await this.withPartitions(() => this.db.transaction(async (tx) => {
         const [mv] = await rows<{ id: string; status: string; end_time: string; traversed_hex_ids: string[] | null; received_ms: number;
-          sealed: boolean | null; seal_methods: string[] | null; seal_event_count: number | null; rules_version: number | null }>(tx, sql`
-          SELECT id, status, end_time, traversed_hex_ids, ${RECEIVED_MS} AS received_ms, sealed, seal_methods, seal_event_count, rules_version
+          sealed: boolean | null; seal_methods: string[] | null; seal_event_count: number | null; rules_version: number | null;
+          territory_seal_version: number | null; territory_sealed: boolean | null; territory_seal_reason: string | null;
+          territory_claim_units: string[] | null; territory_claim_resolution: number | null }>(tx, sql`
+          SELECT id, status, end_time, traversed_hex_ids, ${RECEIVED_MS} AS received_ms, sealed, seal_methods, seal_event_count, rules_version,
+                 territory_seal_version, territory_sealed, territory_seal_reason,
+                 territory_claim_units::text[] AS territory_claim_units, territory_claim_resolution
             FROM movement_verifications
            WHERE user_id = ${userId} AND client_session_id = ${clientSessionId}
            FOR UPDATE`);
@@ -550,19 +555,32 @@ export class GameplayService {
         if (!receivedInTime(this.rules, day, Number(mv.received_ms))) throw new GameplayError(409, "day_closed");
         if (seasonOf(this.rules, day) === null) throw new GameplayError(409, "season_not_started");
         // V3 rule 3: no holding is created or changed without the server's own
-        // seal of this route under a listed sealing rules version. Nothing is
-        // written; the route and its verification are untouched.
-        const unsealed = sealProblem(this.rules, mv);
+        // seal of this route under a listed sealing rules version (and, under
+        // sealing v2, its own finding that the route enclosed ground). Nothing
+        // is written; the route and its verification are untouched.
+        const claimCells = mv.territory_claim_units === null ? null : mv.territory_claim_units.map(int8ToCell);
+        const unsealed = sealProblem(this.rules, { ...mv, territory_claim_units: claimCells });
         if (unsealed) throw new GameplayError(409, unsealed);
         // 1001: the stored cells, in unit id order. 1002: the canonical path the
         // server derived from the verified fixes, in walk order.
         const source = this.rules.units.source;
-        const unitIds = source ? await this.sessionPathUnits(tx, mv.id) : [...new Set(mv.traversed_hex_ids ?? [])].sort(byString);
-        if (unitIds.length > this.rules.maxUnitsPerSession) throw new GameplayError(422, "too_many_units");
+        const sessionUnits = source ? await this.sessionPathUnits(tx, mv.id) : [...new Set(mv.traversed_hex_ids ?? [])].sort(byString);
         // D5: a session whose cells are not units under the running rule set
         // (for example resolution 8 cells under resolution 10 units) is refused
         // whole, as is anything that is not a canonical H3 cell (the store's unit).
-        if (unitIds.some((u) => !isUnitUnder(this.rules.units, u) || !isStorableCell(u))) throw new GameplayError(422, "unit_resolution_mismatch");
+        if (sessionUnits.some((u) => !isUnitUnder(this.rules.units, u) || !isStorableCell(u))) throw new GameplayError(422, "unit_resolution_mismatch");
+        // Sealing v2 claim scope `loop-units`: only the session's units on or
+        // inside a qualifying loop claim (the server's claimable cells, at this
+        // rule set's unit resolution); the stick and anything across a gap
+        // claim nothing. Order (walk order or unit id order) is kept.
+        const seal = territorySealOf(this.rules);
+        let unitIds = sessionUnits;
+        if (seal.rule === "server-enclosed-loop" && seal.claim === "loop-units") {
+          if (Number(mv.territory_claim_resolution) !== claimCellOptionsOf(this.rules).resolution) throw new GameplayError(409, "territory_claim_resolution_mismatch");
+          const claimable = new Set(claimCells ?? []);
+          unitIds = sessionUnits.filter((u) => claimable.has(u));
+        }
+        if (unitIds.length > this.rules.maxUnitsPerSession) throw new GameplayError(422, "too_many_units");
         const allowance = await this.allowance();
         const [{ n: sourceNo }] = await rows<{ n: number }>(tx, sql`SELECT nextval('gameplay_source_no_seq')::int AS n`) as [{ n: number }];
         const key = `mv:${mv.id}`;

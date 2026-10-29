@@ -87,10 +87,13 @@ test("1002 blocks honest walker-days far more than 1003B, and 3 a day more than 
   assert.ok(v("1003B3") >= v("1003B5"), `B3 ${v("1003B3")} vs B5 ${v("1003B5")}`);
 });
 
-test("no rule set changes: 1001 stays the default with its digest, 1002 digest is the post-#152 one, every scenario is a distinct spec", () => {
+test("no rule set changes beyond sealing v2: 1001 stays the default, both digests are the recorded ones without the territory seal and the sealing v2 ones with it, every scenario is a distinct spec", () => {
   assert.equal(DEFAULT_RULES_VERSION, 1001);
-  assert.equal(rulesetDigest(PILOT_PROPOSAL), "d4199ec60958750007bfa8884c88aad1bf810aed6bd2a054abb5dc74ffe41cd6");
-  assert.equal(rulesetDigest(SIM_PILOT_2_PROPOSAL), "92e8e3cb12ac1f2cc07aeca2a9d50b9424182951a69de2fb8cd91c79cf27b788");
+  // Without the territory seal (docs/g34/SEALING_V2_28OCT.md) the configs are the ones this study ran.
+  assert.equal(rulesetDigest({ ...PILOT_PROPOSAL, territorySeal: undefined }), "d4199ec60958750007bfa8884c88aad1bf810aed6bd2a054abb5dc74ffe41cd6");
+  assert.equal(rulesetDigest({ ...SIM_PILOT_2_PROPOSAL, territorySeal: undefined }), "92e8e3cb12ac1f2cc07aeca2a9d50b9424182951a69de2fb8cd91c79cf27b788");
+  assert.equal(rulesetDigest(PILOT_PROPOSAL), "ff372572d7b754ad6c6dde3dbcc7535f7f62e13e94e718f8424eb0b1e0923bb2");
+  assert.equal(rulesetDigest(SIM_PILOT_2_PROPOSAL), "18a565faa49f00ab506848568101f8c82331928d271fb71d7230e384414442a5");
   assert.equal(SIM_PILOT_2_PROPOSAL.units.source!.rule.pushInterpolated, false);
   assert.equal(new Set(SCENARIOS.map((s) => s.id)).size, SCENARIOS.length);
   assert.deepEqual(STUDY_RUNS.map((r) => r.label), ["1001", "1002", "1003B5", "1003B3"]);

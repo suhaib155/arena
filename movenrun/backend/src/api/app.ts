@@ -20,7 +20,7 @@ import { createGlobalRateLimiter, createWriteRateLimiter } from "../middleware/r
 import type { ApiConfig } from "./config.js";
 import { createMaintenance } from "./maintenance.js";
 import { trustProxySetting } from "./trustedProxies.js";
-import { gameplayRulesFromEnv } from "../gameplay/rules.js";
+import { claimCellOptionsOf, gameplayRulesFromEnv } from "../gameplay/rules.js";
 import { createProductionGameplay } from "../gameplay/wiring.js";
 
 export function createApiApp(config: ApiConfig) {
@@ -108,7 +108,12 @@ export function createApiApp(config: ApiConfig) {
   // Rule set 1002 needs the session path derived at verification; with
   // gameplay off, or under 1001, nothing extra is derived or stored.
   const sessionPathRule = gameplayRules?.units.source?.kind === "session-path" ? gameplayRules.units.source.rule : undefined;
-  app.use("/movement", createProductionMovementRouter(config, { sessionPathRule }));
+  // Sealing v2 needs the territory seal computed at verification (the raw
+  // fixes are never stored); with gameplay off nothing is computed or stored.
+  const territorySealRule = gameplayRules?.territorySeal?.rule === "server-enclosed-loop" ? gameplayRules.territorySeal.loop : undefined;
+  // Its claimable cells are computed at the rule set's unit resolution.
+  const territoryClaim = gameplayRules ? claimCellOptionsOf(gameplayRules) : undefined;
+  app.use("/movement", createProductionMovementRouter(config, { sessionPathRule, territorySealRule, territoryClaim }));
   if (gameplay) {
     app.use("/gameplay", express.json({ limit: "8kb" }));
     app.use("/gameplay", gameplay.router);

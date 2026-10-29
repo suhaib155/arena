@@ -11,6 +11,7 @@
 import type { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { hasEvidenceBreak } from "@movenrun/shared/evidence";
+import { H3_RESOLUTION } from "@movenrun/shared/h3";
 import { getDb } from "../../db/client.js";
 import { getIdentityConfig } from "../../identity/config.js";
 import { getProviderConfig } from "../../identity/providerConfig.js";
@@ -22,8 +23,9 @@ import { DrizzleMovementVerificationRepository } from "../repositories/drizzle/s
 import { MovementVerificationService } from "../services/movementVerification.service.js";
 import { createMovementRouter } from "./router.js";
 import { createWriteRateLimiter } from "../../middleware/rateLimit.js";
-import type { MovementObservation, ObservedPoint } from "../domain/types.js";
+import type { MovementObservation, ObservedPoint, TerritorySealResult } from "../domain/types.js";
 import { deriveSessionPath, type SessionPathRule } from "../../gameplay/path.js";
+import { claimCellsOf, evaluateSealLoop, type ClaimCellOptions, type SealLoopRule } from "../../gameplay/sealLoop.js";
 
 /** GpsService speaks the shared GPSRoute shape; only points/startTime/endTime
  *  are read by validateRoute and calculateDistance, so the chain-specific
@@ -57,10 +59,29 @@ export function sessionPathFor(rule: SessionPathRule) {
   return (observation: MovementObservation) => deriveSessionPath(observation.points, observation.session?.pauses ?? [], rule);
 }
 
+/**
+ * Sealing v2's territory seal of an accepted observation: its own fixes (with
+ * their reported accuracy) and pauses, nothing else, and the cells it may
+ * claim at the rule set's unit resolution.
+ */
+export function territorySealFor(rule: SealLoopRule, claim: ClaimCellOptions) {
+  return (observation: MovementObservation): TerritorySealResult => {
+    const r = evaluateSealLoop(observation.points, observation.session?.pauses ?? [], rule);
+    if (!r.sealed) return { version: r.version, sealed: false, reason: r.reason, claimUnits: null, claimResolution: null };
+    const cells = claimCellsOf(observation.points, r, claim);
+    if (cells === null) return { version: r.version, sealed: false, reason: "work_budget_exceeded", claimUnits: null, claimResolution: null };
+    return { version: r.version, sealed: true, reason: r.reason, claimUnits: cells, claimResolution: claim.resolution };
+  };
+}
+
 export function createProductionMovementRouter(
   rateLimitConfig?: Parameters<typeof createWriteRateLimiter>[0],
-  /** Gameplay rule set 1002 only (MOVENRUN_GAMEPLAY_ENABLED with a session-path rule set): also derive and store the session path. */
-  options: { sessionPathRule?: SessionPathRule } = {},
+  /**
+   * Gameplay only (MOVENRUN_GAMEPLAY_ENABLED): a session-path rule set (1002)
+   * also derives and stores the session path; sealing v2 also computes and
+   * stores the territory seal.
+   */
+  options: { sessionPathRule?: SessionPathRule; territorySealRule?: SealLoopRule; territoryClaim?: ClaimCellOptions } = {},
 ): Router {
   const stores = createDrizzleStores(getDb());
   const providerConfig = getProviderConfig();
@@ -82,6 +103,7 @@ export function createProductionMovementRouter(
     calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
     traversedHexIds: (points: ObservedPoint[]) => hex.getHexIdsForPoints(points),
     ...(options.sessionPathRule ? { sessionPath: sessionPathFor(options.sessionPathRule) } : {}),
+    ...(options.territorySealRule ? { territorySeal: territorySealFor(options.territorySealRule, options.territoryClaim ?? { resolution: H3_RESOLUTION }) } : {}),
   });
 
   return createMovementRouter({

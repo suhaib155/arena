@@ -19,6 +19,7 @@ import type {
   MovementVerificationResult,
   ObservedPoint,
   SessionPath,
+  TerritorySealResult,
 } from "./types.js";
 
 export interface AnomalyVerdict {
@@ -43,6 +44,13 @@ export interface VerifyMovementDeps {
    * so with the flag off nothing is derived and nothing is stored.
    */
   sessionPath?: (observation: MovementObservation) => SessionPath;
+  /**
+   * Sealing v2 only: whether the accepted fixes enclose ground
+   * (gameplay/sealLoop.ts). Absent unless gameplay is enabled with a rule
+   * set that needs it, so with the flag off nothing is computed or stored.
+   * It never changes the verification, its distance or its v1 seal.
+   */
+  territorySeal?: (observation: MovementObservation) => TerritorySealResult;
 }
 
 /** A session may not be reported from further ahead than this (clock skew). */
@@ -185,6 +193,7 @@ export function verifyMovement(
     sealEvaluation: sealFor(observation),
     // Only an accepted route has a gameplay path, and only when asked for.
     ...(deps.sessionPath ? { sessionPath: deps.sessionPath(observation) } : {}),
+    ...(deps.territorySeal ? { territorySeal: deps.territorySeal(observation) } : {}),
   };
 }
 

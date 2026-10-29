@@ -478,7 +478,7 @@ The source's rate factors (effort, consistency, kit rates, the zones^0.25 upkeep
 
 **Player day proofs: immutability and erasure.** `gameplay_player_day_proofs` is append-only. An UPDATE is always refused, and a DELETE is refused unless the player is already gone. The erasure step deletes the player row, and the person's proofs cascade with it. Other walkers' proofs no longer hash anyone else's player number (proof encoding 2), so they survive an erasure unchanged. There is no legal-hold exception (`G34_ERASURE_TOMBSTONES.md`).
 
-The 0011 file stays outside `drizzle/` and is not applied. Revision 3 with these amendments has the following sha256 values:
+The 0011 file stays outside `drizzle/` and is not applied. Revision 3 with these amendments (before sealing v2, section 18) has the following sha256 values:
 
 - up: `bad2e6ce7a9d48e00e13c9cd10be6e88f98292e575e2a6a9c0ab68b9869f4119`
 - down: `bfdc1d68482b69ae5503185fbeb8e58f2f3cce63ee66fa7bab0b6e0c80a25ebb`
@@ -486,3 +486,33 @@ The 0011 file stays outside `drizzle/` and is not applied. Revision 3 with these
 These are the values after the erasure amendment with a per-day erasure state. The first amendment, which kept per-erasure records (22df335), had up `2ddc530a…6089c` and down `820f4e99…f6456`. The values at #156 were up `e3f355a994657e143e875a55a3892bfd16561c1cc67144c19778b1e80850b59e` and down `c134da41a828c4175d598551295bba5260870088bbbc05aa7c3265504902d69a`. Before that they were up `9a62dc7f…c4cb` and down `34d13e92…c0cd`.
 
 **1001 unchanged.** Its config digest stays `d4199ec6…41cd6`, and 1002's is also unchanged, because the rule-set configs were not touched. The fixed PostgreSQL scenario stores the same game state. The shared economy code is no longer byte-identical: the toll now uses bigint, and amounts are now validated. All of the source's worked examples give the same results.
+
+## 18. Sealing v2: the territory seal requires enclosed ground (28 Oct)
+
+The out-and-back and tiny-spur loopholes left by #151 are closed by a second, server-only seal computed from the accepted fixes. Full criterion, fixture table, sensitivity and the owner decisions are in [`g34/SEALING_V2_28OCT.md`](g34/SEALING_V2_28OCT.md). Every threshold is a pilot hypothesis.
+
+**Rule sets.** 1001 and 1002 now name `territorySeal: TERRITORY_SEAL_V2_PILOT`. Their config digests changed, and nothing else in either config did:
+
+| Rule set | Digest before | Digest after |
+|---|---|---|
+| 1001 | `d4199ec6…41cd6` | `ff372572…23bb2` |
+| 1002 | `92e8e3cb…7b788` | `18a565fa…442a5` |
+
+(The first sealing v2 commit, c75e140, had `9222df56…3fb7d` and `bc36241c…d4532`; the loop rule's work budget and the claim scope changed them again.)
+
+**Claim scope.** Under `claim: "loop-units"` a qualifying session claims only its units that are on or inside a qualifying loop (the claimable cells the server stores at verification, at the rule set's unit resolution). The stick of a lollipop, retraced spurs and steps across a gap claim nothing. This is an owner-changeable hypothesis.
+
+**Proposed 0011, still unapplied.** It adds five nullable columns to `movement_verifications`:
+
+- `territory_seal_version`
+- `territory_sealed`
+- `territory_seal_reason`
+- `territory_claim_units` (bigint[])
+- `territory_claim_resolution`
+
+It also adds a consistency CHECK and a write-once trigger. The rollback removes all of them. Applied migrations 0000–0010 and the journal are unchanged. The values below combine this block with the erasure amendment (section 17); both blocks are kept:
+
+- up: `709ff82ab51d2cc6f1800488f3859aaebcd6916bf11052a8bf64877e1fa72951`
+- down: `276cd12bea47e5514b187bbba9b65d0c8fa1560a3363009293e2d12107c5b2f3`
+
+The previous values were up `bad2e6ce…4119` and down `bfdc1d68…25ebb` (erasure amendment, no sealing v2). The first sealing v2 commit on top of the earlier revision had up `63425217…1bb9` and down `1ae475e0…8a1b`.

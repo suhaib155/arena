@@ -4,9 +4,10 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import {
   DAY_MS, DEFAULT_RULES_VERSION, PILOT_PROPOSAL, RECEIPT_CUTOFF_V1, RULESETS, SIM_PILOT_2_PROPOSAL, UnknownRulesVersionError, dayCloseMs, dayOf, dayStartMs,
-  gameplayRulesFromEnv, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, rulesetProblems, sealProblem, seasonOf, TERRITORY_SEAL_V1, takeoverRuleOf,
+  claimCellOptionsOf, gameplayRulesFromEnv, isUnitUnder, lastClosedDay, receiptCutoffOf, receivedInTime, rulesetConfig, rulesetDigest, rulesetFor, rulesetProblems, sealProblem, seasonOf, TERRITORY_SEAL_V1, TERRITORY_SEAL_V2_PILOT, takeoverRuleOf,
 } from "./rules.js";
 import { VERIFIED_STEPS_V1 } from "./path.js";
+import { ENCLOSED_LOOP_V1 } from "./sealLoop.js";
 
 const drizzleDir = new URL("../../drizzle/", import.meta.url);
 const proposedDir = new URL("../../drizzle-proposed/", import.meta.url);
@@ -66,23 +67,65 @@ test("receipt cutoff (v1, unnamed in 1001 and 1002): a session counts only if re
   assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, dayCloseGraceMs: DAY_MS }).some((x) => x.includes("grace")));
 });
 
-test("territory seal (V3 rule 3, v1 unnamed in 1001 and 1002): only a consistent server seal under a listed sealing version authorizes ground", () => {
+test("territory seal (V3 rule 3): v1 needs a consistent server seal under a listed sealing version; v2 (named in 1001 and 1002) also the server's enclosed-loop finding", () => {
+  const V1 = { territorySeal: TERRITORY_SEAL_V1 };
   const ok = { sealed: true, seal_methods: ["return_to_start"], seal_event_count: 1, rules_version: 1 };
-  assert.equal(sealProblem(PILOT_PROPOSAL, ok), null);
-  assert.equal(sealProblem(PILOT_PROPOSAL, { ...ok, seal_methods: ["self_cross", "return_to_start"], seal_event_count: 3 }), null);
-  assert.equal(sealProblem(PILOT_PROPOSAL, { sealed: false, seal_methods: [], seal_event_count: 0, rules_version: 1 }), "session_not_sealed");
-  assert.equal(sealProblem(PILOT_PROPOSAL, { sealed: null, seal_methods: null, seal_event_count: null, rules_version: null }), "seal_missing");
-  assert.equal(sealProblem(PILOT_PROPOSAL, { ...ok, rules_version: null }), "seal_missing");
-  assert.equal(sealProblem(PILOT_PROPOSAL, { ...ok, rules_version: 2 }), "seal_rules_version_unsupported");
+  assert.equal(sealProblem(V1, ok), null);
+  assert.equal(sealProblem({}, ok), null, "absent is v1");
+  assert.equal(sealProblem(V1, { ...ok, seal_methods: ["self_cross", "return_to_start"], seal_event_count: 3 }), null);
+  assert.equal(sealProblem(V1, { sealed: false, seal_methods: [], seal_event_count: 0, rules_version: 1 }), "session_not_sealed");
+  assert.equal(sealProblem(V1, { sealed: null, seal_methods: null, seal_event_count: null, rules_version: null }), "seal_missing");
+  assert.equal(sealProblem(V1, { ...ok, rules_version: null }), "seal_missing");
+  assert.equal(sealProblem(V1, { ...ok, rules_version: 2 }), "seal_rules_version_unsupported");
   for (const bad of [{ seal_event_count: 0 }, { seal_event_count: null }, { seal_methods: [] }, { seal_methods: null }, { seal_methods: ["x"] },
     { seal_methods: ["self_cross", "self_cross"], seal_event_count: 2 }, { seal_methods: ["self_cross", "return_to_start"], seal_event_count: 1 }, { sealed: false }]) {
+    assert.equal(sealProblem(V1, { ...ok, ...bad }), "seal_inconsistent", JSON.stringify(bad));
     assert.equal(sealProblem(PILOT_PROPOSAL, { ...ok, ...bad }), "seal_inconsistent", JSON.stringify(bad));
   }
   // A later rule set may list another sealing version, and that is a new identity.
   assert.equal(sealProblem({ territorySeal: { ...TERRITORY_SEAL_V1, sealingRulesVersions: [2] } }, { ...ok, rules_version: 2 }), null);
-  for (const r of RULESETS.values()) assert.equal(rulesetConfig(r).territorySeal, undefined);
-  assert.notEqual(rulesetDigest({ ...PILOT_PROPOSAL, territorySeal: TERRITORY_SEAL_V1 }), rulesetDigest(PILOT_PROPOSAL));
+
+  // Sealing v2: both known rule sets name it.
+  for (const r of RULESETS.values()) assert.deepEqual(rulesetConfig(r).territorySeal, TERRITORY_SEAL_V2_PILOT);
+  const enclosed = { ...ok, territory_seal_version: 1, territory_sealed: true, territory_seal_reason: "enclosed", territory_claim_units: ["881f1d4887fffff"], territory_claim_resolution: 8 };
+  assert.equal(sealProblem(PILOT_PROPOSAL, enclosed), null);
+  assert.equal(sealProblem(PILOT_PROPOSAL, ok), "territory_seal_missing", "v1 alone no longer claims");
+  assert.equal(sealProblem(PILOT_PROPOSAL, { ...enclosed, territory_sealed: null }), "territory_seal_missing");
+  assert.equal(sealProblem(PILOT_PROPOSAL, { ...enclosed, territory_seal_version: 2 }), "territory_seal_version_unsupported");
+  for (const reason of ["no_closed_loop", "loop_too_small", "loop_retraced", "loop_too_thin", "insufficient_route", "route_outside_local_frame", "work_budget_exceeded"]) {
+    assert.equal(sealProblem(PILOT_PROPOSAL, { ...enclosed, territory_sealed: false, territory_seal_reason: reason, territory_claim_units: null, territory_claim_resolution: null }), "seal_not_enclosed", reason);
+  }
+  // Claim scope: a true territory seal carries its claimable cells; an untrue one carries none.
+  assert.equal(TERRITORY_SEAL_V2_PILOT.claim, "loop-units");
+  for (const bad of [{ territory_claim_units: null }, { territory_claim_units: [] }, { territory_claim_resolution: null },
+    { territory_sealed: false, territory_seal_reason: "loop_too_thin" }, { territory_sealed: false, territory_seal_reason: "loop_too_thin", territory_claim_units: null }]) {
+    assert.equal(sealProblem(PILOT_PROPOSAL, { ...enclosed, ...bad }), "seal_inconsistent", JSON.stringify(bad));
+  }
+  const everyUnit = { territorySeal: { ...TERRITORY_SEAL_V2_PILOT, claim: "session-units" as const } };
+  assert.equal(sealProblem(everyUnit, { ...enclosed, territory_claim_units: null, territory_claim_resolution: null }), null, "session-units ignores the claim columns");
+  assert.deepEqual(claimCellOptionsOf(PILOT_PROPOSAL), { resolution: 8 });
+  assert.deepEqual(claimCellOptionsOf(SIM_PILOT_2_PROPOSAL), { resolution: 10, stepMeters: SIM_PILOT_2_PROPOSAL.units.source!.rule.stepMeters });
+  assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, territorySeal: { ...TERRITORY_SEAL_V2_PILOT, claim: "everything" as never } }).includes("unknown territory claim scope"));
+  assert.notEqual(rulesetDigest({ ...PILOT_PROPOSAL, territorySeal: everyUnit.territorySeal }), rulesetDigest(PILOT_PROPOSAL), "the claim scope is part of the identity");
+  for (const bad of [{ territory_seal_reason: "loop_too_thin" }, { territory_seal_reason: null }, { territory_seal_reason: "admin" }, { territory_sealed: false }]) {
+    assert.equal(sealProblem(PILOT_PROPOSAL, { ...enclosed, ...bad }), "seal_inconsistent", JSON.stringify(bad));
+  }
+  // v2 is an extra requirement, never a substitute: an enclosed loop the movement engine did not seal claims nothing.
+  assert.equal(sealProblem(PILOT_PROPOSAL, { sealed: false, seal_methods: [], seal_event_count: 0, rules_version: 1, territory_seal_version: 1, territory_sealed: true, territory_seal_reason: "enclosed" }), "session_not_sealed");
+  assert.equal(sealProblem(PILOT_PROPOSAL, { sealed: false, seal_methods: [], seal_event_count: 0, rules_version: 1, territory_seal_version: 1, territory_sealed: false, territory_seal_reason: "no_closed_loop" }), "session_not_sealed");
+  // Identity: naming v2 changed both digests (recorded in docs/g34/SEALING_V2_28OCT.md); without it they are the old ones.
+  assert.equal(rulesetDigest({ ...PILOT_PROPOSAL, territorySeal: undefined }), "d4199ec60958750007bfa8884c88aad1bf810aed6bd2a054abb5dc74ffe41cd6");
+  assert.equal(rulesetDigest(PILOT_PROPOSAL), "ff372572d7b754ad6c6dde3dbcc7535f7f62e13e94e718f8424eb0b1e0923bb2");
+  assert.equal(rulesetDigest({ ...SIM_PILOT_2_PROPOSAL, territorySeal: undefined }), "92e8e3cb12ac1f2cc07aeca2a9d50b9424182951a69de2fb8cd91c79cf27b788");
+  assert.equal(rulesetDigest(SIM_PILOT_2_PROPOSAL), "18a565faa49f00ab506848568101f8c82331928d271fb71d7230e384414442a5");
+  assert.notEqual(rulesetDigest({ ...PILOT_PROPOSAL, territorySeal: { ...TERRITORY_SEAL_V2_PILOT, loop: { ...ENCLOSED_LOOP_V1, minAreaM2: 3000 } } }), rulesetDigest(PILOT_PROPOSAL),
+    "every threshold is part of the identity");
   assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, territorySeal: { ...TERRITORY_SEAL_V1, sealingRulesVersions: [] } }).includes("unknown territory seal rule"));
+  assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, territorySeal: { ...TERRITORY_SEAL_V2_PILOT, version: 3 } as never }).includes("unknown territory seal rule"));
+  assert.ok(rulesetProblems({ ...PILOT_PROPOSAL, territorySeal: { ...TERRITORY_SEAL_V2_PILOT, loop: { ...ENCLOSED_LOOP_V1, maxClosureMeters: 80 } } })
+    .includes("closing edge may not be longer than an observed step"));
+  assert.deepEqual(rulesetProblems(PILOT_PROPOSAL), []);
+  assert.deepEqual(rulesetProblems(SIM_PILOT_2_PROPOSAL), []);
 });
 
 test("the pilot proposal keeps the owner's push rule and the source's fixed numbers", () => {

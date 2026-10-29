@@ -31,7 +31,9 @@
 import { createHash } from "node:crypto";
 import { cellToParent, getResolution, isValidCell } from "h3-js";
 import { sessionPathRuleProblems, VERIFIED_STEPS_V1, type SessionPathRule } from "./path.js";
+import { ENCLOSED_LOOP_V1, SEAL_LOOP_REASONS, sealLoopRuleProblems, type SealLoopRule } from "./sealLoop.js";
 import type { HoldingRules, TakeoverRule } from "@movenrun/shared/holding";
+import { H3_RESOLUTION } from "@movenrun/shared/h3";
 import { isSealMethod } from "@movenrun/shared/sealing";
 import type { DistrictControlRule, LeaderboardMetric } from "@movenrun/shared/clubsDistricts";
 
@@ -185,13 +187,52 @@ export interface ReceiptCutoff {
  * here. Missing, unsealed, inconsistent or under an unlisted version: no
  * territory, the route and its verification stay as they are.
  */
-export interface TerritorySeal {
+export type TerritorySeal = TerritorySealV1 | TerritorySealV2;
+
+export interface TerritorySealV1 {
   rule: "server-verified-seal";
   version: 1;
   sealingRulesVersions: readonly number[];
 }
 
-export const TERRITORY_SEAL_V1: Readonly<TerritorySeal> = Object.freeze({ rule: "server-verified-seal", version: 1, sealingRulesVersions: Object.freeze([1]) });
+/**
+ * `server-enclosed-loop` v2 (sealing v2, docs/g34/SEALING_V2_28OCT.md): the
+ * v1 requirements, and also the server's own territory seal on the row
+ * (`territory_seal_version`, `territory_sealed`, `territory_seal_reason`,
+ * computed at verification from the accepted fixes by `sealLoop.ts` under
+ * `loop`, never sent by the phone): the route must enclose ground, not just
+ * return near its start or cross itself. An out-and-back, a tiny knot or a
+ * loop closed across an unobserved gap claims nothing; the session stays a
+ * verified movement session either way.
+ */
+export interface TerritorySealV2 {
+  rule: "server-enclosed-loop";
+  version: 2;
+  sealingRulesVersions: readonly number[];
+  loop: SealLoopRule;
+  /**
+   * Claim scope (an owner-changeable hypothesis). `loop-units`: a qualifying
+   * session claims only its units that are among the server's claimable
+   * cells (`territory_claim_units`: cells on or inside a qualifying loop, at
+   * the rule set's unit resolution); the stick, retraced spurs and anything
+   * across a gap claim nothing. `session-units`: once the session qualifies,
+   * every unit of it claims (the reviewed loophole: a long stick plus one
+   * small block claimed the whole stick).
+   */
+  claim: "loop-units" | "session-units";
+}
+
+export const TERRITORY_SEAL_V1: Readonly<TerritorySealV1> = Object.freeze({ rule: "server-verified-seal", version: 1, sealingRulesVersions: Object.freeze([1]) });
+
+/**
+ * Sealing v2 with the enclosed-loop pilot hypothesis. Every number in
+ * `ENCLOSED_LOOP_V1` is a PILOT HYPOTHESIS, owner acceptance pending, not V3
+ * source. Named in 1001 and 1002 (both config digests changed; allowed only
+ * because 0011 is unapplied and no day was ever pinned).
+ */
+export const TERRITORY_SEAL_V2_PILOT: Readonly<TerritorySealV2> = Object.freeze({
+  rule: "server-enclosed-loop", version: 2, sealingRulesVersions: Object.freeze([1]), loop: ENCLOSED_LOOP_V1, claim: "loop-units",
+});
 
 export const RECEIPT_CUTOFF_V1: Readonly<ReceiptCutoff> = Object.freeze({ rule: "server-receipt-before-day-close", version: 1 });
 
@@ -294,6 +335,7 @@ export const PILOT_PROPOSAL: Readonly<Omit<GameplayRules, "seasonOneStartDay">> 
   kitLevel: 1,
   maxUnitsPerSession: 500,
   maxDaysPerRun: 31,
+  territorySeal: TERRITORY_SEAL_V2_PILOT,
 });
 
 /**
@@ -402,8 +444,15 @@ export function rulesetProblems(r: Omit<GameplayRules, "seasonOneStartDay">): st
     if (r.takeBudget.counting !== "takes-v1") p.push("unknown take counting rule");
     if (r.takeBudget.order !== undefined && r.takeBudget.order !== "walk-order-v1") p.push("unknown take order");
   }
-  if (r.territorySeal !== undefined && (r.territorySeal.rule !== "server-verified-seal" || r.territorySeal.version !== 1
-    || r.territorySeal.sealingRulesVersions.length === 0 || !r.territorySeal.sealingRulesVersions.every((v) => Number.isInteger(v) && v >= 1))) p.push("unknown territory seal rule");
+  if (r.territorySeal !== undefined) {
+    const t = r.territorySeal;
+    const known = (t.rule === "server-verified-seal" && t.version === 1) || (t.rule === "server-enclosed-loop" && t.version === 2);
+    if (!known || t.sealingRulesVersions.length === 0 || !t.sealingRulesVersions.every((v) => Number.isInteger(v) && v >= 1)) p.push("unknown territory seal rule");
+    else if (t.rule === "server-enclosed-loop") {
+      p.push(...sealLoopRuleProblems(t.loop));
+      if (t.claim !== "loop-units" && t.claim !== "session-units") p.push("unknown territory claim scope");
+    }
+  }
   if (r.receiptCutoff !== undefined && (r.receiptCutoff.rule !== "server-receipt-before-day-close" || r.receiptCutoff.version !== 1)) p.push("unknown receipt cutoff rule");
   if (!(Number.isInteger(r.dayCloseGraceMs) && r.dayCloseGraceMs >= 0 && r.dayCloseGraceMs < DAY_MS)) p.push("day close grace must be 0 to under a day");
   if (r.dayAttribution !== undefined && (r.dayAttribution.rule !== "d1-last-verified-fix" || r.dayAttribution.version !== 1)) p.push("unknown day attribution rule");
@@ -489,25 +538,68 @@ export function territorySealOf(rules: Pick<GameplayRules, "territorySeal">): Te
 }
 
 /**
+ * Where sealing v2's claimable cells are computed: the rule set's unit
+ * resolution (1002: the session path's resolution and fill step; an `h3`
+ * unit: its resolution; `stored`: the movement pipeline's resolution 8).
+ */
+export function claimCellOptionsOf(rules: Pick<GameplayRules, "units">): { resolution: number; stepMeters?: number } {
+  const u = rules.units;
+  if (u.source?.kind === "session-path") return { resolution: u.source.rule.resolution, stepMeters: u.source.rule.stepMeters };
+  if (u.unit.kind === "h3") return { resolution: u.unit.resolution };
+  return { resolution: H3_RESOLUTION };
+}
+
+/** The seal columns of a verified movement row that decide whether it may claim. */
+export interface SealRow {
+  sealed: boolean | null;
+  seal_methods: string[] | null;
+  seal_event_count: number | null;
+  rules_version: number | null;
+  /** Sealing v2 (written only when gameplay asked for it; absent or null otherwise). */
+  territory_seal_version?: number | null;
+  territory_sealed?: boolean | null;
+  territory_seal_reason?: string | null;
+  /** Claimable cells (H3 ids) and their resolution; null unless the territory seal is true. */
+  territory_claim_units?: string[] | null;
+  territory_claim_resolution?: number | null;
+}
+
+export type SealProblem = "seal_missing" | "session_not_sealed" | "seal_inconsistent" | "seal_rules_version_unsupported"
+  | "territory_seal_missing" | "territory_seal_version_unsupported" | "seal_not_enclosed";
+
+/**
  * Why a verified session's stored seal summary does not authorize territory,
  * or null when it does. Fails closed on anything missing or inconsistent.
+ * Under sealing v2 the server's territory seal must also be present, under
+ * the loop rule's version, and say the route enclosed ground.
  */
-export function sealProblem(
-  rules: Pick<GameplayRules, "territorySeal">,
-  row: { sealed: boolean | null; seal_methods: string[] | null; seal_event_count: number | null; rules_version: number | null },
-): "seal_missing" | "session_not_sealed" | "seal_inconsistent" | "seal_rules_version_unsupported" | null {
+export function sealProblem(rules: Pick<GameplayRules, "territorySeal">, row: SealRow): SealProblem | null {
   const need = territorySealOf(rules);
   if (row.sealed === null || row.rules_version === null) return "seal_missing";
   if (!need.sealingRulesVersions.includes(Number(row.rules_version))) return "seal_rules_version_unsupported";
   const count = row.seal_event_count === null ? null : Number(row.seal_event_count);
   const methods = row.seal_methods ?? [];
+  const territory = row.territory_sealed ?? null;
   if (row.sealed === false) {
     if (count !== 0 || methods.length !== 0) return "seal_inconsistent";
+    // The territory seal can find a loop the movement engine did not seal (a
+    // near pass mid-route): v2 is an extra requirement, never a substitute.
     return "session_not_sealed";
   }
   if (count === null || !Number.isInteger(count) || count < 1 || methods.length === 0 || methods.length > count
     || new Set(methods).size !== methods.length || !methods.every(isSealMethod)) return "seal_inconsistent";
-  return null;
+  if (need.rule === "server-verified-seal") return null;
+  const version = row.territory_seal_version ?? null;
+  if (version === null || territory === null) return "territory_seal_missing";
+  if (Number(version) !== need.loop.version) return "territory_seal_version_unsupported";
+  const reason = row.territory_seal_reason ?? null;
+  if (reason === null || !(SEAL_LOOP_REASONS as readonly string[]).includes(reason) || (reason === "enclosed") !== territory) return "seal_inconsistent";
+  if (need.claim === "loop-units") {
+    const units = row.territory_claim_units ?? null;
+    const res = row.territory_claim_resolution ?? null;
+    if (territory ? (units === null || units.length === 0 || res === null) : (units !== null || res !== null)) return "seal_inconsistent";
+  }
+  return territory ? null : "seal_not_enclosed";
 }
 
 /** Whether a session received at `receivedMs` counts for its D1 day `day` (strictly before the close). */

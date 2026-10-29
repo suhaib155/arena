@@ -21,7 +21,10 @@
 --   - the settlement halt log (every operator and reconciler halt/resume),
 --     resume requests and their approvals;
 --   - the per-day erasure states (what lets erased days reconcile)
---     and the erasure fence.
+--     and the erasure fence;
+--   - the sealing v2 territory seal and claimable-cell columns on
+--     movement_verifications (the movement rows themselves and their v1 seal
+--     summary stay).
 -- Settled days are meant to be final; after this they cannot be reconciled
 -- or replayed. Take a pg_dump of the gameplay_* tables and the
 -- gameplay_partitions schema first, and treat running this as its own owner
@@ -60,6 +63,14 @@ DROP SEQUENCE IF EXISTS "gameplay_source_no_seq";--> statement-breakpoint
 DROP INDEX IF EXISTS "movement_verifications_verified_end_time_idx";--> statement-breakpoint
 DROP TRIGGER IF EXISTS "gameplay_movement_receipt_immutable" ON "movement_verifications";--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_movement_receipt_immutable();--> statement-breakpoint
+DROP TRIGGER IF EXISTS "gameplay_movement_territory_seal_once" ON "movement_verifications";--> statement-breakpoint
+DROP FUNCTION IF EXISTS public.gameplay_movement_territory_seal_once();--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP CONSTRAINT IF EXISTS "movement_verifications_territory_seal";--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_claim_resolution";--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_claim_units";--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_seal_reason";--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_sealed";--> statement-breakpoint
+ALTER TABLE "movement_verifications" DROP COLUMN IF EXISTS "territory_seal_version";--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_ensure_day_partitions(integer, integer);--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_current_player_id();--> statement-breakpoint
 DROP FUNCTION IF EXISTS public.gameplay_settlements_final();--> statement-breakpoint

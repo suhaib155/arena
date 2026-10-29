@@ -578,10 +578,12 @@ async function runScenario(s: Scenario): Promise<ScenarioResult> {
       // Verified movement rows, shaped as the movement pipeline writes them.
       await pool.query(`
         INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, confidence,
-          start_time, end_time, movement_mode, rules_version, started_at, finished_at, paused_ms, sealed, seal_methods, seal_event_count, created_at)
+          start_time, end_time, movement_mode, rules_version, started_at, finished_at, paused_ms, sealed, seal_methods, seal_event_count,
+          territory_seal_version, territory_sealed, territory_seal_reason, created_at)
         SELECT t.id, t.u, t.c, 'verified', t.m, t.s, string_to_array(t.cells, ','), 0.92, t.e - t.s * 1000, t.e, 'onFoot', 1, t.e - t.s * 1000 - 5000, t.e + 2000, 0,
                -- A closed loop, as the sealing engine reports one (rule 3: unsealed sessions claim nothing), received a minute after it ended.
-               true, ARRAY['return_to_start']::text[], 1, (to_timestamp((t.e + 60000)::float8 / 1000) AT TIME ZONE current_setting('TimeZone'))
+               -- Sealing v2: the server found the loop encloses ground.
+               true, ARRAY['return_to_start']::text[], 1, 1, true, 'enclosed', (to_timestamp((t.e + 60000)::float8 / 1000) AT TIME ZONE current_setting('TimeZone'))
           FROM unnest($1::text[], $2::text[], $3::text[], $4::int[], $5::int[], $6::text[], $7::bigint[]) AS t(id, u, c, m, s, cells, e)`,
         [todays.map((x) => x.id), todays.map((x) => x.userId), todays.map((x) => x.clientSessionId), todays.map((x) => x.meters),
           todays.map((x) => x.seconds), todays.map((x) => (writesPaths ? [...new Set(x.cells.map((c) => cellToParent(c, 8)))] : x.cells).join(",")), todays.map((x) => x.end)]);

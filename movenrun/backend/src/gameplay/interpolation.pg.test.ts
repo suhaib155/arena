@@ -12,7 +12,8 @@ import { cellsForObservations } from "@movenrun/shared/h3";
 import { GpsService } from "../services/gps.service.js";
 import { DrizzleMovementVerificationRepository } from "../movement/repositories/drizzle/store.js";
 import { MovementVerificationService } from "../movement/services/movementVerification.service.js";
-import { sessionPathFor, toValidatable } from "../movement/http/productionRouter.js";
+import { sessionPathFor, territorySealFor, toValidatable } from "../movement/http/productionRouter.js";
+import { ENCLOSED_LOOP_V1 } from "./sealLoop.js";
 import type { MovementObservation, ObservedPoint } from "../movement/domain/types.js";
 import { bitsToFlags, cellToInt8, int8ToCell, VERIFIED_STEPS_V1 } from "./path.js";
 import { fixesOf, poly } from "./pathFixtures.js";
@@ -51,14 +52,28 @@ const pipeline = () => new MovementVerificationService({
   calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
   traversedHexIds: (points: ObservedPoint[]) => cellsForObservations(points.map((p) => ({ latitude: p.lat, longitude: p.lng }))),
   sessionPath: sessionPathFor(VERIFIED_STEPS_V1),
+  territorySeal: territorySealFor(ENCLOSED_LOOP_V1, { resolution: VERIFIED_STEPS_V1.resolution, stepMeters: VERIFIED_STEPS_V1.stepMeters }),
 });
 
-/** A closed square walked at 1.4 m/s with sparse but accurate GPS: one fix every `spacing` metres. */
+/**
+ * A walk at 1.4 m/s with accurate GPS: a closed 400 m square with a fix every
+ * 14 m (the loop that seals, by crossing its own first side), then a sparse leg out with one fix every
+ * `spacing` metres. The sparse steps are walked by the 1002 path rule (up to
+ * 200 m), so they cross resolution 10 units no fix is in; sealing v2 treats
+ * any step over 50 m as a gap no loop may cross, so only the dense square
+ * seals.
+ */
 function sparseLoop(spacing: number, endMs: number, origin = { latitude: 51.52, longitude: -0.1 }): MovementObservation {
-  const xy = poly([[0, 0], [500, 0], [500, 500], [0, 500], [0, 0]], spacing);
-  const fixes = fixesOf(xy, origin, Math.round((spacing / 1.4) * 1000));
-  const shift = endMs - fixes[fixes.length - 1]!.timestamp;
-  const points = fixes.map((f) => ({ lat: f.lat, lng: f.lng, accuracy: 5, timestamp: f.timestamp + shift }));
+  // The square's last side runs on past the start and cuts its first side: a self-crossing seal.
+  const dense = poly([[0, 0], [400, 0], [400, 400], [20, 400], [20, -40]], 14);
+  const sparse = poly([[20, -40], [20, -1040]], spacing).slice(1);
+  const times: number[] = [];
+  let t = 0;
+  dense.forEach((_, i) => { if (i > 0) t += 10_000; times.push(t); });
+  sparse.forEach(() => { t += Math.round((spacing / 1.4) * 1000); times.push(t); });
+  const fixes = fixesOf([...dense, ...sparse], origin, 1);
+  const shift = endMs - times[times.length - 1]!;
+  const points = fixes.map((f, i) => ({ lat: f.lat, lng: f.lng, accuracy: 5, timestamp: times[i]! + shift }));
   return { startTime: points[0]!.timestamp, endTime: points[points.length - 1]!.timestamp, points, session: sessionFor(points) };
 }
 
@@ -80,13 +95,17 @@ test("sparse accurate GPS: the stored path keeps inferred units, but only steppe
   assert.equal(record.status, "verified");
   assert.equal(record.sealed, true);
   assert.ok(inferred.length >= 3, `inferred ${inferred.length}, stepped ${stepped.length}`);
+  // Sealing v2 claim scope: of the stepped units, only those on or inside the dense square claim; the sparse leg claims nothing.
+  const claimCells = new Set(((await t.pool.query("SELECT territory_claim_units::text[] AS u FROM movement_verifications WHERE id = $1", [record.id])).rows[0].u as string[]).map(int8ToCell));
+  const claimable = stepped.filter((u) => claimCells.has(u));
+  assert.ok(claimable.length > 0 && claimable.length < stepped.length, `claimable ${claimable.length} of ${stepped.length} stepped`);
   const r = await p2.applySession("ivy", "sparse");
-  assert.equal(r.applied, stepped.length);
-  assert.equal(r.outcomes.claimed, stepped.length);
+  assert.equal(r.applied, claimable.length);
+  assert.equal(r.outcomes.claimed, claimable.length);
   const pushed = (await t.pool.query("SELECT unit::text AS unit FROM gameplay_push_events ORDER BY seq")).rows.map((x) => int8ToCell(x.unit));
-  assert.deepEqual(pushed, stepped, "walk order, stepped units only");
+  assert.deepEqual(pushed, claimable, "walk order, stepped and claimable units only");
   const used = (await t.pool.query("SELECT units_used FROM gameplay_walker_days d JOIN gameplay_players p ON p.player_no = d.walker_no WHERE p.user_id = 'ivy'")).rows[0];
-  assert.equal(Number(used.units_used), stepped.length, "the unit budget counts physical steps only");
+  assert.equal(Number(used.units_used), claimable.length, "the unit budget counts physical, claimable steps only");
   const held = Number((await t.pool.query("SELECT count(*)::int AS n FROM gameplay_units WHERE holder_id = 'ivy' AND unit = ANY($1::bigint[])", [inferred.map(cellToInt8)])).rows[0].n);
   assert.equal(held, 0, "no inferred unit is held");
 });
@@ -99,7 +118,7 @@ test("an inferred unit never erodes or takes a rival's ground", { skip: SKIP }, 
   await t.pool.query("INSERT INTO users (id) VALUES ('kim') ON CONFLICT DO NOTHING");
   await t.pool.query(
     `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-     VALUES ('mv-kim', 'kim', 'kim-1', 'verified', 3000, 1800, '{}', $1, $2, (to_timestamp($3::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+     VALUES ('mv-kim', 'kim', 'kim-1', 'verified', 3000, 1800, '{}', $1, $2, (to_timestamp($3::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, [target])})`,
     [at(D + 1, 7) - 1_800_000, at(D + 1, 7), clock]);
   await t.pool.query(`INSERT INTO gameplay_session_paths (movement_verification_id, path_version, resolution, unit_ids, interpolated, skipped_segments, truncated)
     VALUES ('mv-kim', 1, 10, $1::bigint[], B'0', 0, false)`, [[cellToInt8(target)]]);

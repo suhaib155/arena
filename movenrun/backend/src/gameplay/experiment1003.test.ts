@@ -13,7 +13,8 @@ import { ADVERSARY_1003, COHORTS_1003, LINKED_1003 } from "./experiments/populat
 import { EXPERIMENTS_1003, RULES_1003A, RULES_1003B, RULES_1003C, RULES_1003C0, budget1003Problems, type Experiment1003 } from "./experiments/rules1003.js";
 import { DEFAULT_RULES_VERSION, PILOT_PROPOSAL, RULESETS, SIM_PILOT_2_PROPOSAL, rulesetDigest, rulesetFor } from "./rules.js";
 
-const DIGEST_1001 = "d4199ec60958750007bfa8884c88aad1bf810aed6bd2a054abb5dc74ffe41cd6";
+// 1001 with sealing v2 named (was d4199ec6… before docs/g34/SEALING_V2_28OCT.md).
+const DIGEST_1001 = "ff372572d7b754ad6c6dde3dbcc7535f7f62e13e94e718f8424eb0b1e0923bb2";
 const DAY = 20_000;
 const H = 3_600_000;
 const SMALL = {

@@ -26,7 +26,8 @@ import { createDrizzleAccountDeletionStore } from "../identity/accountDeletion.j
 import { GpsService } from "../services/gps.service.js";
 import { DrizzleMovementVerificationRepository } from "../movement/repositories/drizzle/store.js";
 import { MovementVerificationService } from "../movement/services/movementVerification.service.js";
-import { sessionPathFor, toValidatable } from "../movement/http/productionRouter.js";
+import { sessionPathFor, territorySealFor, toValidatable } from "../movement/http/productionRouter.js";
+import { ENCLOSED_LOOP_V1 } from "./sealLoop.js";
 import type { MovementObservation, ObservedPoint } from "../movement/domain/types.js";
 import { cellToInt8, deriveSessionPath, int8ToCell, VERIFIED_STEPS_V1 } from "./path.js";
 import { fixesOf, poly, ROUTE_FIXTURES } from "./pathFixtures.js";
@@ -88,7 +89,7 @@ async function session(userId: string, sid: string, endMs: number, units: string
   const id = `mv-${sid}`;
   await t.pool.query(
     `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+     VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, units)})`,
     [id, userId, sid, [], endMs - 1_800_000, endMs, opts.receivedMs ?? clock]);
   if (opts.path !== false) {
     await t.pool.query(
@@ -116,6 +117,8 @@ function pipeline(withPath: boolean, db = t.db, ids = { n: 0 }) {
     calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
     traversedHexIds: (points: ObservedPoint[]) => cellsForObservations(points.map((p) => ({ latitude: p.lat, longitude: p.lng }))),
     ...(withPath ? { sessionPath: sessionPathFor(VERIFIED_STEPS_V1) } : {}),
+    // Gameplay on: both rule sets name sealing v2, so the territory seal is computed at verification, as in production.
+    ...(withPath ? { territorySeal: territorySealFor(ENCLOSED_LOOP_V1, { resolution: VERIFIED_STEPS_V1.resolution, stepMeters: VERIFIED_STEPS_V1.stepMeters }) } : {}),
   });
 }
 /** A real-looking verified walk: a route fixture moved to `origin`, a fix every 10 s at 1.4 m/s, accuracy 5 m. */
@@ -160,9 +163,10 @@ test("the movement pipeline stores the resolution 10 path of verified fixes; 100
     const text = (await q("SELECT pg_column_size($1::text[]) AS b", [expected.units]))[0].b;
     console.log(`session path: ${expected.units.length} units, unit_ids ${row.bytes} bytes as bigint[] vs ${text} as text[]`);
   }
-  // A session verified while gameplay was off has no path: 1002 refuses it rather than guessing.
+  // A session verified while gameplay was off has no territory seal and no path: 1002 refuses it rather than guessing
+  // (the seal gate comes first; session_path_unavailable is covered by sessions written without a path).
   await redate((await pipeline(false).submit({ userId: ana, clientSessionId: "pipe-2", observation: observation(1, at(D, 11.5)) })).record.id);
-  assert.equal(await code(p2.applySession(ana, "pipe-2")), "session_path_unavailable");
+  assert.equal(await code(p2.applySession(ana, "pipe-2")), "territory_seal_missing");
   // 1001 still pushes the stored resolution 8 cells, as before (different day, a season of its own is not needed: unit ids differ).
 });
 
@@ -174,7 +178,7 @@ test("gameplay off: the pipeline works on a database without 0011 and stores not
     assert.equal(out.record.status, "verified");
     const tables = (await bare.pool.query("SELECT count(*)::int AS n FROM pg_tables WHERE tablename LIKE 'gameplay_%'")).rows[0].n;
     assert.equal(tables, 0);
-    // With the path dependency on and no table, the verification fails whole: nothing half-written.
+    // With the gameplay dependencies on and no 0011, the verification fails whole: nothing half-written.
     await assert.rejects(pipeline(true, bare.db).submit({ userId: "solo", clientSessionId: "s2", observation: observation(1, at(D, 11.2)) }));
     assert.equal((await bare.pool.query("SELECT count(*)::int AS n FROM movement_verifications WHERE client_session_id = 's2'")).rows[0].n, 0);
   } finally {
@@ -289,7 +293,7 @@ test("mid-season rule change fails closed: 1001 cannot touch a 1002 season, and 
     await session(w, `race-p2-${i}`, end, [U[400 + i]!]);
     await t.pool.query(
       `INSERT INTO movement_verifications (id, user_id, client_session_id, status, distance_meters, duration_seconds, traversed_hex_ids, start_time, end_time, created_at, ${SEAL_COLUMNS})
-       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP)})`,
+       VALUES ($1, $2, $3, 'verified', 3000, 1800, $4, $5, $6, (to_timestamp($7::float8 / 1000) AT TIME ZONE current_setting('TimeZone')), ${sealLiteral(SEALED_LOOP, [R8[i + 1]!])})`,
       [`mv-race-a9-${i}`, w, `race-a9-${i}`, [R8[i + 1]!], end - 1_800_000, end, clock]);
   }
   const settled = await Promise.allSettled(racers.flatMap((w, i) => [p2.applySession(w, `race-p2-${i}`), a9.applySession(w, `race-a9-${i}`)]));
