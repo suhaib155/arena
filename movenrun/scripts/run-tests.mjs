@@ -21,6 +21,8 @@
  *
  * Skips are counted and listed separately; a skip is never reported as a pass.
  * `--strict` makes any skip a failure (use it where a database is provided).
+ * Todo tests (known open defects marked `todo`) never fail the run, but they are counted and
+ * listed after the summary so an open todo is always visible, never silent.
  * The `db` category refuses to start without MOVENRUN_TEST_DATABASE_URL, and
  * runs one file at a time because some of those tests reset the schema of the
  * database they are given. Environment values are never printed.
@@ -106,6 +108,7 @@ function runPhase(name, list) {
     const child = spawn(process.execPath, args, { cwd: root, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
     const stats = { tests: 0, pass: 0, fail: 0, cancelled: 0, skipped: 0, todo: 0 };
     const skipped = [];
+    const todos = [];
     let timedOut = false;
     let inFailure = false;
     let buf = "";
@@ -115,7 +118,10 @@ function runPhase(name, list) {
       if (m) stats[m[1]] = Number(m[2]);
       const s = /^\s*ok \d+ - (.*?) # SKIP\b\s*(.*)$/.exec(line);
       if (s) skipped.push(s[1]);
-      if (/^\s*not ok /.test(line)) { console.log(line); inFailure = true; return; }
+      const t = /^\s*(?:not )?ok \d+ - (.*?) # TODO\b\s*(.*)$/.exec(line);
+      if (t) todos.push(t[2] ? `${t[1]} (${t[2]})` : t[1]);
+      // A failing todo is a known open defect: it is listed in the summary, not printed as a failure.
+      if (/^\s*not ok /.test(line)) { if (t) { inFailure = false; return; } console.log(line); inFailure = true; return; }
       if (/^\s*(ok \d+|# )/.test(line)) inFailure = false;
       // Print the diagnostic block of a failing test so CI logs say why,
       // with the database URL and any URL credentials removed.
@@ -128,7 +134,7 @@ function runPhase(name, list) {
     child.on("close", (code, signal) => {
       clearTimeout(timer);
       if (buf) onLine(buf);
-      resolve({ name, files: list.length, stats, skipped, code, signal, timedOut });
+      resolve({ name, files: list.length, stats, skipped, todos, code, signal, timedOut });
     });
   });
 }
@@ -136,26 +142,32 @@ function runPhase(name, list) {
 const results = [];
 for (const name of phases) {
   const list = groups[name];
-  if (!list.length) { results.push({ name, files: 0, stats: { tests: 0, pass: 0, fail: 0, cancelled: 0, skipped: 0, todo: 0 }, skipped: [], code: 0 }); continue; }
+  if (!list.length) { results.push({ name, files: 0, stats: { tests: 0, pass: 0, fail: 0, cancelled: 0, skipped: 0, todo: 0 }, skipped: [], todos: [], code: 0 }); continue; }
   console.log(`\nrun-tests: phase ${name}: ${list.length} files`);
   results.push(await runPhase(name, list));
 }
 
 console.log("\nrun-tests summary");
 let bad = false;
-const total = { files: 0, tests: 0, pass: 0, fail: 0, cancelled: 0, skipped: 0 };
+const total = { files: 0, tests: 0, pass: 0, fail: 0, cancelled: 0, skipped: 0, todo: 0 };
 for (const r of results) {
-  console.log(`  ${r.name.padEnd(5)} files ${r.files}  tests ${r.stats.tests}  pass ${r.stats.pass}  fail ${r.stats.fail}  cancelled ${r.stats.cancelled}  skipped ${r.stats.skipped}`);
+  console.log(`  ${r.name.padEnd(5)} files ${r.files}  tests ${r.stats.tests}  pass ${r.stats.pass}  fail ${r.stats.fail}  cancelled ${r.stats.cancelled}  skipped ${r.stats.skipped}  todo ${r.stats.todo}`);
   for (const k of Object.keys(total)) total[k] += k === "files" ? r.files : r.stats[k];
   if (r.timedOut) { console.error(`run-tests: phase ${r.name} exceeded ${opts.timeoutMs} ms and was killed`); bad = true; }
   else if (r.code !== 0 || r.stats.fail > 0 || r.stats.cancelled > 0) { console.error(`run-tests: phase ${r.name} failed (exit ${r.code ?? r.signal})`); bad = true; }
   else if (r.files > 0 && r.stats.tests === 0) { console.error(`run-tests: phase ${r.name} ran zero tests`); bad = true; }
 }
-console.log(`  total files ${total.files}  tests ${total.tests}  pass ${total.pass}  fail ${total.fail}  cancelled ${total.cancelled}  skipped ${total.skipped}`);
+console.log(`  total files ${total.files}  tests ${total.tests}  pass ${total.pass}  fail ${total.fail}  cancelled ${total.cancelled}  skipped ${total.skipped}  todo ${total.todo}`);
 const skippedNames = results.flatMap((r) => r.skipped.map((n) => `${r.name}: ${n}`));
 if (skippedNames.length) {
   console.log(`  SKIPPED (not passed): ${skippedNames.length}`);
   for (const n of skippedNames) console.log(`    - ${n}`);
   if (opts.strict) { console.error("run-tests: --strict: skips are failures"); bad = true; }
+}
+// Todo tests are known open defects: they do not fail the run (not even under --strict), but each is listed.
+const todoNames = results.flatMap((r) => (r.todos ?? []).map((n) => `${r.name}: ${n}`));
+if (todoNames.length || total.todo > 0) {
+  console.log(`  TODO (known open, does not fail the run): ${Math.max(total.todo, todoNames.length)}`);
+  for (const n of todoNames) console.log(`    - ${n}`);
 }
 process.exit(bad ? 1 : 0);

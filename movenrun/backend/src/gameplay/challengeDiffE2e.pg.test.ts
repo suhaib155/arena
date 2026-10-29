@@ -22,6 +22,9 @@
  * diff mode is covered at the writeChallenges level by challengeDiff.pg.test.ts; here the
  * route is shown to fail closed and leave the rows untouched.
  *
+ * The two KNOWN BUG todo tests at the end of this file (a restarted challenge keeps the lapsed receipt time) are
+ * covered by the branch fix/g34-challenge-restart-receipt-time; this file keeps them as todo until that fix lands.
+ *
  * Skipped, loudly, without MOVENRUN_TEST_DATABASE_URL. Synthetic ids and cells only.
  */
 import { test, before, after } from "node:test";
@@ -133,7 +136,61 @@ async function dumpState(h: Harness, orderFree = false): Promise<Dump> {
 
 /** Counts of row-level writes to the challenge table, from a trigger (committed work only: a rolled-back write leaves nothing). */
 const writeCounts = async (h: Harness) => Object.fromEntries((await h.q(`SELECT op, count(*)::int AS n FROM e2e_challenge_writes GROUP BY op`)).map((r) => [r.op, r.n]));
-const deadlocks = async (h: Harness) => Number((await h.q(`SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()`))[0].deadlocks);
+const sleepMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const dbStat = async (h: Harness) => {
+  await h.q(`SELECT pg_stat_clear_snapshot()`);
+  const r = (await h.q(`SELECT deadlocks, (tup_inserted + tup_updated + tup_deleted) AS writes FROM pg_stat_database WHERE datname = current_database()`))[0];
+  return { deadlocks: Number(r.deadlocks), writes: Number(r.writes) };
+};
+const deadlocks = async (h: Harness) => (await dbStat(h)).deadlocks;
+
+/**
+ * Deadlocks reported by PostgreSQL since `baseline`, read after the statistics have been flushed.
+ *
+ * pg_stat_database is updated lazily: each backend flushes its counters to the shared statistics about once a
+ * second, when idle. An immediate read could therefore miss a deadlock that just happened. The database's
+ * tup_inserted + tup_updated + tup_deleted total serves as the flush marker (it does not move on this function's own
+ * read-only polls, unlike xact_commit): the counters are polled until that total has been unchanged for three reads
+ * (500 ms apart, 20 s at most), and only then is the deadlock total read.
+ *
+ * The server log is also searched for "deadlock detected" (every deadlock is logged at ERROR, regardless of
+ * log_lock_waits) when the test role may read it (pg_read_file / pg_current_logfile need superuser or pg_read_server_files
+ * and pg_monitor); otherwise the log check is reported as unavailable.
+ *
+ * What this proves: the database's own deadlock detector did not fire in this database during the run (as far as
+ * the flushed counter and, where readable, the log say). What it cannot prove: the absence of lock waits or of
+ * retries that never reached a deadlock, nor a deadlock in a run whose statistics were lost (crash, stats reset).
+ */
+async function logMark(h: Harness): Promise<{ file: string; size: number } | null> {
+  try {
+    const file = (await h.q(`SELECT pg_current_logfile() AS f`))[0].f as string | null;
+    if (!file) return null;
+    const dir = (await h.q(`SELECT current_setting('data_directory') AS d`))[0].d as string;
+    const path = file.startsWith("/") ? file : `${dir}/${file}`;
+    return { file: path, size: Number((await h.q(`SELECT (pg_stat_file($1)).size AS s`, [path]))[0].s) };
+  } catch { return null; } // not readable by this role
+}
+
+async function deadlockEvidence(h: Harness, baseline: number, mark: { file: string; size: number } | null): Promise<{ delta: number; flushed: boolean; polls: number; log: "none" | "found" | "unavailable" }> {
+  let last = await dbStat(h), stable = 0, polls = 0;
+  const started = Date.now();
+  while (stable < 3 && Date.now() - started < 20_000) {
+    await sleepMs(500);
+    const now = await dbStat(h);
+    polls++;
+    stable = now.writes === last.writes ? stable + 1 : 0;
+    last = now;
+  }
+  let log: "none" | "found" | "unavailable" = "unavailable";
+  if (mark) {
+    try {
+      // Only the bytes appended since the mark taken at the start of the scenario (no timezone arithmetic).
+      const text = (await h.q(`SELECT pg_read_file($1, $2, 100000000) AS t`, [mark.file, mark.size]))[0].t as string;
+      log = /deadlock detected/.test(text) ? "found" : "none";
+    } catch { /* not readable */ }
+  }
+  return { delta: last.deadlocks - baseline, flushed: stable >= 3, polls, log };
+}
 
 async function install(h: Harness): Promise<void> {
   await h.t.pool.query(`
@@ -162,6 +219,7 @@ async function scenario(mode: ChallengeWriteMode): Promise<void> {
   try {
     await install(h);
     const deadlocks0 = await deadlocks(h);
+    const logAt = await logMark(h);
     const [ana, ben, cal, dan] = await Promise.all(["ana", "ben", "cal", "dan"].map(h.user));
     const [u1, u2, u3] = [U[0]!, U[1]!, U[2]!];
     const walk = async (who: string, sid: string, endHour: number, units: string[], day = D) => {
@@ -226,6 +284,7 @@ async function scenario(mode: ChallengeWriteMode): Promise<void> {
     /* 5. first_day change: four days on, the old challenges are out of the window. Ben's push restarts his own at
      *    the new day (first_day moves, same key) and the others' stale rows close. */
     const beforeDay = await h.q(PHYS);
+    const writesBeforeDay = await writeCounts(h);
     h.clock.now = at(D + 4, 10);
     assert.equal((await walk(ben, "ben-d4", 9.5, [u1, u2], D + 4)).body.outcomes.eroded, 2);
     const afterDay = await h.q(PHYS);
@@ -235,8 +294,9 @@ async function scenario(mode: ChallengeWriteMode): Promise<void> {
     assert.ok(afterDay.every((r) => r.hv === 1002));
     if (mode === "diff") {
       // Same keys as before: updated in place by key (first_day), not deleted and re-inserted.
+      // A delta over this step only: the cumulative UPDATE count would also pass on UPDATEs from earlier steps.
       const w = await writeCounts(h);
-      assert.ok((w.UPDATE ?? 0) >= 2, "diff: Ben's two kept rows were UPDATEd");
+      assert.ok((w.UPDATE ?? 0) - (writesBeforeDay.UPDATE ?? 0) >= 2, "diff: Ben's two kept rows were UPDATEd in this step");
       assert.ok(beforeDay.some((r) => r.walker_id === ben));
     }
     await mark("6 first_day change");
@@ -306,8 +366,11 @@ async function scenario(mode: ChallengeWriteMode): Promise<void> {
       const out = await Promise.all([h.api(w, `eve-${r}-a`), h.api(w, `eve-${r}-b`), h.api(x, `fay-${r}-a`)]);
       for (const o of out) { results.push(o.status); assert.equal(o.status, 201, JSON.stringify(o.body)); }
     }
-    const dl = (await deadlocks(h)) - deadlocks0;
+    const dlEv = await deadlockEvidence(h, deadlocks0, logAt);
+    const dl = dlEv.delta;
+    assert.ok(dlEv.flushed, `the deadlock counter never settled (${dlEv.polls} polls): the check would prove nothing`);
     assert.equal(dl, 0, `PostgreSQL reported ${dl} deadlock(s) (40P01) in this run: report it, do not retry it away`);
+    assert.notEqual(dlEv.log, "found", "the server log records a deadlock in this run");
     // One consistent state: per walker and unit, one accepted push a day; challenges match the ledger.
     const dupes = await h.q(`SELECT e.unit, e.walker_no, e.day, count(*)::int AS n FROM gameplay_push_events e WHERE e.outcome IN (3, 4) GROUP BY 1, 2, 3 HAVING count(*) > 1`);
     assert.deepEqual(dupes, [], "no walker pushed a unit twice in a day");
@@ -323,7 +386,7 @@ async function scenario(mode: ChallengeWriteMode): Promise<void> {
         .sort((a, b) => (a.unit < b.unit ? -1 : a.unit > b.unit ? 1 : a.walker_id < b.walker_id ? -1 : 1));
       assert.deepEqual(rows.map((x) => ({ ...x, first_day: Number(x.first_day) })).sort((a, b) => (a.unit < b.unit ? -1 : a.unit > b.unit ? 1 : a.walker_id < b.walker_id ? -1 : 1)), expected, `round ${r}`);
     }
-    ev.concurrency = { rounds: ROUNDS, requests: results.length, statuses: [...new Set(results)], deadlocksReportedByPostgres: dl };
+    ev.concurrency = { rounds: ROUNDS, requests: results.length, statuses: [...new Set(results)], deadlocksReportedByPostgres: dl, deadlockStatsFlushed: dlEv.flushed, deadlockLogCheck: dlEv.log };
     await mark("9 concurrent pushes, one walker one day", true);
 
     /* 9. day settlement: every closed day settles, once, with the same books in both modes. */
