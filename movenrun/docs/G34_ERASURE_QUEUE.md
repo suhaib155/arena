@@ -116,7 +116,7 @@ statement_timeout, `08xxx`/`57P0x`/`53300`/socket errors/pool connect timeout/"Q
 | accepted and queued | 202 | `{deleted:false, status:"pending", requestId, signedOut:true, signInRecord:"pending"}` |
 | could not start in budget (nothing written) | 503 + `Retry-After: 5` | `{error:{code:"deletion_busy"}}` |
 | sign-in while deleting | 409 | `{error:{code:"account_deletion_pending"}}` |
-| status lookup | 200 / 404 | `{deleted, status, delayed, signInRecord}`; `Cache-Control: no-store` |
+| status lookup | 200 / 404 | `{deleted, status, delayed, signInRecord}`; `Cache-Control: no-store`. A lookup more than 30 days (720 hours) after completion returns 404, exactly like an unknown id: the receipt has been purged (section 8), so a client that first polls after the purge never sees "deleted" |
 
 The website deletion page now says "accepted, signed out, being removed" for a 202 and "busy, nothing deleted, try
 again" for a 503. Its static text still says deletion "happens immediately", which is true with gameplay off; it must
@@ -150,7 +150,8 @@ cannot be joined to any settled day or tombstoned line; `erasureQueue.pg.test.ts
 `ERASURE_RECEIPT_RETENTION_DAYS` = 30 days after `completed_at`, then purged. Outstanding jobs (pending, including
 those waiting to retry, running, and needs_attention) are kept until resolved and are never purged, whatever their age.
 The purge (`purgeCompletedErasureJobs`) deletes only `state = 'completed'` rows whose `completed_at` is strictly more
-than 30 days before the database clock (a row exactly at the edge stays), oldest first, at most
+than 720 hours (30 x 24, a fixed interval independent of the session TimeZone and daylight saving) before the database
+clock (a row exactly at the edge stays), oldest first, at most
 `ERASURE_RECEIPT_PURGE_BATCH` (500) rows per run, skipping rows another session holds locked; the CHECK constraints tie
 `completed` to `user_id IS NULL`, so it can never remove a row that names an account. It uses the partial index
 `gameplay_account_deletion_jobs_completed_at` (proposed 0011). It runs from the worker's maintenance path (task
@@ -158,6 +159,11 @@ than 30 days before the database clock (a row exactly at the edge stays), oldest
 probes the catalogue for the job table and does nothing, and queries nothing else, until the table exists. The
 `erasure_job_requeued` audit events in `security_audit_events` are not touched by this purge; their retention follows
 that table's.
+
+"Outstanding" here means database jobs only. A completed job's provider sign-in removal is tracked separately in
+`pending_auth_user_deletions` and retried there; the job row's `provider_stage` is not written back when that retry
+later succeeds (section 12). A completed row is therefore purged 30 days after completion whether or not provider
+removal has finished, and after the purge the status lookup answers 404 (section 6). See gate G-Q4.
 
 ## 9. Proposed operational SLO (not observed performance, not a legal guarantee)
 
@@ -227,7 +233,10 @@ synchronous erasure of this branch's code, recording each in the incident log.
   pending. Mobile UI is Lane B's and is not changed here.
 - **G-Q4** *Decided by the owner on 30 Oct 2026:* completed, de-identified job rows are kept 30 days, then purged;
   outstanding jobs are kept until resolved (section 8). Retention of the `security_audit_events` requeue records was
-  not separately decided and follows that table's existing retention.
+  not separately decided and follows that table's existing retention. *Open point for the owner:* provider removal
+  does not count as outstanding today (section 8); if the owner wants a completed job with provider removal still
+  pending to be kept until that removal succeeds, the provider retry loop must first write `provider_stage` back to
+  the job row, and the purge must then exclude `provider_stage = 'queued'`. Not done here.
 - **G-Q5** *Decided by the owner on 30 Oct 2026:* only authorised operators may requeue, after investigation, with an
   audit record in the same transaction; fatal failures require review (section 10). Operator identity remains a role
   label (as in D-E4).

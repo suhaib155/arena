@@ -650,12 +650,14 @@ test("receipt retention: the purge deletes only completed rows older than 30 day
     const c = await w.t.pool.connect();
     try {
       // One transaction, so now() is one instant for the inserts and the purge:
-      // "exactly 30 days" is exact.
+      // "exactly 720 hours" is exact. A daylight-saving session TimeZone must
+      // not move the edge, so the transaction runs in one.
+      await c.query("SET LOCAL TimeZone = 'Europe/London'");
       await c.query("BEGIN");
-      await c.query(completed(ids.past31, "now() - interval '31 days'"));
-      await c.query(completed(ids.pastEdge, "now() - interval '30 days' - interval '1 millisecond'"));
-      await c.query(completed(ids.atEdge, "now() - interval '30 days'"));
-      await c.query(completed(ids.inside29, "now() - interval '29 days 23 hours'"));
+      await c.query(completed(ids.past31, "now() - interval '744 hours'"));
+      await c.query(completed(ids.pastEdge, "now() - interval '720 hours' - interval '1 millisecond'"));
+      await c.query(completed(ids.atEdge, "now() - interval '720 hours'"));
+      await c.query(completed(ids.inside29, "now() - interval '719 hours'"));
       await c.query(completed(ids.fresh, "now()"));
       await c.query(`INSERT INTO gameplay_account_deletion_jobs (id, user_id, state, requested_at, next_attempt_at) VALUES ('${ids.pending}', 'q-open-p', 'pending', ${old}, ${old})`);
       await c.query(`INSERT INTO gameplay_account_deletion_jobs (id, user_id, state, attempts, requested_at, next_attempt_at, last_outcome) VALUES ('${ids.retrying}', 'q-open-r', 'pending', 7, ${old}, now() + interval '5 minutes', 'lock_timeout')`);

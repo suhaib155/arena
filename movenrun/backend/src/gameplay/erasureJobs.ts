@@ -95,7 +95,7 @@ export interface ErasureRetryPolicy {
  * failure the budget lasts roughly two to three hours before an operator is
  * needed. Not a promise of completion time; see the runbook. The attempt
  * budget, the 5-minute cap and the 120 s lease are owner-approved
- * (30 Oct 2026); erasureJobs.test.ts pins them.
+ * (30 Oct 2026); src/identity/erasureQueuePolicy.test.ts pins them.
  */
 export const DEFAULT_ERASURE_RETRY: ErasureRetryPolicy = {
   baseDelayMs: 2_000,
@@ -259,8 +259,11 @@ export const ERASURE_RECEIPT_PURGE_BATCH = 500;
 
 /**
  * Delete completed job rows whose completion is more than
- * `ERASURE_RECEIPT_RETENTION_DAYS` old on the database clock (strictly older:
- * a row completed exactly at the window's edge is kept), at most `limit` per
+ * `ERASURE_RECEIPT_RETENTION_DAYS` * 24 hours old on the database clock
+ * (strictly older: a row completed exactly at the window's edge is kept). The
+ * window is a fixed number of hours, so it does not depend on the session
+ * TimeZone (a day interval on timestamptz would follow daylight-saving
+ * changes), at most `limit` per
  * call, oldest first. Only `state = 'completed'` rows qualify; the CHECK
  * constraints tie that state to `completed_at` set and `user_id` NULL, so an
  * open job, or a row that still names an account, can never match. Rows
@@ -274,7 +277,7 @@ export async function purgeCompletedErasureJobs(exec: Exec, limit: number = ERAS
      WHERE id IN (
        SELECT id FROM gameplay_account_deletion_jobs
         WHERE state = 'completed'
-          AND completed_at < now() - make_interval(days => ${ERASURE_RECEIPT_RETENTION_DAYS}::int)
+          AND completed_at < now() - make_interval(hours => ${ERASURE_RECEIPT_RETENTION_DAYS * 24}::int)
         ORDER BY completed_at
         LIMIT ${limit}::int FOR UPDATE SKIP LOCKED)
        AND state = 'completed'
