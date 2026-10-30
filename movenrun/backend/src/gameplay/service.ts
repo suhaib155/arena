@@ -266,6 +266,60 @@ export interface GameplayServiceDeps {
   capacityGuard?: CapacityGuard;
   /** work_mem for the settlement transaction, in kB (default 16 MiB), so the day's sorts stay in memory. */
   settlementWorkMemKb?: number;
+  /** How a day close retries a serialization failure or deadlock (default DEFAULT_SETTLEMENT_RETRY). */
+  settlementRetry?: Partial<SettlementRetryPolicy>;
+  /** Jitter source for the retry backoff, in [0, 1) (default Math.random). */
+  retryRandom?: () => number;
+  /** Waits between retries (default setTimeout). */
+  retrySleep?: (ms: number) => Promise<void>;
+  /** Monotonic clock in ms for the retry time cap (default performance.now); not the game clock. */
+  retryClock?: () => number;
+}
+
+/**
+ * Retry policy of one `settleDay` call. A close aborted with 40001 or 40P01
+ * wrote nothing (its transaction is rolled back whole) and is run again after
+ * a wait of `floor(random * min(maxDelayMs, baseDelayMs * 2^(n-1)))` ms before
+ * retry n (capped exponential, full jitter), at most `maxAttempts` attempts in
+ * all, and never starting a wait that would end past `maxTotalMs` from the
+ * first attempt. When either cap is reached the call fails with
+ * SettlementRetryExhaustedError; the day stays unsettled and the next
+ * day-close run selects it again.
+ */
+export interface SettlementRetryPolicy {
+  maxAttempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  maxTotalMs: number;
+}
+/** Five attempts, as before, now with a wait between them. */
+export const DEFAULT_SETTLEMENT_RETRY: SettlementRetryPolicy = { maxAttempts: 5, baseDelayMs: 50, maxDelayMs: 1_000, maxTotalMs: 10_000 };
+
+/** The wait before retry `retry` (1-based) for a jitter draw `random` in [0, 1). */
+export function settlementBackoffMs(policy: SettlementRetryPolicy, retry: number, random: number): number {
+  const r = Number.isFinite(random) ? Math.min(Math.max(random, 0), 1) : 0;
+  const cap = Math.min(policy.maxDelayMs, policy.baseDelayMs * 2 ** Math.max(0, retry - 1));
+  return Math.min(Math.floor(r * cap), Math.max(0, cap - 1));
+}
+
+/**
+ * A day close that kept losing to concurrent transactions (40001 or 40P01)
+ * until its retry policy ran out. Nothing of the day was written: every
+ * attempt rolled back whole. Transient: it is not a reason to halt
+ * settlement, and the day is retried by the next day-close run.
+ */
+export class SettlementRetryExhaustedError extends GameplayError {
+  constructor(readonly day: number, readonly attempts: number, readonly lastCode: string, readonly reason: "attempts" | "time") {
+    super(503, "settlement_retry_exhausted");
+  }
+}
+
+function checkRetryPolicy(p: SettlementRetryPolicy): SettlementRetryPolicy {
+  const whole = (v: number, min: number, max: number) => Number.isInteger(v) && v >= min && v <= max;
+  if (!whole(p.maxAttempts, 1, 50) || !whole(p.baseDelayMs, 0, 60_000) || !whole(p.maxDelayMs, 0, 600_000) || !whole(p.maxTotalMs, 0, 3_600_000)) {
+    throw new Error("settlement retry policy: maxAttempts 1 to 50, delays and maxTotalMs whole milliseconds within bounds");
+  }
+  return p;
 }
 
 export interface OpenChallenge { unit: string; walkerId: string; day: number; openedMs: number }
@@ -393,6 +447,10 @@ export class GameplayService {
   private readonly capacityGuard: CapacityGuard | undefined;
   private readonly settlementWorkMemKb: number;
   private readonly challengeWrites: ChallengeWriteMode;
+  private readonly settlementRetry: SettlementRetryPolicy;
+  private readonly retryRandom: () => number;
+  private readonly retrySleep: (ms: number) => Promise<void>;
+  private readonly retryClock: () => number;
 
   constructor(deps: GameplayServiceDeps) {
     this.db = deps.db;
@@ -405,6 +463,10 @@ export class GameplayService {
     if (this.challengeWrites !== "delete-insert" && this.challengeWrites !== "diff") throw new Error("challengeWrites must be delete-insert or diff");
     this.settlementWorkMemKb = deps.settlementWorkMemKb ?? 16_384;
     if (!(Number.isInteger(this.settlementWorkMemKb) && this.settlementWorkMemKb >= 64 && this.settlementWorkMemKb <= 1_048_576)) throw new Error("settlementWorkMemKb must be 64 to 1048576");
+    this.settlementRetry = checkRetryPolicy({ ...DEFAULT_SETTLEMENT_RETRY, ...deps.settlementRetry });
+    this.retryRandom = deps.retryRandom ?? Math.random;
+    this.retrySleep = deps.retrySleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.retryClock = deps.retryClock ?? (() => performance.now());
   }
 
   today(): number {
@@ -1015,34 +1077,60 @@ export class GameplayService {
       SELECT d FROM generate_series(${this.rules.seasonOneStartDay}::int, ${last}::int) AS d
        WHERE NOT EXISTS (SELECT 1 FROM gameplay_day_settlements s WHERE s.day = d)
        ORDER BY d LIMIT ${this.rules.maxDaysPerRun}`);
+    // Oldest first. A day whose close exhausted its retries
+    // (SettlementRetryExhaustedError) ends this run with that error; it
+    // wrote nothing and stays due, so the next run tries it again first.
     for (const { d } of due) await this.settleDay(Number(d));
     return due.length;
   }
 
-  /** Settle one closed day. Idempotent: a settled (or refused) day is returned as stored. */
+  /**
+   * Settle one closed day. Idempotent: a settled (or refused) day is returned
+   * as stored. A close aborted by a serialization failure or deadlock is
+   * retried under the retry policy (bounded, jittered backoff); when that
+   * runs out it fails with SettlementRetryExhaustedError and nothing of the
+   * day is written. Any other error is raised at once.
+   */
   async settleDay(day: number): Promise<DaySummary> {
     if (!Number.isInteger(day) || day < 0) throw new GameplayError(400, "invalid_day");
     if (day > lastClosedDay(this.rules, this.now())) throw new GameplayError(409, "day_not_closed");
     const season = seasonOf(this.rules, day);
     if (season === null) throw new GameplayError(409, "season_not_started");
-    for (let attempt = 0; ; attempt++) {
+    const policy = this.settlementRetry;
+    const started = this.retryClock();
+    for (let attempt = 1; ; attempt++) {
       try {
         return await this.db.transaction((tx) => this.settleInTx(tx, day, season), { isolationLevel: "serializable" });
       } catch (err) {
-        const code = pgCode(err);
-        if ((code === "40001" || code === "40P01") && attempt < 4) continue;
-        throw err;
+        if (!isRetryableContention(err)) throw err;
+        const code = pgCode(err)!;
+        if (attempt >= policy.maxAttempts) throw new SettlementRetryExhaustedError(day, attempt, code, "attempts");
+        const wait = settlementBackoffMs(policy, attempt, this.retryRandom());
+        if (this.retryClock() - started + wait > policy.maxTotalMs) throw new SettlementRetryExhaustedError(day, attempt, code, "time");
+        await this.retrySleep(wait);
       }
     }
   }
 
   private async settleInTx(tx: Tx, day: number, season: number): Promise<DaySummary> {
+    // The erasure fence, first, before the transaction has a snapshot. LOCK
+    // TABLE is not a query, so this SERIALIZABLE transaction's snapshot is
+    // taken by the next statement, after the lock is granted. SHARE conflicts
+    // with the ROW EXCLUSIVE lock an erasure's UPDATE of the fence takes, and
+    // not with another close's SHARE. So an erasure in flight makes this close
+    // wait and is then visible in its snapshot, and no erasure can commit
+    // until the close ends. A day never settles from inputs an erasure is
+    // changing, and the close is not aborted (40001) by each erasure that
+    // commits while it waits, as it was when the snapshot was taken before
+    // the wait (the 29 Oct erasure benchmark exhausted its retries that way).
+    // Fence before the day lock, as an erasure takes the fence before the day
+    // locks of its replays.
+    await tx.execute(sql`LOCK TABLE gameplay_erasure_fence IN SHARE MODE`);
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${GAMEPLAY_LOCK_NAMESPACE}::int, ${day}::int)`);
     const existing = await this.daySummary(tx, day);
     if (existing) return { ...existing, created: false };
-    // The erasure fence: an erasure in flight makes this close wait, and one
-    // that committed after this snapshot fails it (40001, retried afresh), so
-    // a day never settles from inputs an erasure is changing.
+    // The fence row too, as before; with the table lock held no erasure can
+    // have changed it since this snapshot.
     await tx.execute(sql`SELECT 1 FROM gameplay_erasure_fence FOR SHARE`);
     // Halted: nothing is written; the day stays unsettled until a resume.
     if (await this.haltedIn(tx)) throw new GameplayError(503, "settlement_halted");
