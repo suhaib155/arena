@@ -14,6 +14,10 @@
  * mid-attempt leaves a running job whose lease expires; the next run takes
  * it over, and the dead worker's transaction never committed.
  *
+ * The same worker purges completed job rows (deletion receipts that no
+ * longer name anyone) once they are more than ERASURE_RECEIPT_RETENTION_DAYS
+ * old, in bounded batches; open jobs are never purged.
+ *
  * Logs carry counts and reason codes only: no user id, email, address,
  * token or error message.
  */
@@ -26,6 +30,7 @@ import {
   erasureJobsPresent,
   markProviderRemoved,
   parkErasureJob,
+  purgeCompletedErasureJobs,
   releaseErasureJob,
   type ClaimedErasureJob,
   type ErasureAttemptClass,
@@ -60,6 +65,12 @@ export interface ErasureWorker {
   kick(): void;
   /** Resolves when the background drain started by kick() has finished. */
   idle(): Promise<void>;
+  /**
+   * Delete completed job rows past the retention window, at most `limit`
+   * (default ERASURE_RECEIPT_PURGE_BATCH). Returns rows deleted; 0, after a
+   * catalogue probe only, while the job table does not exist.
+   */
+  purgeReceipts(opts?: { limit?: number }): Promise<number>;
   readonly policy: ErasureRetryPolicy;
 }
 
@@ -121,11 +132,12 @@ export function createErasureWorker(deps: ErasureWorkerDeps): ErasureWorker {
   // 0011: until a catalogue probe finds it, no run queries it (flag on with
   // 0011 absent erases synchronously). Once found it is not probed again.
   let tablePresent = false;
+  const present = async (): Promise<boolean> => {
+    if (!tablePresent) tablePresent = await erasureJobsPresent(deps.db);
+    return tablePresent;
+  };
   const drain = async (opts: { maxJobs?: number; budgetMs?: number } = {}): Promise<number> => {
-    if (!tablePresent) {
-      tablePresent = await erasureJobsPresent(deps.db);
-      if (!tablePresent) return 0;
-    }
+    if (!(await present())) return 0;
     const maxJobs = opts.maxJobs ?? 50;
     const budgetMs = opts.budgetMs ?? 45_000;
     const started = now();
@@ -162,6 +174,10 @@ export function createErasureWorker(deps: ErasureWorkerDeps): ErasureWorker {
     },
     async idle() {
       while (running) await running;
+    },
+    async purgeReceipts(opts = {}) {
+      if (!(await present())) return 0;
+      return purgeCompletedErasureJobs(deps.db, opts.limit);
     },
   };
   return worker;

@@ -591,3 +591,124 @@ test("no 0011 (committed 0000-0010 only): a queued store still erases synchronou
     await w.t.drop();
   }
 });
+
+test("lease of 120 s: a claimed job stays with its worker until 120 s on the database clock have passed, then is taken over; the stale attempt is refused", { skip: SKIP }, async () => {
+  const w = await world("erq_lease120");
+  try {
+    const who = await w.user("q-walker-l120");
+    const s = store(w.t.db, QUEUED);
+    const { requestId } = (await s.request(who)) as { requestId: string };
+    assert.equal(jobs.DEFAULT_ERASURE_RETRY.leaseMs, 120_000);
+    // Worker A claims with the default lease and "dies" (never attempts).
+    const stale = await jobs.claimErasureJob(w.t.db, jobs.DEFAULT_ERASURE_RETRY.leaseMs);
+    assert.ok(stale);
+    const [lease] = await w.q<{ s: number }>("SELECT extract(epoch FROM lease_expires_at - now())::float8 AS s FROM gameplay_account_deletion_jobs WHERE id = $1", [requestId]);
+    assert.ok(lease!.s > 115 && lease!.s <= 120, `lease runs 120 s from the claim (${lease!.s} s left)`);
+    const { w: b, events } = makeWorker(w.t.db, s, { policy: { ...FAST, leaseMs: jobs.DEFAULT_ERASURE_RETRY.leaseMs } });
+    assert.equal(b.policy.leaseMs, 120_000);
+    assert.equal(await b.drain(), 0, "a fresh lease is not taken");
+    // The lease is timed on the database clock, so time is moved by moving the
+    // lease's expiry back: 119 s into the lease it is still live ...
+    await w.q("UPDATE gameplay_account_deletion_jobs SET lease_expires_at = lease_expires_at - interval '119 seconds' WHERE id = $1", [requestId]);
+    assert.equal(await b.drain(), 0, "a lease 119 s old is still live");
+    assert.equal((await job(w, requestId))!.state, "running");
+    // ... and past 120 s it has expired and the next run takes the job over.
+    await w.q("UPDATE gameplay_account_deletion_jobs SET lease_expires_at = lease_expires_at - interval '2 seconds' WHERE id = $1", [requestId]);
+    assert.equal(await b.drain(), 1, "the expired lease is taken over");
+    assert.deepEqual(events.map((e) => `${e.kind}:${e.attempts}`), ["completed:2"]);
+    const late = await s.eraseJob(stale!, 200).then(() => null, (e: unknown) => e);
+    assert.equal(jobs.classifyErasureError(late), "lease_lost");
+    assert.equal((await w.q("SELECT 1 FROM security_audit_events WHERE event_type = 'account_deleted'")).length, 1);
+    assert.equal((await job(w, requestId))!.state, "completed");
+  } finally {
+    await w.t.drop();
+  }
+});
+
+test("receipt retention: the purge deletes only completed rows older than 30 days, in bounded batches; open jobs of any age and rows inside the window stay", { skip: SKIP }, async () => {
+  const w = await world("erq_purge");
+  try {
+    assert.equal(jobs.ERASURE_RECEIPT_RETENTION_DAYS, 30);
+    const [idx] = await w.q<{ d: string }>("SELECT indexdef AS d FROM pg_indexes WHERE indexname = 'gameplay_account_deletion_jobs_completed_at'");
+    assert.match(idx!.d, /\(completed_at\) WHERE \(state = 'completed'::text\)/, "the purge has a partial index on completion time");
+    const old = "now() - interval '90 days'";
+    const completed = (label: string, completedAt: string) =>
+      `INSERT INTO gameplay_account_deletion_jobs (id, user_id, state, attempts, requested_at, next_attempt_at, last_outcome, provider_stage, completed_at)
+       VALUES ('${label}'::uuid, NULL, 'completed', 1, ${completedAt} - interval '1 minute', ${completedAt} - interval '1 minute', 'completed', 'none', ${completedAt})`;
+    const ids = {
+      past31: "00000000-0000-4000-8000-000000000031",
+      pastEdge: "00000000-0000-4000-8000-000000000301",
+      atEdge: "00000000-0000-4000-8000-000000000300",
+      inside29: "00000000-0000-4000-8000-000000000029",
+      fresh: "00000000-0000-4000-8000-000000000000",
+      pending: "00000000-0000-4000-8000-0000000000a1",
+      retrying: "00000000-0000-4000-8000-0000000000a2",
+      running: "00000000-0000-4000-8000-0000000000a3",
+      attention: "00000000-0000-4000-8000-0000000000a4",
+    };
+    for (const u of ["q-open-p", "q-open-r", "q-open-l", "q-open-n"]) await w.user(u);
+    const c = await w.t.pool.connect();
+    try {
+      // One transaction, so now() is one instant for the inserts and the purge:
+      // "exactly 720 hours" is exact. A daylight-saving session TimeZone must
+      // not move the edge, so the transaction runs in one.
+      await c.query("SET LOCAL TimeZone = 'Europe/London'");
+      await c.query("BEGIN");
+      await c.query(completed(ids.past31, "now() - interval '744 hours'"));
+      await c.query(completed(ids.pastEdge, "now() - interval '720 hours' - interval '1 millisecond'"));
+      await c.query(completed(ids.atEdge, "now() - interval '720 hours'"));
+      await c.query(completed(ids.inside29, "now() - interval '719 hours'"));
+      await c.query(completed(ids.fresh, "now()"));
+      await c.query(`INSERT INTO gameplay_account_deletion_jobs (id, user_id, state, requested_at, next_attempt_at) VALUES ('${ids.pending}', 'q-open-p', 'pending', ${old}, ${old})`);
+      await c.query(`INSERT INTO gameplay_account_deletion_jobs (id, user_id, state, attempts, requested_at, next_attempt_at, last_outcome) VALUES ('${ids.retrying}', 'q-open-r', 'pending', 7, ${old}, now() + interval '5 minutes', 'lock_timeout')`);
+      await c.query(`INSERT INTO gameplay_account_deletion_jobs (id, user_id, state, attempts, requested_at, next_attempt_at, lease_token, lease_expires_at) VALUES ('${ids.running}', 'q-open-l', 'running', 1, ${old}, ${old}, gen_random_uuid(), ${old})`);
+      await c.query(`INSERT INTO gameplay_account_deletion_jobs (id, user_id, state, attempts, requested_at, next_attempt_at, last_outcome, attention_at) VALUES ('${ids.attention}', 'q-open-n', 'needs_attention', 40, ${old}, ${old}, 'fatal', ${old})`);
+      const tx = drizzle(c) as unknown as Db;
+      assert.equal(await jobs.purgeCompletedErasureJobs(tx, 1), 1, "a batch never exceeds its limit");
+      assert.equal(await jobs.purgeCompletedErasureJobs(tx), 1);
+      assert.equal(await jobs.purgeCompletedErasureJobs(tx), 0, "nothing else is past the window");
+      const left = (await c.query<{ id: string }>("SELECT id::text AS id FROM gameplay_account_deletion_jobs ORDER BY id")).rows.map((r) => r.id);
+      assert.deepEqual(left, [ids.fresh, ids.inside29, ids.atEdge, ids.pending, ids.retrying, ids.running, ids.attention].sort());
+      await c.query("COMMIT");
+    } catch (e) {
+      await c.query("ROLLBACK").catch(() => undefined);
+      throw e;
+    } finally {
+      c.release();
+    }
+    // Through the worker's maintenance entry point: once the edge row is past
+    // the window it goes too; the open jobs (all 90 days old) never do.
+    await w.q("UPDATE gameplay_account_deletion_jobs SET completed_at = completed_at - interval '1 day', requested_at = requested_at - interval '1 day', next_attempt_at = next_attempt_at - interval '1 day' WHERE id = $1", [ids.atEdge]);
+    const { w: worker } = makeWorker(w.t.db, store(w.t.db, QUEUED));
+    assert.equal(await worker.purgeReceipts(), 1);
+    assert.equal(await worker.purgeReceipts(), 0);
+    const states = await w.q<{ state: string; n: number }>("SELECT state, count(*)::int AS n FROM gameplay_account_deletion_jobs GROUP BY state ORDER BY state");
+    assert.deepEqual(states.map((r) => ({ ...r })), [{ state: "completed", n: 2 }, { state: "needs_attention", n: 1 }, { state: "pending", n: 2 }, { state: "running", n: 1 }]);
+    assert.equal((await w.q("SELECT 1 FROM users WHERE id LIKE 'q-open-%'")).length, 4, "accounts with open jobs are untouched");
+  } finally {
+    await w.t.drop();
+  }
+});
+
+test("receipt purge without 0011: a catalogue probe only, never a query of the missing table", { skip: SKIP }, async () => {
+  const w = await world("erq_purge_no0011", false);
+  try {
+    const seen: string[] = [];
+    const proxied = new Proxy(w.t.db, {
+      get(target, prop, receiver) {
+        if (prop === "execute") return (q: unknown) => { seen.push(JSON.stringify(q)); return target.execute(q as never); };
+        if (prop === "transaction") throw new Error("the purge opened a transaction");
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as Db;
+    const { w: worker } = makeWorker(proxied, store(proxied, QUEUED));
+    assert.equal(await worker.purgeReceipts(), 0);
+    assert.equal(await worker.purgeReceipts(), 0);
+    assert.equal(await worker.drain(), 0);
+    const naming = seen.filter((q) => /gameplay_/.test(q));
+    assert.ok(naming.length >= 3 && naming.every((q) => /to_regclass/.test(q)), `only catalogue probes: ${naming.join(" | ")}`);
+    assert.ok(!seen.some((q) => /DELETE/i.test(q)), "no delete was sent");
+  } finally {
+    await w.t.drop();
+  }
+});

@@ -77,6 +77,10 @@ export function createApiApp(config: ApiConfig) {
     worker
       ? { name: "account erasure jobs", everyMs: 30 * 1000, run: () => worker!.drain() }
       : { name: "accounts awaiting erasure", everyMs: 15 * 60 * 1000, run: () => accountDeletion.sweepDeleting() },
+    // Completed deletion receipts past their 30-day retention, in bounded
+    // batches. Only with the worker (gameplay on); a no-op probe until the
+    // proposed job table exists.
+    ...(worker ? [{ name: "expired account erasure receipts", everyMs: 60 * 60 * 1000, run: () => worker!.purgeReceipts() }] : []),
     {
       name: "pending sign-in deletions",
       everyMs: 5 * 60 * 1000,
