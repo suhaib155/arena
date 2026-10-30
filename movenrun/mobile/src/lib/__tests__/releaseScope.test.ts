@@ -72,6 +72,7 @@ test("pathname matching tolerates query strings, trailing slashes and case", () 
   assert.equal(deferredFeatureFor("/deed-showroom#top"), "deeds");
   assert.equal(deferredFeatureFor("/account/wallets"), "wallets");
   assert.equal(deferredFeatureFor("/network/status"), "wallets");
+  assert.equal(deferredFeatureFor("/settings/technical"), "wallets", "Base Sepolia contract details are not shown in v1 (T10)");
 });
 
 test("the Movement Game itself is never caught by the guard", () => {
@@ -90,7 +91,6 @@ test("the Movement Game itself is never caught by the guard", () => {
     "/account/security",
     "/legal",
     "/help",
-    "/settings/technical",
     "/profile",
     // A shipped route that merely starts with the same letters as a deferred one.
     "/clubsfoo",

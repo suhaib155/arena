@@ -676,7 +676,7 @@ export default function MoveSessionScreen() {
           crossing a road to close a loop. */}
       {!compact ? <View style={styles.zoneCard}>
         <View style={styles.zoneHead}>
-          <Text style={styles.zoneTitle}>Make your mark</Text>
+          <Text style={styles.zoneTitle}>Loop preview</Text>
           <View style={[styles.sealChip, { backgroundColor: colors.surface }]}>
             <Ionicons
               name={sealed ? "checkmark-circle" : "git-branch-outline"}
@@ -690,8 +690,8 @@ export default function MoveSessionScreen() {
         </View>
         <Text style={styles.zoneNote}>
           {sealed
-            ? "Sealed sections are banked. The trail ahead is open again."
-            : "Cross your own trail, or finish near where you started, to seal this route."}
+            ? "Loop closed on this phone. The trail ahead is open again. This is a preview and nothing is claimed."
+            : "Cross your own trail, or finish near where you started, to close a loop. This is a preview."}
         </Text>
       </View> : null}
       </View>

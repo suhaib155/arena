@@ -115,9 +115,9 @@ export const CORE_LOOP: readonly LoopStep[] = Object.freeze([
   }),
   Object.freeze({
     key: "own",
-    label: "Own",
+    label: "Preview",
     detail:
-      "Zone Deeds are a preview of a future layer, on a public testnet and read-only in the app. No wallet, no minting, no rewards, and no value.",
+      "Your ground is a personal preview kept on this device. It is not ownership of any place. No token, no wallet, no rewards, and no value.",
     icon: "ribbon-outline",
   }),
 ]) as readonly LoopStep[];

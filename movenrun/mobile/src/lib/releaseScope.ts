@@ -53,7 +53,7 @@ export const FEATURE_ROUTES: Readonly<Record<ReleaseFeature, readonly string[]>>
     "/sponsor-zones",
   ],
   deeds: ["/deed-showroom"],
-  wallets: ["/account/wallets", "/network/status"],
+  wallets: ["/account/wallets", "/network/status", "/settings/technical"],
 });
 
 function normalise(pathname: string): string {

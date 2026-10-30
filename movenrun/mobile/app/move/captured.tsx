@@ -212,7 +212,7 @@ export default function ZoneCapturedScreen() {
             ]}
           >
             <Text style={[styles.stampText, isDefend ? styles.stampTextDefend : null]}>
-              {isDefend ? "Zone Defended" : "Zone Captured"}
+              {isDefend ? "Zone Defended" : "Zone Explored"}
             </Text>
           </Animated.View>
         </View>

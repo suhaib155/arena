@@ -62,7 +62,7 @@ export interface Readiness {
 export function resolveReadiness(input: ReadinessInput): Readiness {
   const offlineNote = input.online
     ? null
-    : "You're offline. A movement session still works — your route is tracked on-device and syncs later.";
+    : "You're offline. A movement session still works and is tracked on this phone. If you are signed in, the server check waits until you are back online.";
 
   // 1. Existing validation block — authoritative, never overridden here.
   if (input.blockedReason) {
@@ -100,7 +100,7 @@ export function resolveReadiness(input: ReadinessInput): Readiness {
       kind: "permission-denied",
       title: "Location is off",
       message:
-        "MovenRun needs location while a session runs to draw your route. Turn it on in Settings, or try a demo route.",
+        "MovenRun needs location while a session runs to draw your route. Turn it on in Settings.",
       primaryLabel: "Open Settings",
       canStartGps: false,
       offerDemo: true,
@@ -116,7 +116,7 @@ export function resolveReadiness(input: ReadinessInput): Readiness {
       kind: "location-unavailable",
       title: "Location unavailable",
       message:
-        "Device location services are off, so a route can't be tracked. Enable location in system settings, or try a demo route.",
+        "Device location services are off, so a route can't be tracked. Enable location in system settings.",
       primaryLabel: "Open Settings",
       canStartGps: false,
       offerDemo: true,

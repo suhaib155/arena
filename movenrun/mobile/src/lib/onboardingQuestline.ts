@@ -101,7 +101,7 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "defend",
-    title: "Defend or fortify a zone",
+    title: "Refresh a preview zone",
     description: "Refresh a preview zone by moving over it.",
     icon: "shield-outline",
     action: "zone",

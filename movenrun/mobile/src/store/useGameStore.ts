@@ -630,3 +630,9 @@ export function useIsCompletedToday(questId: string): boolean {
       s.completedQuestIds.includes(questId),
   );
 }
+
+/** The XP ledger entry for one movement session, or null before it is saved. */
+export function useMovementXpEntry(session: { clientSessionId: string } | null): MovementXpEntry | null {
+  const id = session ? session.clientSessionId : null;
+  return useGameStore((s) => s.movementXp.find((e) => e.clientSessionId === id) ?? null);
+}

@@ -17,6 +17,7 @@
  */
 import type { IoniconName, Zone } from "@/types";
 import { getLocalDateKey } from "./date";
+import type { MovementXpEntry } from "./movementXp";
 import { isMovementSession } from "./sessionQuest";
 import { zoneStatus } from "./territory";
 import { isFeatureInRelease } from "@/lib/releaseScope";
@@ -199,17 +200,43 @@ export function boardInputFromState(state: BoardSourceState): TodayBoardInput {
   };
 }
 
-/** XP earned today, from every completion — movement and warmup alike. Unlike
- *  `movedToday` this deliberately counts both: a warmup quest really did award
- *  the XP it shows. */
+/**
+ * XP counted today, from every completion: movement and warmup alike.
+ *
+ * A history row records the XP at the moment of Save, which for movement is the
+ * phone's estimate. Settlement (`lib/movementXp.ts`) later takes some or all of
+ * an estimate back from the total, but never rewrites the history row, so the
+ * ledger's `reversedXp` for sessions saved today is subtracted here. Without it
+ * a rejected 53 XP walk kept showing "+53 XP today" with total XP at 0.
+ *
+ * What remains can still include estimates no server has answered yet; use
+ * {@link unsettledMovementXpToday} to label them. Saving is not server-verified
+ * earnings.
+ */
 export function xpEarnedToday(
   history: readonly { xp: number; completedAt: string }[],
   now?: Date,
+  movementXp: readonly Pick<MovementXpEntry, "savedAt" | "reversedXp">[] = [],
 ): number {
   const todayKey = getLocalDateKey(now);
-  return history
+  const counted = history
     .filter((rec) => getLocalDateKey(new Date(rec.completedAt)) === todayKey)
     .reduce((sum, rec) => sum + rec.xp, 0);
+  const takenBack = movementXp
+    .filter((e) => getLocalDateKey(new Date(e.savedAt)) === todayKey)
+    .reduce((sum, e) => sum + e.reversedXp, 0);
+  return Math.max(0, counted - takenBack);
+}
+
+/** Estimated movement XP saved today that no server verdict has settled yet. */
+export function unsettledMovementXpToday(
+  movementXp: readonly Pick<MovementXpEntry, "savedAt" | "settled" | "estimatedXp">[],
+  now?: Date,
+): number {
+  const todayKey = getLocalDateKey(now);
+  return movementXp
+    .filter((e) => e.settled === null && getLocalDateKey(new Date(e.savedAt)) === todayKey)
+    .reduce((sum, e) => sum + e.estimatedXp, 0);
 }
 
 /**
