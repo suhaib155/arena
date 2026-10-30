@@ -20,8 +20,11 @@
 --   - the sequences behind ledger order and source numbers;
 --   - the settlement halt log (every operator and reconciler halt/resume),
 --     resume requests and their approvals;
---   - the per-day erasure states (what lets erased days reconcile)
---     and the erasure fence;
+--   - the per-day erasure states (what lets erased days reconcile),
+--     the erasure fence and the account erasure jobs (an account whose
+--     job is still open stays marked "deleting" and must be erased by the
+--     synchronous path before or after the rollback; see
+--     docs/G34_ERASURE_QUEUE.md);
 --   - the sealing v2 territory seal and claimable-cell columns on
 --     movement_verifications (the movement rows themselves and their v1 seal
 --     summary stay).
@@ -47,6 +50,7 @@ DROP TABLE IF EXISTS "gameplay_clubs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_credit_lines";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_erasure_days";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_erasure_fence";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_erasure_jobs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_day_settlements";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_player_day_proofs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_applied_sessions";--> statement-breakpoint

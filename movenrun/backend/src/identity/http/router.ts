@@ -34,7 +34,7 @@ import {
   walletIdSchema,
 } from "./validation.js";
 import { sanitizeDeviceLabel } from "../domain/deviceLabel.js";
-import { ACCOUNT_DELETION_CONFIRMATION, type AccountDeletionStore } from "../accountDeletion.js";
+import { ACCOUNT_DELETION_CONFIRMATION, ErasureBusyError, type AccountDeletionStore, type DeletionRequestOutcome } from "../accountDeletion.js";
 import { PKCE_CHALLENGE_RE, SUPABASE_PROVIDER, type SupabaseSignInService, type VerifiedSignIn } from "../services/supabaseSignIn.service.js";
 import type { SignupOrLoginResult } from "../services/authOrchestrator.service.js";
 import {
@@ -43,6 +43,9 @@ import {
   toPublicUser,
   toPublicWallet,
 } from "./publicViews.js";
+
+/** Retry-After for a deletion that could not start (seconds). */
+const DELETION_RETRY_AFTER_SECONDS = 5;
 
 /**
  * Route wrapper: an IdentityError becomes its mapped status + public JSON;
@@ -355,25 +358,66 @@ export function createIdentityRouter(services: IdentityServices, options: Identi
   // Erases the signed-in account and everything held for it. The body must
   // carry the literal confirmation so a stray request cannot delete an
   // account. The response carries counts only; nothing about the account.
+  //  - 200 { deleted: true, status: "completed" }: erased during the request.
+  //  - 202 { deleted: false, status: "pending", requestId }: accepted and
+  //    durably queued (gameplay on). The account is already signed out
+  //    everywhere and cannot sign in; the erasure finishes in the background
+  //    and GET /account/deletion/:requestId says when. Never reported as
+  //    deleted before it is.
+  //  - 503 deletion_busy + Retry-After: nothing was changed or scheduled.
   router.post(
     "/account/delete",
     authed(async (req, res, session) => {
       const confirm = (req.body as { confirm?: unknown } | undefined)?.confirm;
       if (confirm !== ACCOUNT_DELETION_CONFIRMATION) throw new IdentityError("invalid_request", "confirmation required");
       if (!options.accountDeletion) throw new IdentityError("provider_not_configured", "account deletion is not available");
-      const { providerSubjects, ...erased } = await options.accountDeletion.erase(session.userId);
+      const store = options.accountDeletion;
+      let outcome: DeletionRequestOutcome;
+      try {
+        outcome = store.request
+          ? await store.request(session.userId)
+          : { status: "completed", result: await store.erase(session.userId) };
+      } catch (err) {
+        if (err instanceof ErasureBusyError) {
+          res.setHeader("Retry-After", String(DELETION_RETRY_AFTER_SECONDS));
+          throw new IdentityError("deletion_busy");
+        }
+        throw err;
+      }
+      if (outcome.status === "pending") {
+        res.status(202).json({ deleted: false, status: "pending", requestId: outcome.requestId, signedOut: true, signInRecord: "pending" });
+        return;
+      }
+      const { providerSubjects, ...erased } = outcome.result;
       // The sign-in record at Supabase goes right after the MovenRun data; if the
       // provider is unreachable it stays queued and is retried until removed.
       let signInRecord: "removed" | "pending" | "none" = "none";
       if (providerSubjects.length) {
-        const outcome = options.supabaseSignIn
+        const removal = options.supabaseSignIn
           ? await options.supabaseSignIn.removeProviderUsers(providerSubjects)
           : { removed: [], pending: providerSubjects };
-        signInRecord = outcome.pending.length ? "pending" : "removed";
+        signInRecord = removal.pending.length ? "pending" : "removed";
       }
-      res.json({ deleted: true, erased, signInRecord });
+      res.json({ deleted: true, status: "completed", erased, signInRecord });
     })
   );
+
+  // Status of a queued deletion, by the opaque id the request returned. No
+  // sign-in needed (the account is signed out by then); it says only whether
+  // that request finished, never whose it was. Unknown ids are 404.
+  router.get("/account/deletion/:requestId", async (req, res) => {
+    try {
+      const status = options.accountDeletion?.status ? await options.accountDeletion.status(String(req.params.requestId)) : null;
+      if (!status) {
+        res.status(404).json(new IdentityError("not_found").toPublicJSON());
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ deleted: status.status === "completed", ...status });
+    } catch {
+      res.status(503).json(new IdentityError("deletion_busy").toPublicJSON());
+    }
+  });
 
   // ---- authenticated: wallets --------------------------------------------
   router.get(

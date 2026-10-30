@@ -11,6 +11,7 @@ import { createIdentityServices } from "../identity/http/wiring.js";
 import { createIdentityRouter } from "../identity/http/router.js";
 import { createProductionMovementRouter } from "../movement/http/productionRouter.js";
 import { createDrizzleAccountDeletionStore } from "../identity/accountDeletion.js";
+import { createErasureWorker, type ErasureWorker } from "../identity/erasureWorker.js";
 import { SupabaseAuthClient, SupabaseTokenVerifier } from "../identity/providers/supabaseAuth.js";
 import { EoaSignatureVerifier } from "../identity/providers/eoaVerifier.js";
 import { createDrizzleSignInStores } from "../identity/repositories/signInStores.js";
@@ -60,7 +61,22 @@ export function createApiApp(config: ApiConfig) {
       rateLimit: config,
     })
     : null;
+  // Account deletion. With gameplay on, a request is accepted in a short
+  // transaction and the erasure (fence, gameplay replay, identity rows) runs
+  // in the erasure worker, started right after the acceptance and by the
+  // maintenance loop, with bounded, retried attempts (G34_ERASURE_QUEUE.md).
+  // With gameplay off the erasure runs during the request, as before, with
+  // bounded lock waits; accounts left "deleting" by an earlier gameplay-on
+  // run are erased by the sweep task.
+  let worker: ErasureWorker | null = null;
+  const accountDeletion = createDrizzleAccountDeletionStore(db, { queue: gameplay ? { onAccepted: () => worker?.kick() } : null });
+  worker = gameplay
+    ? createErasureWorker({ db, store: accountDeletion, removeProviderUsers: (subjects) => supabaseSignIn.removeProviderUsers(subjects) })
+    : null;
   const maintenance = createMaintenance([
+    worker
+      ? { name: "account erasure jobs", everyMs: 30 * 1000, run: () => worker!.drain() }
+      : { name: "accounts awaiting erasure", everyMs: 15 * 60 * 1000, run: () => accountDeletion.sweepDeleting() },
     {
       name: "pending sign-in deletions",
       everyMs: 5 * 60 * 1000,
@@ -101,7 +117,7 @@ export function createApiApp(config: ApiConfig) {
   app.use("/identity", express.json({ limit: "32kb" }));
   app.use("/movement", express.json({ limit: "2mb" }));
   app.use("/identity", createIdentityRouter(identity, {
-    accountDeletion: createDrizzleAccountDeletionStore(db),
+    accountDeletion,
     supabaseSignIn,
     emailOtpEnabled: false,
   }));

@@ -319,9 +319,10 @@ test("account erasure with the flag off sends only the catalogue probe for the e
     const result = await createDrizzleAccountDeletionStore(admin.db).erase("flagoff-del");
     assert.equal(result.users, 1);
     const mentioning = spy.queries.filter((q) => GAMEPLAY_TEXT.test(q));
-    // The one statement allowed: a to_regclass() existence check, which reads
-    // no gameplay table and returns false on a 0000-0010 database.
-    assert.deepEqual(mentioning.map((q) => q.replace(/\s+/g, " ").trim()), ["SELECT to_regclass('public.gameplay_erasure_fence') IS NOT NULL AS ok"]);
+    // The one statement allowed: a to_regclass() existence check (for the
+    // fence and the proposed erasure job table), which reads no gameplay table
+    // and returns false on a 0000-0010 database.
+    assert.deepEqual(mentioning.map((q) => q.replace(/\s+/g, " ").trim()), ["SELECT to_regclass('public.gameplay_erasure_fence') IS NOT NULL AS ok, to_regclass('public.gameplay_erasure_jobs') IS NOT NULL AS jobs"]);
   } finally {
     spy.restore();
     await admin.drop();
