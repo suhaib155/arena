@@ -85,7 +85,7 @@ test("Deeds keeps preview state and links to ownership limits through Help and L
   assert.match(src, /pathname: "\/help", params: \{ topic: "deeds"/);
   const legal = read(join(APP, "legal.tsx"));
   assert.match(legal, /no purchase, reward payout or minting/i);
-  assert.match(legal, /Deed previews do not establish permanent ownership/i);
+  assert.match(legal, /personal preview on this device\. It is not ownership of any place/i);
   // Never AFFIRMATIVELY asserts ownership or a fabricated market/yield value.
   // (Negated disclaimers like "never minted or owned" / "no market value" are
   // fine; only affirmative claims are forbidden.)
@@ -127,7 +127,7 @@ test("Deeds and Network never enable the JS animation driver", () => {
 test("Profile keeps Deeds and Settings technical information reachable without old Network entry", () => {
   const src = read(PROFILE);
   assert.match(src, /\/deed-showroom/);
-  assert.match(src, /\/settings\/technical/);
+  assert.match(src, /isFeatureInRelease\("wallets"\) \? <NavRow\s+icon="cube-outline"\s+title="Technical info"/);
   assert.doesNotMatch(src, /\/network\/status/);
   assert.match(read(join(APP, "network", "status.tsx")), /<Redirect href="\/settings\/technical"/);
 });

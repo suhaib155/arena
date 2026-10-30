@@ -13,9 +13,11 @@ import {
   buildTodayBoard,
   TASK_CAP,
   xpEarnedToday,
+  unsettledMovementXpToday,
   type TodayBoardInput,
   type TaskKind,
 } from "../tasks";
+import type { MovementXpEntry } from "../movementXp";
 import { SESSION_QUEST_ID, isMovementSession } from "../sessionQuest";
 import type { Zone } from "@/types";
 
@@ -311,6 +313,43 @@ test("XP today counts every completion, movement or warmup", () => {
     completion("warmup-cardio", "2026-08-08T12:00:00Z", 999),
   ];
   assert.equal(xpEarnedToday(history, NOW), 160);
+});
+
+const ledgerEntry = (over: Partial<MovementXpEntry>): MovementXpEntry => ({
+  clientSessionId: "s1", estimatedXp: 53, submitted: true, settled: null,
+  verifiedXp: null, reversedXp: 0, savedAt: "2026-08-09T07:00:00Z", ...over,
+});
+
+test("XP today drops an estimate the server took back (T3)", () => {
+  // Reproduced bug: estimate 53 saved, verdict rejected, total XP 0, but the
+  // history row still said 53 and Home showed "+53 XP today".
+  const history = [completion(SESSION_QUEST_ID, "2026-08-09T07:00:00Z", 53)];
+  const rejected = [ledgerEntry({ settled: "not_eligible", reversedXp: 53 })];
+  assert.equal(xpEarnedToday(history, NOW, rejected), 0);
+});
+
+test("XP today keeps only the part of an estimate the server verified (T3)", () => {
+  const history = [completion(SESSION_QUEST_ID, "2026-08-09T07:00:00Z", 53), completion("warmup-mobility", "2026-08-09T08:00:00Z", 40)];
+  const trimmed = [ledgerEntry({ settled: "verified", verifiedXp: 25, reversedXp: 28 })];
+  assert.equal(xpEarnedToday(history, NOW, trimmed), 65);
+});
+
+test("XP today ignores reversals from other days and pending estimates stay counted (T3)", () => {
+  const history = [completion(SESSION_QUEST_ID, "2026-08-09T07:00:00Z", 53)];
+  const other = [ledgerEntry({ clientSessionId: "old", savedAt: "2026-08-08T07:00:00Z", settled: "not_eligible", reversedXp: 99 })];
+  assert.equal(xpEarnedToday(history, NOW, other), 53);
+  assert.equal(xpEarnedToday(history, NOW, [ledgerEntry({})]), 53);
+  assert.equal(xpEarnedToday(history, NOW), 53, "no ledger: unchanged behaviour");
+});
+
+test("unsettled movement XP today is what Home must label an estimate", () => {
+  const ledger = [
+    ledgerEntry({}),
+    ledgerEntry({ clientSessionId: "s2", estimatedXp: 10, settled: "verified", verifiedXp: 10 }),
+    ledgerEntry({ clientSessionId: "s3", estimatedXp: 7, savedAt: "2026-08-08T07:00:00Z" }),
+  ];
+  assert.equal(unsettledMovementXpToday(ledger, NOW), 53);
+  assert.equal(unsettledMovementXpToday([], NOW), 0);
 });
 
 test("the movement-session predicate has exactly one owner", () => {

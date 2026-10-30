@@ -14,6 +14,8 @@ import {
   type VerifiedMovementRecord,
 } from "@/lib/verifiedMovement";
 import { getLocalDateKey, daysBetween } from "@/lib/date";
+import { recordEstimate, settle, type MovementXpEntry } from "@/lib/movementXp";
+import { sessionXp } from "@/services/moveSession";
 import { migrateZonesToRealGeography, ZONE_GEOGRAPHY_VERSION } from "@/lib/zoneMigration";
 import {
   chooseLocalBeta as chooseLocalBetaFirstRun,
@@ -110,6 +112,15 @@ interface GameState {
    * lib/verifiedMovement.ts.
    */
   movementVerifications: VerifiedMovementRecord[];
+  /**
+   * Movement XP by session: the estimate banked at Save and, once the server
+   * decides, whether it was verified or taken back. Newest first, bounded,
+   * cleared on reset. See lib/movementXp.ts. `totalXp` keeps meaning "XP the
+   * player has": estimates count until the server says otherwise.
+   */
+  movementXp: MovementXpEntry[];
+  /** XP banked by authoritative server verdicts. Never more than `totalXp` gained from movement. */
+  verifiedXp: number;
   /** Onboarding-questline view flags (local only). Screen-view steps that
    *  can't be derived from other state. Cleared on reset. */
   viewedRoutePassport: boolean;
@@ -131,6 +142,17 @@ interface GameState {
    * zone — it only appends what the server said.
    */
   recordMovementVerification: (record: VerifiedMovementRecord) => void;
+  /**
+   * Record the estimated XP a movement Save just banked, once per session.
+   * `submitted` says whether Save handed the route to verification.
+   */
+  recordMovementXpEstimate: (clientSessionId: string, estimatedXp: number, submitted: boolean) => void;
+  /**
+   * Settle a session's estimated XP on the server's verdict, at most once:
+   * verified banks verified XP (capped by the server's own measurement) and
+   * takes back any excess; rejected takes back the whole estimate.
+   */
+  settleMovementXp: (record: VerifiedMovementRecord) => void;
   completeQuest: (quest: Quest, attemptId?: string) => CompletionOutcome;
   /** Add a captured zone (or refresh it when already owned). Demo zones are
    *  rejected here as a final guard — they must never persist. */
@@ -184,6 +206,8 @@ export const useGameStore = create<GameState>()(
       lastTrustAt: null,
       routeTrustHistory: [],
       movementVerifications: [],
+      movementXp: [],
+      verifiedXp: 0,
       viewedRoutePassport: false,
       viewedRouteProof: false,
       firstRun: { ...FRESH_FIRST_RUN },
@@ -400,6 +424,33 @@ export const useGameStore = create<GameState>()(
           };
         }),
 
+      recordMovementXpEstimate: (clientSessionId, estimatedXp, submitted) => {
+        if (!(estimatedXp > 0)) return;
+        const state = get();
+        if (state.movementXp.some((e) => e.clientSessionId === clientSessionId)) return;
+        const ledger = recordEstimate(state.movementXp, {
+          clientSessionId, estimatedXp, submitted, savedAt: new Date().toISOString(),
+        });
+        set({ movementXp: ledger });
+        /* A verdict that arrived first (it cannot from the summary, but a
+           retry could race a re-save) settles the fresh entry at once. */
+        const verdict = state.movementVerifications.find((r) => r.clientSessionId === clientSessionId);
+        if (verdict) get().settleMovementXp(verdict);
+      },
+
+      settleMovementXp: (record) =>
+        set((state) => {
+          const { ledger, totalXpDelta, verifiedXpDelta } = settle(state.movementXp, record, sessionXp);
+          if (totalXpDelta === 0 && verifiedXpDelta === 0 && ledger.every((e, i) => e === state.movementXp[i])) {
+            return { movementXp: state.movementXp };
+          }
+          return {
+            movementXp: ledger,
+            totalXp: Math.max(0, state.totalXp + totalXpDelta),
+            verifiedXp: state.verifiedXp + verifiedXpDelta,
+          };
+        }),
+
       markViewedPassport: () => set({ viewedRoutePassport: true }),
       markViewedProof: () => set({ viewedRouteProof: true }),
 
@@ -440,6 +491,8 @@ export const useGameStore = create<GameState>()(
             lastTrustAt: null,
             routeTrustHistory: [],
             movementVerifications: [],
+            movementXp: [],
+            verifiedXp: 0,
             viewedRoutePassport: false,
             viewedRouteProof: false,
           });
@@ -513,6 +566,13 @@ export const useGameStore = create<GameState>()(
         if (!Array.isArray(state.movementVerifications)) {
           state.movementVerifications = [];
         }
+        // pre-MR-C state has no XP ledger: every earlier estimate stays banked.
+        if (!Array.isArray(state.movementXp)) {
+          state.movementXp = [];
+        }
+        if (typeof state.verifiedXp !== "number") {
+          state.verifiedXp = 0;
+        }
         if (typeof state.viewedRoutePassport !== "boolean") {
           state.viewedRoutePassport = false;
         }
@@ -569,4 +629,10 @@ export function useIsCompletedToday(questId: string): boolean {
       s.lastActiveDay === getLocalDateKey() &&
       s.completedQuestIds.includes(questId),
   );
+}
+
+/** The XP ledger entry for one movement session, or null before it is saved. */
+export function useMovementXpEntry(session: { clientSessionId: string } | null): MovementXpEntry | null {
+  const id = session ? session.clientSessionId : null;
+  return useGameStore((s) => s.movementXp.find((e) => e.clientSessionId === id) ?? null);
 }

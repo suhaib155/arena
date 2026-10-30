@@ -174,12 +174,12 @@ test("every live label describes the route, never territory or reward", () => {
   ];
   assert.deepEqual(labels, [
     "Open route",
-    "Finish here to seal",
-    "1 loop sealed",
-    "3 loops sealed · finish here to seal",
+    "Finish here to close the loop",
+    "1 loop closed",
+    "3 loops closed · finish here to close",
     "Route not evaluated",
     "Open route — this one stayed open",
-    "2 loops sealed · finished near your start",
+    "2 loops closed · finished near your start",
   ]);
 
   const joined = labels.join(" ").toLowerCase();
@@ -198,9 +198,9 @@ test("every live label describes the route, never territory or reward", () => {
 test("a screen reader hears a closure once, not on every fix", () => {
   const open = { sealedLoops: 0, nearStart: false };
   const sealed = { sealedLoops: 1, nearStart: false };
-  assert.equal(sealPreviewAnnouncement(open, sealed), "Loop sealed");
+  assert.equal(sealPreviewAnnouncement(open, sealed), "Loop closed");
   assert.equal(sealPreviewAnnouncement(sealed, sealed), null, "it repeated itself");
-  assert.equal(sealPreviewAnnouncement(sealed, { sealedLoops: 2, nearStart: false }), "2 loops sealed");
+  assert.equal(sealPreviewAnnouncement(sealed, { sealedLoops: 2, nearStart: false }), "2 loops closed");
   assert.equal(sealPreviewAnnouncement(open, { sealedLoops: 0, nearStart: true }), "Back near your start");
   assert.equal(
     sealPreviewAnnouncement({ sealedLoops: 0, nearStart: true }, { sealedLoops: 0, nearStart: true }),

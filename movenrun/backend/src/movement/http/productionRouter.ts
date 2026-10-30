@@ -10,7 +10,7 @@
  */
 import type { Router } from "express";
 import { randomUUID } from "node:crypto";
-import { hasEvidenceBreak } from "@movenrun/shared/evidence";
+import { hasExplicitBreak, shortRouteEvidenceProblems } from "@movenrun/shared/evidence";
 import { getDb } from "../../db/client.js";
 import { getIdentityConfig } from "../../identity/config.js";
 import { getProviderConfig } from "../../identity/providerConfig.js";
@@ -36,7 +36,9 @@ export function toValidatable(observation: MovementObservation) {
     points: observation.points.map((point, index) => {
       const previous = observation.points[index - 1];
       if (!previous) return point;
-      const broken = hasEvidenceBreak(
+      // Explicit breaks only: an unobserved bridge (MR-A-02) is dropped from
+      // distance, but must still face the anomaly speed check.
+      const broken = hasExplicitBreak(
         { latitude: previous.lat, longitude: previous.lng, timestamp: previous.timestamp },
         { latitude: point.lat, longitude: point.lng, timestamp: point.timestamp, breakBefore: point.breakBefore },
         observation.session?.pauses,
@@ -49,6 +51,34 @@ export function toValidatable(observation: MovementObservation) {
     hexIds: [] as string[],
     status: "PROCESSING",
   };
+}
+
+/**
+ * The anomaly pass the movement surface runs (MR-A-01).
+ *
+ * A legacy submission (no session metadata) keeps GpsService's ten-point
+ * floor: without provenance nothing says the points were filtered by the
+ * on-foot capture rule, so a bare count is the only bar available.
+ *
+ * A submission with session metadata has every fix re-inspected under the
+ * on-foot rule by the domain (`onFootQualityProblems`), so each continuous
+ * segment is already a displacement larger than both accuracy circles. For it
+ * the bare count is replaced, not dropped, by the shared short-route evidence
+ * policy: enough fixes and continuous segments, credible accuracy, enough
+ * observed time and enough spatial extent to rule out drift. Routes at or
+ * above the legacy count are judged exactly as before.
+ */
+export function detectMovementAnomalies(gps: GpsService, observation: MovementObservation) {
+  const { session } = observation;
+  const anomaly = gps.validateRoute(toValidatable(observation) as never,
+    session ? { minPoints: 0 } : {});
+  if (!session) return anomaly;
+  const evidence = shortRouteEvidenceProblems(observation.points.map((p) => ({
+    latitude: p.lat, longitude: p.lng, timestamp: p.timestamp, accuracy: p.accuracy,
+    ...(p.breakBefore === true ? { breakBefore: true } : {}),
+  })), session.pauses);
+  if (evidence.length === 0) return anomaly;
+  return { isAnomaly: true, reasons: [...evidence, ...anomaly.reasons], confidence: 0.2 };
 }
 
 export function createProductionMovementRouter(
@@ -69,8 +99,7 @@ export function createProductionMovementRouter(
     repository: new DrizzleMovementVerificationRepository(getDb()),
     generateId: () => randomUUID(),
     now: () => Date.now(),
-    detectAnomalies: (observation) =>
-      gps.validateRoute(toValidatable(observation) as never),
+    detectAnomalies: (observation) => detectMovementAnomalies(gps, observation),
     calculateDistance: (points: ObservedPoint[]) => gps.calculateDistance(points as never),
     traversedHexIds: (points: ObservedPoint[]) => hex.getHexIdsForPoints(points),
   });

@@ -214,7 +214,7 @@ test("every user-facing label describes verification, never territory or reward"
     "Not submitted",
     "Verifying movement",
     "Route checked",
-    "Needs review",
+    "Not eligible",
     "Verification pending",
   ]);
 
@@ -225,7 +225,7 @@ test("every user-facing label describes verification, never territory or reward"
   ]) {
     assert.ok(!joined.includes(forbidden), `a label claims "${forbidden.trim()}"`);
   }
-  // A rejection is "needs review", not an accusation.
+  // A rejection is "not eligible", not an accusation. Nobody reviews it, so it must not say "review".
   assert.ok(!joined.includes("fraud") && !joined.includes("cheat") && !joined.includes("invalid"));
 });
 

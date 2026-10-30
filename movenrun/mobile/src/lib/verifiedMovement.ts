@@ -199,7 +199,7 @@ export function verificationLabel(state: VerificationState): string {
     case "verified":
       return "Route checked";
     case "rejected":
-      return "Needs review";
+      return "Not eligible";
     case "pending":
       return "Verification pending";
   }
@@ -207,6 +207,6 @@ export function verificationLabel(state: VerificationState): string {
 
 /** Backend evaluation has three states and never establishes territory ownership. */
 export function serverSealLabel(state: VerificationState): string {
-  if (state.kind !== "verified" || state.sealed == null) return "Seal not evaluated";
-  return state.sealed ? "Server check: sealed" : "Server check: open";
+  if (state.kind !== "verified" || state.sealed == null) return "Loop check not run";
+  return state.sealed ? "Server check: loop closed (preview rules)" : "Server check: open";
 }
