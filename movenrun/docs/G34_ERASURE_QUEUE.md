@@ -26,7 +26,7 @@ POST /identity/account/delete {confirm:"DELETE"}  (bearer session)
         v  gameplay on + job table (ACCEPT, short tx, lock_timeout 2 s, no fence)    v  SYNCHRONOUS (one tx, lock_timeout 5 s)
   open job for this user? --yes--> 202 pending (same request id)              fence -> user row FOR UPDATE -> erase all
         | no                                                                    | ok: 200 completed + provider removal
-  user row FOR UPDATE (gone? -> 200 completed, zero counts)                     | 55P03/57014/40001/40P01/conn:
+  user row FOR NO KEY UPDATE (gone? -> 200 completed, zero counts)              | 55P03/57014/40001/40P01/conn:
   INSERT job (pending, opaque uuid)                                             |    rollback, 503 deletion_busy, Retry-After 5
   users.status = 'deleting', security_version + 1, sessions deleted             | other: 500, rollback
   COMMIT --> 202 {deleted:false, status:"pending", requestId, signedOut:true}
@@ -80,7 +80,9 @@ needs_attention iff `attention_at`; at most one open job per account (partial un
 ## 4. Lock order
 
 Erasure attempt: fence (row exclusive via UPDATE) -> user row (FOR UPDATE) -> job row (FOR UPDATE) -> gameplay rows.
-Acceptance: user row -> job row (insert), no fence. Claim and release: job row only, autocommit. Day close: fence
+Acceptance: user row (FOR NO KEY UPDATE: it does not wait for the key-share locks a push's foreign-key check or a day
+close holds; two acceptances still serialise on it, and the erasure's FOR UPDATE still conflicts with it) -> job row
+(insert), no fence. Claim and release: job row only, autocommit. Day close: fence
 (SHARE) -> advisory day lock -> fence row. No path takes the job row before the fence or the user row, so the queue adds
 no cycle. Pre-existing and unchanged: a push holding unit rows while it waits for the user row's key-share lock can
 deadlock with an erasure holding the user row and waiting for those unit rows (40P01; one side is aborted). The worker
@@ -120,7 +122,7 @@ credentials (correct for 202: the server already ended every session); its wordi
 | flag off, 0000-0010 only (today) | synchronous | only `to_regclass('public.gameplay_erasure_fence')` and `to_regclass('public.gameplay_account_deletion_jobs')` (catalogue probes; asserted by `gameplayFlagOff.test.ts`) |
 | flag off, 0011 present | synchronous, erases gameplay rows (as before) and completes any open job | gameplay tables, by design: erasure must remove what exists whatever the flag says (unchanged principle) |
 | flag on, 0011 present | queued | gameplay tables |
-| flag on, 0011 absent | synchronous (no job table) | catalogue probes only |
+| flag on, 0011 absent | synchronous (no job table); the worker is wired but each run first probes for the job table and does nothing until it exists | catalogue probes only (worker probe asserted by `erasureQueue.pg.test.ts`) |
 
 With the flag off, a maintenance task erases accounts left `deleting` by an earlier flag-on period (`sweepDeleting`,
 every 15 min, reads `users` only, then the synchronous erasure).
@@ -182,11 +184,20 @@ Rollback of 0011 (owner decision, destructive): first switch gameplay off and le
 `deleting` account (or run it by hand), then roll back; otherwise those accounts stay signed out with their data held
 until the sweep runs.
 
+Rolling the API back to a build older than this branch: that build has no `deleting` status handling and no sweep, so
+accounts accepted for deletion stay signed out (their sessions were deleted) with their data held, and nothing erases
+them. Before such a rollback, drain the queue (no open jobs), or after it erase each `deleting` account by hand with the
+synchronous erasure of this branch's code, recording each in the incident log.
+
 ## 11. Owner gates (nothing below is done or authorised by this branch)
 
 - **G-Q1** Applying 0011 (with this table) to any hosted database, and enabling `MOVENRUN_GAMEPLAY_ENABLED`.
 - **G-Q2** Adopting, changing or rejecting the proposed SLO (section 9) and the 40-attempt / 5-minute policy.
-- **G-Q3** Public wording: the website and app must stop saying deletion is immediate before gameplay is enabled.
+- **G-Q3** Public wording, before gameplay is enabled (not needed for this development branch):
+  `website/account-deletion/index.html` line 36 says deletion "happens immediately"; the page's 202 message says the
+  data is "being removed now", although retries can take hours or wait for an operator (needs_attention); and
+  `mobile/app/account/security.tsx` line 191 says the account has been "permanently deleted" on any 2xx, including a 202
+  pending. Mobile UI is Lane B's and is not changed here.
 - **G-Q4** Retention of completed job rows and of `security_audit_events` requeue records.
 - **G-Q5** Who may run `requeueErasureJob` in production (operator identity is a role label only, as in D-E4).
 
@@ -194,7 +205,9 @@ until the sweep runs.
 
 - Throughput is unchanged: erasures still serialise on the fence and each verifies every settled day the person
   touched. The queue makes the request fast and the completion durable; it does not make the erasure cheaper.
-- One worker per API instance drains serially; several instances drain in parallel but still serialise on the fence.
+- Within one API instance a drain started by `kick()` and one started by the maintenance loop can overlap, and several
+  instances drain in parallel. That is safe (claims use SKIP LOCKED, one job goes to one worker), but all erasures
+  still serialise on the fence, so extra drains add no throughput.
 - The provider stage in the status is the stage at completion (and `removed` when the worker's own call succeeded); a
   later success of the provider retry loop is not written back to the job.
 - `pg` checked-out connection errors no longer crash the process (`db/client.ts` adds a per-client error listener),

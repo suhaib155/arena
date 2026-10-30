@@ -237,6 +237,57 @@ test("10 s client budget, synchronous: behind a fence held past the lock budget 
   }
 });
 
+test("acceptance does not wait for a key-share lock on the account (a push or day close in flight): it answers at once with one job, and duplicates still share it", { skip: SKIP }, async () => {
+  const w = await world("erq_keyshare");
+  try {
+    const who = "q-walker-k5h1";
+    await history(w, [who]);
+    // What a push's foreign-key check (or a day close reading the account) holds.
+    const hold = await w.t.pool.connect();
+    await hold.query("BEGIN");
+    await hold.query("SELECT 1 FROM users WHERE id = $1 FOR KEY SHARE", [who]);
+    try {
+      const s = store(w.t.db, QUEUED);
+      const t0 = Date.now();
+      const outs = await Promise.all([s.request(who), s.request(who), s.request(who)]);
+      const took = Date.now() - t0;
+      assert.ok(outs.every((o) => o.status === "pending"), JSON.stringify(outs));
+      assert.equal(new Set(outs.map((o) => (o as { requestId: string }).requestId)).size, 1, "one job");
+      assert.ok(took < 1_000, `acceptance waited ${took} ms behind a key-share lock`);
+      assert.equal((await w.q("SELECT 1 FROM gameplay_account_deletion_jobs")).length, 1);
+    } finally {
+      await hold.query("COMMIT");
+      hold.release();
+    }
+    // The erasure itself (FOR UPDATE) still conflicts with key share: it ran after the holder let go.
+    const { w: worker } = makeWorker(w.t.db, store(w.t.db, QUEUED));
+    assert.equal(await worker.drain(), 1);
+    assert.deepEqual(await rowsNaming(w, who), []);
+  } finally {
+    await w.t.drop();
+  }
+});
+
+test("flag on but no 0011: the worker probes for the job table and never queries it", { skip: SKIP }, async () => {
+  const w = await world("erq_noq_worker", false);
+  try {
+    const seen: string[] = [];
+    const proxied = new Proxy(w.t.db, {
+      get(target, prop, receiver) {
+        if (prop === "execute") return (q: unknown) => { seen.push(JSON.stringify(q)); return target.execute(q as never); };
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as Db;
+    const { w: worker } = makeWorker(proxied, store(proxied, QUEUED));
+    assert.equal(await worker.drain(), 0);
+    assert.equal(await worker.drain(), 0);
+    const naming = seen.filter((q) => /gameplay_/.test(q));
+    assert.ok(naming.length > 0 && naming.every((q) => /to_regclass/.test(q)), `only catalogue probes: ${naming.join(" | ")}`);
+  } finally {
+    await w.t.drop();
+  }
+});
+
 test("lock held beyond the budget: the attempt is a typed lock_timeout, rolled back and rescheduled with backoff; it completes once the lock is gone", { skip: SKIP }, async () => {
   const w = await world("erq_lock");
   try {

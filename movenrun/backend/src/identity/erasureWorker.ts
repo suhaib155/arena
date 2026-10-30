@@ -23,6 +23,7 @@ import {
   checkErasureRetryPolicy,
   claimErasureJob,
   classifyErasureError,
+  erasureJobsPresent,
   markProviderRemoved,
   parkErasureJob,
   releaseErasureJob,
@@ -116,7 +117,15 @@ export function createErasureWorker(deps: ErasureWorkerDeps): ErasureWorker {
     return true;
   };
 
+  // Wired only with gameplay on, but the job table is part of the proposed
+  // 0011: until a catalogue probe finds it, no run queries it (flag on with
+  // 0011 absent erases synchronously). Once found it is not probed again.
+  let tablePresent = false;
   const drain = async (opts: { maxJobs?: number; budgetMs?: number } = {}): Promise<number> => {
+    if (!tablePresent) {
+      tablePresent = await erasureJobsPresent(deps.db);
+      if (!tablePresent) return 0;
+    }
     const maxJobs = opts.maxJobs ?? 50;
     const budgetMs = opts.budgetMs ?? 45_000;
     const started = now();

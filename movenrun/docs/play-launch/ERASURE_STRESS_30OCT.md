@@ -78,7 +78,9 @@ completions per 2 s).
   different harness that was not committed), on the exact base SHA.
 - **Typed timeout alone (after, sync):** the same share of failures (27-42%), now honest (503, Retry-After, nothing
   written). It is a safety backstop, not a fix; with gameplay on the sync path is not used.
-- **Queue (after, async):** 0 of 800 requests failed or took longer than 100 ms (p99 26-93 ms); 800 of 800 erasures
+- **Queue (after, async):** 0 of 800 requests failed. Acceptance latency on this machine: burst runs p50 22-29 ms, p99 68-93 ms, max 97 ms; steady
+  run p99 26 ms. An independent rerun on the same machine measured p50 23 ms, p95 116 ms, p99 147 ms, max 149 ms. These
+  are local figures, not a hosted latency bound. 800 of 800 erasures
   completed while day close kept settling; no request was lost. The price is completion latency: erasures still run
   one at a time behind the fence (about 300 ms each), so completion time grows with the backlog (p50 18-31 s, max 69 s
   here). Throughput did not improve and is not claimed to.

@@ -309,8 +309,12 @@ export function createDrizzleAccountDeletionStore(db: Db, options: AccountDeleti
           // A repeated request finds the job already accepted.
           const open = await openErasureJob(tx, userId);
           if (open) return { status: "pending", requestId: open };
-          // No gameplay lock here (no fence): only the account row, briefly.
-          const locked = await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+          // No gameplay lock here (no fence): only the account row, briefly, and
+          // FOR NO KEY UPDATE, which does not wait for the key-share locks a
+          // push's foreign-key check or a day close holds on it. Two acceptances
+          // still serialise on it, and the erasure's FOR UPDATE still conflicts.
+          // No new session can follow: the status below refuses sign-in.
+          const locked = await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("no key update");
           if (!locked.length) return { status: "completed", result: { ...ZERO } };
           const again = await openErasureJob(tx, userId);
           if (again) return { status: "pending", requestId: again };
