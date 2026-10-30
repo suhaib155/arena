@@ -93,7 +93,9 @@ export interface ErasureRetryPolicy {
 /**
  * About 2 s doubling to 5 min, 40 attempts: under continuous transient
  * failure the budget lasts roughly two to three hours before an operator is
- * needed. Not a promise of completion time; see the runbook.
+ * needed. Not a promise of completion time; see the runbook. The attempt
+ * budget, the 5-minute cap and the 120 s lease are owner-approved
+ * (30 Oct 2026); erasureJobs.test.ts pins them.
  */
 export const DEFAULT_ERASURE_RETRY: ErasureRetryPolicy = {
   baseDelayMs: 2_000,
@@ -241,6 +243,43 @@ export async function erasureJobStatus(exec: Exec, jobId: string): Promise<Erasu
     SELECT state, attempts, provider_stage, requested_at, completed_at FROM gameplay_account_deletion_jobs WHERE id = ${jobId}::uuid`);
   if (!r) return null;
   return { state: r.state, attempts: Number(r.attempts), providerStage: r.provider_stage, requestedAt: new Date(r.requested_at), completedAt: r.completed_at ? new Date(r.completed_at) : null };
+}
+
+/**
+ * Retention of completed job rows (owner decision, 30 Oct 2026). A completed
+ * row no longer names anyone (its user id was cleared in the erasure
+ * transaction) and serves as the deletion receipt for this many days after
+ * completion, then it is purged. Open jobs (pending, running,
+ * needs_attention) are never purged: they are kept until resolved.
+ */
+export const ERASURE_RECEIPT_RETENTION_DAYS = 30;
+
+/** Most completed rows one purge run deletes; the rest wait for the next run. */
+export const ERASURE_RECEIPT_PURGE_BATCH = 500;
+
+/**
+ * Delete completed job rows whose completion is more than
+ * `ERASURE_RECEIPT_RETENTION_DAYS` old on the database clock (strictly older:
+ * a row completed exactly at the window's edge is kept), at most `limit` per
+ * call, oldest first. Only `state = 'completed'` rows qualify; the CHECK
+ * constraints tie that state to `completed_at` set and `user_id` NULL, so an
+ * open job, or a row that still names an account, can never match. Rows
+ * another session holds locked are skipped. Callers must have found the
+ * table with `erasureJobsPresent` first. Returns the number deleted.
+ */
+export async function purgeCompletedErasureJobs(exec: Exec, limit: number = ERASURE_RECEIPT_PURGE_BATCH): Promise<number> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10_000) throw new Error("purge limit: a whole number from 1 to 10000");
+  const gone = await rows(exec, sql`
+    DELETE FROM gameplay_account_deletion_jobs
+     WHERE id IN (
+       SELECT id FROM gameplay_account_deletion_jobs
+        WHERE state = 'completed'
+          AND completed_at < now() - make_interval(days => ${ERASURE_RECEIPT_RETENTION_DAYS}::int)
+        ORDER BY completed_at
+        LIMIT ${limit}::int FOR UPDATE SKIP LOCKED)
+       AND state = 'completed'
+    RETURNING 1 AS gone`);
+  return gone.length;
 }
 
 /** Counts for operators: by state, plus the age of the oldest open job. No ids. */

@@ -70,7 +70,8 @@
 --        the push with 42P07 (found by 40 concurrent first pushes of a day).
 --   gameplay_account_deletion_jobs (30 Oct): durable account erasure jobs, one open
 --        job per account, leased by the API's worker, completed in the
---        erasure transaction, user id cleared on completion.
+--        erasure transaction, user id cleared on completion; completed rows
+--        purged 30 days after completion (partial index on completed_at).
 --   unchanged from revision 2: the day-partitioned ledger and walker days,
 --        bigint units, integer player numbers, refusal counters, player day
 --        proofs and the unit budget counter the capacity guard scales.
@@ -742,6 +743,9 @@ CREATE TABLE IF NOT EXISTS "gameplay_account_deletion_jobs" (
 -- At most one open job per account: a repeated request finds the open one.
 CREATE UNIQUE INDEX IF NOT EXISTS "gameplay_account_deletion_jobs_open_user" ON "gameplay_account_deletion_jobs" ("user_id") WHERE "state" <> 'completed';--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "gameplay_account_deletion_jobs_due" ON "gameplay_account_deletion_jobs" ("next_attempt_at") WHERE "state" IN ('pending', 'running');--> statement-breakpoint
+-- Retention purge (30 days after completion): finds expired receipts in
+-- completion order without scanning open jobs.
+CREATE INDEX IF NOT EXISTS "gameplay_account_deletion_jobs_completed_at" ON "gameplay_account_deletion_jobs" ("completed_at") WHERE "state" = 'completed';--> statement-breakpoint
 
 -- A credit line names its player, or (after erasure) a tombstone: a random
 -- uuid made for that one line, linked to nothing else. Never both.

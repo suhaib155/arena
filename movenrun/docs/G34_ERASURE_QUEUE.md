@@ -1,6 +1,7 @@
 # Account erasure queue: design, flow and operator runbook (30 Oct 2026)
 
-Status: code on the development branch `feat/g34-erasure-async-queue`, gameplay disabled, migration 0011 unapplied.
+Status: merged to the development branch (`feat/g34-server-holdings`, #183), gameplay disabled, migration 0011
+unapplied. Owner policy decisions of 30 Oct 2026 (lease, retention, requeue authority) are in sections 5, 8, 10 and 11.
 Nothing here is live. The queue only runs where gameplay is enabled **and** the proposed job table exists; with
 gameplay off (today's deployment) account deletion stays synchronous, now with bounded lock waits and a typed
 retryable error. Measurements: `docs/play-launch/ERASURE_STRESS_30OCT.md` (LOCAL, SYNTHETIC).
@@ -93,8 +94,15 @@ now retries its side; the push side retries 5 times then answers 409 `concurrent
 Per attempt: `SET LOCAL lock_timeout = 3 s` (pool `statement_timeout` 10 s still applies). Backoff before attempt n+1:
 `c/2 + floor(random * c/2)` ms, `c = min(300 s, 2 s * 2^(n-1))` (capped exponential, equal jitter, never back to back),
 on the database clock. 40 attempts, then needs_attention (roughly 2 to 3 hours of continuous transient failure).
-Lease 120 s. Day close keeps its own five-attempt policy unchanged; push keeps its five attempts. All values are in
+Lease 120 s: a claimed job stays with its worker for 120 s on the database clock (`lease_expires_at = now() + 120 s`
+at claim); after that the next run may take it over, and the earlier worker's attempt fails its lease check and rolls
+back. Day close keeps its own five-attempt policy unchanged; push keeps its five attempts. All values are in
 `DEFAULT_ERASURE_RETRY` (`gameplay/erasureJobs.ts`).
+
+**Owner decision, 30 Oct 2026:** the tested policy is kept unchanged: 40 attempts, backoff capped at 5 minutes, and a
+120 s lease. `erasureQueuePolicy.test.ts` pins the values (and that the wired worker uses the 120 s lease);
+`erasureQueue.pg.test.ts` shows on PostgreSQL that a lease 119 s old is not taken and one past 120 s is taken over.
+Fatal failures are never retried automatically: they go to needs_attention and require operator review.
 
 Classification (`classifyErasureError`): `55P03` lock_timeout, `40001` serialization, `40P01` deadlock, `57014`
 statement_timeout, `08xxx`/`57P0x`/`53300`/socket errors/pool connect timeout/"Query read timeout" connection,
@@ -122,7 +130,7 @@ credentials (correct for 202: the server already ended every session); its wordi
 | flag off, 0000-0010 only (today) | synchronous | only `to_regclass('public.gameplay_erasure_fence')` and `to_regclass('public.gameplay_account_deletion_jobs')` (catalogue probes; asserted by `gameplayFlagOff.test.ts`) |
 | flag off, 0011 present | synchronous, erases gameplay rows (as before) and completes any open job | gameplay tables, by design: erasure must remove what exists whatever the flag says (unchanged principle) |
 | flag on, 0011 present | queued | gameplay tables |
-| flag on, 0011 absent | synchronous (no job table); the worker is wired but each run first probes for the job table and does nothing until it exists | catalogue probes only (worker probe asserted by `erasureQueue.pg.test.ts`) |
+| flag on, 0011 absent | synchronous (no job table); the worker is wired but each run first probes for the job table and does nothing until it exists | catalogue probes only (worker and receipt purge probes asserted by `erasureQueue.pg.test.ts`) |
 
 With the flag off, a maintenance task erases accounts left `deleting` by an earlier flag-on period (`sweepDeleting`,
 every 15 min, reads `users` only, then the synchronous erasure).
@@ -136,8 +144,20 @@ it is unguessable and says only "pending" or "completed". The table is deliberat
 erasure-state tables carry no time column at all (so nothing orders a person's erased days), and the
 `erasureTombstones` unlinkability test enforces that by prefix. The job table does carry request and completion times
 (as the existing `account_deleted` audit event does), but no day, no tombstone and no player column, so a completed row
-cannot be joined to any settled day or tombstoned line; `erasureQueue.pg.test.ts` pins its column list. Completed rows are kept (no user id) as the deletion receipt;
-their retention is an owner decision (G-Q4).
+cannot be joined to any settled day or tombstoned line; `erasureQueue.pg.test.ts` pins its column list.
+
+**Retention (owner decision, 30 Oct 2026).** A completed row (no user id) is kept as the deletion receipt for
+`ERASURE_RECEIPT_RETENTION_DAYS` = 30 days after `completed_at`, then purged. Outstanding jobs (pending, including
+those waiting to retry, running, and needs_attention) are kept until resolved and are never purged, whatever their age.
+The purge (`purgeCompletedErasureJobs`) deletes only `state = 'completed'` rows whose `completed_at` is strictly more
+than 30 days before the database clock (a row exactly at the edge stays), oldest first, at most
+`ERASURE_RECEIPT_PURGE_BATCH` (500) rows per run, skipping rows another session holds locked; the CHECK constraints tie
+`completed` to `user_id IS NULL`, so it can never remove a row that names an account. It uses the partial index
+`gameplay_account_deletion_jobs_completed_at` (proposed 0011). It runs from the worker's maintenance path (task
+"expired account erasure receipts", hourly, wired only with gameplay on, like the worker); like the worker it first
+probes the catalogue for the job table and does nothing, and queries nothing else, until the table exists. The
+`erasure_job_requeued` audit events in `security_audit_events` are not touched by this purge; their retention follows
+that table's.
 
 ## 9. Proposed operational SLO (not observed performance, not a legal guarantee)
 
@@ -165,14 +185,19 @@ Diagnosis by `last_outcome`:
 - `fatal`: a constraint or code fault. Do not requeue blindly; reproduce on a copy, fix, then requeue.
 
 Requeue (the only supported manual action; it writes an `erasure_job_requeued` audit event with the operator's role
-label and a reason code in the same transaction, and erases nothing itself):
+label and a reason code in the same transaction, and erases nothing itself). **Authority (owner decision, 30 Oct
+2026):** only an authorised operator may requeue, and only after investigating the job's `last_outcome`; a `fatal` job
+requires review (reproduce, fix) before any requeue. Requeue is a library call run by an operator with database access;
+there is no HTTP route for it and nothing calls it automatically (`erasureQueuePolicy.test.ts` pins both: no source
+file but `gameplay/erasureJobs.ts` names it, and no module that registers HTTP handlers mentions requeue or the job
+table). The actor is a role label only (as in D-E4); who holds that role is recorded in the incident log.
 
 ```ts
 import { requeueErasureJob } from "./src/gameplay/erasureJobs.js";
 await requeueErasureJob(db, "<job uuid>", "ops-oncall", "blocker_cleared");
 ```
 
-Never: delete or edit job rows by hand, set `state = 'completed'`, or delete the user row directly (the foreign key
+Never: delete or edit job rows by hand (the retention purge in section 8 is the only deletion), set `state = 'completed'`, or delete the user row directly (the foreign key
 refuses it while a job is open). Any of these would bypass the audit trail and could leave identity or gameplay rows
 behind. If the queue itself is unusable, switch gameplay off: the synchronous path and `sweepDeleting` erase every
 `deleting` account and complete its open job in the same transaction.
@@ -192,14 +217,23 @@ synchronous erasure of this branch's code, recording each in the incident log.
 ## 11. Owner gates (nothing below is done or authorised by this branch)
 
 - **G-Q1** Applying 0011 (with this table) to any hosted database, and enabling `MOVENRUN_GAMEPLAY_ENABLED`.
-- **G-Q2** Adopting, changing or rejecting the proposed SLO (section 9) and the 40-attempt / 5-minute policy.
+- **G-Q2** *Decided by the owner on 30 Oct 2026 (retry policy):* keep the tested 40-attempt policy, the capped
+  5-minute backoff, and set the lease to 120 s (section 5). The proposed SLO (section 9) is not part of that decision
+  and stays open.
 - **G-Q3** Public wording, before gameplay is enabled (not needed for this development branch):
   `website/account-deletion/index.html` line 36 says deletion "happens immediately"; the page's 202 message says the
   data is "being removed now", although retries can take hours or wait for an operator (needs_attention); and
   `mobile/app/account/security.tsx` line 191 says the account has been "permanently deleted" on any 2xx, including a 202
   pending. Mobile UI is Lane B's and is not changed here.
-- **G-Q4** Retention of completed job rows and of `security_audit_events` requeue records.
-- **G-Q5** Who may run `requeueErasureJob` in production (operator identity is a role label only, as in D-E4).
+- **G-Q4** *Decided by the owner on 30 Oct 2026:* completed, de-identified job rows are kept 30 days, then purged;
+  outstanding jobs are kept until resolved (section 8). Retention of the `security_audit_events` requeue records was
+  not separately decided and follows that table's existing retention.
+- **G-Q5** *Decided by the owner on 30 Oct 2026:* only authorised operators may requeue, after investigation, with an
+  audit record in the same transaction; fatal failures require review (section 10). Operator identity remains a role
+  label (as in D-E4).
+
+None of these decisions activates anything: the queue still runs only with gameplay enabled and 0011 applied (G-Q1,
+open). Migration 0011 stays in `drizzle-proposed/`.
 
 ## 12. Known limits
 
