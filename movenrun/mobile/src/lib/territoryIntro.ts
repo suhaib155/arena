@@ -154,7 +154,7 @@ const NEW_USER: TerritoryIntroView = Object.freeze({
 const RETURNING_USER: TerritoryIntroView = Object.freeze({
   stage: "returning",
   title: "No zones held yet",
-  body: "You have movement on record, but nothing captured. Capture happens when a route covers eligible ground, so another session is the way to claim your first zone.",
+  body: "You have movement on record, but nothing captured. Capture happens when a route covers eligible ground, so another session is the way to explore your first zone.",
   steps: Object.freeze([]) as readonly LoopStep[],
   ctaLabel: "Start move",
   ctaAction: "move",
