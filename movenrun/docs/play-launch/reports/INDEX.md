@@ -33,6 +33,7 @@ Newest first.
 | 2026-10-29 | X-30 cleared; one approved staging deploy failed on a paused Supabase project (not the code), readiness verified, branch left at efd381b; #169–#172 merged, #173 draft, restart bug confirmed | efd381b | [MOVENRUN_2026-10-29_STAGING_RETRY_READINESS_NEXT_SPRINT_FINAL_REPORT_efd381b.md](MOVENRUN_2026-10-29_STAGING_RETRY_READINESS_NEXT_SPRINT_FINAL_REPORT_efd381b.md) |
 | 2026-10-30 | Milestone pack: settlement and erasure lock order (#181), sealing and fairness rerun (#180), platform readiness (#178); nothing deployed | dfd3a08 | [MOVENRUN_2026-10-30_MILESTONE_PACK_FINAL_REPORT_dfd3a08.md](MOVENRUN_2026-10-30_MILESTONE_PACK_FINAL_REPORT_dfd3a08.md) |
 | 2026-10-30 | Erasure queue (#183), Android truth fixes (#182), X-33 staging retry, platform docs | a1cbdbf | [MOVENRUN_2026-10-30_ERASURE_QUEUE_ANDROID_TRUTH_FINAL_REPORT_a1cbdbf.md](MOVENRUN_2026-10-30_ERASURE_QUEUE_ANDROID_TRUTH_FINAL_REPORT_a1cbdbf.md) |
+| 2026-10-30 | Owner decisions 14:02Z: deletion wording (#184, #185), queue policy (#186); EAS build and smoke tests blocked on access | d81867b | [MOVENRUN_2026-10-30_OWNER_DECISIONS_DELETION_COPY_QUEUE_POLICY_REPORT_d81867b.md](MOVENRUN_2026-10-30_OWNER_DECISIONS_DELETION_COPY_QUEUE_POLICY_REPORT_d81867b.md) |
 
 Earlier reports (before this convention) were shared outside the repository
 as `FINAL_REPORT.md`: the Google + wallet change and the security review,

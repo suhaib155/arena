@@ -195,3 +195,4 @@ has been run for sign-in yet.
 | E-133 | 30 Oct | #183 async erasure queue merged a1cbdbf: strict suite 705/705, reviewer reproduced old failure (base untyped 500 after 10011 ms, branch typed 503 after 5010 ms), CI green | reports/MOVENRUN_2026-10-30_ERASURE_QUEUE_ANDROID_TRUTH_FINAL_REPORT_a1cbdbf.md |
 | E-134 | 30 Oct | #182 Android truth fixes merged 02d8ca9 | same report |
 | E-135 | 30 Oct | X-33 single retry: dep-dbi94de1egvs73f8ns5g at efd381b live 12:49:57Z; hosted HTTP checks not run (403) | same report |
+| E-136 | 30 Oct | #184/#185 deletion wording and #186 queue policy merged (ac8d87b, 86267a9, d81867b); mobile 996/996, backend strict 711/711, reviews applied | reports/MOVENRUN_2026-10-30_OWNER_DECISIONS_DELETION_COPY_QUEUE_POLICY_REPORT_d81867b.md |
