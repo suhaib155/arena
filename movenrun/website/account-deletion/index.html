@@ -103,7 +103,10 @@
     confirmForm.querySelector("button").disabled = true; say("Deleting your account…");
     auth.apiPost("/identity/account/delete", { confirm: "DELETE" }, token).then(function (r) {
       confirmForm.querySelector("button").disabled = false;
-      if (r.ok) { token = ""; confirmForm.hidden = true; say("Your MovenRun account and its data have been deleted.", "ok"); }
+      // 202: accepted and queued, not finished yet. Say so, never "deleted".
+      if (r.status === 202) { token = ""; confirmForm.hidden = true; say("Your deletion request was accepted and you have been signed out everywhere. Your account and its data are being removed now; you cannot sign in to it meanwhile.", "ok"); }
+      else if (r.ok) { token = ""; confirmForm.hidden = true; say("Your MovenRun account and its data have been deleted.", "ok"); }
+      else if (r.status === 503) say("MovenRun is busy and nothing was deleted. Please try again in a few seconds.", "error");
       else say("Your account could not be deleted right now. Please try again or email us.", "error");
     }, function () { confirmForm.querySelector("button").disabled = false; say("We could not reach MovenRun. Please try again.", "error"); });
   });

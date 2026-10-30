@@ -48,7 +48,14 @@ export type IdentityErrorCode =
   // Admission — 403: the registered-account cap is reached; existing players are unaffected.
   | "registration_closed"
   // Admission — 429: too many new accounts in the last hour; try again later.
-  | "registration_busy";
+  | "registration_busy"
+  // Account deletion — 409: a deletion of this account was accepted and is
+  // still being completed; it cannot be signed in to meanwhile.
+  | "account_deletion_pending"
+  // Account deletion — 503: the deletion could not start within its time
+  // budget (the database was busy). Nothing was changed or scheduled; the
+  // request may simply be repeated (Retry-After).
+  | "deletion_busy";
 
 /** HTTP status each code maps to. Kept here (not in the router) so the mapping
  *  is one source of truth and testable without spinning up Express. */
@@ -79,6 +86,8 @@ export const ERROR_HTTP_STATUS: Record<IdentityErrorCode, number> = {
   provisioning_not_retryable: 409,
   registration_closed: 403,
   registration_busy: 429,
+  account_deletion_pending: 409,
+  deletion_busy: 503,
 };
 
 export class IdentityError extends Error {

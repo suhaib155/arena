@@ -120,6 +120,8 @@ export class SessionService {
   /** Issue a brand-new session (login/signup) or continue a family (refresh). */
   async issue(input: IssueSessionInput): Promise<IssuedSession> {
     const user = await this.users.findById(input.userId);
+    // An accepted deletion still being completed: no new session, ever.
+    if (user?.status === "deleting") throw new IdentityError("account_deletion_pending");
     if (!user || user.status !== "active") throw new IdentityError("unauthenticated");
 
     const now = this.now();

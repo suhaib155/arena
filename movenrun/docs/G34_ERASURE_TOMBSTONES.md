@@ -188,3 +188,9 @@ Measured under a synthetic stress (24 concurrent erasers, 12 pushers, the game d
 - Pre-existing and unrelated to this change: erasure against a push can fail with raw 40P01, and `settleDueDays` does not retry `ensurePartitions`.
 
 Owner decision open: whether erasure needs a retry, an asynchronous queue, or a `lock_timeout` with a typed error before gameplay is enabled. Gameplay stays disabled.
+
+30 Oct, development branch `feat/g34-erasure-async-queue` (not live): both are implemented as proposed engineering
+direction, pending owner decision. With gameplay on, a deletion is accepted durably in a short transaction (202
+pending) and erased by a leased, retried worker; with gameplay off the synchronous erasure bounds its lock waits and
+returns a typed 503 `deletion_busy`. Design, lock order, flag matrix and runbook: `G34_ERASURE_QUEUE.md`; stress numbers:
+`play-launch/ERASURE_STRESS_30OCT.md`. The fence, the replay and the tombstones above are unchanged.

@@ -289,3 +289,53 @@ test("account deletion erases only the signed-in account, after the exact confir
     await new Promise<void>((resolve) => deletionServer.close(() => resolve()));
   }
 });
+
+/** A router over the shared services with a stand-in deletion store; returns a sender bound to it. */
+async function withDeletionStore(accountDeletion: NonNullable<Parameters<typeof createIdentityRouter>[1]>["accountDeletion"], run: (base: string) => Promise<void>): Promise<void> {
+  const deletionApp = express();
+  deletionApp.use(express.json());
+  deletionApp.use("/identity", createIdentityRouter(services, { emailOtpEnabled: true, accountDeletion }));
+  const s = await new Promise<Server>((resolve) => { const x = deletionApp.listen(0, "127.0.0.1", () => resolve(x)); });
+  try {
+    await run(`http://127.0.0.1:${(s.address() as AddressInfo).port}`);
+  } finally {
+    await new Promise<void>((resolve) => s.close(() => resolve()));
+  }
+}
+
+test("a queued account deletion answers 202 pending with an opaque request id, never 'deleted'; its status says pending until completed", async () => {
+  const requestId = "3f1c2a7e-9b4d-4e8a-a1c0-5d6e7f809a1b";
+  let completed = false;
+  await withDeletionStore({
+    async erase() { throw new Error("the queued path must not erase during the request"); },
+    async request() { return { status: "pending", requestId }; },
+    async status(id: string) { return id === requestId ? { status: completed ? "completed" : "pending", delayed: false, signInRecord: completed ? "removed" : "pending" } : null; },
+  }, async (b) => {
+    const { accessToken } = await login("erase-queued@example.com");
+    const res = await fetch(`${b}/identity/account/delete`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ confirm: "DELETE" }) });
+    assert.equal(res.status, 202);
+    const body = await res.json() as Record<string, unknown>;
+    assert.deepEqual(body, { deleted: false, status: "pending", requestId, signedOut: true, signInRecord: "pending" });
+    const pending = await fetch(`${b}/identity/account/deletion/${requestId}`);
+    assert.equal(pending.status, 200);
+    assert.equal(pending.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await pending.json(), { deleted: false, status: "pending", delayed: false, signInRecord: "pending" });
+    completed = true;
+    assert.deepEqual(await (await fetch(`${b}/identity/account/deletion/${requestId}`)).json(), { deleted: true, status: "completed", delayed: false, signInRecord: "removed" });
+    assert.equal((await fetch(`${b}/identity/account/deletion/00000000-0000-4000-8000-000000000000`)).status, 404);
+  });
+});
+
+test("a deletion that could not start within its budget is a typed 503 deletion_busy with Retry-After, and leaves the session usable", async () => {
+  const { ErasureBusyError } = await import("../accountDeletion.js");
+  await withDeletionStore({
+    async erase() { throw new ErasureBusyError("lock_timeout"); },
+  }, async (b) => {
+    const { accessToken } = await login("erase-busy@example.com");
+    const res = await fetch(`${b}/identity/account/delete`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ confirm: "DELETE" }) });
+    assert.equal(res.status, 503);
+    assert.equal(res.headers.get("retry-after"), "5");
+    assert.deepEqual(await res.json(), { error: { code: "deletion_busy" } });
+    assert.equal((await get("/identity/me", accessToken)).status, 200);
+  });
+});
