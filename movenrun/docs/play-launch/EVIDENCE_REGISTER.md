@@ -192,3 +192,6 @@ has been run for sign-in yet.
 | R | Play internal test install, Google map tiles with the Play App Signing SHA-1, steps 15–17 | X-11, X-12 |
 | G | Phone screenshots from the Play-bound build | X-13 |
 | L | 48-hour monitoring record after a Play release | X-16, `POST_LAUNCH_MONITORING.md` |
+| E-133 | 30 Oct | #183 async erasure queue merged a1cbdbf: strict suite 705/705, reviewer reproduced old failure (base untyped 500 after 10011 ms, branch typed 503 after 5010 ms), CI green | reports/MOVENRUN_2026-10-30_ERASURE_QUEUE_ANDROID_TRUTH_FINAL_REPORT_a1cbdbf.md |
+| E-134 | 30 Oct | #182 Android truth fixes merged 02d8ca9 | same report |
+| E-135 | 30 Oct | X-33 single retry: dep-dbi94de1egvs73f8ns5g at efd381b live 12:49:57Z; hosted HTTP checks not run (403) | same report |
