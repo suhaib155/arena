@@ -1,6 +1,6 @@
 # DEP-EXC-2026-001 amendment (30 Oct 2026)
 
-Internal dependency exception text, amended from the version on `docs/decode-uri-exception-22oct` (`docs/security/DEPENDENCY_EXCEPTIONS.md`). Facts come from `docs/security/DEP_EXC_2026_001_REASSESSMENT_29OCT.md` (#178). This is a proposal for the owner. It is **not signed and not in force as amended** until the sign-off block at the end is completed by the owner.
+Internal dependency exception text, amended from the version on `docs/decode-uri-exception-22oct` (`docs/security/DEPENDENCY_EXCEPTIONS.md`). Facts come from `docs/security/DEP_EXC_2026_001_REASSESSMENT_29OCT.md` (#178). **Approved by the owner in the project chat on 30 Oct 2026 (14:02Z): through 21 November 2026, mandatory reassessment by 14 November 2026, no automatic extension.** The signature lines in section 7 stay blank until the owner completes them for their own record.
 
 ## 1. Identification
 
@@ -55,7 +55,7 @@ Any one of these ends the wait for 14 November and requires reassessment within 
 
 ## 7. Owner sign-off
 
-Status: **NOT SIGNED. This block is intentionally blank.** Nothing in this repository records an approval of this amendment.
+Status: **APPROVED in chat 30 Oct 2026 14:02Z (owner); signature lines intentionally left blank for the owner.** Nothing below was filled in on the owner's behalf.
 
 Decision (accept / amend / reject): ______________________
 

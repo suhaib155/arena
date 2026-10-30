@@ -19,7 +19,7 @@ service and wait for the owner's explicit go.
 | X-02 | **ANSWERED 2026-10-13**: developer name "Team MovenRun", contact `info@movenrun.xyz`. Filled in on every public page | — |
 | X-03 | **ANSWERED 2026-10-13**: free tier only. Supabase Free project `movenrun` (`tavxmwuwkeynbnzfwove`) + Render Free (`render.yaml`, `HOSTING_SUPABASE_FREE.md`) | — |
 | X-20 | **ANSWERED 2026-10-13**: owner replied "accept separate accounts". D-17 accepted: Google and wallet sign-ins create separate accounts in v1, no linking | — |
-| X-04 | **APPROVAL** to trigger **one EAS APK Build** (preview profile) of the verified candidate #125 at `15f7f87` (E-87), or of `release/android-v1-cxfdbd` once #125 is in it, from the Actions tab, after X-05 and X-08a. Uses the free EAS build quota | Device gate (22–24 Oct) |
+| X-04 | **APPROVED 30 Oct 14:02Z (owner): exactly one EAS preview APK from `02d8ca937a04fc6533d3c77bf06e135c61391b96`, API `https://movenrun-staging-api.onrender.com`, conditional on verified restricted Maps key, signing configuration, environment variables, remaining build quota and pre-build checks; handset checklist afterward; movement tests needing newer server rules marked BLOCKED; no Play submission, no additional builds. NOT YET RUN: this environment has no EAS/Expo credentials or CLI, so the build and the pre-build verification of those conditions need the owner or tooling with EAS access.** Original text: APPROVAL to trigger **one EAS APK Build** (preview profile) of the verified candidate #125 at `15f7f87` (E-87), or of `release/android-v1-cxfdbd` once #125 is in it, from the Actions tab, after X-05 and X-08a. Uses the free EAS build quota | Device gate (22–24 Oct) |
 
 ## Supabase and hosting (order: X-06, then X-07, then X-05, then X-21)
 
