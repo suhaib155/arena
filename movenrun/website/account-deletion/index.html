@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Delete your account · MovenRun</title>
-<meta name="description" content="How to permanently delete your MovenRun account and its data, in the app, on the web or by email. Works for Google and wallet accounts." />
+<title>Request account deletion · MovenRun</title>
+<meta name="description" content="How to request deletion of your MovenRun account and its data, in the app, on the web or by email. Works for Google and wallet accounts." />
 <meta name="theme-color" content="#F8FAF7" />
 <meta name="movenrun-api" content="{{API_BASE_URL}}" />
 <meta name="movenrun-supabase-url" content="https://tavxmwuwkeynbnzfwove.supabase.co" />
@@ -24,23 +24,23 @@
 </header>
 <main id="main">
 <h1>Delete your MovenRun account</h1>
-<p class="lede">You can permanently delete your MovenRun account and the data stored with it at any time.</p>
+<p class="lede">You can request deletion of your MovenRun account and the data stored with it at any time.</p>
 
-<h2 id="what">What is deleted</h2>
+<h2 id="what">What is removed</h2>
 <ul>
   <li>Your account, and its Google sign-in (your email address) or wallet sign-in (your public wallet address) at our sign-in provider</li>
-  <li>All sign-in sessions on every device (they are signed out immediately)</li>
+  <li>All sign-in sessions on every device (they are signed out when you make the request)</li>
   <li>Every verified session summary saved to your account (distance, time, map cells crossed)</li>
   <li>Your account's security history</li>
 </ul>
-<p>Deletion happens immediately and cannot be undone. Your Google account and your wallet themselves are not affected: we only remove MovenRun's record of them. We keep only an anonymous record that an account was deleted, with no email, account id or other detail that could identify you. Our database plan keeps no provider backups, so deleted data does not live on in a backup.</p>
+<p>Deletion cannot be undone. After you make a request, your account shows as &ldquo;Deletion requested&rdquo; or &ldquo;Deletion pending&rdquo; until we have verified that the removal is complete, including the sign-in record at our sign-in provider. Until then we do not treat your account as permanently deleted. Your Google account and your wallet themselves are not affected: we only remove MovenRun's record of them. We keep only an anonymous record that an account was deleted, with no email, account id or other detail that could identify you. Our database plan keeps no provider backups.</p>
 <p>Progress stored only on your phone (XP, streak, badges) is not on our servers. Deleting your account in the app also clears it from that phone; otherwise, uninstalling the app removes it.</p>
 
 <h2 id="in-app">Option 1: in the app</h2>
 <ol>
   <li>Open MovenRun and sign in.</li>
   <li>Go to <strong>Profile → Account → Account security</strong>.</li>
-  <li>Tap <strong>Delete account</strong> and confirm.</li>
+  <li>Tap <strong>Delete account</strong> and confirm. The app tells you whether the deletion is requested or confirmed complete.</li>
 </ol>
 
 <h2 id="web">Option 2: on this page</h2>
@@ -52,14 +52,14 @@
     <div class="wallet-choice" id="wallet-choice" hidden></div>
   </div>
   <form id="step-confirm" hidden novalidate>
-    <p><strong>This permanently deletes your account and every session saved to it.</strong></p>
-    <button type="submit" class="danger">Delete my account</button>
+    <p><strong>This requests deletion of your account and every session saved to it. It cannot be undone.</strong></p>
+    <button type="submit" class="danger">Request deletion of my account</button>
   </form>
   <p class="status" id="status" role="status" aria-live="polite"></p>
 </div>
 
 <h2 id="email">Option 3: by email</h2>
-<p>If you can no longer sign in, write to <a href="mailto:info@movenrun.xyz?subject=Delete%20my%20MovenRun%20account">info@movenrun.xyz</a> with the subject "Delete my MovenRun account". Tell us how you signed in: the Google email address, or the public wallet address (never send a recovery phrase or private key; we will never ask for one). We may ask you to confirm you control that address before deleting. We complete the deletion within 30 days and reply when it is done.</p>
+<p>If you can no longer sign in, write to <a href="mailto:info@movenrun.xyz?subject=Delete%20my%20MovenRun%20account">info@movenrun.xyz</a> with the subject "Delete my MovenRun account". Tell us how you signed in: the Google email address, or the public wallet address (never send a recovery phrase or private key; we will never ask for one). We may ask you to confirm you control that address before we act on the request.</p>
 </main>
 <footer>
   <p>MovenRun is provided by Team MovenRun. Contact: <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>.</p>
@@ -100,14 +100,24 @@
   confirmForm.addEventListener("submit", function (e) {
     e.preventDefault();
     if (!token) return;
-    confirmForm.querySelector("button").disabled = true; say("Deleting your account…");
+    confirmForm.querySelector("button").disabled = true; say("Sending your deletion request…");
     auth.apiPost("/identity/account/delete", { confirm: "DELETE" }, token).then(function (r) {
       confirmForm.querySelector("button").disabled = false;
+      var REQUESTED = "Deletion requested. You have been signed out everywhere and cannot sign in to this account. Removal of your account data and sign-in record is in progress and is not confirmed as finished yet.";
       // 202: accepted and queued, not finished yet. Say so, never "deleted".
-      if (r.status === 202) { token = ""; confirmForm.hidden = true; say("Your deletion request was accepted and you have been signed out everywhere. Your account and its data are being removed now; you cannot sign in to it meanwhile.", "ok"); }
-      else if (r.ok) { token = ""; confirmForm.hidden = true; say("Your MovenRun account and its data have been deleted.", "ok"); }
-      else if (r.status === 503) say("MovenRun is busy and nothing was deleted. Please try again in a few seconds.", "error");
-      else say("Your account could not be deleted right now. Please try again or email us.", "error");
+      if (r.status === 202) { token = ""; confirmForm.hidden = true; say(REQUESTED, "ok"); return; }
+      if (r.ok) {
+        // Claim completion only if the response confirms it, sign-in record included.
+        return r.json().catch(function () { return null; }).then(function (b) {
+          var done = !!b && b.deleted === true && (b.status === undefined || b.status === "completed") &&
+            (b.signInRecord === "removed" || b.signInRecord === "none");
+          token = ""; confirmForm.hidden = true;
+          say(done ? "Your MovenRun account and its data have been deleted, and the server confirmed your sign-in record was removed." : REQUESTED, "ok");
+        });
+      }
+      if (r.status === 409) say("Deletion pending. A deletion request for this account is already in progress and is not confirmed as finished yet.", "error");
+      else if (r.status === 503) say("MovenRun is busy and nothing was deleted. Please try again later.", "error");
+      else say("Your deletion request could not be sent right now. Nothing was confirmed as deleted. Please try again or email us.", "error");
     }, function () { confirmForm.querySelector("button").disabled = false; say("We could not reach MovenRun. Please try again.", "error"); });
   });
 })();
