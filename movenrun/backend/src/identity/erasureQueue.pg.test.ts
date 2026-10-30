@@ -131,12 +131,12 @@ async function deadlocks(w: World): Promise<number> {
 
 async function job(w: World, id: string) {
   const [r] = await w.q<{ state: string; user_id: string | null; attempts: number; last_outcome: string | null; provider_stage: string | null; due_in_ms: number }>(
-    "SELECT state, user_id, attempts, last_outcome, provider_stage, (extract(epoch FROM next_attempt_at - now()) * 1000)::float8 AS due_in_ms FROM gameplay_erasure_jobs WHERE id = $1", [id]);
+    "SELECT state, user_id, attempts, last_outcome, provider_stage, (extract(epoch FROM next_attempt_at - now()) * 1000)::float8 AS due_in_ms FROM gameplay_account_deletion_jobs WHERE id = $1", [id]);
   return r;
 }
 
 async function makeDue(w: World): Promise<void> {
-  await w.q("UPDATE gameplay_erasure_jobs SET next_attempt_at = now() WHERE state = 'pending'");
+  await w.q("UPDATE gameplay_account_deletion_jobs SET next_attempt_at = now() WHERE state = 'pending'");
 }
 
 /** A held SHARE lock on the fence: what a long day close holds. */
@@ -173,6 +173,11 @@ test("accepted, not deleted: the request commits a job and signs the account out
     const j = (await job(w, requestId))!;
     assert.equal(j.state, "completed");
     assert.equal(j.user_id, null, "a completed job forgets whose it was");
+    // Unlinkable from the books: the job table has no day, no tombstone and no
+    // player column, so a completed row cannot order or group anyone's days
+    // (its times record the request, as the account_deleted audit row does).
+    const cols = (await w.q<{ c: string }>("SELECT column_name AS c FROM information_schema.columns WHERE table_name = 'gameplay_account_deletion_jobs' ORDER BY ordinal_position")).map((r) => r.c);
+    assert.deepEqual(cols, ["id", "user_id", "state", "attempts", "requested_at", "next_attempt_at", "lease_token", "lease_expires_at", "last_outcome", "provider_stage", "attention_at", "completed_at"]);
     assert.equal(j.provider_stage, "queued", "no provider client wired: the sign-in record stays queued");
     assert.deepEqual(await s.status(requestId), { status: "completed", delayed: false, signInRecord: "pending" });
     assert.deepEqual(await rowsNaming(w, who), []);
@@ -273,13 +278,13 @@ test("duplicate requests: concurrent and repeated requests for one account share
     const ids = new Set(outs.map((o) => (o as { requestId?: string }).requestId));
     assert.equal(ids.size, 1, `one job id, got ${[...ids].join(",")}`);
     assert.ok(outs.every((o) => o.status === "pending"));
-    assert.equal((await w.q("SELECT 1 FROM gameplay_erasure_jobs")).length, 1);
+    assert.equal((await w.q("SELECT 1 FROM gameplay_account_deletion_jobs")).length, 1);
     const { w: worker } = makeWorker(w.t.db, s);
     await worker.drain();
     const again = await s.request(who);
     assert.equal(again.status, "completed", "after completion the account is gone: an idempotent completed with zero counts");
     assert.equal((again as { result: { users: number } }).result.users, 0);
-    assert.equal((await w.q("SELECT 1 FROM gameplay_erasure_jobs")).length, 1);
+    assert.equal((await w.q("SELECT 1 FROM gameplay_account_deletion_jobs")).length, 1);
     assert.equal((await w.q("SELECT 1 FROM security_audit_events WHERE event_type = 'account_deleted'")).length, 1);
   } finally {
     await w.t.drop();
@@ -295,7 +300,7 @@ test("two workers, one job: concurrent claims hand it to exactly one; concurrent
     await s.request(who);
     const claims = await Promise.all(Array.from({ length: 8 }, () => jobs.claimErasureJob(w.t.db, 60_000)));
     assert.equal(claims.filter(Boolean).length, 1, "SKIP LOCKED: one claim");
-    await w.q("UPDATE gameplay_erasure_jobs SET state = 'pending', lease_token = NULL, lease_expires_at = NULL");
+    await w.q("UPDATE gameplay_account_deletion_jobs SET state = 'pending', lease_token = NULL, lease_expires_at = NULL");
     const a = makeWorker(w.t.db, s);
     const b = makeWorker(w.t.db, s);
     const done = await Promise.all([a.w.drain(), b.w.drain()]);
@@ -405,7 +410,7 @@ test("settlement against queued erasure: closes and the worker run together; eac
     for (const u of walkers) assert.deepEqual(await rowsNaming(w, u), []);
     assert.equal((await w.svc.settlementStatus()).halted, false);
     assert.equal(await deadlocks(w), dl0, "no 40P01");
-    const [left] = await w.q<{ n: number }>("SELECT count(*)::int AS n FROM gameplay_erasure_jobs WHERE state <> 'completed'");
+    const [left] = await w.q<{ n: number }>("SELECT count(*)::int AS n FROM gameplay_account_deletion_jobs WHERE state <> 'completed'");
     assert.equal(left!.n, 0);
   } finally {
     await w.t.drop();
@@ -499,7 +504,7 @@ test("gameplay off with 0011 present: requests erase synchronously, no job; an a
     const out = await sync.request("q-walker-o1");
     assert.equal(out.status, "completed");
     assert.equal((out as { result: { users: number } }).result.users, 1);
-    assert.equal((await w.q("SELECT 1 FROM gameplay_erasure_jobs")).length, 0);
+    assert.equal((await w.q("SELECT 1 FROM gameplay_account_deletion_jobs")).length, 0);
     // Accepted while gameplay was on, then gameplay was switched off.
     const { requestId } = (await store(w.t.db, QUEUED).request("q-walker-o2")) as { requestId: string };
     assert.equal(await sync.sweepDeleting(), 1);

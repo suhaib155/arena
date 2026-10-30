@@ -1,7 +1,7 @@
 /**
  * Durable account erasure jobs (docs/G34_ERASURE_QUEUE.md).
  *
- * The table `gameplay_erasure_jobs` belongs to the PROPOSED migration 0011
+ * The table `gameplay_account_deletion_jobs` belongs to the PROPOSED migration 0011
  * (drizzle-proposed/), like the erasure fence it works with. Every function
  * here is reached only after `erasureJobsPresent` found the table, so a
  * database without 0011 is never asked about it.
@@ -122,7 +122,7 @@ export function erasureBackoffMs(policy: ErasureRetryPolicy, attempts: number, r
 
 /** True when the proposed 0011 job table exists. A catalog lookup, not a query of the table. */
 export async function erasureJobsPresent(exec: Exec): Promise<boolean> {
-  const [r] = await rows<{ ok: boolean }>(exec, sql`SELECT to_regclass('public.gameplay_erasure_jobs') IS NOT NULL AS ok`);
+  const [r] = await rows<{ ok: boolean }>(exec, sql`SELECT to_regclass('public.gameplay_account_deletion_jobs') IS NOT NULL AS ok`);
   return Boolean(r?.ok);
 }
 
@@ -136,7 +136,7 @@ export interface ClaimedErasureJob {
 /** The open job of an account, if any. */
 export async function openErasureJob(exec: Exec, userId: string): Promise<string | null> {
   const [r] = await rows<{ id: string }>(exec, sql`
-    SELECT id::text AS id FROM gameplay_erasure_jobs WHERE user_id = ${userId} AND state <> 'completed'`);
+    SELECT id::text AS id FROM gameplay_account_deletion_jobs WHERE user_id = ${userId} AND state <> 'completed'`);
   return r?.id ?? null;
 }
 
@@ -144,7 +144,7 @@ export async function openErasureJob(exec: Exec, userId: string): Promise<string
 export async function insertErasureJob(tx: Tx, userId: string): Promise<string> {
   const id = randomUUID();
   await tx.execute(sql`
-    INSERT INTO gameplay_erasure_jobs (id, user_id, state) VALUES (${id}::uuid, ${userId}, 'pending')`);
+    INSERT INTO gameplay_account_deletion_jobs (id, user_id, state) VALUES (${id}::uuid, ${userId}, 'pending')`);
   return id;
 }
 
@@ -156,12 +156,12 @@ export async function insertErasureJob(tx: Tx, userId: string): Promise<string> 
 export async function claimErasureJob(db: Db, leaseMs: number): Promise<ClaimedErasureJob | null> {
   const token = randomUUID();
   const [r] = await rows<{ id: string; user_id: string; attempts: number }>(db, sql`
-    UPDATE gameplay_erasure_jobs j
+    UPDATE gameplay_account_deletion_jobs j
        SET state = 'running', lease_token = ${token}::uuid,
            lease_expires_at = now() + make_interval(secs => ${leaseMs}::float8 / 1000),
            attempts = j.attempts + 1
      WHERE j.id = (
-       SELECT id FROM gameplay_erasure_jobs
+       SELECT id FROM gameplay_account_deletion_jobs
         WHERE (state = 'pending' AND next_attempt_at <= now()) OR (state = 'running' AND lease_expires_at <= now())
         ORDER BY next_attempt_at, requested_at
         LIMIT 1 FOR UPDATE SKIP LOCKED)
@@ -172,7 +172,7 @@ export async function claimErasureJob(db: Db, leaseMs: number): Promise<ClaimedE
 /** Inside the erasure transaction: lock the job row and check this worker still holds its lease. */
 export async function holdErasureLease(tx: Tx, job: ClaimedErasureJob): Promise<void> {
   const [r] = await rows(tx, sql`
-    SELECT 1 FROM gameplay_erasure_jobs WHERE id = ${job.id}::uuid AND state = 'running' AND lease_token = ${job.leaseToken}::uuid FOR UPDATE`);
+    SELECT 1 FROM gameplay_account_deletion_jobs WHERE id = ${job.id}::uuid AND state = 'running' AND lease_token = ${job.leaseToken}::uuid FOR UPDATE`);
   if (!r) throw new ErasureLeaseLostError();
 }
 
@@ -183,7 +183,7 @@ export async function holdErasureLease(tx: Tx, job: ClaimedErasureJob): Promise<
  */
 export async function completeOpenErasureJobs(tx: Tx, userId: string, providerStage: "none" | "queued"): Promise<number> {
   const done = await rows(tx, sql`
-    UPDATE gameplay_erasure_jobs
+    UPDATE gameplay_account_deletion_jobs
        SET state = 'completed', user_id = NULL, completed_at = now(), lease_token = NULL, lease_expires_at = NULL,
            attention_at = NULL, last_outcome = 'completed', provider_stage = ${providerStage}
      WHERE user_id = ${userId} AND state <> 'completed' RETURNING id`);
@@ -192,7 +192,7 @@ export async function completeOpenErasureJobs(tx: Tx, userId: string, providerSt
 
 /** After commit: the provider confirmed removal of the sign-in record. */
 export async function markProviderRemoved(db: Db, jobId: string): Promise<void> {
-  await db.execute(sql`UPDATE gameplay_erasure_jobs SET provider_stage = 'removed' WHERE id = ${jobId}::uuid AND state = 'completed'`);
+  await db.execute(sql`UPDATE gameplay_account_deletion_jobs SET provider_stage = 'removed' WHERE id = ${jobId}::uuid AND state = 'completed'`);
 }
 
 /**
@@ -207,7 +207,7 @@ export async function releaseErasureJob(
   const waitMs = attention ? 0 : erasureBackoffMs(policy, job.attempts, random);
   const reason = attention && TRANSIENT_ERASURE_CLASSES.has(outcome) ? `attempts_exhausted_${outcome}` : outcome;
   const [r] = await rows<{ state: "pending" | "needs_attention" }>(db, sql`
-    UPDATE gameplay_erasure_jobs
+    UPDATE gameplay_account_deletion_jobs
        SET state = ${attention ? "needs_attention" : "pending"},
            next_attempt_at = now() + make_interval(secs => ${waitMs}::float8 / 1000),
            lease_token = NULL, lease_expires_at = NULL, last_outcome = ${reason},
@@ -220,7 +220,7 @@ export async function releaseErasureJob(
 /** A job that came back from too many expired leases goes to needs_attention instead of running again. */
 export async function parkErasureJob(db: Db, job: ClaimedErasureJob, reason: string): Promise<void> {
   await db.execute(sql`
-    UPDATE gameplay_erasure_jobs
+    UPDATE gameplay_account_deletion_jobs
        SET state = 'needs_attention', lease_token = NULL, lease_expires_at = NULL, last_outcome = ${reason}, attention_at = now()
      WHERE id = ${job.id}::uuid AND state = 'running' AND lease_token = ${job.leaseToken}::uuid`);
 }
@@ -238,7 +238,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function erasureJobStatus(exec: Exec, jobId: string): Promise<ErasureJobStatusRow | null> {
   if (!UUID_RE.test(jobId)) return null;
   const [r] = await rows<{ state: ErasureJobStatusRow["state"]; attempts: number; provider_stage: ErasureJobStatusRow["providerStage"]; requested_at: Date; completed_at: Date | null }>(exec, sql`
-    SELECT state, attempts, provider_stage, requested_at, completed_at FROM gameplay_erasure_jobs WHERE id = ${jobId}::uuid`);
+    SELECT state, attempts, provider_stage, requested_at, completed_at FROM gameplay_account_deletion_jobs WHERE id = ${jobId}::uuid`);
   if (!r) return null;
   return { state: r.state, attempts: Number(r.attempts), providerStage: r.provider_stage, requestedAt: new Date(r.requested_at), completedAt: r.completed_at ? new Date(r.completed_at) : null };
 }
@@ -251,7 +251,7 @@ export async function erasureJobCounts(exec: Exec): Promise<{ pending: number; r
            count(*) FILTER (WHERE state = 'needs_attention')::int AS attention,
            count(*) FILTER (WHERE state = 'completed')::int AS completed,
            extract(epoch FROM now() - min(requested_at) FILTER (WHERE state <> 'completed'))::float8 AS oldest
-      FROM gameplay_erasure_jobs`);
+      FROM gameplay_account_deletion_jobs`);
   return {
     pending: Number(r?.pending ?? 0), running: Number(r?.running ?? 0), needsAttention: Number(r?.attention ?? 0),
     completed: Number(r?.completed ?? 0), oldestOpenSeconds: r?.oldest === null || r?.oldest === undefined ? null : Number(r.oldest),
@@ -274,10 +274,10 @@ export async function requeueErasureJob(db: Db, jobId: string, actor: string, re
   if (!REASON_RE.test(reason)) throw new Error("reason must be a reason code (lowercase letters, digits, _)");
   return db.transaction(async (tx) => {
     const [r] = await rows<{ last_outcome: string | null }>(tx, sql`
-      SELECT last_outcome FROM gameplay_erasure_jobs WHERE id = ${jobId}::uuid AND state = 'needs_attention' FOR UPDATE`);
+      SELECT last_outcome FROM gameplay_account_deletion_jobs WHERE id = ${jobId}::uuid AND state = 'needs_attention' FOR UPDATE`);
     if (r) {
       await tx.execute(sql`
-        UPDATE gameplay_erasure_jobs
+        UPDATE gameplay_account_deletion_jobs
            SET state = 'pending', attempts = 0, next_attempt_at = now(), attention_at = NULL, last_outcome = 'requeued'
          WHERE id = ${jobId}::uuid`);
     }

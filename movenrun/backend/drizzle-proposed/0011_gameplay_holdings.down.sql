@@ -50,7 +50,7 @@ DROP TABLE IF EXISTS "gameplay_clubs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_credit_lines";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_erasure_days";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_erasure_fence";--> statement-breakpoint
-DROP TABLE IF EXISTS "gameplay_erasure_jobs";--> statement-breakpoint
+DROP TABLE IF EXISTS "gameplay_account_deletion_jobs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_day_settlements";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_player_day_proofs";--> statement-breakpoint
 DROP TABLE IF EXISTS "gameplay_applied_sessions";--> statement-breakpoint

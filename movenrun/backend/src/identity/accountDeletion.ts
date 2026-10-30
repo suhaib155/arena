@@ -186,7 +186,7 @@ async function eraseInTx(db: Db, tx: Tx, userId: string, lockTimeoutMs: number, 
   // fence, no job table and no gameplay relation.
   const present = await tx.execute(sql`
     SELECT to_regclass('public.gameplay_erasure_fence') IS NOT NULL AS ok,
-           to_regclass('public.gameplay_erasure_jobs') IS NOT NULL AS jobs`);
+           to_regclass('public.gameplay_account_deletion_jobs') IS NOT NULL AS jobs`);
   const row = present.rows[0] as { ok?: boolean; jobs?: boolean } | undefined;
   const hasGameplay = Boolean(row?.ok);
   const hasJobs = Boolean(row?.jobs);

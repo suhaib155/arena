@@ -68,7 +68,7 @@
 --   gameplay_ensure_day_partitions: a partition another creator committed
 --        while this one waited for the lock is skipped instead of failing
 --        the push with 42P07 (found by 40 concurrent first pushes of a day).
---   gameplay_erasure_jobs (30 Oct): durable account erasure jobs, one open
+--   gameplay_account_deletion_jobs (30 Oct): durable account erasure jobs, one open
 --        job per account, leased by the API's worker, completed in the
 --        erasure transaction, user id cleared on completion.
 --   unchanged from revision 2: the day-partitioned ledger and walker days,
@@ -721,7 +721,7 @@ INSERT INTO "gameplay_erasure_fence" ("id") VALUES (true) ON CONFLICT DO NOTHING
 -- open job names it. last_outcome holds a reason code only (never an error
 -- message, an address or a token). The API owns the table; no other role
 -- gets anything (below).
-CREATE TABLE IF NOT EXISTS "gameplay_erasure_jobs" (
+CREATE TABLE IF NOT EXISTS "gameplay_account_deletion_jobs" (
   "id" uuid PRIMARY KEY NOT NULL,
   "user_id" text REFERENCES "users"("id"),
   "state" text NOT NULL CHECK ("state" IN ('pending', 'running', 'completed', 'needs_attention')),
@@ -734,14 +734,14 @@ CREATE TABLE IF NOT EXISTS "gameplay_erasure_jobs" (
   "provider_stage" text CHECK ("provider_stage" IS NULL OR "provider_stage" IN ('none', 'queued', 'removed')),
   "attention_at" timestamptz,
   "completed_at" timestamptz,
-  CONSTRAINT "gameplay_erasure_jobs_completed" CHECK (("state" = 'completed') = ("completed_at" IS NOT NULL)),
-  CONSTRAINT "gameplay_erasure_jobs_subject" CHECK (("state" = 'completed') = ("user_id" IS NULL)),
-  CONSTRAINT "gameplay_erasure_jobs_lease" CHECK (("state" = 'running') = ("lease_token" IS NOT NULL AND "lease_expires_at" IS NOT NULL)),
-  CONSTRAINT "gameplay_erasure_jobs_attention" CHECK (("state" = 'needs_attention') = ("attention_at" IS NOT NULL))
+  CONSTRAINT "gameplay_account_deletion_jobs_completed" CHECK (("state" = 'completed') = ("completed_at" IS NOT NULL)),
+  CONSTRAINT "gameplay_account_deletion_jobs_subject" CHECK (("state" = 'completed') = ("user_id" IS NULL)),
+  CONSTRAINT "gameplay_account_deletion_jobs_lease" CHECK (("state" = 'running') = ("lease_token" IS NOT NULL AND "lease_expires_at" IS NOT NULL)),
+  CONSTRAINT "gameplay_account_deletion_jobs_attention" CHECK (("state" = 'needs_attention') = ("attention_at" IS NOT NULL))
 );--> statement-breakpoint
 -- At most one open job per account: a repeated request finds the open one.
-CREATE UNIQUE INDEX IF NOT EXISTS "gameplay_erasure_jobs_open_user" ON "gameplay_erasure_jobs" ("user_id") WHERE "state" <> 'completed';--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "gameplay_erasure_jobs_due" ON "gameplay_erasure_jobs" ("next_attempt_at") WHERE "state" IN ('pending', 'running');--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "gameplay_account_deletion_jobs_open_user" ON "gameplay_account_deletion_jobs" ("user_id") WHERE "state" <> 'completed';--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "gameplay_account_deletion_jobs_due" ON "gameplay_account_deletion_jobs" ("next_attempt_at") WHERE "state" IN ('pending', 'running');--> statement-breakpoint
 
 -- A credit line names its player, or (after erasure) a tombstone: a random
 -- uuid made for that one line, linked to nothing else. Never both.
@@ -1089,7 +1089,7 @@ ALTER TABLE "gameplay_session_paths" ENABLE ROW LEVEL SECURITY;--> statement-bre
 ALTER TABLE "gameplay_settlement_halts" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_erasure_days" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_erasure_fence" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "gameplay_erasure_jobs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "gameplay_account_deletion_jobs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_resume_requests" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "gameplay_resume_approvals" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 
@@ -1123,7 +1123,7 @@ BEGIN
     'gameplay_player_day_proofs', 'gameplay_day_settlements', 'gameplay_credit_lines', 'gameplay_clubs', 'gameplay_club_memberships',
     'gameplay_unit_districts', 'gameplay_club_days', 'gameplay_district_days',
     'gameplay_day_rules', 'gameplay_walker_days', 'gameplay_unit_challenges', 'gameplay_session_paths', 'gameplay_settlement_halts',
-    'gameplay_erasure_days', 'gameplay_erasure_fence', 'gameplay_erasure_jobs', 'gameplay_resume_requests', 'gameplay_resume_approvals'] LOOP
+    'gameplay_erasure_days', 'gameplay_erasure_fence', 'gameplay_account_deletion_jobs', 'gameplay_resume_requests', 'gameplay_resume_approvals'] LOOP
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', t);
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', t);

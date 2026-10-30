@@ -4,7 +4,7 @@
  *   MOVENRUN_BENCH_DATABASE_URL=postgres://bench@127.0.0.1:55432/postgres \
  *     node --import tsx scripts/gameplay-erasure-stress.ts --mode sync|async --out /tmp/stress.json \
  *       [--players 200] [--seed 29] [--erasers 24] [--pushers 12] [--closers 1] [--day-ms 4000] [--pool 40]
- *       [--repeats 3] [--drain-cap-s 300] [--workers 1] [--server-log /tmp/movenrun-pgbench16/server.log]
+ *       [--repeats 3] [--drain-cap-s 300] [--workers 1] [--interval-ms 0] [--server-log /tmp/movenrun-pgbench16/server.log]
  *
  * One template database is seeded exactly as gameplay-erasure-bench.ts seeds it (same seed, same world: 200 players,
  * days D..D+5, D..D+2 settled), then every repeat runs on a fresh CREATE DATABASE ... TEMPLATE clone:
@@ -61,6 +61,8 @@ const POOL = Number(arg("pool") ?? 40);
 const REPEATS = Number(arg("repeats") ?? 3);
 const DRAIN_CAP_S = Number(arg("drain-cap-s") ?? 300);
 const WORKERS = Number(arg("workers") ?? 1);
+/** 0 (default): a burst, every eraser asks as soon as it is free. N > 0: request k is not sent before k * N ms (steady arrivals). */
+const INTERVAL_MS = Number(arg("interval-ms") ?? 0);
 const SERVER_LOG = arg("server-log");
 const OUT = arg("out");
 const CLIENT_TIMEOUT_MS = 10_000;
@@ -255,7 +257,7 @@ async function runRepeat(template: string, players: Player[], repeat: number) {
         const row: (typeof timeline)[number] = { t: +((performance.now() - w0) / 1000).toFixed(2), locks: Number(l!.n) };
         if (MODE === "async" && timeline.length % 4 === 0) {
           const [c] = await q(mon, `SELECT count(*) FILTER (WHERE state='pending')::int AS p, count(*) FILTER (WHERE state='running')::int AS r,
-            count(*) FILTER (WHERE state='needs_attention')::int AS a, count(*) FILTER (WHERE state='completed')::int AS c FROM gameplay_erasure_jobs`);
+            count(*) FILTER (WHERE state='needs_attention')::int AS a, count(*) FILTER (WHERE state='completed')::int AS c FROM gameplay_account_deletion_jobs`);
           Object.assign(row, { pending: c!.p, running: c!.r, attention: c!.a, completed: c!.c });
         }
         timeline.push(row);
@@ -266,7 +268,9 @@ async function runRepeat(template: string, players: Player[], repeat: number) {
   let next = 0;
   const eraser = async () => {
     while (next < order.length) {
-      const p = order[next++]!;
+      const k = next++;
+      const p = order[k]!;
+      if (INTERVAL_MS > 0) { const wait = k * INTERVAL_MS - (performance.now() - w0); if (wait > 0) await sleep(wait); }
       requested.add(p.id);
       const tReq = performance.now() - w0;
       const t0 = performance.now();
@@ -297,12 +301,12 @@ async function runRepeat(template: string, players: Player[], repeat: number) {
   await Promise.all(Array.from({ length: ERASERS }, () => eraser()));
   const eraseEndS = (performance.now() - w0) / 1000;
   const outstandingAtEraseEnd = MODE === "async"
-    ? Number((await q(mon, "SELECT count(*)::int AS n FROM gameplay_erasure_jobs WHERE state <> 'completed'"))[0]!.n)
+    ? Number((await q(mon, "SELECT count(*)::int AS n FROM gameplay_account_deletion_jobs WHERE state <> 'completed'"))[0]!.n)
     : requests.filter((r) => r.outcome !== "completed").length;
   if (MODE === "async") {
     const deadline = performance.now() + DRAIN_CAP_S * 1000;
     while (performance.now() < deadline) {
-      const [o] = await q(mon, "SELECT count(*)::int AS n FROM gameplay_erasure_jobs WHERE state IN ('pending','running')");
+      const [o] = await q(mon, "SELECT count(*)::int AS n FROM gameplay_account_deletion_jobs WHERE state IN ('pending','running')");
       if (Number(o!.n) === 0) break;
       await sleep(250);
     }
@@ -314,7 +318,7 @@ async function runRepeat(template: string, players: Player[], repeat: number) {
   for (const w of workers) await w.idle();
 
   // ── after ──
-  const jobs = MODE === "async" ? await q(mon, `SELECT state, last_outcome, attempts FROM gameplay_erasure_jobs`) : [];
+  const jobs = MODE === "async" ? await q(mon, `SELECT state, last_outcome, attempts FROM gameplay_account_deletion_jobs`) : [];
   const usersLeft = Number((await q(mon, "SELECT count(*)::int AS n FROM users WHERE id = ANY($1)", [players.map((p) => p.id)]))[0]!.n);
   const deletingLeft = Number((await q(mon, "SELECT count(*)::int AS n FROM users WHERE status = 'deleting'"))[0]!.n);
   const settledAfter = Number((await q(mon, "SELECT count(*)::int AS n FROM gameplay_day_settlements"))[0]!.n);
@@ -386,7 +390,7 @@ async function main() {
   let sha = "unknown"; try { sha = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim(); } catch { /* not a checkout */ }
   let dirty = ""; try { dirty = execSync("git status --porcelain -- src", { encoding: "utf8" }).trim() ? " (src has uncommitted changes)" : ""; } catch { /* ignore */ }
   const cpus = (await import("node:os")).cpus().length;
-  console.log(`LOCAL, SYNTHETIC, NOT A CAPACITY FIGURE. mode=${MODE} sha=${sha}${dirty} players=${PLAYERS} seed=${SEED} erasers=${ERASERS} pushers=${PUSHERS} closers=${CLOSERS} dayMs=${DAY_WALL_MS} pool=${POOL} workers=${WORKERS}`);
+  console.log(`LOCAL, SYNTHETIC, NOT A CAPACITY FIGURE. mode=${MODE} sha=${sha}${dirty} players=${PLAYERS} seed=${SEED} erasers=${ERASERS} pushers=${PUSHERS} closers=${CLOSERS} dayMs=${DAY_WALL_MS} pool=${POOL} workers=${WORKERS} intervalMs=${INTERVAL_MS}`);
   try {
     const { template, players } = await seed();
     console.log(`seeded ${template} in ${((Date.now() - t0) / 1000).toFixed(1)} s, sessions ${players.reduce((a, p) => a + p.sessions, 0)}`);
@@ -399,7 +403,7 @@ async function main() {
         "close", res.settlements.closeOutcomes, "deadlocks", res.deadlocksPgStat, "log", res.serverLog, "verify", res.verifyDay, "halted", res.halted, "naming", res.tablesNamingAnErasedPlayer);
     }
     const out = { label: "LOCAL, SYNTHETIC, NOT A CAPACITY FIGURE", sha: sha + dirty, mode: MODE, postgres: ver, settings, cpus, players: PLAYERS, seed: SEED, erasers: ERASERS, pushers: PUSHERS, closers: CLOSERS, dayWallMs: DAY_WALL_MS,
-      pool: { max: POOL, statement_timeout_ms: 10000, query_timeout_ms: 10000, connectionTimeoutMillis: 5000 }, clientTimeoutMs: CLIENT_TIMEOUT_MS, workers: WORKERS, drainCapS: DRAIN_CAP_S, results, totalSeconds: (Date.now() - t0) / 1000 };
+      pool: { max: POOL, statement_timeout_ms: 10000, query_timeout_ms: 10000, connectionTimeoutMillis: 5000 }, clientTimeoutMs: CLIENT_TIMEOUT_MS, workers: WORKERS, intervalMs: INTERVAL_MS, drainCapS: DRAIN_CAP_S, results, totalSeconds: (Date.now() - t0) / 1000 };
     if (OUT) writeFileSync(OUT, JSON.stringify(out, null, 2));
   } finally {
     await cleanup();

@@ -322,7 +322,7 @@ test("account erasure with the flag off sends only the catalogue probe for the e
     // The one statement allowed: a to_regclass() existence check (for the
     // fence and the proposed erasure job table), which reads no gameplay table
     // and returns false on a 0000-0010 database.
-    assert.deepEqual(mentioning.map((q) => q.replace(/\s+/g, " ").trim()), ["SELECT to_regclass('public.gameplay_erasure_fence') IS NOT NULL AS ok, to_regclass('public.gameplay_erasure_jobs') IS NOT NULL AS jobs"]);
+    assert.deepEqual(mentioning.map((q) => q.replace(/\s+/g, " ").trim()), ["SELECT to_regclass('public.gameplay_erasure_fence') IS NOT NULL AS ok, to_regclass('public.gameplay_account_deletion_jobs') IS NOT NULL AS jobs"]);
   } finally {
     spy.restore();
     await admin.drop();
