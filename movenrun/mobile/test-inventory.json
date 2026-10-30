@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "files": [
     "src/lib/__tests__/accessibilityLabels.test.ts",
+    "src/lib/__tests__/accountDeletionCopy.test.ts",
     "src/lib/__tests__/accountHistory.test.ts",
     "src/lib/__tests__/android16kPageSize.test.ts",
     "src/lib/__tests__/androidBackupPolicy.test.ts",

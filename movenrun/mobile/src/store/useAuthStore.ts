@@ -15,6 +15,7 @@
  */
 import { create } from "zustand";
 import { clearPendingQueue, discardPendingVerifications } from "@/services/verificationQueue";
+import type { DeletionOutcome } from "@/lib/accountDeletionCopy";
 import { setVerificationAccount } from "@/services/verificationPrivacy";
 import {
   createIdentityApiClient,
@@ -73,6 +74,8 @@ interface AuthState {
   /** Dedup key for the in-flight destructive session action: a session id,
    *  "revoke-others", or null. While set, all session actions are refused. */
   pendingSessionAction: string | null;
+  /** What the last successful deleteAccount call may be described as. */
+  deletionOutcome: DeletionOutcome | null;
 
   setClient: (client: IdentityApiClient) => void;
   /** App-level bootstrap: construct the client once, then restore any stored
@@ -108,8 +111,9 @@ interface AuthState {
   signOut: () => Promise<void>;
   /** Server-side revoke-all (every device), then local credential clear. */
   signOutEverywhere: () => Promise<void>;
-  /** Permanently delete the account on the server, then sign out locally.
-   *  Resolves true only after the server confirmed the deletion. */
+  /** Request deletion of the account on the server, then sign out locally.
+   *  Resolves true once the server accepted the request; `deletionOutcome`
+   *  says whether it was confirmed complete or is still being finished. */
   deleteAccount: () => Promise<boolean>;
 }
 
@@ -438,6 +442,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   sessionsStatus: "idle",
   sessionsErrorCode: null,
   pendingSessionAction: null,
+  deletionOutcome: null,
 
   setClient: (client) => set({ client }),
 
@@ -652,9 +657,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   deleteAccount: async () => {
     const client = get().client;
     if (!client || get().pendingSessionAction !== null) return false;
-    set({ pendingSessionAction: "delete-account", accountErrorCode: null });
+    set({ pendingSessionAction: "delete-account", accountErrorCode: null, deletionOutcome: null });
+    let outcome: DeletionOutcome;
     try {
-      await client.deleteAccount();
+      outcome = await client.deleteAccount();
     } catch (err) {
       if (isAuthLost(err)) {
         set(signedOut({ accountErrorCode: codeOf(err) }));
@@ -664,7 +670,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
     beginSessionGeneration();
-    set(signedOut({ accountErrorCode: null }));
+    set({ ...signedOut({ accountErrorCode: null }), deletionOutcome: outcome });
     return true;
   },
 

@@ -23,6 +23,7 @@ import {
 } from "@/lib/sessionPresentation";
 import { displayDeviceLabel } from "@/lib/deviceLabel";
 import { isFeatureInRelease } from "@/lib/releaseScope";
+import { deletionAlertCopy } from "@/lib/accountDeletionCopy";
 import { authErrorMessage } from "@/lib/emailAuth";
 import { useGameStore } from "@/store/useGameStore";
 
@@ -188,14 +189,15 @@ export default function SecurityScreen() {
     }
     setBusy(false);
     if (!deleted) return;
-    Alert.alert("Account deleted", "Your MovenRun account data and saved sessions have been deleted. Removing the Google or wallet sign-in record may still be finishing.");
+    const copy = deletionAlertCopy(useAuthStore.getState().deletionOutcome ?? "requested");
+    Alert.alert(copy.title, copy.body);
     router.replace("/account");
   };
 
   const confirmDeleteAccount = () => {
     Alert.alert(
       "Delete your account?",
-      "This deletes your MovenRun account data and every verified session saved to it, requests removal of its Google or wallet sign-in record, and signs out all devices. Progress on this device is cleared too. This cannot be undone.",
+      "This requests deletion of your MovenRun account data and every verified session saved to it, requests removal of its Google or wallet sign-in record, and signs out all devices. Progress on this device is cleared too. Deletion may take some time to finish. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Delete account", style: "destructive", onPress: () => void doDeleteAccount() },
@@ -321,8 +323,8 @@ export default function SecurityScreen() {
         <SectionHeader title="Delete account" />
         <View style={styles.card}>
           <Text style={styles.caption}>
-            Deleting your account removes your Google or wallet sign-in record and every verified session saved to it from
-            MovenRun. It cannot be undone.
+            Deleting your account requests removal of your Google or wallet sign-in record and every verified session saved
+            to it from MovenRun. Removal may take some time to finish, and it cannot be undone.
           </Text>
           {accountErrorCode && pendingSessionAction === null ? (
             <Text style={styles.errorText} accessibilityLiveRegion="polite">

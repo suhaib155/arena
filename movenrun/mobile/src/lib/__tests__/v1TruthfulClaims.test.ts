@@ -53,7 +53,9 @@ test("deletion copy does not claim a finished sign-in record removal", () => {
     assert.ok(!/permanently (deleted|deletes|removes)/i.test(src), rel);
   }
   const sec = read("app/account/security.tsx");
-  assert.match(sec, /sign-in record may still be finishing/);
+  assert.match(sec, /deletionAlertCopy/);
+  assert.ok(!/Account deleted|have been deleted/.test(sec), "completion copy lives behind the confirmed-outcome helper");
   assert.match(sec, /requests removal of its Google or wallet sign-in record/);
   assert.match(read("app/legal.tsx"), /can take longer to finish/);
+  assert.match(read("app/legal.tsx"), /Deletion requested/);
 });
