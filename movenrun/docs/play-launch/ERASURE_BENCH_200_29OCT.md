@@ -183,6 +183,8 @@ The close now waits for the erasures queued ahead of it instead of failing and r
 took 1.1 to 1.6 s (the queue), and the follow-up "next tick" pass found nothing left to settle. One run each, not a rate;
 the deterministic evidence is `backend/src/gameplay/settlementErasureRace.pg.test.ts`.
 
+Note: an independent re-run on a throwaway cluster matched (0 40001, 0 40P01, all 6 days verify, not halted), with conc10 wall 1.64 / 1.96 s against the 1.71 / 2.64 s stated above.
+
 ## Caveats
 
 - Local, one machine, one run per rule set; concurrency outcomes (who wins the fence, whether the settlement exhausts

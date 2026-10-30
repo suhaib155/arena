@@ -87,9 +87,9 @@ All four codes make `verifyDayOrHalt` halt.
 
 - **Settlement.** Every day close first takes `LOCK TABLE gameplay_erasure_fence IN SHARE MODE`, as the first statement of its serializable transaction, then the day's advisory lock, then the fence row `FOR SHARE`. Erasure `UPDATE`s the fence row, which takes the table's ROW EXCLUSIVE lock; SHARE and ROW EXCLUSIVE conflict.
   - Both take the fence before any other lock (a close before its day lock, an erasure before the account row and the day locks of its replays), so they cannot deadlock. An earlier version locked the user row first; under CI's parallel load a close holding the fence then needed a lock the deletion held, and the database aborted the deletion with 40P01.
-  - `LOCK TABLE` is not a query, so the close's snapshot is taken only after the lock is granted. A close that starts during an erasure waits, and then sees that erasure's result in its snapshot. No erasure can commit while the close runs. Two closes do not block each other on the fence.
+  - `LOCK TABLE` is not a query, so the close's snapshot is taken only after the lock is granted. A close that starts during an erasure waits, and then sees that erasure's result in its snapshot. No erasure can commit while the close runs. Closes take the fence in SHARE mode, which does not conflict with another SHARE, but Postgres queues lock requests first-in first-out: a close that arrives while an erasure is waiting queues behind that erasure, so one close can indirectly wait for another.
   - Until 29 Oct the close took the advisory lock (a query, so the snapshot) first and the fence row second. Every erasure that committed while the close waited then aborted it with 40001. With ten erasures queued, the five immediate retries ran out (the 200-player erasure benchmark). The test `settlementErasureRace.pg.test.ts` forces that interleaving with five erasures: before, five attempts and a raw 40001; now, one attempt.
-  - A close can still lose to another serializable transaction (40001) or a deadlock (40P01). It is then retried at most five times in all, with capped exponential backoff and full jitter (50 ms doubling to 1 s, at most 10 s overall). When that runs out it fails with `SettlementRetryExhaustedError` (503 `settlement_retry_exhausted`), having written nothing. Settlement is not halted for it, and the next day-close run selects the day again.
+  - A close can still lose to another serializable transaction (40001) or a deadlock (40P01). It is then attempted up to five times (four retries), with exponential backoff and full jitter; the waits before the retries are at most 50, 100, 200 and 400 ms, so the 1 s cap is never reached under the default five attempts. The 10 s budget is checked before each wait; it is not a wall-clock bound, because the lock waits inside one attempt are bounded only by the pool `statement_timeout` (10 s). When that runs out it fails with `SettlementRetryExhaustedError` (503 `settlement_retry_exhausted`), having written nothing. Settlement is not halted for it, and the next day-close run selects the day again.
   - So no day settles from inputs that an erasure is changing.
 - **Two erasures** serialise on the fence. Two deletions of the same account serialise on the user row lock. The second sees no user and does nothing.
 - **Pushes.** A push by the person being erased waits on the user row through its foreign key, and then fails.
@@ -177,3 +177,14 @@ Approvals are refused for the requester, and requests, approvals and the halt lo
 - **D-E4.** Mapping operator role labels to distinct authenticated people (without this, dual control is only label-based; §5.1).
 - **D-E6.** A TRUNCATE guard (trigger or revoke) on the halt, resume and erasure tables.
 - **D-E5.** Club board semantics after a member's erasure.
+
+## Known limits before gameplay is enabled
+
+Measured under a synthetic stress (24 concurrent erasers, 12 pushers, the game day advancing every 4 s, production 10 s timeouts):
+
+- With the fix, 24-28% of erasures time out (124 of 526 with one closer, 158 of 568 with eight). The base had none, because the base never settled a day. Erasures serialise on the fence row, and each now verifies every settled day the person touched (about 300 ms each, against about 42 ms before).
+- Closes also saw 43 raw 57014 (statement timeout) errors that are not typed as exhaustion.
+- An idempotent `settleDay` on an already-settled day takes the SHARE lock before its early return (`service.ts`, around lines 1128-1131), so it can block erasures needlessly.
+- Pre-existing and unrelated to this change: erasure against a push can fail with raw 40P01, and `settleDueDays` does not retry `ensurePartitions`.
+
+Owner decision open: whether erasure needs a retry, an asynchronous queue, or a `lock_timeout` with a typed error before gameplay is enabled. Gameplay stays disabled.
