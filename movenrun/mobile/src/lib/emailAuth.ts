@@ -1,3 +1,5 @@
+import { DELETION_BUSY_MESSAGE, DELETION_PENDING_MESSAGE } from "./accountDeletionCopy";
+
 /**
  * Email/OTP form rules and stable public error copy — pure.
  *
@@ -20,8 +22,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAIL_LENGTH = 254;
 
 /** Lowercase + trim, or null when the input isn't a plausible address. */
-import { DELETION_BUSY_MESSAGE, DELETION_PENDING_MESSAGE } from "./accountDeletionCopy";
-
 export function normalizeEmail(input: string): string | null {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed || trimmed.length > MAX_EMAIL_LENGTH || !EMAIL_RE.test(trimmed)) return null;
