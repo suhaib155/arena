@@ -156,6 +156,9 @@ is not passed. Commit ids are on `release/android-v1-cxfdbd`.
 | E-127 | B | 29 Oct X-34 restart fix #176 (f425748, comments ec54b85) | Failing before (flipped 30 minutes after restart, both write modes), passing after; reverting either half fails. Independent review (Opus): correct, replay unaffected (`verifyDay` does not re-run the policy), no digest or version bump, 1001 unchanged, 1002 stays disabled. Committed 1002 simulation figures predate the fix (noted in the sim docs; 1003 experiment script still has the old behaviour) | X-34 |
 | E-128 | B | 29 Oct zones mint bad-signature flake (#174) | Test defect: the `dead` suffix mutation leaves a valid signature when the original ends `de1b` (33 of 20,000, 0.165%). Not a production weakness: signer recovery and comparison unchanged, no replay | |
 | E-129 | B | 29 Oct erasure benchmark at 200 players (#175, LOCAL, SINGLE RUN) | Erase all 200 sequentially 77 and 79 ms p50 (15.9 s and 17.0 s total), WAL 5.94 and 7.10 MB, no deadlocks, no leftover rows, tombstones in place, fence 200. Independent re-run matched every deterministic figure. `settleDay` can exhaust its five no-backoff retries under concurrent erasure and settlement (day varies by run) | X-31 |
+| E-130 | B | 29 Oct settlement and erasure lock-order fix (#181, LOCAL) | 5 new tests (4 of 5 fail on base), strict 683 of 683; independent review accept with notes, no deadlock; 24-28% erasure timeouts under synthetic stress is an open owner decision | merge dfd3a08 |
+| E-131 | B | 29 Oct sealing v2 and fairness rerun (#180, LOCAL, synthetic, 5 seeds) | Sealing identical to 28 Oct; 1003B hostile flips per active day 4.71 to 2.38 (5/day) and 3.31 to 1.89 (3/day); reviewer reproduced CSV byte for byte | merge 752fba7 |
+| E-132 | B | 29 Oct platform readiness (#178, LOCAL) | DEP-EXC present but not reachable (8 tests); Vercel cleanup plan with UNVERIFIED dashboard facts; nothing deleted | merge 79b223b |
 
 ## Evidence level by capability
 
