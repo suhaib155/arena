@@ -32,6 +32,11 @@ export function getDb(): Db {
   // An idle connection can fail during database maintenance. Never print the
   // underlying error, which can include connection details.
   _pool.on("error", () => { console.error("Database connection unavailable"); });
+  // A connection that fails while checked out (the server restarted or ended
+  // the backend mid-query) must fail that query, not crash the process with
+  // an unhandled 'error' event; the account erasure worker then retries the
+  // job (docs/G34_ERASURE_QUEUE.md).
+  _pool.on("connect", (client) => { client.on("error", () => { console.error("Database connection lost"); }); });
   _db = drizzle(_pool, { schema });
   return _db;
 }

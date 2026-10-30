@@ -436,6 +436,7 @@ test("a concurrent insert converges on one record, and still checks metadata", a
       return inner.create(input);
     },
     findByUserSession: inner.findByUserSession.bind(inner),
+    countCreatedSince: inner.countCreatedSince.bind(inner),
   };
   let n = 0;
   const s = new MovementVerificationService({

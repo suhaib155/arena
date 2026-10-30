@@ -13,7 +13,9 @@
  */
 
 /** Canonical MovenRun user lifecycle. A user is NEVER deleted; it is disabled. */
-export type UserStatus = "active" | "disabled";
+/** "deleting": an account deletion was accepted and the erasure job is not
+ *  finished yet. The account is signed out and cannot sign in or refresh. */
+export type UserStatus = "active" | "disabled" | "deleting";
 
 /** Authentication providers MovenRun understands. These identify a *login
  *  method*, never a separate MovenRun profile — the canonical identity is
@@ -134,6 +136,8 @@ export type AuditEventType =
   | "key_rotation_activated"
   // Privacy lifecycle. Recorded without a user id (see accountDeletion.ts).
   | "account_deleted"
+  // Operator put a stalled account erasure job back in the queue (no user id).
+  | "erasure_job_requeued"
   | "account_capacity_threshold";
 
 export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
@@ -168,5 +172,6 @@ export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   "config_invalid",
   "key_rotation_activated",
   "account_deleted",
+  "erasure_job_requeued",
   "account_capacity_threshold",
 ] as const;

@@ -14,6 +14,7 @@
     "./sealing": "./src/domain/sealing.ts",
     "./evidence": "./src/domain/evidence.ts",
     "./economy-v3": "./src/domain/economyV3.ts",
+    "./credit-units": "./src/domain/creditUnits.ts",
     "./holding": "./src/domain/holding.ts",
     "./holdingLedger": "./src/domain/holdingLedger.ts",
     "./holdingSettlement": "./src/domain/holdingSettlement.ts",
@@ -23,7 +24,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc",
-    "test": "node --import tsx --test src/**/__tests__/*.test.ts",
+    "test": "node ../scripts/run-tests.mjs",
     "sim": "node --import tsx src/sim/cli.ts"
   },
   "dependencies": {
