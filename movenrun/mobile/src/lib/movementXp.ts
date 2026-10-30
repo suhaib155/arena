@@ -26,9 +26,9 @@
  *
  * ## What is not decided here
  *
- * The four player-facing labels are proposals in
- * `docs/movement/MR-C_CLOCK_DRIFT_AND_XP_STATUS.md`; the mobile UI is frozen,
- * so nothing renders them yet. A pending answer whose cause is permanent
+ * The four player-facing labels are those proposed in
+ * `docs/movement/MR-C_CLOCK_DRIFT_AND_XP_STATUS.md`, rendered by
+ * {@link movementXpLabel} under the text-truth exception. A pending answer whose cause is permanent
  * (`invalid_request`, `not_found`) is still `pending_verification` rather than
  * `not_eligible`: the server never gave a verdict, and only a verdict reverses.
  */
@@ -134,4 +134,22 @@ export function movementXpStatus(entry: MovementXpEntry, live?: VerificationStat
   if (live?.kind === "rejected") return "not_eligible";
   if (entry.submitted || live?.kind === "submitting" || live?.kind === "pending") return "pending_verification";
   return "saved_locally";
+}
+
+/**
+ * What the player is told about a movement session's XP. Saving banks an
+ * estimate; only a server verdict makes it verified, and nothing here is a
+ * payout.
+ */
+export function movementXpLabel(status: MovementXpStatus): string {
+  switch (status) {
+    case "saved_locally":
+      return "Estimated on this phone";
+    case "pending_verification":
+      return "Estimated, waiting for the server check";
+    case "verified":
+      return "Verified";
+    case "not_eligible":
+      return "Not eligible";
+  }
 }

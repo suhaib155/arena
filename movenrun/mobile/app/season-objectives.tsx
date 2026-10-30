@@ -134,7 +134,7 @@ export default function SeasonObjectivesScreen() {
             <Text style={styles.heroKicker}>
               {overview.seasonLabel} · {overview.rangeLabel}
             </Text>
-            <Text style={styles.heroTitle}>Own your season.</Text>
+            <Text style={styles.heroTitle}>Shape your season.</Text>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: softTint(palette.baseBlue) }]}>
                 <Ionicons name="eye-outline" size={13} color={palette.baseBlue} />

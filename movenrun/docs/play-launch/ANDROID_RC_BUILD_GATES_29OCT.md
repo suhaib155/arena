@@ -133,6 +133,8 @@ and `ANDROID_16KB_PAGE_SIZE.md`.
 
 ### 4.4 Handset gates H-1 to H-12
 
+**Superseded on 30 Oct:** the one handset plan is `ANDROID_V1_PHONE_TEST_PLAN.md`, which folds in the worksheets of #132 and #142 and adds the required outdoor scenarios. The table below is kept only for history; do not extend it. The build request is `ANDROID_PREVIEW_APK_BUILD_REQUEST_30OCT.md`; the text-truth fixes for T2 to T8 and T10 to T12, and T3, are recorded in `ANDROID_RC_TRUTH_AUDIT_30OCT.md`.
+
 Rows are defined in `QA0_HANDSET_WORKSHEET.md` (branch
 `docs/qa0-h1-h12-play-workbook`; it names `15f7f87`, so update its "Applies to"
 row to the P1 SHA before the run). Evidence rules there apply: no

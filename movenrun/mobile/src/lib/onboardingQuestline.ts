@@ -101,8 +101,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "defend",
-    title: "Defend or fortify a zone",
-    description: "Refresh a zone you own by moving over it or fortifying.",
+    title: "Refresh a preview zone",
+    description: "Refresh a preview zone by moving over it.",
     icon: "shield-outline",
     action: "zone",
     ctaLabel: "View Territory",
