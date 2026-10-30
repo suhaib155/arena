@@ -284,6 +284,46 @@ test("deleteAccount sends the exact confirmation, then clears credentials and si
   assert.deepEqual(JSON.parse(deletes[0].body ?? "null"), { confirm: "DELETE" });
 });
 
+test("deleteAccount: a confirmed 200 with the sign-in record removed is reported completed", async () => {
+  stubFetch({
+    "/identity/account/delete": () => ({ status: 200, json: { deleted: true, status: "completed", erased: { users: 1 }, signInRecord: "removed" } }),
+  });
+  assert.equal(await useAuthStore.getState().deleteAccount(), true);
+  assert.equal(useAuthStore.getState().deletionOutcome, "completed");
+});
+
+test("deleteAccount: a 200 with the provider removal still pending is only requested", async () => {
+  stubFetch({
+    "/identity/account/delete": () => ({ status: 200, json: { deleted: true, status: "completed", erased: { users: 1 }, signInRecord: "pending" } }),
+  });
+  assert.equal(await useAuthStore.getState().deleteAccount(), true);
+  assert.equal(useAuthStore.getState().deletionOutcome, "requested");
+});
+
+test("deleteAccount: a 202 pending response signs out and is only requested", async () => {
+  stubFetch({
+    "/identity/account/delete": () => ({ status: 202, json: { deleted: false, status: "pending", requestId: "r1", signedOut: true, signInRecord: "pending" } }),
+  });
+  assert.equal(await useAuthStore.getState().deleteAccount(), true);
+  const st = useAuthStore.getState();
+  assert.equal(st.status, "signedOut");
+  assert.equal(st.deletionOutcome, "requested");
+  assert.equal(await createSecureSessionStore(backend).load(), null, "credentials wiped");
+});
+
+test("deleteAccount: 409 account_deletion_pending and 503 deletion_busy leave the person signed in with the right code", async () => {
+  stubFetch({ "/identity/account/delete": () => ({ status: 409, json: { error: { code: "account_deletion_pending" } } }) });
+  assert.equal(await useAuthStore.getState().deleteAccount(), false);
+  assert.equal(useAuthStore.getState().accountErrorCode, "account_deletion_pending");
+  assert.equal(useAuthStore.getState().deletionOutcome, null);
+  assert.equal(useAuthStore.getState().status, "signedIn");
+  stubFetch({ "/identity/account/delete": () => ({ status: 503, json: { error: { code: "deletion_busy" } } }) });
+  assert.equal(await useAuthStore.getState().deleteAccount(), false);
+  assert.equal(useAuthStore.getState().accountErrorCode, "deletion_busy");
+  assert.equal(useAuthStore.getState().status, "signedIn");
+  assert.deepEqual(await createSecureSessionStore(backend).load(), TOKENS, "credentials untouched");
+});
+
 test("a failed deleteAccount keeps the person signed in so they can retry", async () => {
   stubFetch({
     "/identity/account/delete": () => ({ status: 503, json: { error: { code: "provider_not_configured" } } }),
