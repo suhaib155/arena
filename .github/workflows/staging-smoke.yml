@@ -1,0 +1,77 @@
+name: Staging smoke (read-only)
+
+# Read-only HTTP checks against the staging API. No secrets, no deploys, no
+# hosting changes. Runs only when this branch is pushed.
+on:
+  push:
+    branches: [ci/staging-smoke-31oct]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Staging HTTP checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE: https://movenrun-staging-api.onrender.com
+      GOOD_ORIGIN: https://movenrun.xyz
+      BAD_ORIGIN: https://untrusted.example
+    steps:
+      - name: Warm up (Render Free may be asleep)
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' "$BASE/health" || echo 000)
+            echo "attempt $i: $code"
+            [ "$code" = "200" ] && break
+            sleep 10
+          done
+
+      - name: Run the five checks and keep sanitized evidence
+        run: |
+          mkdir -p evidence
+          run() { # name, then curl args
+            name="$1"; shift
+            code=$(curl -sS -m 60 -D "evidence/$name.headers" -o "evidence/$name.body" -w '%{http_code}' "$@" || echo 000)
+            echo "$code" > "evidence/$name.status"
+            # keep evidence free of anything credential-like
+            sed -i -E '/^(set-cookie|authorization|cookie):/Id' "evidence/$name.headers"
+            echo "== $name -> $code"; cat "evidence/$name.headers"; echo; head -c 600 "evidence/$name.body"; echo
+          }
+          run 1_health "$BASE/health"
+          run 2_ready "$BASE/ready"
+          run 3_cors_allowed -H "Origin: $GOOD_ORIGIN" "$BASE/health"
+          run 4_cors_untrusted -H "Origin: $BAD_ORIGIN" "$BASE/health"
+          run 5_forged_token -H "Authorization: Bearer invalid.invalid.invalid" "$BASE/identity/me"
+
+      - name: Evaluate against expected results
+        run: |
+          hdr() { grep -i "^$2:" "evidence/$1.headers" | head -1 | tr -d '\r' | cut -d: -f2- | sed 's/^ *//'; }
+          st()  { cat "evidence/$1.status"; }
+          res=evidence/RESULT.md; fail=0
+          row() { echo "| $1 | $2 | $3 |" | tee -a $res; [ "$2" = "PASS" ] || fail=1; }
+          { echo "| Check | Result | Observed |"; echo "|---|---|---|"; } | tee $res
+          [ "$(st 1_health)" = 200 ] && row "/health 200" PASS "200" || row "/health 200" FAIL "$(st 1_health)"
+          [ "$(st 2_ready)" = 200 ] && row "/ready 200" PASS "200" || row "/ready 200" FAIL "$(st 2_ready)"
+          a=$(hdr 3_cors_allowed access-control-allow-origin)
+          [ "$a" = "$GOOD_ORIGIN" ] && row "CORS allowed origin echoed" PASS "$a" || row "CORS allowed origin echoed" FAIL "ACAO='$a'"
+          b=$(hdr 4_cors_untrusted access-control-allow-origin)
+          [ -z "$b" ] && row "CORS untrusted origin gets no allow header" PASS "(absent)" || row "CORS untrusted origin gets no allow header" FAIL "ACAO='$b'"
+          [ "$(st 5_forged_token)" = 401 ] && row "forged token rejected with 401" PASS "401" || row "forged token rejected with 401" FAIL "$(st 5_forged_token)"
+          c=$(hdr 5_forged_token cache-control)
+          case "$c" in *no-store*) row "no-store on the 401" PASS "$c";; *) row "no-store on the 401" FAIL "Cache-Control='$c'";; esac
+          cat $res >> "$GITHUB_STEP_SUMMARY"
+          echo "overall_fail=$fail" >> "$GITHUB_ENV"
+
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smoke-evidence
+          path: evidence/
+          retention-days: 30
+
+      - name: Fail the run if any check failed
+        if: always()
+        run: '[ "${overall_fail:-1}" = "0" ]'
