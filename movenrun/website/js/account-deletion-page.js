@@ -1,5 +1,6 @@
 (function () {
   var auth = window.MovenRunAuth;
+  var outcomes = window.MovenRunDeletionOutcome;
   var status = document.getElementById("status");
   var signIn = document.getElementById("step-sign-in");
   var confirmForm = document.getElementById("step-confirm");
@@ -31,19 +32,16 @@
   confirmForm.addEventListener("submit", function (e) {
     e.preventDefault();
     if (!token) return;
-    confirmForm.querySelector("button").disabled = true; say("Deleting your account…");
+    var button = confirmForm.querySelector("button");
+    button.disabled = true; say("Sending your deletion request…");
     auth.apiPost("/identity/account/delete", { confirm: "DELETE" }, token).then(function (r) {
-      confirmForm.querySelector("button").disabled = false;
-      if (!r.ok) { say("Your account could not be deleted right now. Please try again or email info@movenrun.xyz (Team MovenRun).", "error"); return; }
-      token = ""; confirmForm.hidden = true;
-      // The API reports the sign-in record at the provider as "removed", "pending" or "none".
-      // Only "removed" and "none" mean the deletion is complete.
-      return r.json().then(function (b) { return b && typeof b.signInRecord === "string" ? b.signInRecord : ""; }, function () { return ""; }).then(function (record) {
-        if (record === "removed") say("Deletion complete. Your MovenRun account, its data and your sign-in record have been removed.", "ok");
-        else if (record === "none") say("Deletion complete. Your MovenRun account and its data have been removed. There was no separate sign-in record to remove.", "ok");
-        else if (record === "pending") say("Deletion requested. Your MovenRun account and its data have been erased. Removing your sign-in record at our sign-in provider is still in progress and is retried automatically. Questions: info@movenrun.xyz, Team MovenRun.", "ok");
-        else say("Deletion requested. Your MovenRun account and its data have been erased, but we could not confirm the final step, removing your sign-in record. Questions: info@movenrun.xyz, Team MovenRun.", "ok");
+      // Read the body for every status: the wording depends on what the server confirmed.
+      return r.json().catch(function () { return null; }).then(function (body) {
+        button.disabled = false;
+        var outcome = outcomes.deletionOutcome(r.status, body);
+        if (outcomes.endsRequest(r.status)) { token = ""; confirmForm.hidden = true; }
+        say(outcome.text, outcome.kind);
       });
-    }, function () { confirmForm.querySelector("button").disabled = false; say("We could not reach MovenRun. Please try again.", "error"); });
+    }, function () { button.disabled = false; say("We could not reach MovenRun. Nothing was confirmed as deleted. Please try again.", "error"); });
   });
 })();
