@@ -34,16 +34,18 @@ jobs:
           else
             echo "Token valid: NO (exit code recorded, message withheld)" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
-          if npx --yes eas-cli@24.8.0 project:info >/tmp/pi.txt 2>/dev/null; then
+          if npx --yes eas-cli@24.8.0 project:info >/tmp/pi.txt 2>/tmp/pi.err; then
             echo "Project reachable with token: yes" | tee -a "$GITHUB_STEP_SUMMARY"
           else
             echo "Project reachable with token: NO" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "project:info error (first 6 lines, secrets masked):"; head -6 /tmp/pi.err | sed -E 's/[A-Za-z0-9_-]{32,}/[redacted]/g'
           fi
       - name: Preview environment variable names (no values)
         run: |
           set +e
           npx --yes eas-cli@24.8.0 env:list preview --json --non-interactive >/tmp/env.json 2>/tmp/env.err
           echo "env:list exit code: $?" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "env:list error (first 6 lines):"; head -6 /tmp/env.err | sed -E 's/[A-Za-z0-9_-]{32,}/[redacted]/g'
           for n in EXPO_PUBLIC_API_URL EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY GOOGLE_MAPS_ANDROID_API_KEY; do
             if jq -e --arg n "$n" '[..|objects|select(.name==$n)]|length>0' /tmp/env.json >/dev/null 2>&1; then
               vis=$(jq -r --arg n "$n" '[..|objects|select(.name==$n)][0].visibility // "unknown"' /tmp/env.json)
@@ -61,8 +63,9 @@ jobs:
       - name: Android credentials and recent builds (counts only)
         run: |
           set +e
-          npx --yes eas-cli@24.8.0 build:list --platform android --limit 5 --json --non-interactive >/tmp/b.json 2>/dev/null
+          npx --yes eas-cli@24.8.0 build:list --platform android --limit 5 --json --non-interactive >/tmp/b.json 2>/tmp/b.err
           echo "build:list exit code: $?" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "build:list error (first 6 lines):"; head -6 /tmp/b.err | sed -E 's/[A-Za-z0-9_-]{32,}/[redacted]/g'
           echo "Recent android builds returned: $(jq 'length' /tmp/b.json 2>/dev/null || echo unreadable)" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "Signing keystore and SHA-1: not queryable non-interactively; browser check" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "Build quota/plan: not exposed by the CLI; browser check" | tee -a "$GITHUB_STEP_SUMMARY"
