@@ -89,7 +89,8 @@ export function lastMeaningfulLine(stderr) {
   // "GraphQL request failed." line.
   const line = lines.slice(-2).join(" / ");
   // Cap before redacting: some redaction rules are quadratic on long lines.
-  const clean = redact(line.slice(-2000));
+  // Drop the partial first word so a cut token cannot slip under the long-run rule.
+  const clean = redact(line.length > 2000 ? line.slice(-2000).replace(/^\S*\s?/, "") : line);
   return clean.length > 160 ? `${clean.slice(0, 157)}...` : clean;
 }
 
