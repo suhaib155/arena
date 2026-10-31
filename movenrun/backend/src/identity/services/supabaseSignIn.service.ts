@@ -269,6 +269,9 @@ export class SupabaseSignInService {
         if (err.status === 429) throw new IdentityError("too_many_attempts");
         throw new IdentityError("verification_failed");
       }
+      // A network error, timeout, 5xx or unreadable grant is the provider being
+      // down: the same retryable 503 as a key-set outage, not "not configured".
+      if (err instanceof SupabaseAuthError) throw new IdentityError("provider_unavailable");
       throw new IdentityError("provider_not_configured");
     }
     let user: VerifiedSupabaseUser;

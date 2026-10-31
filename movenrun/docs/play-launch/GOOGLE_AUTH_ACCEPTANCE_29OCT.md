@@ -2,7 +2,7 @@
 
 Providers are OFF and stay off. Nothing here enables, changes or calls a hosted service. Part A is what runs locally with stand-ins today. Part B is the script the owner runs once X-05 provider enablement is approved (`X05_PROVIDER_ENABLEMENT_PREFLIGHT.md` holds the preconditions and the full dashboard steps; this page is the acceptance layer on top of it). That document lives on branch `security/a10-single-use-google-exchange` at `docs/play-launch/X05_PROVIDER_ENABLEMENT_PREFLIGHT.md` and is not in this branch's tree.
 
-This branch is based on the staging security candidate (head `0faf652`) and must be opened as its own PR against `integration/security-staging-preflight-28oct`. It must NOT be merged into it until the owner accepts a new head for #162.
+This branch is based on the staging security candidate (head `0faf652`). Since 1 Nov it targets the non-deploying `integration/security-dev-1nov` (created at `0faf652`), so it no longer touches the reviewed staging candidate. It must NOT be merged into it until the owner accepts a new head for #162.
 
 Code base: `integration/security-staging-preflight-28oct` at `0faf652` carries the full sign-in stack (single-use exchange, key-set outage 503, deletion queue). `integration/android-qa0-28oct` (`a2a3eec`) does not carry the 503 mapping (`jwksOutage.test.ts` is absent there): a key-set outage there is a 401. Acceptance below applies to the staging candidate; the Android build talks to the staging API, so the API under test must be that candidate or later.
 
