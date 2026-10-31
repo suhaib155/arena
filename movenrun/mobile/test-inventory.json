@@ -21,6 +21,7 @@
     "src/lib/__tests__/firstRunGuards.test.ts",
     "src/lib/__tests__/gamifiedMovementVisual.test.ts",
     "src/lib/__tests__/gpsReadiness.test.ts",
+    "src/lib/__tests__/guestPlayIndependence.test.ts",
     "src/lib/__tests__/h3Foundation.test.ts",
     "src/lib/__tests__/h3HermesRuntime.test.ts",
     "src/lib/__tests__/introFlow.test.ts",
