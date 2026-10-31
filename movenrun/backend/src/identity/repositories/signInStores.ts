@@ -3,9 +3,9 @@
  * users still to be removed at the provider. In-memory for tests, Drizzle in
  * production; both give the same single-use guarantee.
  */
-import { and, asc, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { pendingAuthUserDeletions, walletSignInChallenges, walletSignInHandoffs } from "../../db/identity.schema.js";
+import { googleSignInExchanges, pendingAuthUserDeletions, walletSignInChallenges, walletSignInHandoffs } from "../../db/identity.schema.js";
 
 export interface WalletSignInChallenge {
   nonce: string;
@@ -43,7 +43,17 @@ export interface WalletSignInHandoffStore {
   inUse(subject: string, now: Date): Promise<boolean>;
 }
 
+export interface GoogleExchangeStore {
+  /** Whether the Supabase session was already exchanged. */
+  exchanged(sessionId: string): Promise<boolean>;
+  /** Records the Supabase session as exchanged, kept until `keepUntil`. Returns false if it already was. */
+  claim(sessionId: string, keepUntil: Date): Promise<boolean>;
+  /** Removes at most `limit` records kept until before `before`. */
+  purgeExpired(before: Date, limit: number): Promise<number>;
+}
+
 export interface SignInStores {
+  googleExchanges: GoogleExchangeStore;
   walletChallenges: WalletSignInChallengeStore;
   pendingAuthDeletions: PendingAuthDeletionStore;
   walletHandoffs: WalletSignInHandoffStore;
@@ -53,8 +63,27 @@ export function createInMemorySignInStores(): SignInStores {
   const challenges = new Map<string, WalletSignInChallenge>();
   const pending = new Map<string, { requestedAt: number; lastAttemptAt: number | null }>();
   const handoffs = new Map<string, { codeChallenge: string; subject: string; expiresAt: Date; consumedAt: Date | null }>();
+  const exchanged = new Map<string, Date>();
   let seq = 0;
   return {
+    googleExchanges: {
+      async exchanged(sessionId) {
+        return exchanged.has(sessionId);
+      },
+      async claim(sessionId, keepUntil) {
+        if (exchanged.has(sessionId)) return false;
+        exchanged.set(sessionId, keepUntil);
+        return true;
+      },
+      async purgeExpired(before, limit) {
+        let n = 0;
+        for (const [k, at] of exchanged) {
+          if (n >= limit) break;
+          if (at.getTime() < before.getTime()) { exchanged.delete(k); n += 1; }
+        }
+        return n;
+      },
+    },
     walletChallenges: {
       async create(input) {
         if (challenges.has(input.nonce)) throw new Error("duplicate nonce");
@@ -131,6 +160,27 @@ export function createInMemorySignInStores(): SignInStores {
 
 export function createDrizzleSignInStores(db: Db): SignInStores {
   return {
+    googleExchanges: {
+      async exchanged(sessionId) {
+        const [row] = await db.select({ sessionId: googleSignInExchanges.sessionId }).from(googleSignInExchanges)
+          .where(eq(googleSignInExchanges.sessionId, sessionId)).limit(1);
+        return row !== undefined;
+      },
+      async claim(sessionId, keepUntil) {
+        // The primary key decides: of two concurrent exchanges, one inserts.
+        const rows = await db.insert(googleSignInExchanges).values({ sessionId, expiresAt: keepUntil })
+          .onConflictDoNothing().returning({ sessionId: googleSignInExchanges.sessionId });
+        return rows.length === 1;
+      },
+      async purgeExpired(before, limit) {
+        // Bounded, so a wake after a long sleep never turns one sign-in into a long delete.
+        const due = db.select({ sessionId: googleSignInExchanges.sessionId }).from(googleSignInExchanges)
+          .where(lt(googleSignInExchanges.expiresAt, before)).limit(limit);
+        const rows = await db.delete(googleSignInExchanges).where(inArray(googleSignInExchanges.sessionId, due))
+          .returning({ sessionId: googleSignInExchanges.sessionId });
+        return rows.length;
+      },
+    },
     walletChallenges: {
       async create(input) {
         await db.insert(walletSignInChallenges).values(input);
