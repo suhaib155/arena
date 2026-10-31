@@ -261,6 +261,8 @@ test("summarize: a fully passing synthetic run exits 0 and prints no values", ()
   const all = readFileSync(join(r.out, "eas-gate.json"), "utf8") + readFileSync(join(r.out, "eas-gate.md"), "utf8") + r.stdout;
   for (const leak of ["acme", FAKE_UUID, "sb_publishable_", "supabase.co", "onrender.com"]) assert.ok(!all.includes(leak), `leaked ${leak}`);
   assert.match(all, /BLOCKED_ON_OWNER_CHECKS/);
+  assert.match(all, /present \(project scope, plain\)/);
+  assert.doesNotMatch(all, /\[redacted-name\]/);
 });
 
 test("summarize: a cause printed on stdout is still classified", () => {
@@ -270,6 +272,13 @@ test("summarize: a cause printed on stdout is still classified", () => {
   });
   assert.equal(r.status, 1);
   assert.match(readFileSync(join(r.out, "eas-gate.json"), "utf8"), /"whoami": "insufficient_permissions"/);
+});
+
+test("long stderr lines are capped and handled quickly", () => {
+  const t = Date.now();
+  const r = classify(1, "a-".repeat(150000));
+  assert.ok(r.reason.length <= 160);
+  assert.ok(Date.now() - t < 3000);
 });
 
 test("summarize: missing exit files fail closed", () => {

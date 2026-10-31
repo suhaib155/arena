@@ -85,8 +85,10 @@ try {
 }
 
 mkdirSync(outDir, { recursive: true });
-// Belt and braces: the only free-text fields go through redact() once more.
-const json = JSON.stringify(report, (k, v) => (typeof v === "string" && (k === "detail" || k === "reason") ? redact(v) : v), 2);
+// Server text only ever reaches `reason` (redacted in classify) and `detail`
+// (built from fixed strings plus that redacted reason). Re-redact `reason`;
+// running `detail` through redact() would garble the fixed wording.
+const json = JSON.stringify(report, (k, v) => (typeof v === "string" && k === "reason" ? redact(v) : v), 2);
 writeFileSync(join(outDir, "eas-gate.json"), json + "\n");
 
 const lines = [
@@ -96,7 +98,7 @@ const lines = [
   ``,
   `| Check | Status | Detail |`,
   `|---|---|---|`,
-  ...report.rows.map((r) => `| ${r.id} | ${r.status} | ${redact(r.detail).replace(/\|/g, "/")} |`),
+  ...report.rows.map((r) => `| ${r.id} | ${r.status} | ${r.detail.replace(/\|/g, "/")} |`),
   ``,
   `CLI-checkable result: **${report.cli}**. Overall gate: **${report.gate}**.`,
 ];

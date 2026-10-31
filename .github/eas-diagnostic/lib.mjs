@@ -88,7 +88,8 @@ export function lastMeaningfulLine(stderr) {
   // Two lines: eas-cli often prints the cause ("Forbidden") above a generic
   // "GraphQL request failed." line.
   const line = lines.slice(-2).join(" / ");
-  const clean = redact(line);
+  // Cap before redacting: some redaction rules are quadratic on long lines.
+  const clean = redact(line.slice(-2000));
   return clean.length > 160 ? `${clean.slice(0, 157)}...` : clean;
 }
 
@@ -247,7 +248,7 @@ export function evaluate({ results, env, project, expectedProjectId, easJsonPrev
 
   const envOk = results.env_list?.class === "ok" && (results.env_list_account ? results.env_list_account.class === "ok" : true);
   for (const row of env?.rows ?? REQUIRED_PREVIEW_VARS.map((name) => ({ name, present: false, visibility: null }))) {
-    push(`env_${row.name}`, !envOk ? "BLOCKED" : row.present ? "PASS" : "BLOCKED", !envOk ? "unknown (env:list failed)" : row.present ? `present (${row.scope} scope, ${row.visibility})` : "missing at project and account scope");
+    push(`env_${row.name}`, !envOk ? "BLOCKED" : row.present ? "PASS" : "BLOCKED", !envOk ? (results.env_list?.class === "ok" ? "unknown (account-scope env:list failed)" : "unknown (env:list failed)") : row.present ? `present (${row.scope} scope, ${row.visibility})` : "missing at project and account scope");
   }
   const m = env?.apiUrlMatchesStaging;
   push("env_api_url_is_staging", !envOk ? "BLOCKED" : m === "yes" ? "PASS" : m === "no" ? "FAIL" : "BLOCKED", !envOk ? "unknown" : m);
