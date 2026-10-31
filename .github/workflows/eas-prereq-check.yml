@@ -1,0 +1,25 @@
+name: EAS prerequisite check (presence only)
+
+# Reports only whether the EXPO_TOKEN Actions secret is set (yes or no). It
+# never prints the value, never calls Expo, never builds and uses no build
+# quota. Runs only when this branch is pushed.
+on:
+  push:
+    branches: [ci/eas-prereq-check-31oct]
+
+permissions:
+  contents: read
+
+jobs:
+  presence:
+    name: Is EXPO_TOKEN set?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report presence
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -n "${EXPO_TOKEN}" ]; then r="yes"; else r="no"; fi
+          echo "EXPO_TOKEN secret set: $r"
+          echo "EXPO_TOKEN secret set: **$r**" >> "$GITHUB_STEP_SUMMARY"
