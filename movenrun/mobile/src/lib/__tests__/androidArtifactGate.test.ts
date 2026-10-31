@@ -34,7 +34,7 @@ native-code: 'arm64-v8a' 'armeabi-v7a' 'x86' 'x86_64'
 const MAPS_KEY_VALUE = "AIzaFAKE_FIXTURE_KEY_VALUE_123456789";
 const SIGNING_DIGEST = "ab".repeat(32);
 
-function xmltree(opts: { exported?: string; extra?: string; cleartext?: string; backup?: string } = {}): string {
+function xmltree(opts: { exported?: string; extra?: string; cleartext?: string; backup?: string; receiverPermission?: string } = {}): string {
   return `N: android=http://schemas.android.com/apk/res/android (line=2)
   E: manifest (line=2)
     A: http://schemas.android.com/apk/res/android:versionCode(0x0101021b)=7
@@ -65,6 +65,7 @@ function xmltree(opts: { exported?: string; extra?: string; cleartext?: string; 
         A: http://schemas.android.com/apk/res/android:exported(0x01010010)=(type 0x12)0x0
       E: receiver (line=22)
         A: http://schemas.android.com/apk/res/android:name(0x01010003)="androidx.profileinstaller.ProfileInstallReceiver" (Raw: "androidx.profileinstaller.ProfileInstallReceiver")
+        A: http://schemas.android.com/apk/res/android:permission(0x01010006)="${opts.receiverPermission ?? "android.permission.DUMP"}" (Raw: "${opts.receiverPermission ?? "android.permission.DUMP"}")
         A: http://schemas.android.com/apk/res/android:exported(0x01010010)=(type 0x12)0xffffffff
 ${opts.extra ?? ""}`;
 }
@@ -155,7 +156,7 @@ test("an EAS artifact with a matching certificate and Maps key passes", () => {
 
 test("background location, foreground service or any unlisted permission fails", () => {
   for (const p of ["android.permission.ACCESS_BACKGROUND_LOCATION", "android.permission.FOREGROUND_SERVICE_LOCATION",
-    "android.permission.SYSTEM_ALERT_WINDOW", "android.permission.RECORD_AUDIO", "android.permission.WAKE_LOCK"]) {
+    "android.permission.SYSTEM_ALERT_WINDOW", "android.permission.RECORD_AUDIO", "android.permission.READ_PHONE_STATE", "android.permission.USE_BIOMETRIC"]) {
     const facts = goodFacts();
     assert.equal(status({ ...facts, permissions: [...facts.permissions, p] }, "A5"), "FAIL", p);
   }
@@ -228,4 +229,38 @@ test("secret findings, a missing scan or an oversized APK fail", () => {
   assert.equal(status({ ...goodFacts(), secretFindings: 2 }, "A16"), "FAIL");
   assert.equal(status({ ...goodFacts(), secretFindings: null }, "A16"), "FAIL");
   assert.equal(status({ ...goodFacts(), sizeBytes: 400 * 1024 * 1024 }, "A17"), "FAIL");
+});
+
+test("an allowlisted component that lost its guarding permission fails", () => {
+  const badging = parseBadging(BADGING);
+  const unguarded = { ...goodFacts(), ...parseManifestTree(xmltree({ receiverPermission: "android.permission.INTERNET" }), badging.packageName) };
+  assert.equal(status(unguarded, "A10"), "FAIL");
+});
+
+test("WorkManager's job service passes only behind BIND_JOB_SERVICE", () => {
+  const badging = parseBadging(BADGING);
+  const service = (permission: string) => `      E: service (line=40)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="androidx.work.impl.background.systemjob.SystemJobService" (Raw: "androidx.work.impl.background.systemjob.SystemJobService")
+        A: http://schemas.android.com/apk/res/android:permission(0x01010006)="${permission}" (Raw: "${permission}")
+        A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+`;
+  const ok = { ...goodFacts(), ...parseManifestTree(xmltree({ extra: service("android.permission.BIND_JOB_SERVICE") }), badging.packageName) };
+  assert.equal(status(ok, "A10"), "PASS");
+  const bad = { ...goodFacts(), ...parseManifestTree(xmltree({ extra: service("") }), badging.packageName) };
+  assert.equal(status(bad, "A10"), "FAIL");
+});
+
+test("app.json removes the biometric permissions the app never uses (first CI release build found them)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const app = JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "app.json"), "utf8"));
+  for (const p of ["android.permission.USE_BIOMETRIC", "android.permission.USE_FINGERPRINT"]) {
+    assert.ok(app.expo.android.blockedPermissions.includes(p), `${p} must be blocked`);
+  }
+  const src = ["src", "app"].map((d) => join(__dirname, "..", "..", "..", d));
+  const { execFileSync } = await import("node:child_process");
+  let hits = "";
+  try { hits = execFileSync("grep", ["-rln", "requireAuthentication", ...src], { encoding: "utf8" }); } catch { hits = ""; }
+  assert.equal(hits.split("\n").filter((l) => l && !l.includes("__tests__")).length, 0,
+    "biometric secure-store access would need USE_BIOMETRIC back");
 });

@@ -52,6 +52,10 @@ export const ALLOWED_PERMISSIONS: Readonly<Record<string, string>> = Object.free
   "android.permission.INTERNET": "API, sign-in and map tiles",
   "android.permission.ACCESS_NETWORK_STATE": "connectivity checks by React Native and Play services; no user data",
   "android.permission.VIBRATE": "haptic feedback (expo-haptics)",
+  "android.permission.WAKE_LOCK":
+    "AndroidX WorkManager, pulled in by react-native-maps; normal-level, runs no location work",
+  "android.permission.RECEIVE_BOOT_COMPLETED":
+    "AndroidX WorkManager reschedules its own queued jobs after reboot; the app starts no location or session on boot",
   "io.movenrun.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION":
     "AndroidX core signature permission for the app's own non-exported receivers",
 });
@@ -73,13 +77,27 @@ export const FORBIDDEN_PERMISSIONS: readonly string[] = Object.freeze([
   "android.permission.ACCESS_MEDIA_LOCATION",
   "android.permission.REQUEST_INSTALL_PACKAGES",
   "com.google.android.gms.permission.AD_ID",
+  /* androidx.biometric (via expo-secure-store) declares these; the app never
+     asks for biometric unlock, so app.json removes them in the merge. */
+  "android.permission.USE_BIOMETRIC",
+  "android.permission.USE_FINGERPRINT",
 ]);
 
-/** Components other apps may start, and why each one is allowed to be reachable. */
-export const ALLOWED_EXPORTED: Readonly<Record<string, string>> = Object.freeze({
-  "io.movenrun.app.MainActivity": "launcher and the movenrun:// sign-in return",
+/**
+ * Components other apps may start, why each is reachable, and the permission
+ * that must guard it. `null` means deliberately reachable by any app (the
+ * launcher and the sign-in return). A listed component that has lost its
+ * guard fails the gate as surely as an unlisted one.
+ */
+export const ALLOWED_EXPORTED: Readonly<Record<string, { reason: string; permission: string | null }>> = Object.freeze({
+  "io.movenrun.app.MainActivity": { reason: "launcher and the movenrun:// sign-in return", permission: null },
   "androidx.profileinstaller.ProfileInstallReceiver":
-    "AndroidX baseline profiles; guarded by android.permission.DUMP",
+    { reason: "AndroidX baseline profiles", permission: "android.permission.DUMP" },
+  "androidx.work.impl.background.systemjob.SystemJobService":
+    { reason: "AndroidX WorkManager (react-native-maps); only the system job scheduler can bind it",
+      permission: "android.permission.BIND_JOB_SERVICE" },
+  "androidx.work.impl.diagnostics.DiagnosticsReceiver":
+    { reason: "AndroidX WorkManager diagnostics", permission: "android.permission.DUMP" },
 });
 
 const SIXTY_FOUR_BIT = new Set(["arm64-v8a", "x86_64"]);
@@ -95,6 +113,8 @@ export interface NativeLibrary {
 export interface ExportedComponent {
   kind: "activity" | "activity-alias" | "service" | "receiver" | "provider";
   name: string;
+  /** The permission a caller must hold, when the component declares one. */
+  permission?: string;
 }
 
 /** What the inspection read from one APK. Nothing in here may be a secret. */
@@ -249,7 +269,9 @@ export function parseManifestTree(text: string, packageName: string | null): Pic
        case, so absent is treated as not exported. A provider is the one
        exception that never defaulted to true at our targets either. */
     if (decodeBool(child.attrs.exported) === true) {
-      exported.push({ kind: child.name as ExportedComponent["kind"], name: qualify(child.attrs.name ?? "") });
+      const component: ExportedComponent = { kind: child.name as ExportedComponent["kind"], name: qualify(child.attrs.name ?? "") };
+      if (child.attrs.permission) component.permission = child.attrs.permission;
+      exported.push(component);
     }
   }
   return {
@@ -335,9 +357,12 @@ export function evaluateArtifact(f: ArtifactFacts): GateResult {
     f.debuggable === true || f.testOnly === true ? "FAIL" : "PASS",
     `debuggable ${String(f.debuggable ?? false)}, testOnly ${String(f.testOnly ?? false)}`));
 
-  const unexpected = f.exported.filter((c) => !(c.name in ALLOWED_EXPORTED));
+  const unexpected = f.exported.filter((c) => {
+    const allowed = ALLOWED_EXPORTED[c.name];
+    return !allowed || (allowed.permission !== null && c.permission !== allowed.permission);
+  });
   rows.push(row("A10", "Exported components", unexpected.length ? "FAIL" : "PASS",
-    unexpected.length ? `unexpected: ${unexpected.map((c) => `${c.kind} ${c.name}`).join(", ")}`
+    unexpected.length ? `unexpected or unguarded: ${unexpected.map((c) => `${c.kind} ${c.name}${c.permission ? ` (${c.permission})` : " (no permission)"}`).join(", ")}`
       : `${f.exported.map((c) => c.name).join(", ") || "none"}`));
   const badSchemes = f.schemes.filter((s) => s !== "movenrun");
   rows.push(row("A11", "Deep-link schemes", badSchemes.length || !f.schemes.includes("movenrun") ? "FAIL" : "PASS",
