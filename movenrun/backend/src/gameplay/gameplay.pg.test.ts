@@ -168,9 +168,25 @@ after(async () => {
 
 test("0011 applies on the committed chain, rolls back cleanly, and applies again", { skip: SKIP }, async () => {
   const tables = async () => (await pool.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")).rows.map((r) => r.tablename as string);
+  // The whole catalogue, not only table names: columns, defaults, constraints,
+  // indexes, triggers, functions, policies, grants, RLS flags and sequences.
+  const schema = async () => (await pool.query(`
+    SELECT 'col '||table_schema||'.'||table_name||'.'||column_name||' '||data_type||' '||coalesce(column_default,'')||' '||is_nullable AS x
+      FROM information_schema.columns WHERE table_schema NOT IN ('pg_catalog','information_schema')
+    UNION ALL SELECT 'con '||conrelid::regclass::text||' '||conname||' '||pg_get_constraintdef(oid) FROM pg_constraint WHERE connamespace NOT IN ('pg_catalog'::regnamespace,'information_schema'::regnamespace)
+    UNION ALL SELECT 'idx '||indexdef FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog','information_schema')
+    UNION ALL SELECT 'trg '||pg_get_triggerdef(oid) FROM pg_trigger WHERE NOT tgisinternal
+    UNION ALL SELECT 'fn '||pg_get_functiondef(p.oid)||' '||coalesce(p.proacl::text,'') FROM pg_proc p WHERE pronamespace NOT IN ('pg_catalog'::regnamespace,'information_schema'::regnamespace) AND prokind = 'f'
+    UNION ALL SELECT 'pol '||schemaname||'.'||tablename||' '||policyname||' '||coalesce(qual,'')||' '||coalesce(with_check,'') FROM pg_policies
+    UNION ALL SELECT 'rel '||n.nspname||'.'||c.relname||' '||c.relkind::text||' rls='||c.relrowsecurity||' '||coalesce(c.relacl::text,'') FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname NOT IN ('pg_catalog','information_schema','pg_toast') AND c.relkind IN ('r','p','v','m','S','i')
+    UNION ALL SELECT 'nsp '||nspname||' '||coalesce(nspacl::text,'') FROM pg_namespace WHERE nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'
+    ORDER BY 1`)).rows.map((r) => r.x as string);
   const before = await tables();
+  const schemaBefore = await schema();
   assert.ok(!before.some((t) => t.startsWith("gameplay_")));
   await migrateUp();
+  const schemaUp = await schema();
   const withGameplay = await tables();
   assert.equal(withGameplay.filter((t) => t.startsWith("gameplay_")).length, 23);  // 17 + the halt log, erasure records and fence, account deletion jobs, resume requests and approvals
   assert.ok(withGameplay.includes("gameplay_session_paths"), "revision 3 folds in 1002's session paths");
@@ -184,6 +200,7 @@ test("0011 applies on the committed chain, rolls back cleanly, and applies again
   assert.deepEqual(open.rows, []);
   await migrateDown();
   assert.deepEqual(await tables(), before, "rollback leaves exactly the 0000–0010 tables");
+  assert.deepEqual(await schema(), schemaBefore, "rollback restores the 0000–0010 catalogue exactly (movement_verifications included)");
   const fns = await pool.query("SELECT proname FROM pg_proc WHERE proname LIKE 'gameplay_%'");
   assert.deepEqual(fns.rows, []);
   const leftovers = await pool.query(`SELECT relname FROM pg_class WHERE relname LIKE 'gameplay_%'
@@ -193,7 +210,11 @@ test("0011 applies on the committed chain, rolls back cleanly, and applies again
     WHERE table_name = 'movement_verifications' AND column_name LIKE 'territory\_seal%' ORDER BY 1`)).rows.map((r) => r.column_name);
   assert.deepEqual(await territoryColumns(), [], "sealing v2's columns go too; the movement rows stay");
   await migrateUp();
+  // Applying again after the rollback gives the same catalogue as the first
+  // time, before the test made any partitions.
+  assert.deepEqual(await schema(), schemaUp, "up after down is identical to the first up");
   await migrateUp(); // and re-running it is harmless
+  assert.deepEqual(await schema(), schemaUp, "re-running up changes nothing");
   assert.deepEqual(await tables(), withGameplay);
   assert.deepEqual(await territoryColumns(), ["territory_seal_reason", "territory_seal_version", "territory_sealed"]);
 });

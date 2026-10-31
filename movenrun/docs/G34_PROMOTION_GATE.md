@@ -6,11 +6,13 @@
 
 ## Reference values (re-verified for this document)
 
+The earlier values in this table (up `b87f2e2f…c2f8`, down `184fffa7…5fa7`) were stale: sealing v2 (#168) and the erasure job table (#183) changed both files after the gate was written. Current values and their history: G34_SERVER_ARCHITECTURE.md §18.
+
 | Item | Value | How verified |
 |---|---|---|
-| Branch base this checklist was written against | `cb27318d6654bf0e730fb05e9d523e9d60c8ced1` (`feat/g34-server-holdings`) | `git log -1` |
-| `backend/drizzle-proposed/0011_gameplay_holdings.sql` (revision 3) | sha256 `b87f2e2fb9da9c58e84cd248f201133b100abe8a01c2a84a26438967b384f2c8` | `sha256sum`, matches the value handed over |
-| `backend/drizzle-proposed/0011_gameplay_holdings.down.sql` | sha256 `184fffa777fac8bbad9e835c2d89486a4d1300f171a1dfa064272b3584455fa7` | `sha256sum`, matches |
+| Branch base this checklist was written against | `cb27318d6654bf0e730fb05e9d523e9d60c8ced1` (`feat/g34-server-holdings`); hash values re-verified at `d81867b` (31 Oct 2026) | `git log -1` |
+| `backend/drizzle-proposed/0011_gameplay_holdings.sql` (revision 3, with sealing v2 and the erasure job table) | sha256 `0f3e5e182b46f348397f37d037e3eabcba174d8b38863bef2a02db446e907cfc` | `sha256sum` at `d81867b`; `promotionGateHashes.test.ts` fails if the file and this value differ |
+| `backend/drizzle-proposed/0011_gameplay_holdings.down.sql` | sha256 `537a3ee146adbfc0249f1c4503fe1c8d27233e0f86b70e62e46efa884071dcfd` | `sha256sum` at `d81867b`; pinned by the same test |
 | Drizzle journal | 0000–0010 only; 0011 not listed; `CHECKSUMS.sha256` untouched | file inspection |
 | `MOVENRUN_GAMEPLAY_ENABLED` | off unless exactly `true`; default unchanged | `wiring.ts`, G34_SERVER_ARCHITECTURE.md §10 |
 
@@ -21,7 +23,7 @@ The commit that adds this document is not the promotion SHA. The SHA to promote 
 | # | Gate | What MET means | Status | Evidence (owner fills in) |
 |---|---|---|---|---|
 | 1 | Exact code SHA | One full 40-character commit SHA is named for staging; the backend suite, typecheck and the storage bench were re-run at that SHA with recorded counts | NOT MET / OWNER | |
-| 2 | Migration file sha256 | At the named SHA, `drizzle/0011_gameplay_holdings.sql` hashes to the reviewed value (today `b87f2e2f…c2f8`; a changed file needs a new review and a new value), the down file to `184fffa7…5fa7`, the journal lists 0011 once, `CHECKSUMS.sha256` matches, and `runtime.test.ts`'s migration count is 12 | NOT MET / OWNER | |
+| 2 | Migration file sha256 | At the named SHA, `drizzle/0011_gameplay_holdings.sql` hashes to the reviewed value (today `0f3e5e18…7cfc`; a changed file needs a new review and a new value), the down file to `537a3ee1…dcfd`, the journal lists 0011 once, `CHECKSUMS.sha256` matches, and `runtime.test.ts`'s migration count is 12 | NOT MET / OWNER | |
 | 3 | DB size vs verified quota | The real database allowance is read from the provider dashboard (500 MiB is only ASSUMED). Current `pg_database_size` is recorded. Projected size for the approved cap and season count (G34_DATA_LIFECYCLE.md §4) is below the warn line (60%) of the **verified** quota | NOT MET / OWNER | |
 | 4 | Logical backup + restore drill | A `pg_dump` (schema + data, including `gameplay_partitions` once it exists) is taken before promotion, stored off the database, encrypted, and **restored into a disposable local database**; row counts and the migration table match. Drill date and duration recorded. Free plan has no point-in-time restore | NOT MET / OWNER | |
 | 5 | Shutdown / rollback method | Written and rehearsed: (a) app rollback = unset `MOVENRUN_GAMEPLAY_ENABLED`, restart, data kept; (b) `0011…down.sql` is destructive, owner-only, after a backup, in one transaction with removal of its `__drizzle_migrations` row. Who may run each, and how long (a) takes, recorded | NOT MET / OWNER | |

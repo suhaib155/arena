@@ -1,7 +1,7 @@
 # G3/G4 data lifecycle: retention matrix, encrypted archives, dry run, capacity and churn
 
 **Status: PROPOSAL / OWNER DECISION throughout. Nothing here is live policy, and nothing here is activated.**
-- Migration 0011 stays in `backend/drizzle-proposed/` (revision 3, sha256 `b87f2e2fb9da9c58e84cd248f201133b100abe8a01c2a84a26438967b384f2c8`; see `G34_PROMOTION_GATE.md`). It is not in the drizzle journal and is applied to no hosted database.
+- Migration 0011 stays in `backend/drizzle-proposed/` (revision 3; its reviewed sha256 values are kept in one place, `G34_PROMOTION_GATE.md`, and pinned by `promotionGateHashes.test.ts`). It is not in the drizzle journal and is applied to no hosted database.
 - `MOVENRUN_GAMEPLAY_ENABLED` is unchanged: gameplay stays off unless it is exactly `true`.
 - No retention job, archive writer, manifest table, export or partition drop exists. The only new executable piece is a **dry-run evaluator** that counts and never changes anything (section 3).
 - Capacity figures are **SIMULATION ONLY** (local PostgreSQL 16.15, synthetic players). The 500 MiB quota is **ASSUMED** (Supabase Free's published allowance) until the owner confirms the real one.
