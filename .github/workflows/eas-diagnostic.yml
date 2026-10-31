@@ -1,0 +1,115 @@
+name: EAS read-only diagnostic
+
+# Replaces the 31 Oct preflight on ci/eas-prereq-check-31oct, which finished
+# green while every project query failed. What changed:
+#   - dependencies are installed before EAS reads the app config (the 31 Oct
+#     cause: app.json plugins could not resolve without node_modules);
+#   - env:list uses only flags eas-cli 24.8.0 supports (no --json or
+#     --non-interactive; checked with `eas env:list --help` on 24.8.0);
+#   - a failed query fails the job, after a sanitized summary is written;
+#   - errors are classified from temporary files and redacted, never tailed
+#     into the log; raw files are deleted before anything is uploaded;
+#   - EXPO_TOKEN is given only to the one query step, never to installs.
+#
+# Never builds, never writes env vars or credentials, never uses quota.
+#
+# The parser tests run on every push and pull request. The EAS queries run
+# only on a push to this branch whose head commit message contains
+# [eas-read-only-diagnostic], so each external run is a deliberate commit.
+on:
+  push:
+    branches: [claude/project-thread-wfl22t]
+    paths:
+      - ".github/eas-diagnostic/**"
+      - ".github/workflows/eas-diagnostic.yml"
+  pull_request:
+    paths:
+      - ".github/eas-diagnostic/**"
+      - ".github/workflows/eas-diagnostic.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eas-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  parser-tests:
+    name: Offline parser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run tests (no network, no token)
+        run: node --test .github/eas-diagnostic/lib.test.mjs
+
+  diagnostic:
+    name: Read-only EAS queries
+    needs: parser-tests
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/claude/project-thread-wfl22t' &&
+      contains(github.event.head_commit.message, '[eas-read-only-diagnostic]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Same toolchain as the preview build workflow: Node 20, Yarn 4 via Corepack.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Enable Corepack
+        run: corepack enable
+
+      # No token in this step: install scripts must never see it.
+      - name: Install app dependencies (immutable lockfile)
+        working-directory: movenrun
+        run: yarn install --immutable
+
+      - name: Install pinned eas-cli 24.8.0
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/eascli" eas-cli@24.8.0
+          v="$("$RUNNER_TEMP/eascli/node_modules/.bin/eas" --version | sed -E 's#^eas-cli/([0-9.]+).*#\1#' | head -1)"
+          test "$v" = "24.8.0" || { echo "::error::eas-cli is $v, expected 24.8.0"; exit 1; }
+          echo "eas-cli $v"
+
+      - name: Read-only queries (output captured to files, not printed)
+        working-directory: movenrun/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_NO_TELEMETRY: "1"
+          NO_COLOR: "1"
+        run: bash ../../.github/eas-diagnostic/run-queries.sh "$RUNNER_TEMP/eascli/node_modules/.bin/eas" "$RUNNER_TEMP/eas-raw"
+
+      # No token here. Exits 1 unless every CLI-checkable row passed.
+      - name: Classify, summarize and delete raw output
+        if: always()
+        run: |
+          set -euo pipefail
+          rc=0
+          node .github/eas-diagnostic/summarize.mjs "$RUNNER_TEMP/eas-raw" "$RUNNER_TEMP/eas-gate" movenrun/mobile || rc=$?
+          cat "$RUNNER_TEMP/eas-gate/eas-gate.md" >> "$GITHUB_STEP_SUMMARY" || true
+          exit "$rc"
+
+      - name: Make sure no raw output is left
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/eas-raw"
+
+      - name: Upload sanitized gate summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eas-gate-summary
+          path: ${{ runner.temp }}/eas-gate/
+          if-no-files-found: warn
+          retention-days: 30
