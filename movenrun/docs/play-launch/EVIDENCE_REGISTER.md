@@ -196,3 +196,6 @@ has been run for sign-in yet.
 | E-134 | 30 Oct | #182 Android truth fixes merged 02d8ca9 | same report |
 | E-135 | 30 Oct | X-33 single retry: dep-dbi94de1egvs73f8ns5g at efd381b live 12:49:57Z; hosted HTTP checks not run (403) | same report |
 | E-136 | 30 Oct | #184/#185 deletion wording and #186 queue policy merged (ac8d87b, 86267a9, d81867b); mobile 996/996, backend strict 711/711, reviews applied | reports/MOVENRUN_2026-10-30_OWNER_DECISIONS_DELETION_COPY_QUEUE_POLICY_REPORT_d81867b.md |
+
+| E-137 | 2026-10-31 | Staging smoke on Actions runner: health, ready, CORS, forged token, no-store all PASS | run 41232297629, artifact 13053539913 |
+| E-138 | 2026-10-31 | EXPO_TOKEN secret present (value and validity not checked) | run 41232319352 |

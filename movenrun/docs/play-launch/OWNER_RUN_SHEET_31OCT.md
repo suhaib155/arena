@@ -114,3 +114,7 @@ A JWT accepted that should be refused, CORS allowing an origin it should not or 
 
 ### B4. The READY sheet stays incomplete
 The 12-row READY sheet in `STAGING_SMOKE_TEST_PLAN_30OCT.md` section 6 remains incomplete until each row has a UTC time, who ran it and an output reference. Overall result is READY only if every row is READY (row 9 may be N/A). Report `live`, `passed` and `failed` as three separate labels.
+
+
+## Update 31 Oct 19:20Z: no PC needed for Part B
+The five smoke checks were executed by a GitHub-hosted runner; see STAGING_SMOKE_RESULTS_31OCT.md (run 41232297629). Part B commands are kept only as reference.
