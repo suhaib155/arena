@@ -123,18 +123,18 @@ Fill the Evidence column with a timestamp (UTC), the person or tool, and the com
 
 | # | Item | Result | Evidence |
 |---|---|---|---|
-| 1 | Live deploy id and exact SHA match (4.1) | NOT RUN | NOT RUN: needs deployment/dashboard/database access, not reachable from a keyless runner |
-| 2 | Rollback deployment still available (4.1) | NOT RUN | NOT RUN: needs deployment/dashboard/database access, not reachable from a keyless runner |
+| 1 | Live deploy id and exact SHA match (4.1) | OWNER-VERIFIED | OWNER-VERIFIED via cloud integrations (31 Oct 22:17Z), not independently reproduced by the agent: live Render deployment |
+| 2 | Rollback deployment still available (4.1) | OWNER-VERIFIED | OWNER-VERIFIED via cloud integrations (31 Oct 22:17Z): rollback target available |
 | 3 | `/health` 200 (4.2) | READY | VERIFIED 31 Oct: 200 `{"status":"ok"}` |
 | 4 | `/ready` 200 and database ready (4.2) | READY | VERIFIED 31 Oct: 200, database ready |
 | 5 | CORS allows listed origin only (4.3) | READY | VERIFIED 31 Oct: listed origin echoed, untrusted origin no allow header |
 | 6 | Forged and malformed tokens return 401 (4.4) | READY (partial) | VERIFIED 31 Oct (forged token 401 `session_invalid`; malformed variants NOT RUN) |
-| 7 | Key-set outage returns 503 with Retry-After (local stand-in) (4.4) | NOT RUN | NOT RUN: needs deployment/dashboard/database access, not reachable from a keyless runner |
+| 7 | Key-set outage returns 503 with Retry-After (local stand-in) (4.4) | PENDING | Left pending by owner instruction (31 Oct 22:17Z) |
 | 8 | `no-store` on authentication routes, denials included (4.5) | READY (partial) | VERIFIED 31 Oct on the 401: `no-store`, `pragma: no-cache` (other auth routes NOT RUN) |
 | 9 | Deletion queue: no stale pending rows; async queue not deployed (4.6) | N/A | Queue not deployed; no database access from runner |
-| 10 | Migrations: 11 rows, hashes match, no 0011 (4.7) | NOT RUN | NOT RUN: needs deployment/dashboard/database access, not reachable from a keyless runner |
-| 11 | Providers OFF, legacy secrets absent (section 5) | NOT RUN | NOT RUN: needs deployment/dashboard/database access, not reachable from a keyless runner |
-| 12 | #162 head unchanged at `0faf652`; deploy branch at efd381b | NOT RUN | NOT RUN: needs deployment/dashboard/database access, not reachable from a keyless runner |
+| 10 | Migrations: 11 rows, hashes match, no 0011 (4.7) | OWNER-VERIFIED | OWNER-VERIFIED via cloud integrations (31 Oct 22:17Z): healthy Supabase, 11 applied migrations (hash comparison not reproduced by the agent) |
+| 11 | Providers OFF, legacy secrets absent (section 5) | PENDING | Left pending by owner instruction (31 Oct 22:17Z) |
+| 12 | #162 head unchanged at `0faf652`; deploy branch at efd381b | OWNER-VERIFIED | OWNER-VERIFIED via cloud integrations (31 Oct 22:17Z): #162 head and exact deployment branch |
 
 Overall: READY only if every row is READY (row 9 may be N/A). Any NOT READY or blank row means NOT READY. Report `live`, `passed` and `failed` as three separate labels with the deployment id and the tested SHA.
 
@@ -157,4 +157,4 @@ Sign-off (owner): Name ______  Date ______  Signature ______ (left blank)
 
 
 ### Result of 31 Oct run
-Sheet remains INCOMPLETE. Rows 3, 4, 5 verified; rows 6 and 8 partially; the rest NOT RUN. Evidence: STAGING_SMOKE_RESULTS_31OCT.md; run https://github.com/suhaib155/arena/actions/runs/41232297629.
+Sheet remains INCOMPLETE. Agent-reproduced: rows 3, 4, 5 (6 and 8 partially). Owner-verified via cloud integrations: rows 1, 2, 10, 12. Pending by owner instruction: rows 7 (key-set outage) and 11 (providers). Evidence: STAGING_SMOKE_RESULTS_31OCT.md; run https://github.com/suhaib155/arena/actions/runs/41232297629.

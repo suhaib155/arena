@@ -359,3 +359,4 @@ change or live database change was made. No secrets were committed.
 - 31 Oct: owner revised X-04 (build from ac8d87b against staging); EAS access missing here so no build started; OWNER_RUN_SHEET_31OCT.md prepared; build branch build/android-preview-ac8d87b created at ac8d87b (no build run).
 
 - 31 Oct: hosted smoke executed from Actions (E-137); READY sheet still incomplete (7 rows NOT RUN). EAS build not started: Expo-side prerequisites unverified (EAS_PREREQUISITES_31OCT.md).
+- 31 Oct 22:20Z: READY sheet updated with owner-verified rows 1, 2, 10, 12; rows 7 and 11 pending. EAS preflight: token valid, project queries failed twice, stopped and logged (E-139). APK build NOT started.

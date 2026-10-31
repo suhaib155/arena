@@ -24,3 +24,17 @@ What the workflow does (read from the repo): manual run on the chosen branch; ch
 5. Reply "prerequisites verified" with those facts in the chat. I will then run the workflow once on `build/android-preview-ac8d87b` (the approval allows exactly one), and nothing else.
 
 If the token turns out to be invalid, the build step fails before any build is queued; that would not consume quota, but do not re-run without a fresh decision.
+
+
+## Read-only preflight, 31 Oct 22:20Z (owner-approved)
+Runs: https://github.com/suhaib155/arena/actions/runs/41247583612 and https://github.com/suhaib155/arena/actions/runs/41247647805 (branch ci/eas-prereq-check-31oct, read-only, no build, no quota, no values printed).
+
+| Check | Result |
+|---|---|
+| EXPO_TOKEN accepted by Expo (whoami) | VERIFIED yes |
+| Project readable with token (project:info) | NOT VERIFIED: command failed both runs |
+| Preview env var names (env:list) | NOT VERIFIED: command failed both runs (exit 1), so presence of the four names is unknown, not "missing" |
+| Recent Android builds (build:list) | NOT VERIFIED: failed both runs |
+| Signing key SHA-1, Maps key restriction, build quota | Browser checks (not queryable by CLI) |
+
+Stopped per the owner's two-identical-errors rule. The CLI error text was not captured: the first six stderr lines were upgrade/VCS banner noise. Likely causes to rule out (not yet tested): the token lacks access to the project owner account, or the CLI needs the project config resolved differently on the runner. No build was started.

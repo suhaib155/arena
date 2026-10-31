@@ -199,3 +199,4 @@ has been run for sign-in yet.
 
 | E-137 | 2026-10-31 | Staging smoke on Actions runner: health, ready, CORS, forged token, no-store all PASS | run 41232297629, artifact 13053539913 |
 | E-138 | 2026-10-31 | EXPO_TOKEN secret present (value and validity not checked) | run 41232319352 |
+| E-139 | 2026-10-31 | EAS read-only preflight: token valid; project/env/build queries failed twice (logged, stopped) | runs 41247583612, 41247647805 |
