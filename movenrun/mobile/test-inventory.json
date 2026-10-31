@@ -63,6 +63,7 @@
     "src/lib/__tests__/sealing.test.ts",
     "src/lib/__tests__/secureSession.test.ts",
     "src/lib/__tests__/secureSessionFailures.test.ts",
+    "src/lib/__tests__/serverCheckTruth.test.ts",
     "src/lib/__tests__/sessionLifecycle.test.ts",
     "src/lib/__tests__/sessionModel.test.ts",
     "src/lib/__tests__/sessionSubmission.test.ts",
