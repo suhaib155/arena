@@ -1,0 +1,68 @@
+name: EAS preview preflight (read-only)
+
+# Read-only. Never starts a build and never consumes build quota. Uses the
+# EXPO_TOKEN secret only to call read-only Expo queries. Prints names and
+# yes/no results only, never values. Runs only when this branch is pushed.
+on:
+  push:
+    branches: [ci/eas-prereq-check-31oct]
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Read-only EAS preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: movenrun/mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Token and project (yes/no only)
+        run: |
+          set +e
+          if npx --yes eas-cli@24.8.0 whoami >/tmp/who.txt 2>/tmp/who.err; then
+            echo "Token valid: yes" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Token valid: NO (exit code recorded, message withheld)" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if npx --yes eas-cli@24.8.0 project:info >/tmp/pi.txt 2>/dev/null; then
+            echo "Project reachable with token: yes" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Project reachable with token: NO" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preview environment variable names (no values)
+        run: |
+          set +e
+          npx --yes eas-cli@24.8.0 env:list preview --json --non-interactive >/tmp/env.json 2>/tmp/env.err
+          echo "env:list exit code: $?" | tee -a "$GITHUB_STEP_SUMMARY"
+          for n in EXPO_PUBLIC_API_URL EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY GOOGLE_MAPS_ANDROID_API_KEY; do
+            if jq -e --arg n "$n" '[..|objects|select(.name==$n)]|length>0' /tmp/env.json >/dev/null 2>&1; then
+              vis=$(jq -r --arg n "$n" '[..|objects|select(.name==$n)][0].visibility // "unknown"' /tmp/env.json)
+              echo "$n: present (visibility: $vis)" | tee -a "$GITHUB_STEP_SUMMARY"
+            else
+              echo "$n: MISSING or not readable" | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          # Compare only the API host against the staging host; value never printed otherwise.
+          if jq -e '[..|objects|select(.name=="EXPO_PUBLIC_API_URL")][0].value=="https://movenrun-staging-api.onrender.com"' /tmp/env.json >/dev/null 2>&1; then
+            echo "EXPO_PUBLIC_API_URL equals staging URL: yes" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "EXPO_PUBLIC_API_URL equals staging URL: no or not readable" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Android credentials and recent builds (counts only)
+        run: |
+          set +e
+          npx --yes eas-cli@24.8.0 build:list --platform android --limit 5 --json --non-interactive >/tmp/b.json 2>/dev/null
+          echo "build:list exit code: $?" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Recent android builds returned: $(jq 'length' /tmp/b.json 2>/dev/null || echo unreadable)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Signing keystore and SHA-1: not queryable non-interactively; browser check" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Build quota/plan: not exposed by the CLI; browser check" | tee -a "$GITHUB_STEP_SUMMARY"
