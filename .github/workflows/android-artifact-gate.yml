@@ -1,0 +1,196 @@
+name: android-artifact-gate
+
+# Reads a real Android APK and decides it with
+# movenrun/mobile/src/lib/androidArtifactGate.ts (rows A1-A19).
+#
+# Two modes, never confused in the report:
+#
+# 1. ci-release (pull requests that touch native config): `expo prebuild` +
+#    `gradlew assembleRelease` on this runner. No EAS, no Expo token, no build
+#    quota, no Maps key, signed with the template debug key. It proves the
+#    merged manifest, permissions, Hermes, ABIs and 16 KB alignment for the
+#    exact commit. It is not installable proof and not the EAS artifact.
+#
+# 2. eas-preview (push to a branch named artifact-check/<anything> that adds
+#    movenrun/mobile/release/artifact-gate-request.json with {"buildId": "..."}):
+#    reads the metadata of an EAS build that ALREADY EXISTS with a pinned CLI,
+#    downloads its APK and inspects it. It never starts, retries or submits a
+#    build. The download URL is masked and never written to the report.
+#
+# Nothing here deploys, publishes or uploads to Play.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/android-artifact-gate.yml"
+      - "movenrun/mobile/app.json"
+      - "movenrun/mobile/app.config.js"
+      - "movenrun/mobile/eas.json"
+      - "movenrun/mobile/package.json"
+      - "movenrun/mobile/plugins/**"
+      - "movenrun/mobile/scripts/inspect-android-artifact.ts"
+      - "movenrun/mobile/src/lib/androidArtifactGate.ts"
+      - "movenrun/yarn.lock"
+  push:
+    branches:
+      - "artifact-check/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-artifact-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Android artifact gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: movenrun
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # No secret is visible to this step: install scripts never see a token.
+      - name: Install dependencies (immutable)
+        run: yarn install --immutable
+
+      - name: Select mode
+        id: mode
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            echo "kind=eas-preview" >> "$GITHUB_OUTPUT"
+          else
+            echo "kind=ci-release" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ---------------------------------------------------------------- ci-release
+      - name: Prebuild Android project (no EAS)
+        if: steps.mode.outputs.kind == 'ci-release'
+        working-directory: movenrun/mobile
+        env:
+          CI: "1"
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Gradle assembleRelease (debug-signed, not a release artifact)
+        if: steps.mode.outputs.kind == 'ci-release'
+        working-directory: movenrun/mobile/android
+        env:
+          NODE_ENV: production
+        run: |
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace -q
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/candidate.apk"
+
+      # --------------------------------------------------------------- eas-preview
+      - name: Read EAS build metadata (existing build only)
+        if: steps.mode.outputs.kind == 'eas-preview'
+        id: eas
+        working-directory: movenrun/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          REQ=release/artifact-gate-request.json
+          if [ ! -f "$REQ" ]; then echo "::error::$REQ missing"; exit 1; fi
+          BUILD_ID=$(node -e 'const r=require("./release/artifact-gate-request.json"); if(!/^[0-9a-f-]{36}$/.test(r.buildId||"")) process.exit(3); process.stdout.write(r.buildId)')
+          if [ -z "${EXPO_TOKEN}" ]; then echo "::error::EXPO_TOKEN not available"; exit 1; fi
+          # Pinned CLI, read-only command. stderr is classified, never echoed.
+          set +e
+          npx --yes eas-cli@24.8.0 build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json" 2> "$RUNNER_TEMP/build.err"
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            CLASS=$(grep -oiE "not authori[sz]ed|forbidden|not found|entity not found|unauthenticated|rate limit|network" "$RUNNER_TEMP/build.err" | head -1 || true)
+            echo "::error::eas build:view exited $STATUS (${CLASS:-unclassified}). Gate BLOCKED."
+            exit 1
+          fi
+          node - "$RUNNER_TEMP/build.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require("fs");
+          const [file, out] = process.argv.slice(2);
+          const b = JSON.parse(fs.readFileSync(file, "utf8"));
+          const url = b.artifacts?.applicationArchiveUrl ?? b.artifacts?.buildUrl ?? "";
+          if (!url) { console.error("::error::build has no APK artifact (status " + b.status + ")"); process.exit(1); }
+          console.log("::add-mask::" + url);
+          const safe = (v) => String(v ?? "unknown").replace(/[^A-Za-z0-9._ -]/g, "");
+          fs.appendFileSync(out, [
+            `url=${url}`,
+            `commit=${safe(b.gitCommitHash)}`,
+            `profile=${safe(b.buildProfile)}`,
+            `status=${safe(b.status)}`,
+            `appVersion=${safe(b.appVersion)}`,
+            `buildVersion=${safe(b.appBuildVersion)}`,
+            `buildId=${safe(b.id)}`,
+          ].join("\n") + "\n");
+          NODE
+          rm -f "$RUNNER_TEMP/build.json" "$RUNNER_TEMP/build.err"
+
+      - name: Download EAS APK
+        if: steps.mode.outputs.kind == 'eas-preview'
+        env:
+          APK_URL: ${{ steps.eas.outputs.url }}
+        run: curl -fsSL --retry 3 -o "$RUNNER_TEMP/candidate.apk" "$APK_URL"
+
+      # ------------------------------------------------------------------ inspect
+      - name: Inspect APK
+        id: inspect
+        working-directory: movenrun/mobile
+        env:
+          EXPECTED_SIGNING_CERT_SHA256: ${{ secrets.EXPECTED_SIGNING_CERT_SHA256 }}
+          KIND: ${{ steps.mode.outputs.kind }}
+          EAS_COMMIT: ${{ steps.eas.outputs.commit }}
+          EAS_PROFILE: ${{ steps.eas.outputs.profile }}
+          EAS_STATUS: ${{ steps.eas.outputs.status }}
+          EAS_BUILD: ${{ steps.eas.outputs.buildId }}
+          EAS_VERSION: ${{ steps.eas.outputs.appVersion }}
+          EAS_BUILD_VERSION: ${{ steps.eas.outputs.buildVersion }}
+        run: |
+          set +e
+          if [ "$KIND" = "ci-release" ]; then
+            node --import tsx scripts/inspect-android-artifact.ts --apk "$RUNNER_TEMP/candidate.apk" --kind ci-release \
+              --out "$RUNNER_TEMP/android-artifact-gate.md" --json "$RUNNER_TEMP/android-artifact-gate.json" \
+              --provenance "Source commit=${GITHUB_SHA}" --provenance "Built by=GitHub runner (expo prebuild + gradlew assembleRelease)"
+          else
+            node --import tsx scripts/inspect-android-artifact.ts --apk "$RUNNER_TEMP/candidate.apk" --kind eas-preview \
+              --out "$RUNNER_TEMP/android-artifact-gate.md" --json "$RUNNER_TEMP/android-artifact-gate.json" \
+              --provenance "EAS build id=${EAS_BUILD}" --provenance "EAS profile=${EAS_PROFILE}" \
+              --provenance "EAS status=${EAS_STATUS}" --provenance "EAS git commit=${EAS_COMMIT}" \
+              --provenance "App version=${EAS_VERSION} (${EAS_BUILD_VERSION})" --provenance "Request commit=${GITHUB_SHA}"
+          fi
+          CODE=$?
+          cat "$RUNNER_TEMP/android-artifact-gate.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload gate report
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-artifact-gate-${{ steps.mode.outputs.kind }}
+          path: |
+            ${{ runner.temp }}/android-artifact-gate.md
+            ${{ runner.temp }}/android-artifact-gate.json
+          retention-days: 30
+
+      # Only PASS is green. BLOCKED (2) and FAIL (1) both fail the job, so a
+      # green run can never stand for an unverified artifact.
+      - name: Gate verdict
+        env:
+          CODE: ${{ steps.inspect.outputs.code }}
+        run: |
+          if [ "$CODE" = "0" ]; then echo "Gate PASS"; exit 0; fi
+          if [ "$CODE" = "2" ]; then echo "::error::Gate BLOCKED: see the report rows marked BLOCKED"; exit 1; fi
+          echo "::error::Gate FAIL (code $CODE): see the report"; exit 1
