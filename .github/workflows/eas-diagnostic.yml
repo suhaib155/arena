@@ -16,6 +16,8 @@ name: EAS read-only diagnostic
 # The parser tests run on every push and pull request. The EAS queries run
 # only on a push to this branch whose head commit message contains
 # [eas-read-only-diagnostic], so each external run is a deliberate commit.
+# That commit must also touch one of the push paths below, or the workflow
+# does not start at all.
 on:
   push:
     branches: [claude/project-thread-wfl22t]

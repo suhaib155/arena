@@ -98,6 +98,28 @@ test("redact removes tokens, ids, emails, auth URLs, account handles and keys", 
   assert.match(clean, /https:\/\/expo\.dev/);
 });
 
+test("redact removes names in free-text server messages and non-Expo hosts", () => {
+  const msgs = [
+    "Forbidden for user someuser on account 'acmeco'",
+    "Owner: acme_corp",
+    "You must have access to the acme-team account",
+    "see https://xyzproj.supabase.co/rest/v1",
+  ];
+  const clean = redact(msgs.join("\n"));
+  for (const leak of ["someuser", "acmeco", "acme_corp", "acme-team", "xyzproj"]) assert.ok(!clean.includes(leak), `leaked ${leak}: ${clean}`);
+  assert.equal(classify(1, "Experience with id 'x' does not exist.").class, "project_not_found");
+});
+
+test("account-scope variables count, project scope overrides", () => {
+  const p = envPresence("EXPO_PUBLIC_API_URL=https://movenrun-staging-api.onrender.com\n", "GOOGLE_MAPS_ANDROID_API_KEY=***** (This is a secret env variable.)\nEXPO_PUBLIC_API_URL=https://other.example\n");
+  assert.equal(p.rows[3].present, true);
+  assert.equal(p.rows[3].scope, "account");
+  assert.equal(p.apiUrlMatchesStaging, "yes");
+  const i = goodInput();
+  i.results.env_list_account = { class: "insufficient_permissions", reason: "x" };
+  assert.notEqual(evaluate(i).cli, "PASS");
+});
+
 test("redact keeps variable names readable", () => {
   for (const n of ["EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "GOOGLE_MAPS_ANDROID_API_KEY", "project_id_matches_app_json"]) {
     assert.equal(redact(n), n);
@@ -154,7 +176,7 @@ test("build:list and account:usage summaries carry counts only", () => {
   assert.ok(!JSON.stringify(u).includes("acme"));
 });
 
-const ALL_OK = { whoami: { class: "ok" }, project_info: { class: "ok" }, env_list: { class: "ok" }, build_list: { class: "ok" }, account_usage: { class: "ok" } };
+const ALL_OK = { whoami: { class: "ok" }, project_info: { class: "ok" }, env_list: { class: "ok" }, env_list_account: { class: "ok" }, build_list: { class: "ok" }, account_usage: { class: "ok" } };
 const goodInput = () => ({
   results: structuredClone(ALL_OK),
   env: envPresence(ENV_OUT),
@@ -231,6 +253,7 @@ test("summarize: a fully passing synthetic run exits 0 and prints no values", ()
     "whoami.exit": "0\n", "whoami.out": "acme\n", "whoami.err": "",
     "project_info.exit": "0\n", "project_info.out": `fullName  @acme/movenrun\nID        ${FAKE_UUID}\n`, "project_info.err": "",
     "env_list.exit": "0\n", "env_list.out": ENV_OUT, "env_list.err": "",
+    "env_list_account.exit": "0\n", "env_list_account.out": "Environment: preview\nNo variables found for this environment.\n", "env_list_account.err": "",
     "build_list.exit": "0\n", "build_list.out": "[]", "build_list.err": "",
     "account_usage.exit": "0\n", "account_usage.out": JSON.stringify({ account: { name: "acme", plan: "Free" }, builds: { plan: { used: 1, limit: 15 }, android: { plan: { used: 1, limit: 15 } } } }), "account_usage.err": "",
   });

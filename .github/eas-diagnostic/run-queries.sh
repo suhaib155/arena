@@ -38,6 +38,9 @@ run() {
 run whoami        whoami
 run project_info  project:info
 run env_list      env:list preview --format short --scope project
+# Account-wide variables also reach EAS builds; without this a variable set at
+# account scope would be reported missing.
+run env_list_account env:list preview --format short --scope account
 run build_list    build:list --platform android --limit 10 --json --non-interactive
 
 # Build quota: read the plan usage of the account that owns the project. The

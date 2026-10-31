@@ -30,7 +30,7 @@ const exitOf = (cmd) => {
   return t === "" ? null : Number(t);
 };
 
-const COMMANDS = ["whoami", "project_info", "env_list", "build_list", "account_usage"];
+const COMMANDS = ["whoami", "project_info", "env_list", "env_list_account", "build_list", "account_usage"];
 let report;
 try {
   const results = {};
@@ -52,7 +52,10 @@ try {
   const appJson = JSON.parse(readFileSync(join(appRoot, "app.json"), "utf8"));
   const easJson = JSON.parse(readFileSync(join(appRoot, "eas.json"), "utf8"));
   const project = results.project_info.class === "ok" ? parseProjectInfo(read("project_info.out")) : null;
-  const env = results.env_list.class === "ok" ? envPresence(read("env_list.out")) : null;
+  const env =
+    results.env_list.class === "ok" && results.env_list_account.class === "ok"
+      ? envPresence(read("env_list.out"), read("env_list_account.out"))
+      : null;
   const builds = results.build_list.class === "ok" ? summarizeBuilds(read("build_list.out")) : null;
   const usage = results.account_usage.class === "ok" ? summarizeUsage(read("account_usage.out")) : null;
 

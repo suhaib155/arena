@@ -54,7 +54,8 @@ export function redact(text) {
     .replace(/https?:\/\/[^\s"'<>]+/gi, (url) => {
       try {
         const u = new URL(url);
-        return `${u.protocol}//${u.host}${u.pathname === "/" ? "" : "/[path]"}`;
+        const host = /(^|\.)(expo\.dev|expo\.io|github\.com)$/i.test(u.hostname) ? u.host : "[host]";
+        return `${u.protocol}//${host}${u.pathname === "/" ? "" : "/[path]"}`;
       } catch {
         return "[redacted-url]";
       }
@@ -68,6 +69,10 @@ export function redact(text) {
     // SCREAMING_CASE names such as EXPO_PUBLIC_SUPABASE_URL have no digit.
     .replace(/[A-Za-z0-9_+/=-]{24,}/g, (run) => (/\d/.test(run) && /[A-Za-z]/.test(run) ? "[redacted]" : run))
     .replace(/"[^"]*"/g, '"[redacted]"')
+    .replace(/'[^']*'/g, "'[redacted]'")
+    // Free-text server messages can name a user, account, owner or team.
+    .replace(/\b(?:the[^\S\n]+)?(?<![\w-])[A-Za-z0-9][\w.-]*([^\S\n]+(?:account|team|organi[sz]ation))\b/gi, (m, tail) => (/^(?:the[^\S\n]+)?(?:an?|your|this|that|on|to|of|in|the)[^\S\n]/i.test(m) && !/^the[^\S\n]+\S+[^\S\n]/i.test(m) ? m : `[redacted-name]${tail}`))
+    .replace(/(?<![\w-])(user|username|account|owner|team|organi[sz]ation|org)([^\S\n]*[:=]?[^\S\n]+)(?!\[redacted)(?!(?:account|team|on|to|of|in|for|with|and|or|is|was|has)\b)([A-Za-z0-9][\w.-]*)/gi, "$1$2[redacted-name]")
     .replace(/Available accounts:.*$/i, "Available accounts: [redacted]");
 }
 
@@ -94,7 +99,7 @@ const RULES = [
   ["network", /ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|fetch failed|network (error|request failed)|getaddrinfo/i],
   ["not_authenticated", /account is required to proceed|not logged in|\b401\b|unauthori[sz]ed|invalid (access )?token|token (has )?expired/i],
   ["insufficient_permissions", /forbidden|\b403\b|not authori[sz]ed|permission|don't have (the required )?(access|permissions)|access denied/i],
-  ["project_not_found", /entity not found|\b404\b|project .*not found|app .*not found|could not find (the )?project/i],
+  ["project_not_found", /entity not found|experience with id .* does not exist|\b404\b|project .*not found|app .*not found|could not find (the )?project/i],
 ];
 
 /** Classify one command result. Exit code wins: a zero exit is "ok". */
@@ -143,11 +148,17 @@ function sameUrl(a, b) {
   }
 }
 
-export function envPresence(stdout) {
-  const vars = parseEnvShort(stdout);
+/**
+ * Presence across project-scope and account-scope output. EAS builds see both,
+ * and a project variable overrides an account variable of the same name.
+ */
+export function envPresence(projectStdout, accountStdout = "") {
+  const vars = new Map();
+  for (const [k, v] of parseEnvShort(accountStdout)) vars.set(k, { ...v, scope: "account" });
+  for (const [k, v] of parseEnvShort(projectStdout)) vars.set(k, { ...v, scope: "project" });
   const rows = REQUIRED_PREVIEW_VARS.map((name) => {
     const v = vars.get(name);
-    return { name, present: Boolean(v), visibility: v ? v.visibility : null };
+    return { name, present: Boolean(v), visibility: v ? v.visibility : null, scope: v ? v.scope : null };
   });
   const api = vars.get("EXPO_PUBLIC_API_URL");
   let apiUrlMatchesStaging;
@@ -234,9 +245,9 @@ export function evaluate({ results, env, project, expectedProjectId, easJsonPrev
   );
   push("eas_json_preview_selects_preview", easJsonPreviewEnv === PREVIEW_ENVIRONMENT ? "PASS" : "FAIL", `environment=${easJsonPreviewEnv ?? "unset"}`);
 
-  const envOk = results.env_list?.class === "ok";
+  const envOk = results.env_list?.class === "ok" && (results.env_list_account ? results.env_list_account.class === "ok" : true);
   for (const row of env?.rows ?? REQUIRED_PREVIEW_VARS.map((name) => ({ name, present: false, visibility: null }))) {
-    push(`env_${row.name}`, !envOk ? "BLOCKED" : row.present ? "PASS" : "BLOCKED", !envOk ? "unknown (env:list failed)" : row.present ? `present (${row.visibility})` : "missing");
+    push(`env_${row.name}`, !envOk ? "BLOCKED" : row.present ? "PASS" : "BLOCKED", !envOk ? "unknown (env:list failed)" : row.present ? `present (${row.scope} scope, ${row.visibility})` : "missing at project and account scope");
   }
   const m = env?.apiUrlMatchesStaging;
   push("env_api_url_is_staging", !envOk ? "BLOCKED" : m === "yes" ? "PASS" : m === "no" ? "FAIL" : "BLOCKED", !envOk ? "unknown" : m);
