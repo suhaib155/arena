@@ -49,6 +49,15 @@ export interface VerifiedSupabaseUser {
   methods: string[];
   /** Providers linked to the auth user (`app_metadata.providers`). */
   providers: string[];
+  /** The Supabase session this token belongs to (`session_id`), or null if absent. */
+  sessionId: string | null;
+  /**
+   * When this session's Google (OAuth) sign-in happened: the timestamp of its
+   * single `amr` entry with method `oauth`. Entries for other methods
+   * (`token_refresh`, `otp`, ...) are never used. Null when there is no such
+   * entry, more than one, or no usable timestamp.
+   */
+  oauthSignedInAt: Date | null;
   expiresAt: Date;
 }
 
@@ -132,7 +141,14 @@ export class SupabaseTokenVerifier {
     const providers = Array.isArray(appMetadata.providers) ? appMetadata.providers.filter((p): p is string => typeof p === "string") : [];
     const email = typeof claims.email === "string" && claims.email.includes("@") ? claims.email.trim().toLowerCase() : null;
 
-    return { subject: claims.sub.toLowerCase(), email, methods, providers, expiresAt: new Date(claims.exp * 1000) };
+    const sessionId = typeof claims.session_id === "string" && UUID.test(claims.session_id) ? claims.session_id.toLowerCase() : null;
+    const oauthEntries = Array.isArray(claims.amr)
+      ? claims.amr.filter((m) => m && typeof m === "object" && (m as { method?: unknown }).method === "oauth")
+      : [];
+    const oauthStamp = oauthEntries.length === 1 ? (oauthEntries[0] as { timestamp?: unknown }).timestamp : undefined;
+    const oauthSignedInAt = typeof oauthStamp === "number" && Number.isFinite(oauthStamp) && oauthStamp > 0 ? new Date(oauthStamp * 1000) : null;
+
+    return { subject: claims.sub.toLowerCase(), email, methods, providers, sessionId, oauthSignedInAt, expiresAt: new Date(claims.exp * 1000) };
   }
 
   private async keyFor(kid: string) {
