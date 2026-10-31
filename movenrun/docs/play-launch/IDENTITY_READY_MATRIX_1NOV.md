@@ -25,7 +25,7 @@ Nothing here was deployed, enabled or changed. Hosted rows come from read-only r
 | Key-set network error, timeout, 500, 503: 503 with `Retry-After: 10` and no-store, no session | PASS | `identity/http/jwksOutage.test.ts` |
 | Forged token after a good key fetch: 401, no Retry-After | PASS | `jwksOutage.test.ts`, `authThreats.test.ts` |
 | Inside the 1 h stale window cached keys still decide; after it 503; a token refused on its face stays 401 and costs no fetch | PASS | `authThreats.test.ts` |
-| Wallet grant unreachable, 5xx or tokenless: 503 `provider_unavailable` with Retry-After | PASS (fixed here) | `identity/http/walletProviderOutage.test.ts`. Before this change it was 503 `provider_not_configured` with no Retry-After, so the app said "isn't available yet" during an outage |
+| Wallet grant unreachable, 5xx or tokenless: 503 `provider_unavailable` with Retry-After | PASS (fixed here) | `identity/http/walletProviderOutage.test.ts`. Before this change it was 503 `provider_not_configured` with no Retry-After, so clients could not tell an outage from a missing provider. The website (which calls wallet complete) shows the same generic retry message either way |
 | Wallet grant refused: 401, 403 at the cap, 429 at the quota, no Retry-After | PASS | `walletProviderOutage.test.ts` |
 | Challenge spent by a failed grant cannot be replayed | PASS | `walletProviderOutage.test.ts` |
 | Forged MovenRun bearer during a total provider outage: 401 no-store, no provider call (B0 row 5 pinned) | PASS | `walletProviderOutage.test.ts` |
@@ -40,8 +40,9 @@ Backend strict suite on this branch: 494 of 494 pass, 0 skipped (unit 432, db 62
 | Live (`efd381b`) | `POST /identity/account/delete` without the confirmation | 400 `invalid_request` | Staged |
 | Live | With confirmation | 200 `{deleted: true, erased, signInRecord}`; `signInRecord` is `removed`, `pending` (provider down, retried by the worker) or `none` | Staged |
 | Live | Old access token afterwards | 401 | Staged |
-| Dev only (`feat/g34-server-holdings`, needs 0011) | With confirmation | 202 `{deleted: false, status: "pending", requestId, signedOut: true}` | NOT staged |
-| Dev only | Again while pending | 409 `account_deletion_pending` | NOT staged |
+| Dev only (`feat/g34-server-holdings`, needs 0011) | With confirmation | 202 `{deleted: false, status: "pending", requestId, signedOut: true, signInRecord: "pending"}` | NOT staged |
+| Dev only | Repeat delete with the old token | 401 (the 202 already signed the account out) | NOT staged |
+| Dev only | Sign-in or session refresh while pending | 409 `account_deletion_pending` | NOT staged |
 | Dev only | Queue cannot start in time | 503 `deletion_busy` | NOT staged |
 
 The dev rows are checked once a backend carrying them is staged under its own approval. Never test them against the live server.
@@ -60,6 +61,6 @@ Send nothing else from those pages. These answers close the UNKNOWN row in secti
 
 ## 6. Watching for 503s and rolling back
 
-- A `/ready` 503 means the API cannot reach the database. Sign-in 503 `provider_unavailable` means the provider's keys or Web3 grant are unreachable; both carry Retry-After and clear on their own.
+- A `/ready` 503 (`{status: "unavailable"}`, no Retry-After) means the API cannot reach the database. Sign-in 503 `provider_unavailable` (with `Retry-After: 10`) means the provider's keys or Web3 grant are unreachable; it clears on its own.
 - Check from a phone: Render, `movenrun-staging-api`, Logs, filter `503`. A run of `provider_unavailable` longer than 10 minutes is a Supabase incident (status.supabase.com), not a reason to roll back.
 - Roll back only if the live code itself fails (`/health` not 200 after warm-up, or 5xx on every request). Rolling back needs the owner's approval and loses the security fixes listed in section 1.
