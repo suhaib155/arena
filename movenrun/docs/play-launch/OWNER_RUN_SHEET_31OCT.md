@@ -48,7 +48,30 @@ The hosted staging API runs the older security backend (`efd381b`). It does not 
 
 Target: `movenrun-staging-api`, expected live commit `efd381bb6fc9e3be0229859d26ddee59cdbd410d`, deployment `dep-dbi94de1egvs73f8ns5g`. Render Free sleeps: the first request can take about 60 seconds. Every command below is a GET, an OPTIONS, or a request with deliberately invalid input. None needs a token or secret. If a result is a stop condition (section B3), do not change anything; report it.
 
-### B1. Commands (bash, Git Bash or WSL; for PowerShell use `curl.exe`)
+### B0. The owner's five commands (31 Oct), exactly as given
+```sh
+BASE="https://movenrun-staging-api.onrender.com"
+
+curl -i "$BASE/health"
+curl -i "$BASE/ready"
+
+curl -i -H "Origin: https://movenrun.xyz" "$BASE/health"
+
+curl -i -H "Origin: https://untrusted.example" "$BASE/health"
+
+curl -i -H "Authorization: Bearer invalid.invalid.invalid" "$BASE/identity/me"
+```
+Expected, from the code at `efd381b` and its tests (not yet observed on the hosted service):
+| Command | Expected |
+|---|---|
+| `/health` | 200 `{"status":"ok"}` (the first call may take about 60 s while Render wakes) |
+| `/ready` | 200 `{"status":"ready","database":"ready","signIn":"supabase"}`; 503 `{"status":"unavailable"}` means the database or schema is wrong |
+| `/health` with `Origin: https://movenrun.xyz` | 200, and `Access-Control-Allow-Origin: https://movenrun.xyz` if that is the origin configured in Render's `CORS_ORIGINS` (documented value; if it is not listed, no allow header appears and that is a finding to report, not to fix) |
+| `/health` with `Origin: https://untrusted.example` | no `Access-Control-Allow-Origin` header at all, and never `*` |
+| `/identity/me` with the invalid bearer | 401 with a JSON error body and `Cache-Control: no-store` |
+Paste the full output of all five into the project chat. Record each as READY or NOT READY in the sheet in section B2; the overall READY sheet stays incomplete until you report results and the remaining rows are filled.
+
+### B1. Fuller command set (optional, bash, Git Bash or WSL; for PowerShell use `curl.exe`)
 ```sh
 BASE="https://movenrun-staging-api.onrender.com"
 GOOD_ORIGIN="https://movenrun.xyz"          # documented CORS_ORIGINS value; if Render shows a different value, use that
