@@ -47,6 +47,12 @@ test("queued server, 200 completed and removed: complete", () => {
   assert.equal(deletionOutcome(200, { deleted: true, status: "completed", signInRecord: "removed" }).done, true);
 });
 
+test("a 202 is never complete, whatever its body says", () => {
+  const o = deletionOutcome(202, { deleted: true, status: "completed", signInRecord: "removed" });
+  assert.equal(o.done, false);
+  assert.equal(o.text, TEXT.requested);
+});
+
 test("queued server, 202 pending: requested", () => {
   const o = deletionOutcome(202, { deleted: false, status: "pending", requestId: "r", signedOut: true, signInRecord: "pending" });
   assert.equal(o.done, false);
@@ -71,7 +77,10 @@ test("a 2xx that does not confirm completion is never reported as complete", () 
 });
 
 test("409, 503 and other errors never claim deletion", () => {
-  assert.equal(deletionOutcome(409, { error: "account_deletion_pending" }).text, TEXT.pending);
+  const pending = deletionOutcome(409, { error: "account_deletion_pending" });
+  assert.equal(pending.text, TEXT.pending);
+  assert.equal(pending.kind, "error");
+  assert.equal(pending.done, false);
   assert.match(deletionOutcome(503, { error: "deletion_busy" }).text, /nothing was deleted/);
   for (const s of [400, 401, 403, 404, 429, 500, 502]) {
     const o = deletionOutcome(s, null);
@@ -90,7 +99,7 @@ test("the request ends (token dropped, form hidden) only on 2xx or 409", () => {
 
 // ---- the page script, wired to a fake DOM -------------------------------------
 
-function runDeletionPage({ status, body, jsonThrows = false, rejects = false }) {
+function runDeletionPage({ status, body, jsonThrows = false, rejects = false, withoutOutcomes = false }) {
   const el = (id) => ({ id, hidden: false, disabled: false, textContent: "", className: "", listeners: {},
     addEventListener(type, fn) { this.listeners[type] = fn; }, querySelector() { return button; } });
   const button = el("confirm-button");
@@ -113,13 +122,17 @@ function runDeletionPage({ status, body, jsonThrows = false, rejects = false }) 
   const window = { MovenRunAuth: auth };
   const ctx = { window, document: { getElementById: (id) => nodes[id] }, module: undefined };
   vm.createContext(ctx);
-  vm.runInContext(read("js/deletion-outcome.js"), ctx);
+  if (!withoutOutcomes) vm.runInContext(read("js/deletion-outcome.js"), ctx);
   vm.runInContext(read("js/account-deletion-page.js"), ctx);
   const tick = () => new Promise((r) => setImmediate(r));
   return {
     nodes, posts, button,
     async submit() {
       await tick(); await tick();
+      nodes["step-confirm"].listeners.submit({ preventDefault() {} });
+      for (let i = 0; i < 5; i++) await tick();
+    },
+    async submitAgain() {
       nodes["step-confirm"].listeners.submit({ preventDefault() {} });
       for (let i = 0; i < 5; i++) await tick();
     },
@@ -132,6 +145,30 @@ test("page: current server success with sign-in record removed says complete and
   assert.deepEqual(p.posts.map((x) => [x.path, x.payload.confirm, x.token]), [["/identity/account/delete", "DELETE", "token-123"]]);
   assert.equal(p.nodes.status.textContent, TEXT.complete);
   assert.equal(p.nodes["step-confirm"].hidden, true);
+  assert.equal(p.button.disabled, false);
+});
+
+for (const [status, body] of [[200, { deleted: true, signInRecord: "removed" }], [202, { status: "pending" }], [409, { error: "account_deletion_pending" }]]) {
+  test(`page: after ${status} the sign-in token is dropped, so a second submit sends nothing`, async () => {
+    const p = runDeletionPage({ status, body });
+    await p.submit();
+    await p.submitAgain();
+    assert.equal(p.posts.length, 1);
+  });
+}
+
+test("page: after 503 the person can retry with the same sign-in", async () => {
+  const p = runDeletionPage({ status: 503, body: { error: "deletion_busy" } });
+  await p.submit();
+  await p.submitAgain();
+  assert.equal(p.posts.length, 2);
+  assert.equal(p.posts[1].token, "token-123");
+});
+
+test("page: if the outcome script failed to load, it says nothing is confirmed instead of hanging", async () => {
+  const p = runDeletionPage({ status: 200, body: { deleted: true, signInRecord: "removed" }, withoutOutcomes: true });
+  await p.submit();
+  assert.match(p.nodes.status.textContent, /Nothing is confirmed as deleted yet/);
   assert.equal(p.button.disabled, false);
 });
 

@@ -58,8 +58,9 @@ What this change fixes on the live lineage:
   map pan and zoom events.
 - The home page footer links the privacy policy, deletion page, support page
   and `info@movenrun.xyz`.
-- `movenrun/website/tests/website.test.mjs` (29 tests) and the
-  `website-checks` workflow. Run against the live files, 12 of the 29 fail;
+- `movenrun/website/tests/website.test.mjs` (35 tests) and the
+  `website-checks` workflow. Run with the live `61d30bb` pages and page script in place (keeping the new
+  `deletion-outcome.js` so the script can load), 15 of the 35 fail;
   on this branch all pass.
 
 Not changed, on purpose: the home page's planned Deeds and onchain sections
@@ -135,7 +136,7 @@ Form-level answers:
 
 **App name:** MovenRun
 **Category:** Game, Adventure (or Sports). Owner picks in Console.
-**Short description (69 characters):** Turn everyday walks and runs into missions and real-world progress.
+**Short description (67 characters):** Turn everyday walks and runs into missions and real-world progress.
 
 **Full description:** use `STORE_LISTING.md` with these three changes:
 

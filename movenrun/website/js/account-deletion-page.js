@@ -38,10 +38,12 @@
       // Read the body for every status: the wording depends on what the server confirmed.
       return r.json().catch(function () { return null; }).then(function (body) {
         button.disabled = false;
+        if (!outcomes) { say("Your deletion request was sent, but this page could not read the answer. Nothing is confirmed as deleted yet. Reload the page, or email info@movenrun.xyz (Team MovenRun).", "error"); return; }
         var outcome = outcomes.deletionOutcome(r.status, body);
         if (outcomes.endsRequest(r.status)) { token = ""; confirmForm.hidden = true; }
         say(outcome.text, outcome.kind);
       });
-    }, function () { button.disabled = false; say("We could not reach MovenRun. Nothing was confirmed as deleted. Please try again.", "error"); });
+    }, function () { button.disabled = false; say("We could not reach MovenRun. Nothing was confirmed as deleted. Please try again.", "error"); })
+      .catch(function () { button.disabled = false; say("Something went wrong showing the answer. Nothing is confirmed as deleted yet. Reload the page, or email info@movenrun.xyz (Team MovenRun).", "error"); });
   });
 })();
