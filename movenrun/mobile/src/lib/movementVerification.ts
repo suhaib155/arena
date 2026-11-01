@@ -251,14 +251,6 @@ export function shouldSubmit(state: VerificationState): boolean {
 }
 
 /**
- * Whether a completed session is eligible for verification at all.
- *
- * Mirrors the product's existing save gate rather than inventing a second one:
- * a demo session is not real movement, and a session too short to save is not
- * worth a round trip or a GPS upload. An unfinished session has no business
- * here — it has no final window and its points are still mutating.
- */
-/**
  * Will Save actually send this route for a server check that can settle?
  *
  * `isVerifiable` answers whether the route is *eligible*. This answers whether
@@ -281,6 +273,14 @@ export function willRequestServerCheck(input: {
     input.evidenceStatus !== "capacity_limited" && input.accountId !== null;
 }
 
+/**
+ * Whether a completed session is eligible for verification at all.
+ *
+ * Mirrors the product's existing save gate rather than inventing a second one:
+ * a demo session is not real movement, and a session too short to save is not
+ * worth a round trip or a GPS upload. An unfinished session has no business
+ * here — it has no final window and its points are still mutating.
+ */
 export function isVerifiable(session: {
   mode: string;
   finished: boolean;

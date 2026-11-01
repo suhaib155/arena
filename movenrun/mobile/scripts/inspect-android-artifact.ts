@@ -119,7 +119,15 @@ function main() {
   const signer = parseSigner(run(apksigner, ["verify", "--print-certs", apk]) ?? "", process.env.EXPECTED_SIGNING_CERT_SHA256);
 
   let secretFindings: number | null = null;
+  let secretScanSkipped: number | null = null;
   if (unzipped) {
+    /* check-secrets.mjs skips files of 20 MB or more; count them so A16 can say so. */
+    const SKIP_BYTES = 20 * 1024 * 1024;
+    const walk = (dir: string): number => readdirSync(dir, { withFileTypes: true }).reduce((n, e) => {
+      const p = join(dir, e.name);
+      return n + (e.isDirectory() ? walk(p) : e.isFile() && statSync(p).size >= SKIP_BYTES ? 1 : 0);
+    }, 0);
+    try { secretScanSkipped = walk(unpacked); } catch { secretScanSkipped = null; }
     const scanner = resolve(__dirname, "..", "..", "scripts", "check-secrets.mjs");
     const scan = spawnSync(process.execPath, [scanner, unpacked], { encoding: "utf8" });
     const m = /Secret scan FAILED \((\d+)\)/.exec(scan.stderr);
@@ -137,6 +145,7 @@ function main() {
     zipAligned16k,
     ...signer,
     secretFindings,
+    secretScanSkipped,
     sizeBytes: existsSync(apk) ? statSync(apk).size : null,
   };
   const result = evaluateArtifact(facts);

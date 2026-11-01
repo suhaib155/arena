@@ -130,6 +130,8 @@ export interface ArtifactFacts {
   usesCleartextTraffic: boolean | null;
   debuggable: boolean | null;
   testOnly: boolean | null;
+  /** False when the xmltree dump had no <manifest> element (tool missing or failed). */
+  manifestParsed: boolean;
   hasDataExtractionRules: boolean;
   exported: ExportedComponent[];
   /** Every scheme in a VIEW intent filter. */
@@ -142,10 +144,14 @@ export interface ArtifactFacts {
   zipAligned16k: boolean | null;
   /** True when signed by the well-known Android debug certificate. */
   debugSigned: boolean | null;
+  /** False when apksigner output had no signer DN or digest (tool missing, failed or unsigned). */
+  signerReadable: boolean;
   /** Certificate digest equals the owner's expected digest; null when not compared. */
   signingMatchesExpected: boolean | null;
   /** Server-secret patterns found in the unpacked APK; null when not scanned. */
   secretFindings: number | null;
+  /** Files the scanner skipped because of their size (20 MB or more); null when not counted. */
+  secretScanSkipped: number | null;
   sizeBytes: number | null;
 }
 
@@ -242,7 +248,7 @@ const COMPONENT_KINDS = new Set(["activity", "activity-alias", "service", "recei
 
 /** The manifest facts the gate needs, from the xmltree dump. */
 export function parseManifestTree(text: string, packageName: string | null): Pick<ArtifactFacts,
-  "allowBackup" | "usesCleartextTraffic" | "debuggable" | "testOnly" | "hasDataExtractionRules" |
+  "allowBackup" | "usesCleartextTraffic" | "debuggable" | "testOnly" | "manifestParsed" | "hasDataExtractionRules" |
   "exported" | "schemes" | "mapsKeyPresent"> {
   const manifest = parseXmlTree(text);
   const app = manifest?.children.find((n) => n.name === "application");
@@ -279,6 +285,7 @@ export function parseManifestTree(text: string, packageName: string | null): Pic
     usesCleartextTraffic: decodeBool(app?.attrs.usesCleartextTraffic),
     debuggable: decodeBool(app?.attrs.debuggable),
     testOnly: decodeBool(app?.attrs.testOnly),
+    manifestParsed: manifest !== null,
     hasDataExtractionRules: app?.attrs.dataExtractionRules !== undefined,
     exported: exported.sort((a, b) => a.name.localeCompare(b.name)),
     schemes: [...schemes].sort(),
@@ -301,7 +308,7 @@ export function parseMinLoadAlign(text: string): number | null {
 
 /** `apksigner verify --print-certs` → digest match and debug-key use, as booleans only. */
 export function parseSigner(text: string, expectedSha256: string | null | undefined): {
-  debugSigned: boolean | null; signingMatchesExpected: boolean | null;
+  debugSigned: boolean | null; signerReadable: boolean; signingMatchesExpected: boolean | null;
 } {
   const dn = /Signer #1 certificate DN:\s*(.+)$/m.exec(text)?.[1] ?? null;
   const digest = /Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F:]+)/m.exec(text)?.[1] ?? null;
@@ -309,6 +316,7 @@ export function parseSigner(text: string, expectedSha256: string | null | undefi
   const expected = typeof expectedSha256 === "string" && norm(expectedSha256).length === 64 ? norm(expectedSha256) : null;
   return {
     debugSigned: dn === null ? null : /\bCN=Android Debug\b/.test(dn),
+    signerReadable: dn !== null && digest !== null,
     signingMatchesExpected: digest === null || expected === null ? null : norm(digest) === expected,
   };
 }
@@ -340,7 +348,7 @@ export function evaluateArtifact(f: ArtifactFacts): GateResult {
     `minSdk ${f.minSdk ?? "unreadable"}`));
 
   const forbidden = f.permissions.filter((p) => FORBIDDEN_PERMISSIONS.includes(p));
-  const unknown = f.permissions.filter((p) => !(p in ALLOWED_PERMISSIONS) && !FORBIDDEN_PERMISSIONS.includes(p));
+  const unknown = f.permissions.filter((p) => !Object.prototype.hasOwnProperty.call(ALLOWED_PERMISSIONS, p) && !FORBIDDEN_PERMISSIONS.includes(p));
   const missing = ["android.permission.ACCESS_FINE_LOCATION", "android.permission.INTERNET"]
     .filter((p) => !f.permissions.includes(p));
   rows.push(row("A5", "Merged permissions", forbidden.length || unknown.length || missing.length ? "FAIL" : "PASS",
@@ -354,11 +362,11 @@ export function evaluateArtifact(f: ArtifactFacts): GateResult {
     f.hasDataExtractionRules ? "dataExtractionRules set" : "dataExtractionRules missing"));
   rows.push(bool("A8", "Cleartext traffic off", f.usesCleartextTraffic, false, "usesCleartextTraffic"));
   rows.push(row("A9", "Not debuggable or test-only",
-    f.debuggable === true || f.testOnly === true ? "FAIL" : "PASS",
-    `debuggable ${String(f.debuggable ?? false)}, testOnly ${String(f.testOnly ?? false)}`));
+    !f.manifestParsed || f.debuggable === true || f.testOnly === true ? "FAIL" : "PASS",
+    !f.manifestParsed ? "manifest not readable from the APK" : `debuggable ${String(f.debuggable ?? false)}, testOnly ${String(f.testOnly ?? false)}`));
 
   const unexpected = f.exported.filter((c) => {
-    const allowed = ALLOWED_EXPORTED[c.name];
+    const allowed = Object.prototype.hasOwnProperty.call(ALLOWED_EXPORTED, c.name) ? ALLOWED_EXPORTED[c.name] : undefined;
     return !allowed || (allowed.permission !== null && c.permission !== allowed.permission);
   });
   rows.push(row("A10", "Exported components", unexpected.length ? "FAIL" : "PASS",
@@ -382,8 +390,10 @@ export function evaluateArtifact(f: ArtifactFacts): GateResult {
   rows.push(f.zipAligned16k === null ? row("A15", "16 KB zip alignment", "FAIL", "zipalign not run")
     : row("A15", "16 KB zip alignment", f.zipAligned16k ? "PASS" : "FAIL", `zipalign -c -P 16: ${f.zipAligned16k ? "verified" : "failed"}`));
 
-  rows.push(f.secretFindings === null ? row("A16", "Static secret scan", "FAIL", "not run")
-    : row("A16", "Static secret scan", f.secretFindings === 0 ? "PASS" : "FAIL", `${f.secretFindings} finding(s); kinds only, never values`));
+  rows.push(f.secretFindings === null || f.secretScanSkipped === null ? row("A16", "Static secret scan", "FAIL", "not run")
+    : f.secretScanSkipped > 0 ? row("A16", "Static secret scan", "FAIL",
+      `${f.secretScanSkipped} file(s) of 20 MB or more were not scanned; ${f.secretFindings} finding(s) in the rest`)
+      : row("A16", "Static secret scan", f.secretFindings === 0 ? "PASS" : "FAIL", `${f.secretFindings} finding(s); kinds only, never values`));
   rows.push(f.sizeBytes === null ? row("A17", "APK size", "FAIL", "size unknown")
     : row("A17", "APK size", f.sizeBytes <= MAX_APK_BYTES ? "PASS" : "FAIL",
       `${(f.sizeBytes / 1024 / 1024).toFixed(1)} MiB (limit ${MAX_APK_BYTES / 1024 / 1024} MiB)`));
@@ -395,7 +405,9 @@ export function evaluateArtifact(f: ArtifactFacts): GateResult {
   } else {
     rows.push(row("A18", "Maps key compiled in", f.mapsKeyPresent ? "PASS" : "FAIL",
       f.mapsKeyPresent ? "present (value not read)" : "missing: the map would render without tiles"));
-    if (f.debugSigned === true) {
+    if (!f.signerReadable) {
+      rows.push(row("A19", "Release signing certificate", "FAIL", "signer unreadable: apksigner gave no certificate"));
+    } else if (f.debugSigned === true) {
       rows.push(row("A19", "Release signing certificate", "FAIL", "signed with the Android debug certificate"));
     } else if (f.signingMatchesExpected === null) {
       rows.push(row("A19", "Release signing certificate", "BLOCKED",

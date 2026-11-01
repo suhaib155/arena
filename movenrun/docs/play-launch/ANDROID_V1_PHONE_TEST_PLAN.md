@@ -21,6 +21,7 @@ signing) now run in GitHub Actions against the actual APK: see section B.
 | Approved build SHA | `ac8d87bed55f4dae0b9152ed21fa8cc29b8050f9` (one EAS `preview` APK, conditional on the EAS prerequisites; owner approval of 30 Oct) |
 | Integration head after this change | Recorded in the merge commit of the PR that changed this file. A build from that head needs a **new** owner approval naming it; the `ac8d87b` approval does not move |
 | Difference between the two for the tester | K-1 below: on `ac8d87b` a guest save wrongly reads "waiting for the server check"; on the new head it reads "Estimated on this phone" |
+| **The `ac8d87b` APK cannot pass the gate** | Its merged manifest still carries `USE_BIOMETRIC` and `USE_FINGERPRINT` (pulled in by `expo-secure-store`; the app never uses them). The gate now forbids both, so an APK built from `ac8d87b` FAILs row A5 and must not be installed under this plan. No deviation is accepted. The owner action is a **fresh approval of one EAS preview build from the integration head**, naming that SHA; until then the EAS build stays held |
 | Package | `io.movenrun.app` |
 | Server | `https://movenrun-staging-api.onrender.com` (Render, live deploy at `efd381b`). That backend does **not** have MR-A-01 (short-walk evidence), MR-A-02 (no distance across a vehicle jump) or the 5-minute future-skew refusal. Server verdicts in H-4(a), H-5(b) and H-6 are therefore **BLOCKED**; record only what the phone shows |
 | Out of scope | Territory, Deeds, tokens, clubs, competition, wallet transactions, Play-installed behaviour |
@@ -219,7 +220,7 @@ Result: **NOT RUN**
 
 | Id | Found at | Status |
 |---|---|---|
-| K-1 | A guest save (and a capacity-limited route) read "waiting for the server check" although nothing is sent | Fixed on the integration head by `willRequestServerCheck`; present on `ac8d87b` |
+| K-1 | A guest save (and a capacity-limited route) read "waiting for the server check" although nothing is sent | Fixed on the integration head by `willRequestServerCheck`; present on `ac8d87b`. Accepted side effect: a signed-in user whose account restore failed at launch (auth status unknown, tokens kept) is now saved locally only. Before, that save was sent once with the stored token but never retried durably, so the only loss is the case where the server came back before Save was tapped. Same rule as K-3 |
 | K-2 | If the session's location watch is refused by the system mid-session, the app shows "GPS tracking was interrupted" but does not restart the watch; distance stops until Finish. Android only reaches this through a permission or settings refusal mid-walk | Open; check in H-7 by revoking location mid-walk and record what happens |
 | K-3 | Signed in but the account could not be restored at launch (offline cold start): a save in that state is local only and is not queued for the server check | Open; after K-1 it is labelled "Estimated on this phone", which is truthful |
 | K-4 | Fixes stamped later than the phone's session clock are rejected as future-dated with no tolerance; a phone whose clock lags GNSS time could stop counting distance | Unverified; H-6(b) records it |

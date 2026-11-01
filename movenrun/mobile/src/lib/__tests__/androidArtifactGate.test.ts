@@ -93,8 +93,10 @@ function goodFacts(kind: ArtifactFacts["kind"] = "ci-release"): ArtifactFacts {
     })),
     zipAligned16k: true,
     debugSigned: kind === "ci-release",
+    signerReadable: true,
     signingMatchesExpected: null,
     secretFindings: 0,
+    secretScanSkipped: 0,
     sizeBytes: 80 * 1024 * 1024,
   };
 }
@@ -210,10 +212,10 @@ Signer #1 certificate SHA-256 digest: ${SIGNING_DIGEST}
 Signer #1 certificate SHA-1 digest: ${"cd".repeat(20)}
 `;
   assert.deepEqual(parseSigner(out, SIGNING_DIGEST.toUpperCase().match(/../g)!.join(":")),
-    { debugSigned: true, signingMatchesExpected: true });
-  assert.deepEqual(parseSigner(out, "not-a-digest"), { debugSigned: true, signingMatchesExpected: null });
-  assert.deepEqual(parseSigner(out, "ef".repeat(32)), { debugSigned: true, signingMatchesExpected: false });
-  assert.deepEqual(parseSigner("", SIGNING_DIGEST), { debugSigned: null, signingMatchesExpected: null });
+    { debugSigned: true, signerReadable: true, signingMatchesExpected: true });
+  assert.deepEqual(parseSigner(out, "not-a-digest"), { debugSigned: true, signerReadable: true, signingMatchesExpected: null });
+  assert.deepEqual(parseSigner(out, "ef".repeat(32)), { debugSigned: true, signerReadable: true, signingMatchesExpected: false });
+  assert.deepEqual(parseSigner("", SIGNING_DIGEST), { debugSigned: null, signerReadable: false, signingMatchesExpected: null });
 });
 
 test("no Maps key value or certificate digest can appear in the report or the facts", () => {
@@ -228,6 +230,8 @@ Signer #1 certificate SHA-256 digest: ${SIGNING_DIGEST}`, SIGNING_DIGEST) };
 test("secret findings, a missing scan or an oversized APK fail", () => {
   assert.equal(status({ ...goodFacts(), secretFindings: 2 }, "A16"), "FAIL");
   assert.equal(status({ ...goodFacts(), secretFindings: null }, "A16"), "FAIL");
+  assert.equal(status({ ...goodFacts(), secretScanSkipped: 1 }, "A16"), "FAIL");
+  assert.equal(status({ ...goodFacts(), secretScanSkipped: null }, "A16"), "FAIL");
   assert.equal(status({ ...goodFacts(), sizeBytes: 400 * 1024 * 1024 }, "A17"), "FAIL");
 });
 
@@ -263,4 +267,23 @@ test("app.json removes the biometric permissions the app never uses (first CI re
   try { hits = execFileSync("grep", ["-rln", "requireAuthentication", ...src], { encoding: "utf8" }); } catch { hits = ""; }
   assert.equal(hits.split("\n").filter((l) => l && !l.includes("__tests__")).length, 0,
     "biometric secure-store access would need USE_BIOMETRIC back");
+});
+
+test("an unreadable signer fails A19 for EAS artifacts instead of reading as not compared", () => {
+  const facts = { ...goodFacts("eas-preview"), ...parseSigner("", "ab".repeat(32)) };
+  assert.equal(status(facts, "A19"), "FAIL");
+  assert.equal(status({ ...goodFacts("ci-release"), ...parseSigner("", null) }, "A19"), "NOT APPLICABLE");
+});
+
+test("an unreadable manifest fails A9 rather than reading as not debuggable", () => {
+  assert.equal(status({ ...goodFacts(), ...parseManifestTree("", "io.movenrun.app") }, "A9"), "FAIL");
+});
+
+test("prototype names are never treated as allowlisted permissions or components", () => {
+  for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    const perms = { ...goodFacts(), permissions: [...goodFacts().permissions, name] };
+    assert.equal(status(perms, "A5"), "FAIL", `permission ${name}`);
+    const comps = { ...goodFacts(), exported: [...goodFacts().exported, { kind: "receiver" as const, name }] };
+    assert.equal(status(comps, "A10"), "FAIL", `component ${name}`);
+  }
 });
