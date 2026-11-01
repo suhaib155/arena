@@ -120,6 +120,8 @@ export class SessionService {
   /** Issue a brand-new session (login/signup) or continue a family (refresh). */
   async issue(input: IssueSessionInput): Promise<IssuedSession> {
     const user = await this.users.findById(input.userId);
+    // An accepted deletion still being completed: no new session, ever.
+    if (user?.status === "deleting") throw new IdentityError("account_deletion_pending");
     if (!user || user.status !== "active") throw new IdentityError("unauthenticated");
 
     const now = this.now();
@@ -187,9 +189,17 @@ export class SessionService {
       throw new IdentityError("session_invalid");
     }
 
-    await this.sessions.markUsed(sessionId, this.now());
+    // Last use only orders the device list, so it is written at most once a
+    // minute per session rather than on every authenticated request.
+    const now = this.now();
+    if (!session.lastUsedAt || now.getTime() - session.lastUsedAt.getTime() >= SessionService.LAST_USED_RESOLUTION_MS) {
+      await this.sessions.markUsed(sessionId, now);
+    }
     return session;
   }
+
+  /** How stale a session's recorded last use may get before a request rewrites it. */
+  static readonly LAST_USED_RESOLUTION_MS = 60_000;
 
   /**
    * Rotate a refresh token. On success returns fresh access+refresh tokens for

@@ -42,6 +42,10 @@
     "src/movement/repositories/**/*",
     "src/movement/http/validation.ts",
     "src/services/hex.service.ts",
-    "src/config.ts"
+    "src/config.ts",
+    "src/gameplay/**/*",
+    // Declares the request augmentation that rateLimit.ts (reached through
+    // gameplay/wiring.ts) needs, as tsconfig.api.json does.
+    "src/middleware/auth.ts"
   ]
 }

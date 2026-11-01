@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler } from "express";
 import {
   users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations,
+  accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, googleSignInExchanges,
 } from "../db/identity.schema.js";
 import { movementVerifications } from "../db/movement.schema.js";
 import { getDb } from "../db/client.js";
@@ -11,6 +11,7 @@ import { createIdentityServices } from "../identity/http/wiring.js";
 import { createIdentityRouter } from "../identity/http/router.js";
 import { createProductionMovementRouter } from "../movement/http/productionRouter.js";
 import { createDrizzleAccountDeletionStore } from "../identity/accountDeletion.js";
+import { createErasureWorker, type ErasureWorker } from "../identity/erasureWorker.js";
 import { SupabaseAuthClient, SupabaseTokenVerifier } from "../identity/providers/supabaseAuth.js";
 import { EoaSignatureVerifier } from "../identity/providers/eoaVerifier.js";
 import { createDrizzleSignInStores } from "../identity/repositories/signInStores.js";
@@ -19,6 +20,9 @@ import { createCorsMiddleware, createSecurityHeadersMiddleware } from "../middle
 import { createGlobalRateLimiter, createWriteRateLimiter } from "../middleware/rateLimit.js";
 import type { ApiConfig } from "./config.js";
 import { createMaintenance } from "./maintenance.js";
+import { trustProxySetting } from "./trustedProxies.js";
+import { claimCellOptionsOf, gameplayRulesFromEnv } from "../gameplay/rules.js";
+import { createProductionGameplay } from "../gameplay/wiring.js";
 
 export function createApiApp(config: ApiConfig) {
   // Sign-in is Google or wallet through Supabase Auth only. The email-code
@@ -45,7 +49,38 @@ export function createApiApp(config: ApiConfig) {
   //  - Provider users that never became a MovenRun account (sweepOrphanProviderUsers).
   //  - Sign-in sessions a week past their refresh expiry: every refresh adds
   //    a row, and Supabase Free holds 500 MB (FREE_HOSTING_READINESS.md).
+  // Gameplay (G3/G4) is off unless MOVENRUN_GAMEPLAY_ENABLED is "true": no
+  // route, no task and no query against its tables (migration 0011 is only
+  // proposed). Enabling it is an owner decision; see G34_SERVER_ARCHITECTURE.md.
+  const gameplayRules = gameplayRulesFromEnv();
+  const gameplay = gameplayRules
+    ? createProductionGameplay({
+      db,
+      rules: gameplayRules,
+      verifyBearer: async (token) => ({ userId: (await identity.sessions.verifyAccess(token)).userId }),
+      rateLimit: config,
+    })
+    : null;
+  // Account deletion. With gameplay on, a request is accepted in a short
+  // transaction and the erasure (fence, gameplay replay, identity rows) runs
+  // in the erasure worker, started right after the acceptance and by the
+  // maintenance loop, with bounded, retried attempts (G34_ERASURE_QUEUE.md).
+  // With gameplay off the erasure runs during the request, as before, with
+  // bounded lock waits; accounts left "deleting" by an earlier gameplay-on
+  // run are erased by the sweep task.
+  let worker: ErasureWorker | null = null;
+  const accountDeletion = createDrizzleAccountDeletionStore(db, { queue: gameplay ? { onAccepted: () => worker?.kick() } : null });
+  worker = gameplay
+    ? createErasureWorker({ db, store: accountDeletion, removeProviderUsers: (subjects) => supabaseSignIn.removeProviderUsers(subjects) })
+    : null;
   const maintenance = createMaintenance([
+    worker
+      ? { name: "account erasure jobs", everyMs: 30 * 1000, run: () => worker!.drain() }
+      : { name: "accounts awaiting erasure", everyMs: 15 * 60 * 1000, run: () => accountDeletion.sweepDeleting() },
+    // Completed deletion receipts past their 30-day retention, in bounded
+    // batches. Only with the worker (gameplay on); a no-op probe until the
+    // proposed job table exists.
+    ...(worker ? [{ name: "expired account erasure receipts", everyMs: 60 * 60 * 1000, run: () => worker!.purgeReceipts() }] : []),
     {
       name: "pending sign-in deletions",
       everyMs: 5 * 60 * 1000,
@@ -53,11 +88,12 @@ export function createApiApp(config: ApiConfig) {
     },
     { name: "unused sign-in records", everyMs: 30 * 60 * 1000, run: () => supabaseSignIn.sweepOrphanProviderUsers() },
     { name: "expired sign-in sessions", everyMs: 60 * 60 * 1000, run: () => identity.sessions.pruneExpiredSessions() },
+    ...(gameplay ? [gameplay.dayClose] : []),
   ]);
   maintenance.start();
   const app = express();
   app.disable("x-powered-by");
-  app.set("trust proxy", config.TRUST_PROXY_HOPS);
+  app.set("trust proxy", trustProxySetting(config.TRUST_PROXY, config.TRUST_PROXY_HOPS));
   app.use(maintenance.afterResponse);
   app.use(createSecurityHeadersMiddleware(), createCorsMiddleware(config));
   app.use(createGlobalRateLimiter(config));
@@ -67,7 +103,7 @@ export function createApiApp(config: ApiConfig) {
       // Probe migrated columns, not just database connectivity. No rows or
       // coordinates are selected and no connection errors reach the logs.
       for (const table of [users, authIdentities, authSessions, emailOtpChallenges, securityAuditEvents, wallets, walletLinkChallenges,
-        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, movementVerifications]) {
+        accountCapacity, walletSignInChallenges, pendingAuthUserDeletions, walletSignInHandoffs, authUserCreations, googleSignInExchanges, movementVerifications]) {
         await db.select().from(table).limit(0);
       }
       res.json({ status: "ready", database: "ready", signIn: "supabase" });
@@ -75,15 +111,33 @@ export function createApiApp(config: ApiConfig) {
       res.status(503).json({ status: "unavailable" });
     }
   });
-  app.use(express.json({ limit: "2mb" }));
-  // Authentication entry is public, but still subject to the write limit.
+  // Authentication entry is public, but still subject to the write limit,
+  // checked before any body is read.
   app.use("/identity/auth", createWriteRateLimiter(config));
+  // Identity bodies are a token, a signed message or a code: a few kilobytes
+  // at most. Only a movement session (up to 10,000 points) needs more, so the
+  // larger limit applies there alone and nobody can make the public sign-in
+  // routes parse megabytes.
+  app.use("/identity", express.json({ limit: "32kb" }));
+  app.use("/movement", express.json({ limit: "2mb" }));
   app.use("/identity", createIdentityRouter(identity, {
-    accountDeletion: createDrizzleAccountDeletionStore(db),
+    accountDeletion,
     supabaseSignIn,
     emailOtpEnabled: false,
   }));
-  app.use("/movement", createProductionMovementRouter(config));
+  // Rule set 1002 needs the session path derived at verification; with
+  // gameplay off, or under 1001, nothing extra is derived or stored.
+  const sessionPathRule = gameplayRules?.units.source?.kind === "session-path" ? gameplayRules.units.source.rule : undefined;
+  // Sealing v2 needs the territory seal computed at verification (the raw
+  // fixes are never stored); with gameplay off nothing is computed or stored.
+  const territorySealRule = gameplayRules?.territorySeal?.rule === "server-enclosed-loop" ? gameplayRules.territorySeal.loop : undefined;
+  // Its claimable cells are computed at the rule set's unit resolution.
+  const territoryClaim = gameplayRules ? claimCellOptionsOf(gameplayRules) : undefined;
+  app.use("/movement", createProductionMovementRouter(config, { sessionPathRule, territorySealRule, territoryClaim }));
+  if (gameplay) {
+    app.use("/gameplay", express.json({ limit: "8kb" }));
+    app.use("/gameplay", gameplay.router);
+  }
   app.use((_req, res) => { res.status(404).json({ error: "not_found" }); });
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error?.type === "entity.too.large" ? 413 : error?.type === "entity.parse.failed" ? 400 : 500;

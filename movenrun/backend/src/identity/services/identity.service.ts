@@ -76,6 +76,9 @@ export class IdentityService {
     if (existing) {
       const user = await this.stores.users.findById(existing.userId);
       if (!user) throw new IdentityError("session_invalid"); // integrity: identity without user
+      // A deletion of this account was accepted and is still being completed:
+      // refuse before anything is written for it (no login mark, no audit row).
+      if (user.status === "deleting") throw new IdentityError("account_deletion_pending");
       await this.stores.identities.markAuthenticated(existing.id, this.now());
       await this.audit.record("login", { userId: user.id, subjectId: existing.id, metadata: { provider: input.provider } });
       return { user, identity: existing, created: false };
@@ -114,6 +117,7 @@ export class IdentityService {
         if (winner) {
           const user = await this.stores.users.findById(winner.userId);
           if (user) {
+            if (user.status === "deleting") throw new IdentityError("account_deletion_pending");
             await this.audit.record("login", { userId: user.id, subjectId: winner.id, metadata: { provider: input.provider } });
             return { user, identity: winner, created: false };
           }

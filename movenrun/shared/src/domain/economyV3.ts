@@ -23,11 +23,29 @@
  *
  * ## Units
  *
- * Amounts are integer micro-MOVE (1 MOVE = 1,000,000). Every division that
+ * Amounts are integer micro-MOVE (1 MOVE = 1,000,000): off-chain credits,
+ * not tokens. The books call the day's created credits "minted"; that is the
+ * source's word, and nothing here mints on a chain. Every division that
  * produces an amount floors, and every floor's remainder is accounted for:
  * either it stays with the runner (the toll) or it returns to the season pool
  * (the pool split and the ceilings). Nothing is rounded up.
+ *
+ * Exactness policy: every amount and pool is a non-negative SAFE integer
+ * (`Number.isSafeInteger`, not merely finite; above 2^53 − 1 a number no
+ * longer names one integer), and anything else is refused with a RangeError.
+ * The toll is computed in bigint. The rate factors the source states as
+ * decimals or powers (effort, consistency, recharge rate, upkeep's
+ * zones^0.25) are applied once to an integer and floored; the books'
+ * identities are then checked exactly, in bigint, by `dayBooksProblems`.
  */
+
+import { isMicroAmount } from "./creditUnits";
+
+export { isMicroAmount };
+
+function requireMicro(name: string, value: unknown): void {
+  if (!isMicroAmount(value)) throw new RangeError(`${name} must be a non-negative safe integer micro amount`);
+}
 
 /* ── rules ────────────────────────────────────────────────────────────────── */
 
@@ -103,7 +121,14 @@ const V1: EconomyRules = {
   autoChargeCapBasisPoints: 6000,
 };
 
-const RULES_BY_VERSION: ReadonlyMap<number, EconomyRules> = new Map([[1, V1]]);
+function deepFreeze<T>(o: T): T {
+  for (const v of Object.values(o as object)) if (v !== null && typeof v === "object") deepFreeze(v);
+  return Object.freeze(o);
+}
+
+// Frozen: a caller holding the registry's object cannot rewrite a rule in
+// place for every later caller (section 30: rules never change retroactively).
+const RULES_BY_VERSION: ReadonlyMap<number, EconomyRules> = new Map([[1, deepFreeze(V1)]]);
 
 /**
  * The economy rules for a session's stamped rules version, or null when this
@@ -112,6 +137,34 @@ const RULES_BY_VERSION: ReadonlyMap<number, EconomyRules> = new Map([[1, V1]]);
  */
 export function economyRulesFor(rulesVersion: number): EconomyRules | null {
   return RULES_BY_VERSION.get(rulesVersion) ?? null;
+}
+
+function canonical(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v !== null && typeof v === "object") {
+    return Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical((v as Record<string, unknown>)[k])]));
+  }
+  return v;
+}
+
+/** The canonical JSON of a version's registry rules, for a pinned digest; null when unknown. */
+export function economyRulesCanonicalJson(rulesVersion: number): string | null {
+  const r = economyRulesFor(rulesVersion);
+  return r ? JSON.stringify(canonical(r)) : null;
+}
+
+/**
+ * Null when `rules` is exactly the registry's rules for its version, else
+ * why not. A reconciler never trusts a rules object it is handed: one that
+ * keeps `rulesVersion: 1` but changes a value is refused.
+ */
+export function pinnedRulesProblem(rules: EconomyRules): string | null {
+  const pinned = economyRulesCanonicalJson(rules?.rulesVersion);
+  if (pinned === null) return `unknown economy rules version ${String(rules?.rulesVersion)}`;
+  if (rules !== economyRulesFor(rules.rulesVersion) && JSON.stringify(canonical(rules)) !== pinned) {
+    return `rules object is not the pinned registry rules for version ${rules.rulesVersion}`;
+  }
+  return null;
 }
 
 /* ── seasons ──────────────────────────────────────────────────────────────── */
@@ -219,6 +272,7 @@ export function sessionToll(
   deedOwnerByCell: ReadonlyMap<string, string>,
   runnerAndLinked: ReadonlySet<string>,
 ): TollResult {
+  if (!Number.isSafeInteger(sessionRewardMicro)) throw new RangeError("sessionRewardMicro must be a safe integer");
   const distinct = [...new Set(crossedCells)];
   const cellsByOwner = new Map<string, number>();
   for (const cell of distinct) {
@@ -229,10 +283,13 @@ export function sessionToll(
   const tolled = [...cellsByOwner.values()].reduce((a, b) => a + b, 0);
   const toOwners = new Map<string, number>();
   if (tolled === 0 || sessionRewardMicro <= 0) return { paidMicro: 0, toOwners };
-  const toll = (sessionRewardMicro * rules.tollBasisPoints * tolled) / (10_000 * distinct.length);
+  // Each share is floor(reward × bp × cells ÷ (10,000 × distinct)), exactly:
+  // the toll × cells ÷ tolled, without a fractional toll in between.
+  const numerator = BigInt(sessionRewardMicro) * BigInt(rules.tollBasisPoints);
+  const denominator = 10_000n * BigInt(distinct.length);
   let paid = 0;
   for (const [owner, cells] of [...cellsByOwner].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-    const share = Math.floor((toll * cells) / tolled);
+    const share = Number((numerator * BigInt(cells)) / denominator);
     if (share > 0) toOwners.set(owner, share);
     paid += share;
   }
@@ -252,7 +309,7 @@ export function upkeepOwedDayShares(
   unvisitedZoneLevels: readonly LandLevel[],
   awayProtected = false,
 ): number {
-  if (!Number.isInteger(zonesHeld) || zonesHeld < 0) throw new RangeError("zonesHeld must be an integer ≥ 0");
+  if (!Number.isSafeInteger(zonesHeld) || zonesHeld < 0) throw new RangeError("zonesHeld must be a safe integer ≥ 0");
   if (unvisitedZoneLevels.length > zonesHeld) throw new RangeError("more unvisited zones than zones held");
   if (awayProtected || zonesHeld === 0) return 0;
   const perZone = rules.upkeepBaseDayShares * zonesHeld ** rules.upkeepExponent;
@@ -286,6 +343,13 @@ export interface DayCloseResult {
  * leaves it out.
  */
 export function dayCloseCharges(rules: EconomyRules, input: DayCloseInput): DayCloseResult {
+  if (!Number.isSafeInteger(input.dayRewardMicro)) throw new RangeError("dayRewardMicro must be a safe integer");
+  requireMicro("dayShareMicro", input.dayShareMicro);
+  if (!Number.isSafeInteger(input.scoringSessions) || input.scoringSessions < 0) throw new RangeError("scoringSessions must be a safe integer ≥ 0");
+  if (!(input.kitLevel in rules.rechargeRateByKit)) throw new RangeError(`unknown kit level ${String(input.kitLevel)}`);
+  for (const level of input.unvisitedZoneLevels) {
+    if (!(level in rules.upkeepMultiplierByLevel)) throw new RangeError(`unknown land level ${String(level)}`);
+  }
   const chargeUsed = Math.min(1, input.scoringSessions * rules.chargePerScoringSession);
   const reward = Math.max(0, input.dayRewardMicro);
   const recharge = Math.floor(chargeUsed * rules.rechargeRateByKit[input.kitLevel] * reward);
@@ -294,6 +358,7 @@ export function dayCloseCharges(rules: EconomyRules, input: DayCloseInput): DayC
   );
   const cap = Math.floor((reward * rules.autoChargeCapBasisPoints) / 10_000);
   const taken = Math.max(0, Math.min(owed, cap - recharge));
+  for (const [name, v] of [["recharge", recharge], ["upkeep owed", owed], ["upkeep taken", taken]] as const) requireMicro(name, v);
   return {
     rechargeMicro: recharge,
     upkeepOwedMicro: owed,
@@ -365,7 +430,7 @@ export interface DayInput {
  * per session, then the day-close charges.
  */
 export function settleDay(rules: EconomyRules, input: DayInput): DaySettlement {
-  if (!Number.isInteger(input.poolMicro) || input.poolMicro < 0) throw new RangeError("poolMicro must be an integer ≥ 0");
+  requireMicro("poolMicro", input.poolMicro);
   const ids = new Set<string>();
   for (const p of input.players) {
     if (ids.has(p.playerId)) throw new RangeError(`duplicate player ${p.playerId}`);
@@ -466,20 +531,78 @@ export function settleDay(rules: EconomyRules, input: DayInput): DaySettlement {
  * empty list. Settlement halts on any entry.
  */
 export function dayBooksProblems(rules: EconomyRules, s: DaySettlement): string[] {
+  const forged = pinnedRulesProblem(rules);
+  if (forged) return [forged];
   const b = s.books;
   const problems: string[] = [];
-  if (b.mintedMicro > b.poolMicro) problems.push("minted more than the daily pool");
-  if (b.mintedMicro + b.returnedToSeasonPoolMicro !== b.poolMicro) problems.push("pool not fully accounted for");
+  // Every amount a non-negative safe integer first; the identities are then
+  // exact in bigint, so float rounding can neither hide nor invent a gap.
+  const unsafe = (where: string, fields: Record<string, unknown>) => {
+    let bad = false;
+    for (const [name, v] of Object.entries(fields)) {
+      if (!isMicroAmount(v)) {
+        problems.push(`${where}${name} is not a non-negative safe integer`);
+        bad = true;
+      }
+    }
+    return bad;
+  };
+  const booksBad = unsafe("books: ", { ...b });
+  const playersBad = s.players.map((r) => unsafe(`player ${r.playerId}: `, {
+    dayRewardMicro: r.dayRewardMicro, creditedMicro: r.creditedMicro, tollPaidMicro: r.tollPaidMicro, tollReceivedMicro: r.tollReceivedMicro,
+    rechargeMicro: r.charges.rechargeMicro, upkeepTakenMicro: r.charges.upkeepTakenMicro, upkeepOwedMicro: r.charges.upkeepOwedMicro,
+    upkeepPaidInConditionMicro: r.charges.upkeepPaidInConditionMicro,
+    ...Object.fromEntries(r.sessionRewardsMicro.map((v, i) => [`sessionRewardsMicro[${i}]`, v])),
+  }));
+  if (booksBad || playersBad.some(Boolean)) return problems;
+
+  const n = (v: number) => BigInt(v);
+  if (n(b.mintedMicro) > n(b.poolMicro)) problems.push("minted more than the daily pool");
+  if (n(b.mintedMicro) + n(b.returnedToSeasonPoolMicro) !== n(b.poolMicro)) problems.push("pool not fully accounted for");
   if (b.tollPaidMicro !== b.tollReceivedMicro) problems.push("tolls paid and received differ");
-  if (b.creditedMicro + b.tollPaidMicro + b.burnedMicro !== b.mintedMicro) problems.push("minted not fully accounted for");
+  if (n(b.creditedMicro) + n(b.tollPaidMicro) + n(b.burnedMicro) !== n(b.mintedMicro)) problems.push("minted not fully accounted for");
+  const sum = (f: (r: PlayerDayResult) => number) => s.players.reduce((a, r) => a + n(f(r)), 0n);
+  if (sum((r) => r.dayRewardMicro) !== n(b.mintedMicro)) problems.push("player rewards do not add up to minted");
+  if (sum((r) => r.creditedMicro) !== n(b.creditedMicro)) problems.push("player credits do not add up to credited");
+  if (sum((r) => r.tollPaidMicro) !== n(b.tollPaidMicro)) problems.push("player tolls paid do not add up to the books");
+  // Tolls received are not summed over players: an owner paid a toll need not
+  // have moved that day (settleCreditsDay adds every holder as a row).
+  if (sum((r) => r.charges.rechargeMicro + r.charges.upkeepTakenMicro) !== n(b.burnedMicro)) problems.push("player charges do not add up to burned");
   for (const r of s.players) {
     const where = `player ${r.playerId}`;
-    if (r.creditedMicro < 0) problems.push(`${where}: credited below zero`);
     if (r.dayRewardMicro > rules.dayCeilingMicro) problems.push(`${where}: over the day ceiling`);
     if (r.sessionRewardsMicro.some((v) => v > rules.sessionCeilingMicro)) problems.push(`${where}: over the session ceiling`);
-    if (r.tollPaidMicro * 10_000 > r.dayRewardMicro * rules.tollBasisPoints) problems.push(`${where}: toll above 2%`);
-    const auto = r.charges.rechargeMicro + r.charges.upkeepTakenMicro;
-    if (auto * 10_000 > r.dayRewardMicro * rules.autoChargeCapBasisPoints) problems.push(`${where}: charges above 60%`);
+    // A day rebuilt from stored credit lines has no per-session split (empty);
+    // the day ceiling, toll and charge caps still bind it.
+    if (r.sessionRewardsMicro.length > 0 && r.sessionRewardsMicro.reduce((a, v) => a + n(v), 0n) !== n(r.dayRewardMicro)) {
+      problems.push(`${where}: session rewards do not add up to the day reward`);
+    }
+    if (n(r.tollPaidMicro) * 10_000n > n(r.dayRewardMicro) * n(rules.tollBasisPoints)) problems.push(`${where}: toll above 2%`);
+    const auto = n(r.charges.rechargeMicro) + n(r.charges.upkeepTakenMicro);
+    if (auto * 10_000n > n(r.dayRewardMicro) * n(rules.autoChargeCapBasisPoints)) problems.push(`${where}: charges above 60%`);
+    if (n(r.charges.upkeepTakenMicro) + n(r.charges.upkeepPaidInConditionMicro) !== n(r.charges.upkeepOwedMicro)) problems.push(`${where}: upkeep not fully accounted for`);
+    if (n(r.dayRewardMicro) - n(r.tollPaidMicro) - auto !== n(r.creditedMicro)) problems.push(`${where}: credited does not follow from reward, toll and charges`);
+  }
+  return problems;
+}
+
+/**
+ * The independent reconciler's entry point: checks a day's books against the
+ * registry's rules for `rulesVersion`, loaded here, never passed in. With a
+ * season, the day's pool must also be that season's daily pool.
+ */
+export function reconcileDay(rulesVersion: number, s: DaySettlement, opts: { season?: number } = {}): string[] {
+  const rules = economyRulesFor(rulesVersion);
+  if (!rules) return [`unknown economy rules version ${rulesVersion}`];
+  const problems = dayBooksProblems(rules, s);
+  if (opts.season !== undefined) {
+    let pool: number;
+    try {
+      pool = dailyPoolMicro(rules, opts.season);
+    } catch (err) {
+      return [...problems, err instanceof Error ? err.message : String(err)];
+    }
+    if (s.books.poolMicro !== pool) problems.push(`pool ${s.books.poolMicro} is not season ${opts.season}'s daily pool ${pool}`);
   }
   return problems;
 }
