@@ -251,6 +251,29 @@ export function shouldSubmit(state: VerificationState): boolean {
 }
 
 /**
+ * Will Save actually send this route for a server check that can settle?
+ *
+ * `isVerifiable` answers whether the route is *eligible*. This answers whether
+ * a check will really happen for it, and it is the single fact behind both the
+ * submission and the "waiting for the server check" label. Without it a guest
+ * save (no token, nothing sent) and a capacity-limited route (never sent) were
+ * both labelled as waiting for a check that would never come.
+ *
+ * `accountId` is the server-derived id of a signed-in account; null for a
+ * guest and while sign-in has not been restored. A null owner also cannot hold
+ * a durable retry, so a failure would be lost; such a save is local only.
+ */
+export function willRequestServerCheck(input: {
+  hasClient: boolean;
+  verifiable: boolean;
+  evidenceStatus?: string;
+  accountId: string | null;
+}): boolean {
+  return input.hasClient && input.verifiable &&
+    input.evidenceStatus !== "capacity_limited" && input.accountId !== null;
+}
+
+/**
  * Whether a completed session is eligible for verification at all.
  *
  * Mirrors the product's existing save gate rather than inventing a second one:
