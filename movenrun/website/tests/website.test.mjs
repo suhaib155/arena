@@ -301,3 +301,8 @@ test("vercel config keeps the strict CSP and the API origin the deletion page ca
   const api = read("account-deletion/index.html").match(/<meta name="movenrun-api" content="([^"]+)"/)[1];
   assert.ok(csp.includes(api), "CSP connect-src allows the API origin");
 });
+
+test("the test folder is not published with the site", () => {
+  const ignore = read(".vercelignore").split("\n").map((l) => l.trim());
+  assert.ok(ignore.includes("tests/"));
+});
