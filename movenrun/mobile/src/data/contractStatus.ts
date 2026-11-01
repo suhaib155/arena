@@ -72,7 +72,7 @@ export const BASE_SEPOLIA_STATUS: NetworkStatus = {
     {
       key: "MoveToken",
       displayName: "MoveToken",
-      purpose: "The $MOVE token contract (oracle-gated, capped supply).",
+      purpose: "Testnet reference only. MovenRun v1 has no token.",
       address: "0x86fD3984D0c4D1A8912Fc168cb6eD2a35B94C1aC",
       category: "token",
       status: "deployed",
@@ -80,7 +80,7 @@ export const BASE_SEPOLIA_STATUS: NetworkStatus = {
     {
       key: "GPSOracle",
       displayName: "GPS Oracle",
-      purpose: "Verifies signed GPS routes before any on-chain action.",
+      purpose: "Testnet reference only. Not used in v1.",
       address: "0x7E3972Cff8fF3Ed352DD649Da2E949Bb80A4aF90",
       category: "oracle",
       status: "deployed",
@@ -112,7 +112,7 @@ export const BASE_SEPOLIA_STATUS: NetworkStatus = {
     {
       key: "ZoneChallenge",
       displayName: "Zone Challenge",
-      purpose: "On-chain land-defence battles for owned zones.",
+      purpose: "Testnet reference only. No battles in v1.",
       address: "0x3CC6b92B3051D2C4FbAf92423e427761982685D7",
       category: "challenge",
       status: "deployed",

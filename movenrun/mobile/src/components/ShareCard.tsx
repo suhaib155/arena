@@ -21,7 +21,7 @@ export function ShareCard({ questTitle, xpGained, level, streak }: ShareCardProp
         <Hexagon size={14} color={palette.pulseGreen} />
         <Text style={styles.brand}>MovenRun</Text>
         <View style={styles.spacer} />
-        <Text style={styles.loop}>Move → Capture → Own</Text>
+        <Text style={styles.loop}>Move → Explore → Progress</Text>
       </View>
 
       <Text style={styles.label}>Quest complete</Text>

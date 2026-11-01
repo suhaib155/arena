@@ -118,7 +118,8 @@ test("no new distance or duration threshold was introduced", () => {
 test("every progression effect is gated on movement, at its own call site", () => {
   const screen = summary();
   /* XP, streak and the movement-history row all go through `completeQuest`. */
-  assert.match(screen, /if \(movedOverGround\) completeQuest\(sessionQuest\)/);
+  /* The block form also records the estimate (MR-C), still inside the gate. */
+  assert.match(screen, /if \(movedOverGround\) \{\s*(\/\*[^]*?\*\/\s*)?const outcome = completeQuest\(sessionQuest\);\s*recordMovementXpEstimate\(/);
   /* Territory defence, and therefore `timesDefended`, the defence/control gains
      and the decay-clock reset that follow from `applyDefend`. */
   assert.match(screen, /evidenceComplete && movedOverGround\s*\n?\s*\? defendZones/);
@@ -234,14 +235,17 @@ test("degrading the chip changes nothing about what counts as evidence", () => {
      distance, preview or route work. */
   const rejected = screen.slice(screen.indexOf("if (!decision.accepted) {"));
   const branch = rejected.slice(0, rejected.indexOf("\n        }"));
-  assert.match(branch, /if \(degradesSignal\(decision\.reason\)\) setSignal\("degraded"\)/);
+  /* Health is read from the age of the last accepted fix (lib/fixHealth.ts),
+     which still degrades at once on `degradesSignal` reasons. */
+  assert.match(branch, /healthRef\.current\?\.observe\(decision, p\.accuracy, now\);\s*refreshSignal\(now\);/);
   assert.match(branch, /return;/);
   for (const forbidden of ["pushPoint", "setDistanceM", "distanceRef.current =", "previewRef.current?.push", "showLocation"]) {
     assert.ok(!branch.includes(forbidden), `a rejected fix must not ${forbidden}`);
   }
   /* A later accepted fix restores the good state — the accepted branch is the
      only other writer. */
-  assert.match(screen, /setSignal\(p\.accuracy != null && p\.accuracy > 25 \? "degraded" : "usable"\)/);
+  const accepted = screen.slice(screen.indexOf("showLocation(p);\n        healthRef"));
+  assert.match(accepted, /^showLocation\(p\);\s*healthRef\.current\?\.observe\(decision, p\.accuracy, now\);\s*refreshSignal\(now\);/);
 });
 
 /* ── large text ───────────────────────────────────────────────────────────── */

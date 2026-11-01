@@ -282,12 +282,12 @@ export default function ProfileScreen() {
             subtitle={identity.signedIn ? "Signed in · Account security" : "Sign in when you’re ready"}
             onPress={() => go("/account")}
           />
-          <NavRow
+          {isFeatureInRelease("wallets") ? <NavRow
             icon="cube-outline"
             title="Technical info"
             subtitle="App and connection details"
             onPress={() => go("/settings/technical")}
-          />
+          /> : null}
           <NavRow icon="help-circle-outline" title="Help" subtitle="Quick guides" onPress={() => go("/help")} />
           <NavRow icon="document-text-outline" title="Legal" subtitle="Terms of Use · Privacy Policy" onPress={() => go("/legal")} />
         </NavGroup>

@@ -18,6 +18,7 @@ import {
   type SecureSessionTokens,
 } from "../lib/secureSession";
 import type { RefreshOutcome, RestoreKind, UnavailableCode } from "../lib/authLifecycle";
+import { deletionOutcomeFromResponse, type DeletionOutcome } from "../lib/accountDeletionCopy";
 import { AuthedJsonTransport, type AuthedRequestInit } from "./authedTransport";
 import { verificationGeneration, setVerificationAccount } from "./verificationPrivacy";
 import { clearPendingQueue } from "./verificationQueue";
@@ -463,13 +464,14 @@ export class IdentityApiClient {
   }
 
   /**
-   * Permanently delete the signed-in account and everything the server holds
-   * for it. Local credentials and queued verifications are cleared only after
+   * Request deletion of the signed-in account and everything the server holds
+   * for it. Resolves "completed" only when the response confirms completion
+   * including the sign-in record; otherwise "requested". Local credentials and queued verifications are cleared only after
    * the server confirms, so a failed request leaves the person signed in and
    * able to try again instead of locally signed out with a live account.
    */
-  async deleteAccount(): Promise<void> {
-    await this.request<{ deleted: boolean }>("/identity/account/delete", {
+  async deleteAccount(): Promise<DeletionOutcome> {
+    const body = await this.request<unknown>("/identity/account/delete", {
       method: "POST",
       auth: true,
       body: { confirm: "DELETE" },
@@ -479,6 +481,7 @@ export class IdentityApiClient {
     void clearing.catch(() => {});
     const generation = verificationGeneration();
     await Promise.all([clearing, this.writeCredentials(generation, () => this.store.clear())]);
+    return deletionOutcomeFromResponse(body);
   }
 
   // ---- reads --------------------------------------------------------------

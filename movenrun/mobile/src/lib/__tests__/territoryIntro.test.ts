@@ -164,10 +164,12 @@ test("the 'Own' step states the preview/testnet limits rather than implying owne
   const own = CORE_LOOP.find((s) => s.key === "own");
   assert.ok(own);
   const detail = own.detail.toLowerCase();
-  // Grounded in data/contractStatus.ts (appAccess "Preview only", Zone Deeds
-  // "Arrive later") and lib/deedPreview.ts (no ownership, no mint, no value).
-  assert.match(detail, /preview/);
-  assert.match(detail, /testnet/);
+  // v1 hides Deeds and the testnet screen, so the step names neither; it says
+  // the ground is a personal preview and not ownership (T12).
+  assert.match(detail, /personal preview/);
+  assert.match(detail, /not ownership of any place/);
+  assert.doesNotMatch(detail, /deed|testnet/);
+  assert.match(detail, /no token/);
   assert.match(detail, /no wallet/);
   assert.match(detail, /no rewards/);
   assert.match(detail, /no value/);
