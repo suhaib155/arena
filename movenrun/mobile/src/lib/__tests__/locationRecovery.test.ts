@@ -97,6 +97,9 @@ test("the session screen acts on foreground return and on a silent location togg
   /* Location returning leaves a working registration alone. */
   assert.match(s, /if \(restartWhenLocationReturns\(watchStoppedRef\.current\)\) restartWatchRef\.current\?\.\(\)/);
   assert.match(s, /trackerGapAtRef\.current \?\?= silentGapStart\(lastFixSeenAtRef\.current/);
+  /* Resume and foreground return re-arm the silent-gap bound, so a gap cannot
+     reach back across a pause or a background spell already accounted for. */
+  assert.equal((s.match(/healthRef\.current\?\.rearm\(at\);[\s\S]{0,200}?lastFixSeenAtRef\.current = at;/g) ?? []).length, 2);
   /* Retry GPS is offered only while no watch runs. */
   assert.match(s, /\{watchStopped \? \(\s*<Button label="Retry GPS"/);
   /* A background spell during an open tracker gap is absorbed, not double counted. */

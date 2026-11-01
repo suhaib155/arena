@@ -480,6 +480,9 @@ export default function MoveSessionScreen() {
         else if (startedAt != null) recordGap(gapsRef.current, startedAt, at);
         backgroundedAtRef.current = null;
         healthRef.current?.rearm(at);
+        /* Fixes can arrive again from here, so a later silent-toggle gap may
+           not reach back across the pause or the background spell. */
+        lastFixSeenAtRef.current = at;
       } else if (backgroundedAtRef.current == null) {
         backgroundedAtRef.current = at;
         continuityBrokenRef.current = true;
@@ -555,6 +558,9 @@ export default function MoveSessionScreen() {
     if (next.lifecycle.state === "active") {
       continuityBrokenRef.current = true;
       healthRef.current?.rearm(at);
+        /* Fixes can arrive again from here, so a later silent-toggle gap may
+           not reach back across the pause or the background spell. */
+        lastFixSeenAtRef.current = at;
     }
     tapFeedback();
     apply(next.lifecycle);
