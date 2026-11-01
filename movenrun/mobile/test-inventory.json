@@ -31,6 +31,7 @@
     "src/lib/__tests__/h3Foundation.test.ts",
     "src/lib/__tests__/h3HermesRuntime.test.ts",
     "src/lib/__tests__/introFlow.test.ts",
+    "src/lib/__tests__/locationRecovery.test.ts",
     "src/lib/__tests__/mapArea.test.ts",
     "src/lib/__tests__/mapCameraLifecycle.test.ts",
     "src/lib/__tests__/mapConfig.test.ts",

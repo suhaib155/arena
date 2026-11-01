@@ -619,7 +619,7 @@ test("the tracker is started once, from a source that cannot change under it", (
   assert.ok(deps, "the start effect's dependency list was not found");
   assert.equal(
     deps![1].trim(),
-    "apply, showLocation, startAttempt",
+    "apply, markInterruption, showLocation, startAttempt",
     "only the explicit failed-start retry may restart the tracker",
   );
   /* The two callbacks in that list are stable by construction, so the exact
@@ -644,7 +644,12 @@ test("the tracker is started once, from a source that cannot change under it", (
       `${dep} must have an empty dependency list, or it can restart a live tracker`,
     );
   }
-  assert.equal((screen.match(/setStartAttempt\(/g) ?? []).length, 1, "there is one retry trigger");
+  /* Two triggers, both only for a session that never started: the Retry
+     button, and the return from system Settings after a permission or
+     location-toggle failure, which `recoveryOnForeground` allows only from
+     idle. */
+  assert.equal((screen.match(/setStartAttempt\(/g) ?? []).length, 2, "the retry button and the Settings return");
+  assert.match(screen, /if \(action === "retry_start"\) setStartAttempt\(/);
   assert.match(
     screen,
     /if \(!controlsAvailable && captureState !== "finished"\)[\s\S]*?setStartAttempt\(value => value \+ 1\)/,
