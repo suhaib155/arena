@@ -160,8 +160,8 @@ Result: **NOT RUN**
 
 | | |
 |---|---|
-| Steps | 1. Move, deny once, press Start again. 2. Deny twice; "Open Settings" works. 3. Grant approximate only. 4. Grant precise "Only this time". 5. Location services off, press Start |
-| Expected | No background-location prompt ever. Denied and off states say how to fix it in Settings and mention no demo route. Approximate only: no distance and a clear message. Precise: the session starts |
+| Steps | 1. Move, deny once, press Start again. 2. Deny twice; "Open Settings" works. 3. Grant approximate only. 4. Grant precise "Only this time". 5. Location services off, press Start. 6. With the start blocked by step 2 or 5, tap "Open Settings", fix it, return with the Back gesture. 7. Mid-walk, pull down quick settings, turn Location off for 30 s, back on, walk 100 m, finish |
+| Expected | No background-location prompt ever. Denied and off states say how to fix it in Settings and mention no demo route. Approximate only: no distance and a clear message. Precise: the session starts. On a build that contains K-2's fix: step 6 starts or retries by itself on return, and the Start Move screen no longer says permission is needed; step 7 shows "Location is off" within about 25 s, distance resumes after it is back on, and the summary shows a missing section. On `7409559`: step 6 needs Retry (or leaving and re-entering Start Move), and step 7 shows only a weak-signal chip; record what happens |
 | Evidence | One screenshot per state |
 
 ## H-8 Google and wallet sign-in
@@ -221,7 +221,8 @@ Result: **NOT RUN**
 | Id | Found at | Status |
 |---|---|---|
 | K-1 | A guest save (and a capacity-limited route) read "waiting for the server check" although nothing is sent | Fixed on the integration head by `willRequestServerCheck`; present on `ac8d87b`. Accepted side effect: a signed-in user whose account restore failed at launch (auth status unknown, tokens kept) is now saved locally only. Before, that save was sent once with the stored token but never retried durably, so the only loss is the case where the server came back before Save was tapped. Same rule as K-3 |
-| K-2 | If the session's location watch is refused by the system mid-session, the app shows "GPS tracking was interrupted" but does not restart the watch; distance stops until Finish. Android only reaches this through a permission or settings refusal mid-walk | Open; check in H-7 by revoking location mid-walk and record what happens |
+| K-2 | Location interruptions did not recover: returning from Settings left Start Move saying permission was needed (focus does not change on return); a location toggle switched off mid-walk showed only a weak-signal chip and the route bridged the dark span; a watch that failed mid-session was never restarted | Fixed after `7409559` (not in that build): foreground return re-checks and retries, a silent toggle is detected and opens a gap with a route break, and a dead watch restarts on return or via "Retry GPS". Check in H-7 steps 6 and 7 |
+| K-5 | Revoking location in Android Settings while a session is running makes Android end the app process; the unsaved session is lost | Android behaviour, not app code. Accepted for v1; the H-7 step 7 toggle is the recoverable case |
 | K-3 | Signed in but the account could not be restored at launch (offline cold start): a save in that state is local only and is not queued for the server check | Open; after K-1 it is labelled "Estimated on this phone", which is truthful |
 | K-4 | Fixes stamped later than the phone's session clock are rejected as future-dated with no tolerance; a phone whose clock lags GNSS time could stop counting distance | Unverified; H-6(b) records it |
 
