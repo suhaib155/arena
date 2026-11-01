@@ -619,7 +619,7 @@ test("the tracker is started once, from a source that cannot change under it", (
   assert.ok(deps, "the start effect's dependency list was not found");
   assert.equal(
     deps![1].trim(),
-    "apply, markInterruption, showLocation, startAttempt",
+    "apply, markInterruption, markWatchStopped, showLocation, startAttempt",
     "only the explicit failed-start retry may restart the tracker",
   );
   /* The two callbacks in that list are stable by construction, so the exact

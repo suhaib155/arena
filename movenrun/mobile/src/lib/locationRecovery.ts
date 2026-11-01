@@ -57,3 +57,36 @@ export function interruptionMessage(cause: "services_off" | "watch_stopped"): st
     ? "Location is off. Turn it on to keep recording; the missing section will be shown in your summary."
     : "GPS tracking was interrupted. Time continues; missing route sections will be shown in your summary.";
 }
+
+/**
+ * Where a gap opened by a silent location toggle starts.
+ *
+ * The toggle is noticed only once the signal has gone stale, so the darkness
+ * began at the last fix the watch delivered, not at detection. When no fix was
+ * ever seen, detection time is the only honest bound. Erring early is the
+ * safe direction: a gap says the distance is a floor.
+ */
+export function silentGapStart(lastFixSeenAt: number | null, detectedAt: number): number {
+  return lastFixSeenAt !== null && lastFixSeenAt <= detectedAt ? lastFixSeenAt : detectedAt;
+}
+
+/**
+ * A background spell while a tracker gap is already open is part of that gap,
+ * not a second one. Returns the open gap's (possibly earlier) start, or null
+ * when no tracker gap is open and the background span is recorded on its own.
+ */
+export function absorbBackgroundSpan(trackerGapAt: number | null, backgroundedAt: number | null): number | null {
+  if (trackerGapAt === null) return null;
+  return backgroundedAt !== null ? Math.min(trackerGapAt, backgroundedAt) : trackerGapAt;
+}
+
+/**
+ * Location came back on. Android resumes the registration it kept, so a
+ * working watch is left alone: restarting it would drop that registration and
+ * make the session pass the stricter start-of-session acquisition again, which
+ * can time out under trees and leave no watch at all. Only a watch that has
+ * actually stopped is restarted.
+ */
+export function restartWhenLocationReturns(watchStopped: boolean): boolean {
+  return watchStopped;
+}

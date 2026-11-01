@@ -7,9 +7,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  absorbBackgroundSpan,
   interruptionMessage,
   recoveryOnForeground,
+  restartWhenLocationReturns,
   shouldCheckLocationServices,
+  silentGapStart,
 } from "../locationRecovery";
 
 const base = { captureState: "idle" as const, startErrorSettingsRelevant: false, watchStopped: false, restarting: false };
@@ -50,6 +53,24 @@ test("the banner names the cause and promises only what the summary shows", () =
   }
 });
 
+test("a silent toggle's gap starts at the last fix seen, never after detection", () => {
+  assert.equal(silentGapStart(1_000, 22_000), 1_000);
+  assert.equal(silentGapStart(null, 22_000), 22_000);
+  assert.equal(silentGapStart(30_000, 22_000), 22_000, "a fix stamped after detection cannot move the start later");
+});
+
+test("leaving for Settings during an open gap extends that gap instead of adding a second", () => {
+  assert.equal(absorbBackgroundSpan(null, 5_000), null, "no open gap: the background span is its own");
+  assert.equal(absorbBackgroundSpan(10_000, 15_000), 10_000);
+  assert.equal(absorbBackgroundSpan(10_000, 4_000), 4_000);
+  assert.equal(absorbBackgroundSpan(10_000, null), 10_000);
+});
+
+test("location coming back restarts only a watch that actually stopped", () => {
+  assert.equal(restartWhenLocationReturns(false), false);
+  assert.equal(restartWhenLocationReturns(true), true);
+});
+
 /* The screens must listen to AppState, because returning from Settings never
    changes navigation focus. These pins fail if the listeners are removed. */
 const src = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
@@ -72,5 +93,12 @@ test("the session screen acts on foreground return and on a silent location togg
   const restart = s.slice(s.indexOf("restartWatchRef.current = () =>"), s.indexOf("tracker\n      .start(onEvidence"));
   assert.doesNotMatch(restart, /trackerStarted|newClientSessionId|createSessionClock/);
   /* A failed restart leaves no watch running, so it must be marked stopped. */
-  assert.match(restart, /watchStoppedRef\.current = true;\s*markInterruption\("watch_stopped"\)/);
+  assert.match(restart, /markWatchStopped\(true\);\s*markInterruption\("watch_stopped"\)/);
+  /* Location returning leaves a working registration alone. */
+  assert.match(s, /if \(restartWhenLocationReturns\(watchStoppedRef\.current\)\) restartWatchRef\.current\?\.\(\)/);
+  assert.match(s, /trackerGapAtRef\.current \?\?= silentGapStart\(lastFixSeenAtRef\.current/);
+  /* Retry GPS is offered only while no watch runs. */
+  assert.match(s, /\{watchStopped \? \(\s*<Button label="Retry GPS"/);
+  /* A background spell during an open tracker gap is absorbed, not double counted. */
+  assert.match(s, /const openGap = absorbBackgroundSpan\(trackerGapAtRef\.current, startedAt\);\s*if \(openGap !== null\) trackerGapAtRef\.current = openGap;\s*else if \(startedAt != null\) recordGap/);
 });

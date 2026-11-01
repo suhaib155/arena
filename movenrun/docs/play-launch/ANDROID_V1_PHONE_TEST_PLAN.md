@@ -161,7 +161,7 @@ Result: **NOT RUN**
 | | |
 |---|---|
 | Steps | 1. Move, deny once, press Start again. 2. Deny twice; "Open Settings" works. 3. Grant approximate only. 4. Grant precise "Only this time". 5. Location services off, press Start. 6. With the start blocked by step 2 or 5, tap "Open Settings", fix it, return with the Back gesture. 7. Mid-walk, pull down quick settings, turn Location off for 30 s, back on, walk 100 m, finish |
-| Expected | No background-location prompt ever. Denied and off states say how to fix it in Settings and mention no demo route. Approximate only: no distance and a clear message. Precise: the session starts. On a build that contains K-2's fix: step 6 starts or retries by itself on return, and the Start Move screen no longer says permission is needed; step 7 shows "Location is off" within about 10 s, distance resumes after it is back on, and the summary shows a missing section. On `7409559`: step 6 needs Retry (or leaving and re-entering Start Move), and step 7 shows only a weak-signal chip; record what happens |
+| Expected | No background-location prompt ever. Denied and off states say how to fix it in Settings and mention no demo route. Approximate only: no distance and a clear message. Precise: the session starts. On a build that contains K-2's fix: step 6 starts or retries by itself on return, and the Start Move screen no longer says permission is needed; step 7 shows "Location is off" within about 25 s, distance resumes after it is back on, and the summary shows a missing section. On `7409559`: step 6 needs Retry (or leaving and re-entering Start Move), and step 7 shows only a weak-signal chip; record what happens |
 | Evidence | One screenshot per state |
 
 ## H-8 Google and wallet sign-in

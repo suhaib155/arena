@@ -26,9 +26,12 @@ import { inspectFix, type FixDecision } from "@movenrun/shared/measurement";
 import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
 import { createTracker, hasLocationServices, TrackerStartError, type TrackerMode } from "@/services/moveTracker";
 import {
+  absorbBackgroundSpan,
   interruptionMessage,
   recoveryOnForeground,
+  restartWhenLocationReturns,
   shouldCheckLocationServices,
+  silentGapStart,
 } from "@/lib/locationRecovery";
 import {
   pushPoint,
@@ -147,6 +150,16 @@ export default function MoveSessionScreen() {
     setInterruption(cause);
   }, []);
   const watchStoppedRef = useRef(false);
+  /** Mirrors `watchStoppedRef` for the Retry GPS button, which must show only
+   *  while no watch is running: a tap on a working watch would restart its
+   *  acquisition from zero. */
+  const [watchStopped, setWatchStopped] = useState(false);
+  const markWatchStopped = useCallback((stopped: boolean) => {
+    watchStoppedRef.current = stopped;
+    setWatchStopped(stopped);
+  }, []);
+  /** Session-clock time of the last fix the watch delivered, accepted or not. */
+  const lastFixSeenAtRef = useRef<number | null>(null);
   const restartingRef = useRef(false);
   /** Restarts the running session's watch; null when no session owns one. */
   const restartWatchRef = useRef<(() => void) | null>(null);
@@ -241,6 +254,7 @@ export default function MoveSessionScreen() {
       gapsRef.current.length = 0;
       backgroundedAtRef.current = null;
       trackerGapAtRef.current = null;
+      lastFixSeenAtRef.current = null;
       continuityBrokenRef.current = false;
     };
     const unsubscribePrivacyReset = onVerificationPrivacyReset(() => {
@@ -269,6 +283,7 @@ export default function MoveSessionScreen() {
            sessionClock.ts); a fix's own time lets it catch up, within budget. */
         clockRef.current.catchUp(p.timestamp);
         const now = clockRef.current.now();
+        lastFixSeenAtRef.current = now;
         const decision: FixDecision = p.timestamp <= lastFixTimestampRef.current ||
           p.timestamp < (lifecycleRef.current.startedAt ?? now)
           ? { accepted: false, reason: "non_increasing_time", segmentMeters: 0 }
@@ -343,7 +358,7 @@ export default function MoveSessionScreen() {
     const onWatchError = (error: TrackerStartError) => {
         if (cancelled) return;
         setStartError(error);
-        watchStoppedRef.current = true;
+        markWatchStopped(true);
         markInterruption("watch_stopped");
         healthRef.current?.interrupt();
         setSignal("degraded");
@@ -363,14 +378,14 @@ export default function MoveSessionScreen() {
       if (cancelled || restartingRef.current) return;
       restartingRef.current = true;
       tracker.start(onEvidence, onWatchError, onAcquisition, onDisplay)
-        .then(() => { if (!cancelled) watchStoppedRef.current = false; })
+        .then(() => { if (!cancelled) markWatchStopped(false); })
         .catch((error: unknown) => {
           /* A newer start superseded this one; that start owns the outcome. */
           if (cancelled || (error instanceof TrackerStartError && error.code === "cancelled")) return;
           /* start() stopped the previous registration before it failed, so no
              watch is running now. Say so, and let the next foreground return
              or the banner's Retry try again. The gap stays open. */
-          watchStoppedRef.current = true;
+          markWatchStopped(true);
           markInterruption("watch_stopped");
         })
         .finally(() => { restartingRef.current = false; });
@@ -415,13 +430,14 @@ export default function MoveSessionScreen() {
       cancelled = true;
       restartWatchRef.current = null;
       watchStoppedRef.current = false;
+      lastFixSeenAtRef.current = null;
       unsubscribePrivacyReset();
       tracker.stop();
       /* The session's geometry goes with the session. Nothing about a route
          outlives the screen that captured it. */
       eraseEvidence();
     };
-  }, [apply, markInterruption, showLocation, startAttempt]);
+  }, [apply, markInterruption, markWatchStopped, showLocation, startAttempt]);
 
   /** Elapsed time, read on demand. Kept out of this component's state so the
    *  once-a-second tick re-renders only the clock, not the route canvas.
@@ -457,7 +473,11 @@ export default function MoveSessionScreen() {
       const at = clockRef.current.now();
       if (next === "active") {
         const startedAt = backgroundedAtRef.current;
-        if (startedAt != null) recordGap(gapsRef.current, startedAt, at);
+        /* Leaving for Settings to fix an open interruption is part of that
+           interruption: one gap, never two overlapping ones counted twice. */
+        const openGap = absorbBackgroundSpan(trackerGapAtRef.current, startedAt);
+        if (openGap !== null) trackerGapAtRef.current = openGap;
+        else if (startedAt != null) recordGap(gapsRef.current, startedAt, at);
         backgroundedAtRef.current = null;
         healthRef.current?.rearm(at);
       } else if (backgroundedAtRef.current == null) {
@@ -487,12 +507,12 @@ export default function MoveSessionScreen() {
         if (!on && interruptionRef.current !== "services_off") {
           markInterruption("services_off");
           continuityBrokenRef.current = true;
-          trackerGapAtRef.current ??= clockRef.current.now();
+          trackerGapAtRef.current ??= silentGapStart(lastFixSeenAtRef.current, clockRef.current.now());
         } else if (on && interruptionRef.current === "services_off") {
-          /* Back on. The gap stays open until a fix actually arrives; restart
-             the watch so recovery never depends on the old registration. */
-          markInterruption(null);
-          restartWatchRef.current?.();
+          /* Back on. The gap stays open until a fix actually arrives. The kept
+             registration resumes by itself; see `restartWhenLocationReturns`. */
+          markInterruption(watchStoppedRef.current ? "watch_stopped" : null);
+          if (restartWhenLocationReturns(watchStoppedRef.current)) restartWatchRef.current?.();
         }
       }).finally(() => { checking = false; });
     }, 2_000);
@@ -749,7 +769,7 @@ export default function MoveSessionScreen() {
       {startError || interruption ? (
         <View style={styles.demoBanner} accessibilityLiveRegion="polite">
           <Text style={styles.demoText}>{interruptionMessage(interruption ?? "watch_stopped")}</Text>
-          {interruption === "watch_stopped" ? (
+          {watchStopped ? (
             <Button label="Retry GPS" variant="secondary" onPress={() => restartWatchRef.current?.()} />
           ) : null}
         </View>
