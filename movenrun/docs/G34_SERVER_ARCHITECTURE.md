@@ -517,4 +517,11 @@ It also adds a consistency CHECK and a write-once trigger. The rollback removes 
 - up: `709ff82ab51d2cc6f1800488f3859aaebcd6916bf11052a8bf64877e1fa72951`
 - down: `276cd12bea47e5514b187bbba9b65d0c8fa1560a3363009293e2d12107c5b2f3`
 
-The previous values were up `bad2e6ce…4119` and down `bfdc1d68…25ebb` (erasure amendment, no sealing v2). The first sealing v2 commit on top of the earlier revision had up `63425217…1bb9` and down `1ae475e0…8a1b`.
+The previous values were up `bad2e6ce…4119` and down `bfdc1d68…25ebb` (erasure amendment, no sealing v2).
+
+**Erasure job table (#183, 30 Oct).** Adding `gameplay_account_deletion_jobs` (G34_ERASURE_QUEUE.md) changed both files again, without a new entry here until 31 Oct. Values at `d81867b`:
+
+- up: `0f3e5e182b46f348397f37d037e3eabcba174d8b38863bef2a02db446e907cfc`
+- down: `537a3ee146adbfc0249f1c4503fe1c8d27233e0f86b70e62e46efa884071dcfd`
+
+The promotion gate (G34_PROMOTION_GATE.md) holds the reviewed values and `promotionGateHashes.test.ts` fails when a file and the gate differ. The first sealing v2 commit on top of the earlier revision had up `63425217…1bb9` and down `1ae475e0…8a1b`.
