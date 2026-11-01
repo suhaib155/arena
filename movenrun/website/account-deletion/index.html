@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Delete your account · MovenRun</title>
-<meta name="description" content="How to permanently delete your MovenRun account and its data, in the app, on the web or by email. Works for Google and wallet accounts." />
+<title>Request account deletion · MovenRun</title>
+<meta name="description" content="How to request deletion of your MovenRun account and its data, in the app, on the web or by email. Works for Google and wallet accounts." />
 <meta name="theme-color" content="#F8FAF7" />
 <meta name="movenrun-api" content="https://movenrun-staging-api.onrender.com" />
 <meta name="movenrun-supabase-url" content="https://tavxmwuwkeynbnzfwove.supabase.co" />
@@ -24,23 +24,31 @@
 </header>
 <main id="main">
 <h1>Delete your MovenRun account</h1>
-<p class="lede">You can permanently delete your MovenRun account and the data stored with it at any time.</p>
+<p class="lede">You can request deletion of your MovenRun account and the data stored with it at any time. This page and the app tell you whether the deletion is complete or still in progress.</p>
 
-<h2 id="what">What is deleted</h2>
+<h2 id="what">What is removed</h2>
 <ul>
-  <li>Your account, and its Google sign-in (your email address) or wallet sign-in (your public wallet address) at our sign-in provider</li>
-  <li>All sign-in sessions on every device (they are signed out immediately)</li>
-  <li>Every verified session summary saved to your account (distance, time, map cells crossed)</li>
+  <li>Your MovenRun account and the sign-in method stored with it (your Google email address, or your public wallet address), in our database</li>
+  <li>Your sign-in record at our sign-in provider (see "What happens when you confirm" below)</li>
+  <li>All sign-in sessions on every device (they are signed out when you make the request)</li>
+  <li>Every verified session summary saved to your account (distance, time, and the map cells your routes crossed, which show approximately where you moved)</li>
   <li>Your account's security history</li>
 </ul>
-<p>Deletion from our database happens immediately and cannot be undone. Your sign-in record at our sign-in provider is removed straight after, and the removal is retried automatically if the provider cannot be reached at that moment. Your Google account and your wallet themselves are not affected: we only remove MovenRun's record of them. We keep only an anonymous record that an account was deleted, with no email, account id or other detail that could identify you. Our database plan has no automatic backups; an encrypted copy we made ourselves before your deletion still holds your data until that copy is deleted. See the <a href="/privacy/#retention">privacy policy</a> for details.</p>
+<h2 id="steps">What happens when you confirm</h2>
+<ol>
+  <li><strong>Deletion requested.</strong> All your devices are signed out and you cannot sign in to this account again. The request cannot be undone.</li>
+  <li><strong>Removal in progress.</strong> Your account and the data listed above are erased from our database, and your sign-in record at our sign-in provider is removed. If a step cannot finish at that moment, it stays in progress and is retried automatically while our service is running.</li>
+  <li><strong>Deletion complete.</strong> We say the deletion is complete only after our server has confirmed both the database erasure and the removal of your sign-in record. Until then this page and the app show &ldquo;Deletion requested&rdquo; or &ldquo;Deletion pending&rdquo;.</li>
+</ol>
+<p>Your Google account and your wallet themselves are not affected: we only remove MovenRun's record of them. We keep an anonymous record that an account was deleted, with no email, account id or other detail that could identify you.</p>
+<p>Two security records are not tied to your account, so deleting the account does not remove them straight away. A wallet sign-in message (it contains the public wallet address) is cleared by a later wallet sign-in, at least a day after the message expired. For Google sign-in, a record of the sign-in session identifier (no email address, no account id) is kept for at least 30 days so the same sign-in cannot be used twice. A copy of the database made before your request, by us or by one of our providers for its own operations, can still hold your data until that copy is deleted or expires. See the <a href="/privacy/#retention">privacy policy</a> for details.</p>
 <p>Progress stored only on your phone (XP, streak, badges) is not on our servers. Deleting your account in the app also clears it from that phone; otherwise, uninstalling the app removes it.</p>
 
 <h2 id="in-app">Option 1: in the app</h2>
 <ol>
   <li>Open MovenRun and sign in.</li>
   <li>Go to <strong>Profile → Account → Account security</strong>.</li>
-  <li>Tap <strong>Delete account</strong> and confirm.</li>
+  <li>Tap <strong>Delete account</strong> and confirm. The app tells you whether the deletion is requested or confirmed complete.</li>
 </ol>
 
 <h2 id="web">Option 2: on this page</h2>
@@ -52,21 +60,23 @@
     <div class="wallet-choice" id="wallet-choice" hidden></div>
   </div>
   <form id="step-confirm" hidden novalidate>
-    <p><strong>This permanently deletes your account and every session saved to it.</strong></p>
-    <button type="submit" class="danger">Delete my account</button>
+    <p><strong>This requests deletion of your account and every session saved to it. It cannot be undone.</strong></p>
+    <button type="submit" class="danger">Request deletion of my account</button>
   </form>
   <p class="status" id="status" role="status" aria-live="polite"></p>
 </div>
 
 <h2 id="email">Option 3: by email</h2>
-<p>If you can no longer sign in, write to <a href="mailto:info@movenrun.xyz?subject=Delete%20my%20MovenRun%20account">info@movenrun.xyz</a> with the subject "Delete my MovenRun account". Tell us how you signed in: the Google email address, or the public wallet address (never send a recovery phrase or private key; we will never ask for one). We may ask you to confirm you control that address before deleting.</p>
-<p>Email requests are handled by the MovenRun team by hand, so we cannot promise a fixed time for them. If you can still sign in, options 1 and 2 delete your account straight away.</p>
+<p>If you can no longer sign in, write to <a href="mailto:info@movenrun.xyz?subject=Delete%20my%20MovenRun%20account">info@movenrun.xyz</a> with the subject "Delete my MovenRun account". Tell us how you signed in: the Google email address, or the public wallet address (never send a recovery phrase or private key; we will never ask for one). We may ask you to confirm you control that address before we act on the request.</p>
+<p>Email requests are handled by the MovenRun team by hand, so we cannot promise a fixed time for them. If you can still sign in, options 1 and 2 let you make the request yourself and show its status.</p>
+<p>If a deletion shows as requested or pending, or you have any other question about a deletion, write to <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>.<br>Team MovenRun</p>
 </main>
 <footer>
   <p>MovenRun is provided by Team MovenRun. Contact: <a href="mailto:info@movenrun.xyz">info@movenrun.xyz</a>.</p>
   <p><a href="/privacy/">Privacy policy</a> · <a href="/account-deletion/">Delete your account</a> · <a href="/support/">Support</a> · <a href="/">MovenRun website</a></p>
 </footer>
 <script src="/js/account-auth.js"></script>
+<script src="/js/deletion-outcome.js"></script>
 <script src="/js/account-deletion-page.js"></script>
 </body>
 </html>

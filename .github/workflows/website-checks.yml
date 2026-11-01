@@ -1,0 +1,38 @@
+name: website-checks
+
+# Checks the public website pages that Google Play links to (privacy policy,
+# account deletion, support): copy rules, the deletion page's outcome wording,
+# reachability links, CSP compatibility and basic accessibility. Plain Node,
+# no dependencies, no secrets, no network. It never deploys anything: the
+# website is published only by the owner, from the Vercel dashboard.
+on:
+  pull_request:
+    paths:
+      - "movenrun/website/**"
+      - "movenrun/scripts/check-launch-placeholders.mjs"
+      - "movenrun/scripts/check-secrets.mjs"
+      - ".github/workflows/website-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    name: Website policy pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Website tests
+        run: node --test movenrun/website/tests/*.test.mjs
+      - name: Policy page placeholders
+        run: node movenrun/scripts/check-launch-placeholders.mjs
+      - name: Secret scan of the website folder
+        working-directory: movenrun
+        run: node scripts/check-secrets.mjs website/
