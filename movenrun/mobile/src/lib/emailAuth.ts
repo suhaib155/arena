@@ -1,3 +1,5 @@
+import { DELETION_BUSY_MESSAGE, DELETION_PENDING_MESSAGE } from "./accountDeletionCopy";
+
 /**
  * Email/OTP form rules and stable public error copy — pure.
  *
@@ -72,6 +74,8 @@ export function authErrorMessage(code: string | null): string | null {
       return "Too many attempts. Please wait a moment and try again.";
     case "provider_not_configured":
       return "This sign-in method isn't available yet.";
+    case "provider_unavailable":
+      return "Sign-in is briefly unavailable. Please try again in a moment. You can keep playing as a guest.";
     case "sign_in_failed":
       return "Sign-in didn't complete. Please try again.";
     case "registration_closed":
@@ -87,6 +91,10 @@ export function authErrorMessage(code: string | null): string | null {
       return "That sign-in request was already used or has expired. Please start again.";
     case "session_invalid":
       return "Your session ended. Sign in again to continue.";
+    case "account_deletion_pending":
+      return DELETION_PENDING_MESSAGE;
+    case "deletion_busy":
+      return DELETION_BUSY_MESSAGE;
     default:
       return "Something went wrong. Please try again.";
   }

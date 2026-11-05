@@ -11,7 +11,9 @@ import { MovementMetric } from "@/components/MovementMetric";
 import { MovementControlBar } from "@/components/MovementControlBar";
 import { FinishSessionSheet } from "@/components/FinishSessionSheet";
 import { gpsTimings, type GpsAcquisitionState } from "@/lib/gpsAcquisitionState";
-import { degradesSignal, gpsPresence, presenceLabel, type GpsPresence } from "@/lib/mapPresence";
+import { gpsPresence, presenceLabel, type GpsPresence } from "@/lib/mapPresence";
+import { createSessionClock, type SessionClock } from "@/lib/sessionClock";
+import { createFixHealth, type FixHealth } from "@/lib/fixHealth";
 import { Button } from "@/components/Button";
 import { colors, ink, palette, radius, shadows, softTint, spacing, type } from "@/theme";
 import {
@@ -22,7 +24,15 @@ import {
 } from "@/lib/geo";
 import { inspectFix, type FixDecision } from "@movenrun/shared/measurement";
 import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
-import { createTracker, TrackerStartError, type TrackerMode } from "@/services/moveTracker";
+import { createTracker, hasLocationServices, TrackerStartError, type TrackerMode } from "@/services/moveTracker";
+import {
+  absorbBackgroundSpan,
+  interruptionMessage,
+  recoveryOnForeground,
+  restartWhenLocationReturns,
+  shouldCheckLocationServices,
+  silentGapStart,
+} from "@/lib/locationRecovery";
 import {
   pushPoint,
   recordGap,
@@ -124,6 +134,35 @@ export default function MoveSessionScreen() {
   const [finishSheetOpen, setFinishSheetOpen] = useState(false);
   const [startAttempt, setStartAttempt] = useState(0);
   const [startError, setStartError] = useState<TrackerStartError | null>(null);
+  /** Read by the AppState listener, which must not re-subscribe on every error. */
+  const startErrorRef = useRef<TrackerStartError | null>(null);
+  startErrorRef.current = startError;
+  /**
+   * Why fixes stopped during a live capture, if they did. `services_off` is
+   * the location toggle (Android keeps the watch and goes silent);
+   * `watch_stopped` is a watch that reported a failure and is no longer
+   * running. Either one breaks the route and opens a gap until a fix returns.
+   */
+  const [interruption, setInterruption] = useState<"services_off" | "watch_stopped" | null>(null);
+  const interruptionRef = useRef<"services_off" | "watch_stopped" | null>(null);
+  const markInterruption = useCallback((cause: "services_off" | "watch_stopped" | null) => {
+    interruptionRef.current = cause;
+    setInterruption(cause);
+  }, []);
+  const watchStoppedRef = useRef(false);
+  /** Mirrors `watchStoppedRef` for the Retry GPS button, which must show only
+   *  while no watch is running: a tap on a working watch would restart its
+   *  acquisition from zero. */
+  const [watchStopped, setWatchStopped] = useState(false);
+  const markWatchStopped = useCallback((stopped: boolean) => {
+    watchStoppedRef.current = stopped;
+    setWatchStopped(stopped);
+  }, []);
+  /** Session-clock time of the last fix the watch delivered, accepted or not. */
+  const lastFixSeenAtRef = useRef<number | null>(null);
+  const restartingRef = useRef(false);
+  /** Restarts the running session's watch; null when no session owns one. */
+  const restartWatchRef = useRef<(() => void) | null>(null);
 
   /* Refs mirror state the tracker callback needs without re-subscribing. */
   /** Mutated in place — appending must not copy the whole route per fix. */
@@ -136,6 +175,21 @@ export default function MoveSessionScreen() {
   const backgroundedAtRef = useRef<number | null>(null);
   const trackerGapAtRef = useRef<number | null>(null);
   const continuityBrokenRef = useRef(false);
+  /**
+   * Every time this session measures comes from here, never from `Date.now()`:
+   * the wall clock read once at Start and advanced by a monotonic source, so a
+   * clock change mid-walk cannot stretch the duration or make fixes look
+   * future-dated. See `lib/sessionClock.ts` for what it does not solve.
+   */
+  const clockRef = useRef<SessionClock>(createSessionClock());
+  /** Chip health from the age of the last accepted fix; see `lib/fixHealth.ts`. */
+  /* Stable (no dependencies), so the start effect calls it without listing it
+     and without re-subscribing the tracker. */
+  const healthRef = useRef<FixHealth | null>(null);
+  const refreshSignal = useCallback((at: number) => {
+    const health = healthRef.current;
+    if (health) setSignal(health.signal(at));
+  }, []);
 
   /**
    * The capture lifecycle.
@@ -183,6 +237,8 @@ export default function MoveSessionScreen() {
     setStartError(null);
     setSignal("unknown");
     showLocation(null);
+    clockRef.current = createSessionClock();
+    healthRef.current = null;
     apply(requested.lifecycle);
     distanceDiagnostics.reset();
 
@@ -198,6 +254,7 @@ export default function MoveSessionScreen() {
       gapsRef.current.length = 0;
       backgroundedAtRef.current = null;
       trackerGapAtRef.current = null;
+      lastFixSeenAtRef.current = null;
       continuityBrokenRef.current = false;
     };
     const unsubscribePrivacyReset = onVerificationPrivacyReset(() => {
@@ -215,15 +272,18 @@ export default function MoveSessionScreen() {
       apply(idleLifecycle());
       routerRef.current.replace("/move");
     });
-    tracker
-      .start((p) => {
+    const onEvidence = (p: TrackPoint) => {
         /* Fixes are only evidence while capturing. A point arriving during a
            pause, or after Finish, is dropped rather than extending a route the
            user has already ended. */
         if (cancelled || lifecycleRef.current.state !== "active") return;
         if (backgroundedAtRef.current !== null) return;
         const prev = continuityBrokenRef.current ? null : pointsRef.current[pointsRef.current.length - 1] ?? null;
-        const now = Date.now();
+        /* After a background spell the clock may be behind real time (see
+           sessionClock.ts); a fix's own time lets it catch up, within budget. */
+        clockRef.current.catchUp(p.timestamp);
+        const now = clockRef.current.now();
+        lastFixSeenAtRef.current = now;
         const decision: FixDecision = p.timestamp <= lastFixTimestampRef.current ||
           p.timestamp < (lifecycleRef.current.startedAt ?? now)
           ? { accepted: false, reason: "non_increasing_time", segmentMeters: 0 }
@@ -245,7 +305,8 @@ export default function MoveSessionScreen() {
              session losing its signal kept saying `GPS locked` while the
              distance stopped moving. `within_uncertainty` is excluded — that is
              a stationary player, not a bad one. */
-          if (degradesSignal(decision.reason)) setSignal("degraded");
+          healthRef.current?.observe(decision, p.accuracy, now);
+          refreshSignal(now);
           distanceDiagnostics.record(p, decision, distanceRef.current, previewRef.current?.evidenceStats.retained ?? 0);
           return;
         }
@@ -253,11 +314,13 @@ export default function MoveSessionScreen() {
            I". The two channels agree here; they disagree while stationary and
            during acquisition, which is what the display channel is for. */
         showLocation(p);
-        setSignal(p.accuracy != null && p.accuracy > 25 ? "degraded" : "usable");
+        healthRef.current?.observe(decision, p.accuracy, now);
+        refreshSignal(now);
         if (trackerGapAtRef.current !== null) {
-          recordGap(gapsRef.current, trackerGapAtRef.current, Date.now());
+          recordGap(gapsRef.current, trackerGapAtRef.current, now);
           trackerGapAtRef.current = null;
           setStartError(null);
+          markInterruption(null);
         }
         if (continuityBrokenRef.current) {
           p = { ...p, breakBefore: true };
@@ -291,24 +354,53 @@ export default function MoveSessionScreen() {
         if (shouldRefreshPreview(acceptedRef.current)) {
           setRoutePreview(pointsRef.current.slice());
         }
-      }, (error) => {
+    };
+    const onWatchError = (error: TrackerStartError) => {
         if (cancelled) return;
         setStartError(error);
+        markWatchStopped(true);
+        markInterruption("watch_stopped");
+        healthRef.current?.interrupt();
         setSignal("degraded");
         continuityBrokenRef.current = true;
-        trackerGapAtRef.current ??= Date.now();
-      }, (state) => { if (!cancelled) setAcquisitionState(state); },
-        /* The display channel. It runs before the lifecycle is active — that is
-           its whole purpose — so it is guarded by `cancelled` alone and never
-           by the capture state. It touches no evidence ref. */
-        (p) => { if (!cancelled) showLocation(p); })
+        trackerGapAtRef.current ??= clockRef.current.now();
+    };
+    const onAcquisition = (state: GpsAcquisitionState) => { if (!cancelled) setAcquisitionState(state); };
+    /* The display channel. It runs before the lifecycle is active — that is
+       its whole purpose — so it is guarded by `cancelled` alone and never
+       by the capture state. It touches no evidence ref. */
+    const onDisplay: (p: TrackPoint) => void = (p) => { if (!cancelled) showLocation(p); };
+    /* A restart reuses the same four callbacks, so a restarted watch feeds the
+       same evidence rules, and the gap and route break opened by the failure
+       close on its first accepted fix exactly as after a background spell. It
+       never touches the lifecycle: the session, its id and its clock go on. */
+    restartWatchRef.current = () => {
+      if (cancelled || restartingRef.current) return;
+      restartingRef.current = true;
+      tracker.start(onEvidence, onWatchError, onAcquisition, onDisplay)
+        .then(() => { if (!cancelled) markWatchStopped(false); })
+        .catch((error: unknown) => {
+          /* A newer start superseded this one; that start owns the outcome. */
+          if (cancelled || (error instanceof TrackerStartError && error.code === "cancelled")) return;
+          /* start() stopped the previous registration before it failed, so no
+             watch is running now. Say so, and let the next foreground return
+             or the banner's Retry try again. The gap stays open. */
+          markWatchStopped(true);
+          markInterruption("watch_stopped");
+        })
+        .finally(() => { restartingRef.current = false; });
+    };
+    tracker
+      .start(onEvidence, onWatchError, onAcquisition, onDisplay)
       .then(() => {
         if (cancelled) { tracker.stop(); return; }
+        const startedAt = clockRef.current.now();
         const started = trackerStarted(lifecycleRef.current, {
           clientSessionId: newClientSessionId(),
-          at: Date.now(),
+          at: startedAt,
         });
         if (started.outcome !== "ok") return;
+        healthRef.current = createFixHealth(startedAt);
         distanceDiagnostics.bind(started.lifecycle.clientSessionId);
         /* Built here and nowhere earlier: a preview needs a session, and the
            session's own rules version is what decides how sealing is read. The
@@ -336,19 +428,32 @@ export default function MoveSessionScreen() {
       });
     return () => {
       cancelled = true;
+      restartWatchRef.current = null;
+      watchStoppedRef.current = false;
+      lastFixSeenAtRef.current = null;
       unsubscribePrivacyReset();
       tracker.stop();
       /* The session's geometry goes with the session. Nothing about a route
          outlives the screen that captured it. */
       eraseEvidence();
     };
-  }, [apply, showLocation, startAttempt]);
+  }, [apply, markInterruption, markWatchStopped, showLocation, startAttempt]);
 
   /** Elapsed time, read on demand. Kept out of this component's state so the
    *  once-a-second tick re-renders only the clock, not the route canvas.
    *  Derived from the lifecycle, so the number on screen is the same one the
    *  finished session carries. */
-  const readElapsed = useCallback(() => activeMsSoFar(lifecycleRef.current, Date.now()), []);
+  const readElapsed = useCallback(() => activeMsSoFar(lifecycleRef.current, clockRef.current.now()), []);
+
+  /* Fixes can stop without any callback firing (a frozen watch, a radio that
+     went quiet), so health is re-read on a timer as well as per fix. Only while
+     capturing: a paused session expects no fixes. */
+  useEffect(() => {
+    if (captureState !== "active") return;
+    const timer = setInterval(() => refreshSignal(clockRef.current.now()), 2_000);
+    return () => clearInterval(timer);
+  }, [captureState, refreshSignal]);
+
 
   /* Foreground-only tracking means backgrounding silently stops the fixes:
      distance stops growing while the clock keeps running, so the summary would
@@ -363,14 +468,73 @@ export default function MoveSessionScreen() {
          different facts that must not overwrite each other. */
       const state = lifecycleRef.current.state;
       if (state !== "active" && state !== "paused") return;
+      if (next === "active") clockRef.current.resume();
+      else clockRef.current.suspend();
+      const at = clockRef.current.now();
       if (next === "active") {
         const startedAt = backgroundedAtRef.current;
-        if (startedAt != null) recordGap(gapsRef.current, startedAt, Date.now());
+        /* Leaving for Settings to fix an open interruption is part of that
+           interruption: one gap, never two overlapping ones counted twice. */
+        const openGap = absorbBackgroundSpan(trackerGapAtRef.current, startedAt);
+        if (openGap !== null) trackerGapAtRef.current = openGap;
+        else if (startedAt != null) recordGap(gapsRef.current, startedAt, at);
         backgroundedAtRef.current = null;
+        healthRef.current?.rearm(at);
+        /* Fixes can arrive again from here, so a later silent-toggle gap may
+           not reach back across the pause or the background spell. */
+        lastFixSeenAtRef.current = at;
       } else if (backgroundedAtRef.current == null) {
-        backgroundedAtRef.current = Date.now();
+        backgroundedAtRef.current = at;
         continuityBrokenRef.current = true;
       }
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (captureState !== "active") return;
+    let checking = false;
+    const timer = setInterval(() => {
+      const now = clockRef.current.now();
+      /* A switched-off location toggle reports nothing on Android: the watch
+         stays registered and goes quiet. Ask only once the signal has already
+         degraded, so a healthy walk never pays for the call. */
+      const signalNow = healthRef.current?.signal(now) ?? "unknown";
+      if (checking || !shouldCheckLocationServices(lifecycleRef.current.state, signalNow)) {
+        if (interruptionRef.current === "services_off" && signalNow !== "degraded") markInterruption(null);
+        return;
+      }
+      checking = true;
+      void hasLocationServices().then((on) => {
+        if (lifecycleRef.current.state !== "active") return;
+        if (!on && interruptionRef.current !== "services_off") {
+          markInterruption("services_off");
+          continuityBrokenRef.current = true;
+          trackerGapAtRef.current ??= silentGapStart(lastFixSeenAtRef.current, clockRef.current.now());
+        } else if (on && interruptionRef.current === "services_off") {
+          /* Back on. The gap stays open until a fix actually arrives. The kept
+             registration resumes by itself; see `restartWhenLocationReturns`. */
+          markInterruption(watchStoppedRef.current ? "watch_stopped" : null);
+          if (restartWhenLocationReturns(watchStoppedRef.current)) restartWatchRef.current?.();
+        }
+      }).finally(() => { checking = false; });
+    }, 2_000);
+    return () => clearInterval(timer);
+  }, [captureState, markInterruption]);
+
+  /* Returning from system Settings is an AppState change, not a focus change.
+     See `lib/locationRecovery.ts` for what each case does. */
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next !== "active") return;
+      const action = recoveryOnForeground({
+        captureState: lifecycleRef.current.state,
+        startErrorSettingsRelevant: startErrorRef.current?.settingsRelevant ?? false,
+        watchStopped: watchStoppedRef.current,
+        restarting: restartingRef.current,
+      });
+      if (action === "retry_start") setStartAttempt((value) => value + 1);
+      else if (action === "restart_watch") restartWatchRef.current?.();
     });
     return () => sub.remove();
   }, []);
@@ -385,12 +549,19 @@ export default function MoveSessionScreen() {
    */
   const togglePause = useCallback(() => {
     const current = lifecycleRef.current;
+    const at = clockRef.current.now();
     const next =
       current.state === "paused"
-        ? resumeLifecycle(current, Date.now())
-        : pauseLifecycle(current, Date.now());
+        ? resumeLifecycle(current, at)
+        : pauseLifecycle(current, at);
     if (next.outcome !== "ok") return;
-    if (next.lifecycle.state === "active") continuityBrokenRef.current = true;
+    if (next.lifecycle.state === "active") {
+      continuityBrokenRef.current = true;
+      healthRef.current?.rearm(at);
+        /* Fixes can arrive again from here, so a later silent-toggle gap may
+           not reach back across the pause or the background spell. */
+        lastFixSeenAtRef.current = at;
+    }
     tapFeedback();
     apply(next.lifecycle);
   }, [apply]);
@@ -405,7 +576,7 @@ export default function MoveSessionScreen() {
    * yields coherent evidence.
    */
   const finish = useCallback(() => {
-    const at = Date.now();
+    const at = clockRef.current.now();
     const next = finishLifecycle(lifecycleRef.current, at);
     if (next.outcome !== "ok") return;
     apply(next.lifecycle);
@@ -601,9 +772,12 @@ export default function MoveSessionScreen() {
       {/* Critical metrics and actions remain in the viewport. On constrained
           screens the map shrinks and tertiary route explanation is omitted. */}
       <View style={styles.middle}>
-      {startError ? (
+      {startError || interruption ? (
         <View style={styles.demoBanner} accessibilityLiveRegion="polite">
-          <Text style={styles.demoText}>GPS tracking was interrupted. Time continues; missing route sections will be shown in your summary.</Text>
+          <Text style={styles.demoText}>{interruptionMessage(interruption ?? "watch_stopped")}</Text>
+          {watchStopped ? (
+            <Button label="Retry GPS" variant="secondary" onPress={() => restartWatchRef.current?.()} />
+          ) : null}
         </View>
       ) : null}
 
@@ -632,7 +806,7 @@ export default function MoveSessionScreen() {
           crossing a road to close a loop. */}
       {!compact ? <View style={styles.zoneCard}>
         <View style={styles.zoneHead}>
-          <Text style={styles.zoneTitle}>Make your mark</Text>
+          <Text style={styles.zoneTitle}>Loop preview</Text>
           <View style={[styles.sealChip, { backgroundColor: colors.surface }]}>
             <Ionicons
               name={sealed ? "checkmark-circle" : "git-branch-outline"}
@@ -646,8 +820,8 @@ export default function MoveSessionScreen() {
         </View>
         <Text style={styles.zoneNote}>
           {sealed
-            ? "Sealed sections are banked. The trail ahead is open again."
-            : "Cross your own trail, or finish near where you started, to seal this route."}
+            ? "Loop closed on this phone. The trail ahead is open again. This is a preview and nothing is claimed."
+            : "Cross your own trail, or finish near where you started, to close a loop. This is a preview."}
         </Text>
       </View> : null}
       </View>

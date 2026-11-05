@@ -76,7 +76,7 @@ test("exactly three steps, each with title, body and its own CTA", () => {
   }
   // The three required concepts, in order.
   assert.match(INTRO_STEPS[0].body, /movement session/i);
-  assert.match(INTRO_STEPS[1].body, /capture|defend/i);
+  assert.match(INTRO_STEPS[1].body, /local preview/i);
   assert.match(INTRO_STEPS[2].body, /local beta/i);
   assert.match(INTRO_STEPS[2].body, /Raw routes are not stored/i);
   assert.match(INTRO_STEPS[2].body, /No wallet or minting is required/i);
@@ -95,7 +95,7 @@ test("every step change produces a screen-reader announcement naming its positio
   assert.match(introStepAnnouncement(0), /^Step 1 of 3\./);
   assert.match(introStepAnnouncement(1), /^Step 2 of 3\./);
   assert.match(introStepAnnouncement(2), /^Step 3 of 3\./);
-  assert.match(introStepAnnouncement(1), /Capture and defend/);
+  assert.match(introStepAnnouncement(1), /Explore new ground/);
 });
 
 test("a double press on the final CTA collapses into one completion", () => {

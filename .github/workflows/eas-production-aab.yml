@@ -67,6 +67,9 @@ jobs:
               exit 1
             fi
           done
+          grep -q 'android:allowBackup="false"' "$manifest" || { echo "::error::allowBackup is not false"; exit 1; }
+          grep -q 'android:usesCleartextTraffic="false"' "$manifest" || { echo "::error::cleartext traffic is not refused"; exit 1; }
+          grep -q 'LocationTaskService" tools:node="remove"' "$manifest" || { echo "::error::the background location service is not removed"; exit 1; }
 
   build:
     name: Build production AAB (EAS)
