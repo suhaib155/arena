@@ -25,7 +25,7 @@ import {
 import { MovementApiClient } from "@/services/movementApi";
 import { submitCompletedSession } from "@/services/verifySession";
 import { serverSealLabel, toVerifiedRecord, verificationLabel } from "@/lib/verifiedMovement";
-import { isVerifiable } from "@/lib/movementVerification";
+import { isVerifiable, willRequestServerCheck } from "@/lib/movementVerification";
 import { newCapturedZone } from "@/lib/zones";
 import { cellsForRoute } from "@/lib/territoryCells";
 import { touchedCells } from "@/lib/mapCells";
@@ -231,6 +231,15 @@ export default function MoveSummaryScreen() {
     points: session.points,
   });
 
+  /* Whether Save will really ask the server, and so whether "waiting for the
+     server check" may be said. Guests and capacity-limited routes save locally. */
+  const serverCheck = willRequestServerCheck({
+    hasClient: movementClient !== null,
+    verifiable: willSubmit,
+    evidenceStatus: session.evidenceStatus,
+    accountId,
+  });
+
   /* Territory touched — the real H3 resolution-8 cells this route passed
      through, derived from the in-memory route through the same shared domain
      the backend verifies with. Derived here and not stored: a sequence of
@@ -309,7 +318,7 @@ export default function MoveSummaryScreen() {
     if (movedOverGround) {
       /* Banked now as an estimate; the server's verdict settles it (MR-C). */
       const outcome = completeQuest(sessionQuest);
-      recordMovementXpEstimate(session.clientSessionId, outcome.xpGained, Boolean(movementClient) && willSubmit);
+      recordMovementXpEstimate(session.clientSessionId, outcome.xpGained, serverCheck);
     }
     /* Server verification of the completed route.
        Saving is the user's deliberate act of turning this session into
@@ -320,7 +329,7 @@ export default function MoveSummaryScreen() {
        result is recorded against this session's stable id, and a slow or
        failed verification must never delay or block a completion the user has
        already earned. Nothing below depends on it. */
-    if (movementClient) {
+    if (movementClient && serverCheck) {
       void submitCompletedSession(session, {
         client: movementClient,
         readState: getVerificationState,
@@ -694,7 +703,7 @@ export default function MoveSummaryScreen() {
                 one-fix stationary session is never submitted — promising the
                 upload anyway would be the disclosure describing a request that
                 does not happen. */}
-            {accountId && evidenceComplete && willSubmit ? (
+            {serverCheck ? (
               <Text style={styles.uploadNote}>
                 Saving sends this session&apos;s route to MovenRun to verify the distance.
               </Text>
