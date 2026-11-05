@@ -60,6 +60,7 @@
     "src/lib/__tests__/responsiveNavigation.test.ts",
     "src/lib/__tests__/routeEvidenceIntegration.test.ts",
     "src/lib/__tests__/routeMapState.test.ts",
+    "src/lib/__tests__/screenAwake.test.ts",
     "src/lib/__tests__/screenHeader.test.ts",
     "src/lib/__tests__/sealing.test.ts",
     "src/lib/__tests__/secureSession.test.ts",
@@ -97,6 +98,7 @@
     "src/store/__tests__/loginCommit.test.ts",
     "src/store/__tests__/movementXpStatus.test.ts",
     "src/store/__tests__/questCompletion.test.ts",
+    "src/store/__tests__/quietRestore.test.ts",
     "src/store/__tests__/sessionManagement.test.ts",
     "src/store/__tests__/signInMethods.test.ts"
   ]

@@ -24,6 +24,8 @@ import {
 } from "@/lib/geo";
 import { inspectFix, type FixDecision } from "@movenrun/shared/measurement";
 import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
+import { SESSION_KEEP_AWAKE_TAG, shouldKeepScreenOn } from "@/lib/screenAwake";
 import { createTracker, hasLocationServices, TrackerStartError, type TrackerMode } from "@/services/moveTracker";
 import {
   absorbBackgroundSpan,
@@ -444,6 +446,16 @@ export default function MoveSessionScreen() {
    *  Derived from the lifecycle, so the number on screen is the same one the
    *  finished session carries. */
   const readElapsed = useCallback(() => activeMsSoFar(lifecycleRef.current, clockRef.current.now()), []);
+
+  /* The screen stays on for the capture: on Android a screen that times out
+     pauses the activity, and expo-location stops its updates on pause. See
+     `lib/screenAwake.ts`. Released on Finish, on discard and on unmount. */
+  const keepScreenOn = shouldKeepScreenOn(captureState);
+  useEffect(() => {
+    if (!keepScreenOn) return;
+    void activateKeepAwakeAsync(SESSION_KEEP_AWAKE_TAG).catch(() => { /* Unavailable: a lock is then recorded as a gap. */ });
+    return () => { void deactivateKeepAwake(SESSION_KEEP_AWAKE_TAG).catch(() => {}); };
+  }, [keepScreenOn]);
 
   /* Fixes can stop without any callback firing (a frozen watch, a radio that
      went quiet), so health is re-read on a timer as well as per fix. Only while

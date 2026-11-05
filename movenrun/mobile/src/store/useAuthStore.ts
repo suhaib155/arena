@@ -85,6 +85,13 @@ interface AuthState {
   retryRestore: () => Promise<void>;
   /** User chose to continue into the local experience despite that failure. */
   acknowledgeRestoreError: () => void;
+  /**
+   * Ask again, without interrupting, whether the stored session is valid.
+   * Runs only after an unreachable-service restore the user already chose to
+   * continue past; see `shouldResumeRestoreQuietly`. Never shows the startup
+   * error again and never moves through `restoring`.
+   */
+  resumeRestoreQuietly: () => Promise<void>;
   /** Ask the server to send a one-time code. Resolves true when it accepted,
    *  so the form can move to code entry without inspecting store internals. */
   beginEmailOtp: (email: string) => Promise<boolean>;
@@ -415,6 +422,21 @@ function resolveClient(
   return client;
 }
 
+/**
+ * The app started while the identity service was unreachable and the user
+ * chose to continue locally. Nothing asked again until they found Retry, so a
+ * signed-in player who opened the app offline stayed `unknown` all day: every
+ * save was local only and queued nothing for verification, even after the
+ * phone was back online. Coming back to the foreground in that state asks
+ * again quietly. Only that state: never a keystore failure (asking again
+ * cannot fix it), never while an auth request runs, never a signed-out user.
+ */
+export function shouldResumeRestoreQuietly(state: Pick<AuthState,
+  "status" | "restoreErrorCode" | "restoreErrorAcknowledged" | "operation">): boolean {
+  return state.status === "unknown" && state.restoreErrorCode === "service_unavailable" &&
+    state.restoreErrorAcknowledged && state.operation === "idle";
+}
+
 /** Build the client (once) and restore. Never rejects. */
 async function bootstrap(
   set: (partial: Partial<AuthState>) => void,
@@ -473,6 +495,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   acknowledgeRestoreError: () => set({ restoreErrorAcknowledged: true }),
+
+  resumeRestoreQuietly: async () => {
+    const state = get();
+    if (!shouldResumeRestoreQuietly(state) || !state.client) return;
+    const client = state.client;
+    return restoreSingleFlight(async () => {
+      /* Re-checked inside the single flight: a Retry or sign-in that started
+         meanwhile owns the outcome. */
+      if (!shouldResumeRestoreQuietly(get())) return;
+      await guardedRestore(client, set);
+    });
+  },
 
   beginEmailOtp: async (email) => {
     const client = get().client;
