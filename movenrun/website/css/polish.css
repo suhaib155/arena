@@ -188,6 +188,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
   font-size: 12.5px; color: var(--silver);
 }
 .footer-bottom p { max-width: 640px; }
+.footer-bottom a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
 @media (max-width: 920px) {
   .footer-grid { grid-template-columns: 1fr 1fr; gap: 36px 24px; }

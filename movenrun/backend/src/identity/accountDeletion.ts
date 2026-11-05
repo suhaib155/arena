@@ -5,7 +5,7 @@
  * lets them delete it, in the app and from a public web page. This module is
  * the server half of both paths: the in-app action calls it directly with the
  * signed-in session, and a request made through the web page is completed by
- * the same action once the person signs in with the account's email.
+ * the same action once the person signs in with Google or their wallet.
  *
  * What is erased, in one transaction, for the account's user id:
  *  - verified movement sessions (distance, duration, traversed cells);
@@ -21,10 +21,20 @@
  *    after commit, then retried until the provider confirms. The two systems
  *    cannot share one transaction, so the queue is what makes this reliable.
  *
+ * The deletion is complete only when both halves are done: the transaction
+ * above, and removal of the sign-in record at the provider. The HTTP response
+ * reports the second half as `signInRecord` ("removed", "pending" or "none");
+ * "pending" means it is still queued and retried, not finished.
+ *
  * What is kept: one `account_deleted` audit event with no user id, no email
  * and no metadata, so operators can count deletions without being able to say
- * whose they were. Nothing else survives. Backups age out on the hosting
- * provider's retention schedule (see docs/play-launch/DATA_INVENTORY.md).
+ * whose they were. Two other records are not tied to the account and are not
+ * removed by this action: consumed Google sign-in exchange records (session
+ * identifier and expiry only, kept at least 30 days) and wallet sign-in
+ * challenges, which are cleared by later sign-ins. Any database copy made
+ * before the deletion still holds the data until that copy is deleted; no
+ * backup schedule is promised here (see docs/play-launch/DATA_INVENTORY.md and
+ * the public privacy page).
  *
  * Deliberately not a soft delete. A `disabled` flag would keep the email and
  * the movement history, which is exactly what the person asked us to remove.

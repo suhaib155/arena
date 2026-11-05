@@ -1,5 +1,6 @@
 (function () {
   var auth = window.MovenRunAuth;
+  var outcomes = window.MovenRunDeletionOutcome;
   var status = document.getElementById("status");
   var signIn = document.getElementById("step-sign-in");
   var confirmForm = document.getElementById("step-confirm");
@@ -31,11 +32,18 @@
   confirmForm.addEventListener("submit", function (e) {
     e.preventDefault();
     if (!token) return;
-    confirmForm.querySelector("button").disabled = true; say("Deleting your account…");
+    var button = confirmForm.querySelector("button");
+    button.disabled = true; say("Sending your deletion request…");
     auth.apiPost("/identity/account/delete", { confirm: "DELETE" }, token).then(function (r) {
-      confirmForm.querySelector("button").disabled = false;
-      if (r.ok) { token = ""; confirmForm.hidden = true; say("Your MovenRun account and its data have been deleted.", "ok"); }
-      else say("Your account could not be deleted right now. Please try again or email us.", "error");
-    }, function () { confirmForm.querySelector("button").disabled = false; say("We could not reach MovenRun. Please try again.", "error"); });
+      // Read the body for every status: the wording depends on what the server confirmed.
+      return r.json().catch(function () { return null; }).then(function (body) {
+        button.disabled = false;
+        if (!outcomes) { say("Your deletion request was sent, but this page could not read the answer. Nothing is confirmed as deleted yet. Reload the page, or email info@movenrun.xyz (Team MovenRun).", "error"); return; }
+        var outcome = outcomes.deletionOutcome(r.status, body);
+        if (outcomes.endsRequest(r.status)) { token = ""; confirmForm.hidden = true; }
+        say(outcome.text, outcome.kind);
+      });
+    }, function () { button.disabled = false; say("We could not reach MovenRun. Nothing was confirmed as deleted. Please try again.", "error"); })
+      .catch(function () { button.disabled = false; say("Something went wrong showing the answer. Nothing is confirmed as deleted yet. Reload the page, or email info@movenrun.xyz (Team MovenRun).", "error"); });
   });
 })();
