@@ -15,9 +15,10 @@ clubs or multiplayer competition. A wallet is mentioned only as a sign-in option
 > Start a Free Run or pick a mission, head outside, and watch your route draw itself on the map as you move. Pause when you need to and pick up where you left off: paused time and distance never count. When you finish, MovenRun shows an honest summary of your session: distance, time and the route you actually took.
 >
 > MISSIONS AND PROGRESS
-> • Daily missions that reward real movement with XP
+> • Short timed missions (warm-ups, stretches, breathing) that award XP when you finish the timer
+> • Movement XP from your walks and runs; when you are signed in, a server check confirms it and can withdraw it if the route does not check out
 > • Levels, streaks and badges that grow with every session you complete
-> • Standing still or ending a mission early earns nothing, so progress always means you moved
+> • Ending a mission early earns no XP
 >
 > YOUR GROUND
 > • See the parts of your neighbourhood you have explored, as a personal map preview on your phone

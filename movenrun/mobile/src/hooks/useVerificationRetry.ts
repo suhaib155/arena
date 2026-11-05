@@ -33,6 +33,7 @@ export function useVerificationRetry(): void {
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const identityClient = useAuthStore((s) => s.client);
   const recordMovementVerification = useGameStore((s) => s.recordMovementVerification);
+  const settleMovementXp = useGameStore((s) => s.settleMovementXp);
 
   useEffect(() => {
     if (status !== "signedIn" || userId === null || identityClient === null) return;
@@ -49,7 +50,11 @@ export function useVerificationRetry(): void {
         writeState: setVerificationState,
         onSettled: (clientSessionId, state) => {
           const record = toVerifiedRecord(clientSessionId, state);
-          if (record) recordMovementVerification(record);
+          if (record) {
+            recordMovementVerification(record);
+            /* The verdict settles this session's estimated XP, once. */
+            settleMovementXp(record);
+          }
         },
       });
     };
@@ -59,5 +64,5 @@ export function useVerificationRetry(): void {
       if (next === "active") sweep();
     });
     return () => subscription.remove();
-  }, [status, userId, identityClient, recordMovementVerification]);
+  }, [status, userId, identityClient, recordMovementVerification, settleMovementXp]);
 }

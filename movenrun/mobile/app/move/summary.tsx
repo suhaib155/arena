@@ -25,12 +25,12 @@ import {
 import { MovementApiClient } from "@/services/movementApi";
 import { submitCompletedSession } from "@/services/verifySession";
 import { serverSealLabel, toVerifiedRecord, verificationLabel } from "@/lib/verifiedMovement";
-import { isVerifiable } from "@/lib/movementVerification";
+import { isVerifiable, willRequestServerCheck } from "@/lib/movementVerification";
 import { newCapturedZone } from "@/lib/zones";
 import { cellsForRoute } from "@/lib/territoryCells";
 import { touchedCells } from "@/lib/mapCells";
 import { finishedSealLabel, sealFinishedRoute } from "@/lib/sealPreview";
-import { useGameStore, useIsCompletedToday } from "@/store/useGameStore";
+import { useGameStore, useIsCompletedToday, useMovementXpEntry } from "@/store/useGameStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { scoreRoute, type TrustTone } from "@/lib/routeTrust";
 import { gapNotice, summarizeGaps } from "@/lib/trackPoints";
@@ -40,6 +40,7 @@ import type { Quest } from "@/types";
 import { successFeedback, tapFeedback } from "@/lib/haptics";
 /* One owner for this id: the Home board filters history by it to tell a real
    movement session apart from an indoor warmup quest. */
+import { movementXpLabel, movementXpStatus } from "@/lib/movementXp";
 import { SESSION_QUEST_ID } from "@/lib/sessionQuest";
 import { backIntent, returnToToday, type BackContext } from "@/lib/todayNavigation";
 
@@ -88,6 +89,8 @@ export default function MoveSummaryScreen() {
   const completeQuest = useGameStore((s) => s.completeQuest);
   const captureZone = useGameStore((s) => s.captureZone);
   const recordMovementVerification = useGameStore((s) => s.recordMovementVerification);
+  const recordMovementXpEstimate = useGameStore((s) => s.recordMovementXpEstimate);
+  const settleMovementXp = useGameStore((s) => s.settleMovementXp);
   const defendZones = useGameStore((s) => s.defendZones);
   const ownedZones = useGameStore((s) => s.zones);
   const alreadySavedToday = useIsCompletedToday(SESSION_QUEST_ID);
@@ -103,6 +106,7 @@ export default function MoveSummaryScreen() {
     () => (identityClient ? new MovementApiClient(identityClient.transport) : null),
     [identityClient],
   );
+  const xpEntry = useMovementXpEntry(session);
   const [saved, setSaved] = useState(false);
   const [showRouteDetails, setShowRouteDetails] = useState(false);
   const savingRef = useRef(false);
@@ -227,6 +231,15 @@ export default function MoveSummaryScreen() {
     points: session.points,
   });
 
+  /* Whether Save will really ask the server, and so whether "waiting for the
+     server check" may be said. Guests and capacity-limited routes save locally. */
+  const serverCheck = willRequestServerCheck({
+    hasClient: movementClient !== null,
+    verifiable: willSubmit,
+    evidenceStatus: session.evidenceStatus,
+    accountId,
+  });
+
   /* Territory touched — the real H3 resolution-8 cells this route passed
      through, derived from the in-memory route through the same shared domain
      the backend verifies with. Derived here and not stored: a sequence of
@@ -302,7 +315,11 @@ export default function MoveSummaryScreen() {
        that recorded no route is saved without it: it still gets its
        route-history record below, and Home's movement task — which filters
        history by SESSION_QUEST_ID — correctly stays unsatisfied. */
-    if (movedOverGround) completeQuest(sessionQuest);
+    if (movedOverGround) {
+      /* Banked now as an estimate; the server's verdict settles it (MR-C). */
+      const outcome = completeQuest(sessionQuest);
+      recordMovementXpEstimate(session.clientSessionId, outcome.xpGained, serverCheck);
+    }
     /* Server verification of the completed route.
        Saving is the user's deliberate act of turning this session into
        progress, and it is the only path that is already gated to real GPS
@@ -312,7 +329,7 @@ export default function MoveSummaryScreen() {
        result is recorded against this session's stable id, and a slow or
        failed verification must never delay or block a completion the user has
        already earned. Nothing below depends on it. */
-    if (movementClient) {
+    if (movementClient && serverCheck) {
       void submitCompletedSession(session, {
         client: movementClient,
         readState: getVerificationState,
@@ -329,7 +346,10 @@ export default function MoveSummaryScreen() {
            answer. Nothing here captures a zone or awards anything — the store
            action only appends what the server said. */
         const record = toVerifiedRecord(session.clientSessionId, state);
-        if (record) recordMovementVerification(record);
+        if (record) {
+          recordMovementVerification(record);
+          settleMovementXp(record);
+        }
       });
     }
     /* Persist the route-trust *preview* summary only (score + label) — never
@@ -476,7 +496,7 @@ export default function MoveSummaryScreen() {
               {!completion.progressPersisted ? (
                 <View style={styles.pendingBadge}>
                   <Ionicons name="time-outline" size={13} color={colors.textDim} />
-                  <Text style={styles.pendingText}>Earn on save</Text>
+                  <Text style={styles.pendingText}>Estimate, counts when saved</Text>
                 </View>
               ) : null}
               <View style={styles.rewardRow}>
@@ -486,6 +506,10 @@ export default function MoveSummaryScreen() {
                 <Text style={styles.rewardLabel}>XP</Text>
                 <CountUpText value={xp} prefix="+" style={[styles.rewardValue, { color: ink.gold }]} />
               </View>
+              {/* Saving banks an estimate. Only the server check can verify it. */}
+              <Text style={styles.xpStatus} accessibilityLiveRegion="polite">
+                {xpEntry ? movementXpLabel(movementXpStatus(xpEntry, verification)) : "Estimated on this phone"}
+              </Text>
             </View>
           </FadeSlideIn>
         ) : null}
@@ -539,7 +563,7 @@ export default function MoveSummaryScreen() {
                   {session.mode === "demo"
                     ? "demo only"
                     : captureEligible
-                      ? "Capture preview"
+                      ? "Explored (local preview)"
                       : "traversed only"}
                 </Text>
               </View>
@@ -679,13 +703,13 @@ export default function MoveSummaryScreen() {
                 one-fix stationary session is never submitted — promising the
                 upload anyway would be the disclosure describing a request that
                 does not happen. */}
-            {accountId && evidenceComplete && willSubmit ? (
+            {serverCheck ? (
               <Text style={styles.uploadNote}>
                 Saving sends this session&apos;s route to MovenRun to verify the distance.
               </Text>
             ) : null}
             <Button
-              label={captureEligible ? "Save + preview capture" : "Save session"}
+              label={"Save session"}
               icon={captureEligible ? "flag" : "bookmark"}
               onPress={save}
             />
@@ -762,6 +786,7 @@ const styles = StyleSheet.create({
   rewardLabelWrap: { flex: 1, gap: 1 },
   rewardLabelPlain: { ...type.heading, fontSize: 15 },
   rewardSub: { ...type.caption, fontSize: 11, color: colors.textFaint },
+  xpStatus: { ...type.caption, fontSize: 12, color: colors.textDim, marginTop: spacing.xs },
   rewardValue: { fontSize: 22, fontWeight: "800", letterSpacing: -0.4 },
   rewardDivider: { height: 1, backgroundColor: colors.surfaceAlt },
   zoneCard: {

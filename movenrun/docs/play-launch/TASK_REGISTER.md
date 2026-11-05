@@ -108,7 +108,7 @@ that are DONE stay as they are; no new M-task is started.
 | R-01 | Production AAB workflow with release gates | DONE | `.github/workflows/eas-production-aab.yml` |
 | R-02 | EAS environment variables (API, Supabase URL and publishable key, Maps key) | BLOCKED_OWNER | X-08 |
 | R-03 | Build the AAB | BLOCKED_OWNER | X-09, X-14 |
-| R-04 | Check the AAB's merged manifest, 64-bit and 16 KB | BLOCKED_PROVIDER | Needs the Play App bundle explorer after X-12 |
+| R-04 | Check the AAB's merged manifest, 64-bit and 16 KB | BLOCKED_OWNER | Local checks on the APK (X-04) and AAB (X-09) in `ANDROID_16KB_PAGE_SIZE.md`; App bundle explorer after X-12 |
 | R-05 | Play App Signing SHA-1 on the Maps key | BLOCKED_OWNER | X-08, X-11 |
 | QA-01 | Handset script on the preview APK (both sign-in methods, verified movement, deletion) | BLOCKED_OWNER | X-04, X-10 |
 | QA-02 | Two-account and cap check on the hosted API | BLOCKED_OWNER | B-05, B-17 |
@@ -119,6 +119,9 @@ that are DONE stay as they are; no new M-task is started.
 | O-06 | Play registration and pre-listing checklist | DONE | `PLAY_REGISTRATION_CHECKLIST.md` |
 | O-07 | Register the Play developer account | BLOCKED_OWNER | X-01a, X-01b (NOT CREATED) |
 | QA-05 | Device gate plan with pass rules | DONE | `ANDROID_DEVICE_GATE_PLAN.md` |
+| QA-06 | Manifest hardening: cleartext off, background location service removed, unused exported clipboard provider removed; dependency manifest scan | DONE (#115) | E-QA0-1 |
+| QA-07 | 16 KB inventory with version and AAR evidence; build-input guard; APK/AAB verification steps | DONE (#115); proof on a build is R-04 | `ANDROID_16KB_PAGE_SIZE.md`, E-QA0-2 |
+| QA-08 | X-04 runbook (variable names, steps, static APK checks) and AAB-to-internal-track workflow with cited testing rules | DONE (#115) | `X04_PREVIEW_BUILD_RUNBOOK.md`, `PLAY_INTERNAL_RELEASE_WORKFLOW.md`, E-QA0-3 |
 | M-17 | Any further app UI, screen or navigation change | DEFERRED | Frontend hold (D-25) |
 | O-03 | Production release and rollout | BLOCKED_OWNER | X-16 |
 | O-04 | 48-hour monitoring plan (now with capacity alerts and sign-in checks) | DONE | `POST_LAUNCH_MONITORING.md` |

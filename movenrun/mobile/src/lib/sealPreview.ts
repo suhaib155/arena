@@ -20,6 +20,14 @@
  * tracker liked can still be refused by the server, and a loop the player
  * watched close can turn out not to have been submitted at all.
  *
+ * ## Provisional by design
+ *
+ * The phone applies the v1 closing rules (self-crossing, or finishing near the
+ * start). The stricter gameplay rules a server may apply later (a minimum
+ * area, no out-and-back or spur loops) are not run here, so "loop closed" is a
+ * statement about the shape on this phone and never a promise that ground is
+ * claimed, banked or kept.
+ *
  * ## What it deliberately does not do
  *
  * It does not capture, own, defend or claim anything, and it never says
@@ -129,9 +137,9 @@ function tracker(rules: SealingRules, pauses: PauseSource): SealPreviewTracker {
  */
 export function sealPreviewLabel(preview: SealPreview): string {
   const loops = preview.sealedLoops;
-  if (loops === 0) return preview.nearStart ? "Finish here to seal" : "Open route";
-  const sealed = loops === 1 ? "1 loop sealed" : `${loops} loops sealed`;
-  return preview.nearStart ? `${sealed} · finish here to seal` : sealed;
+  if (loops === 0) return preview.nearStart ? "Finish here to close the loop" : "Open route";
+  const closed = loops === 1 ? "1 loop closed" : `${loops} loops closed`;
+  return preview.nearStart ? `${closed} · finish here to close` : closed;
 }
 
 /**
@@ -146,7 +154,7 @@ export function sealPreviewAnnouncement(
   next: SealPreview,
 ): string | null {
   if (next.sealedLoops > previous.sealedLoops) {
-    return next.sealedLoops === 1 ? "Loop sealed" : `${next.sealedLoops} loops sealed`;
+    return next.sealedLoops === 1 ? "Loop closed" : `${next.sealedLoops} loops closed`;
   }
   if (next.nearStart && !previous.nearStart) return "Back near your start";
   return null;
@@ -215,8 +223,8 @@ export function finishedSealLabel(seal: FinishedSeal | null): string {
   if (seal === null) return "Route not evaluated";
   if (!seal.sealed) return "Open route — this one stayed open";
   const parts: string[] = [];
-  if (seal.loops === 1) parts.push("1 loop sealed");
-  else if (seal.loops > 1) parts.push(`${seal.loops} loops sealed`);
+  if (seal.loops === 1) parts.push("1 loop closed");
+  else if (seal.loops > 1) parts.push(`${seal.loops} loops closed`);
   if (seal.cameHome) parts.push("finished near your start");
   return parts.join(" · ");
 }

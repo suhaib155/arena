@@ -10,6 +10,11 @@ on the **Play internal-test install** (R gate, adds steps 16 to 17). Steps
 15a–15f need a wallet app installed (no funds needed) and must pass on a phone
 by 24 Oct, otherwise the release flags `WALLET_LOGIN_BLOCKED` (DECISIONS D-19).
 
+The QA0 checks Q0-1 to Q0-6 in `ANDROID_DEVICE_GATE_PLAN.md` (Hermes cold
+start, location in the background, the Google and wallet flows in more
+detail, deletion, backup and transfer) run alongside this script on the same
+APK and use its evidence rules.
+
 | # | Step | Expected |
 |---|---|---|
 | 1 | Fresh install, cold start | Splash with MovenRun icon on light background, then welcome. No crash, no blank screen |

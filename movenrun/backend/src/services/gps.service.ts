@@ -1,15 +1,20 @@
-import { evidenceDistance } from "@movenrun/shared/evidence";
+import { evidenceDistance, LEGACY_MIN_POINTS } from "@movenrun/shared/evidence";
 import { GPSPoint, GPSRoute, AnomalyResult, RouteStatus } from "@movenrun/shared";
 
 const MAX_SPEED_MS = 22; // ~80 km/h — max plausible running/cycling speed
 const MIN_ACCURACY_M = 50;
-const MIN_POINTS = 10;
 
 export class GpsService {
-  validateRoute(route: GPSRoute): AnomalyResult {
+  /**
+   * `minPoints` defaults to the legacy floor. Only a caller that applies the
+   * shared short-route evidence policy itself may lower it (see the movement
+   * wiring); every other caller keeps the legacy count.
+   */
+  validateRoute(route: GPSRoute, options: { minPoints?: number } = {}): AnomalyResult {
     const reasons: string[] = [];
+    const minPoints = options.minPoints ?? LEGACY_MIN_POINTS;
 
-    if (route.points.length < MIN_POINTS) {
+    if (route.points.length < minPoints) {
       reasons.push(`Too few GPS points: ${route.points.length}`);
     }
 
