@@ -320,9 +320,22 @@ function restoreSingleFlight(work: () => Promise<void>): Promise<void> {
  * finish in either order could re-apply the old session over the new one, or
  * let a rejected old refresh token discard the credentials just saved.
  */
-async function settleRestoreInFlight(): Promise<void> {
+async function settleRestoreInFlight(
+  operation: AuthOperation,
+  set: (partial: Partial<AuthState>) => void,
+  get: () => AuthState,
+): Promise<boolean> {
   const running = restoreInFlight;
-  if (running) await running.catch(() => {});
+  if (!running) return true;
+  await running.catch(() => {});
+  if (get().status === "signedIn") {
+    // The restore found a live session; this sign-in has nothing to add.
+    set({ operation: "idle" });
+    return false;
+  }
+  // A non-quiet restore resets `operation` when it lands; claim it again.
+  set({ operation, authErrorCode: null });
+  return true;
 }
 
 /**
@@ -515,7 +528,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       /* Re-checked inside the single flight: a Retry or sign-in that started
          meanwhile owns the outcome. */
       if (!shouldResumeRestoreQuietly(get())) return;
-      await guardedRestore(client, set);
+      /* Never touches `operation`: a sign-in may claim it while this runs, and
+         that sign-in waits for this restore before going on. */
+      await guardedRestore(client, (partial) => {
+        const { operation: _ignored, ...rest } = partial;
+        set(rest);
+      });
     });
   },
 
@@ -548,11 +566,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ operation: "idle", authErrorCode: "client_unavailable" });
       return false;
     }
-    /* Waited for BEFORE the guard: a restore's result resets `operation`, and
-       the checks below then run synchronously with the set that claims it. */
-    await settleRestoreInFlight();
     if (get().operation !== "idle" || get().status === "signedIn") return false;
     set({ operation: "verifyingOtp", authErrorCode: null });
+    if (!(await settleRestoreInFlight("verifyingOtp", set, get))) return false;
 
     let result: LoginResult;
     try {
@@ -579,11 +595,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ operation: "idle", authErrorCode: "client_unavailable" });
       return false;
     }
-    /* Waited for BEFORE the guard: a restore's result resets `operation`, and
-       the checks below then run synchronously with the set that claims it. */
-    await settleRestoreInFlight();
     if (get().operation !== "idle" || get().status === "signedIn") return false;
     set({ operation: "signingIn", authErrorCode: null });
+    if (!(await settleRestoreInFlight("signingIn", set, get))) return false;
     let result: LoginResult | null;
     try {
       result = await obtain(client);
