@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { AppState, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -15,6 +15,7 @@ import {
   requestForegroundPermission,
 } from "@/services/moveTracker";
 import { resolveReadiness, type PermissionStatus } from "@/lib/moveReadiness";
+import { SCREEN_ON_FACT } from "@/lib/screenAwake";
 import type { ReadinessTone } from "@/components/ReadinessChip";
 import type { IoniconName } from "@/types";
 import { tapFeedback } from "@/lib/haptics";
@@ -49,13 +50,24 @@ export default function MoveStartScreen() {
     setServicesOn(services);
   }, []);
 
-  // Re-check whenever the screen regains focus (e.g. returning from Settings).
+  // Re-check whenever the screen regains navigation focus.
   useFocusEffect(
     useCallback(() => {
       setPermission("checking");
       void refresh();
     }, [refresh]),
   );
+
+  /* Returning from system Settings does not change navigation focus, so the
+     focus effect above never re-ran and the screen kept saying permission was
+     needed after the player had granted it. The app coming back to the
+     foreground is the event that actually happens. */
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
 
   const readiness = resolveReadiness({
     permission,
@@ -152,6 +164,7 @@ export default function MoveStartScreen() {
         <FadeSlideIn delay={STAGGER_MS * 3}>
           <View style={styles.facts}>
             <Fact icon="phone-portrait-outline" text="Foreground only — no background tracking" />
+            <Fact icon="sunny-outline" text={SCREEN_ON_FACT} />
             <Fact
               icon="shield-checkmark-outline"
               text="Signed in, saving sends the route to verify it"

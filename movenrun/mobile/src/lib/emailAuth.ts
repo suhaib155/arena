@@ -1,3 +1,5 @@
+import { DELETION_BUSY_MESSAGE, DELETION_PENDING_MESSAGE } from "./accountDeletionCopy";
+
 /**
  * Email/OTP form rules and stable public error copy — pure.
  *
@@ -87,6 +89,10 @@ export function authErrorMessage(code: string | null): string | null {
       return "That sign-in request was already used or has expired. Please start again.";
     case "session_invalid":
       return "Your session ended. Sign in again to continue.";
+    case "account_deletion_pending":
+      return DELETION_PENDING_MESSAGE;
+    case "deletion_busy":
+      return DELETION_BUSY_MESSAGE;
     default:
       return "Something went wrong. Please try again.";
   }

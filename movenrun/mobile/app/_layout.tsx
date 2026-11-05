@@ -4,7 +4,7 @@ import { Sora_700Bold } from "@expo-google-fonts/sora/700Bold";
 import { Sora_800ExtraBold } from "@expo-google-fonts/sora/800ExtraBold";
 import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
 import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
-import { StyleSheet, Text, View } from "react-native";
+import { AppState, StyleSheet, Text, View } from "react-native";
 import { Stack, usePathname, useRootNavigationState, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -139,6 +139,15 @@ function RootNavigator() {
   useVerificationRetry();
   const retryRestore = useAuthStore((s) => s.retryRestore);
   const acknowledgeRestoreError = useAuthStore((s) => s.acknowledgeRestoreError);
+  const resumeRestoreQuietly = useAuthStore((s) => s.resumeRestoreQuietly);
+  /* Offline start, continued locally: ask again each time the app returns to
+     the foreground, so a session restored later can verify what follows. */
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void resumeRestoreQuietly();
+    });
+    return () => sub.remove();
+  }, [resumeRestoreQuietly]);
   const navigationPending = useStartupRouting(decision.route);
   useReleaseRouteGuard();
 

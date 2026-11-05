@@ -21,6 +21,7 @@ import {
   boardInputFromState,
   buildTodayBoard,
   xpEarnedToday,
+  unsettledMovementXpToday,
   type Task,
   type TaskAction,
 } from "@/lib/tasks";
@@ -61,7 +62,9 @@ export default function TodayScreen() {
     hasClub: selectedClubId != null,
   });
   const board = buildTodayBoard(boardInput);
-  const xpToday = xpEarnedToday(history);
+  const movementXp = useGameStore((s) => s.movementXp);
+  const xpToday = xpEarnedToday(history, undefined, movementXp);
+  const xpTodayEstimated = unsettledMovementXpToday(movementXp) > 0;
   const atRiskCount = boardInput.atRiskZoneCount;
 
   /** Semantic task actions become concrete routes here, and only here. */
@@ -100,7 +103,7 @@ export default function TodayScreen() {
         </View>
 
         <MeterRow items={[
-          { value: `+${xpToday}`, label: "XP today", tone: "gold" },
+          { value: `+${xpToday}`, label: xpTodayEstimated ? "XP today (est.)" : "XP today", tone: "gold" },
           { value: zones.length, label: "Preview zones", tone: "green" },
           { value: board.progressLabel, label: "Today's objectives", tone: "blue" },
         ]} />

@@ -80,8 +80,8 @@ export const INTRO_STEPS: readonly IntroStepContent[] = Object.freeze([
     icon: "walk-outline",
   },
   {
-    title: "Capture and defend",
-    body: "Moving through a zone can capture or strengthen it. Return before control fades to defend your ground.",
+    title: "Explore new ground",
+    body: "Your moves show up as a local preview of the places you have been.",
     ctaLabel: "See your progress",
     icon: "shield-half-outline",
   },

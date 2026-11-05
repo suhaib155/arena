@@ -115,9 +115,9 @@ export const CORE_LOOP: readonly LoopStep[] = Object.freeze([
   }),
   Object.freeze({
     key: "own",
-    label: "Own",
+    label: "Preview",
     detail:
-      "Zone Deeds are a preview of a future layer, on a public testnet and read-only in the app. No wallet, no minting, no rewards, and no value.",
+      "Your ground is a personal preview kept on this device. It is not ownership of any place. No token, no wallet, no rewards, and no value.",
     icon: "ribbon-outline",
   }),
 ]) as readonly LoopStep[];
@@ -154,7 +154,7 @@ const NEW_USER: TerritoryIntroView = Object.freeze({
 const RETURNING_USER: TerritoryIntroView = Object.freeze({
   stage: "returning",
   title: "No zones held yet",
-  body: "You have movement on record, but nothing captured. Capture happens when a route covers eligible ground, so another session is the way to claim your first zone.",
+  body: "You have movement on record, but nothing captured. Capture happens when a route covers eligible ground, so another session is the way to explore your first zone.",
   steps: Object.freeze([]) as readonly LoopStep[],
   ctaLabel: "Start move",
   ctaAction: "move",

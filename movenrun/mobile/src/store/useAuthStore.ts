@@ -15,6 +15,7 @@
  */
 import { create } from "zustand";
 import { clearPendingQueue, discardPendingVerifications } from "@/services/verificationQueue";
+import type { DeletionOutcome } from "@/lib/accountDeletionCopy";
 import { setVerificationAccount } from "@/services/verificationPrivacy";
 import {
   createIdentityApiClient,
@@ -73,6 +74,8 @@ interface AuthState {
   /** Dedup key for the in-flight destructive session action: a session id,
    *  "revoke-others", or null. While set, all session actions are refused. */
   pendingSessionAction: string | null;
+  /** What the last successful deleteAccount call may be described as. */
+  deletionOutcome: DeletionOutcome | null;
 
   setClient: (client: IdentityApiClient) => void;
   /** App-level bootstrap: construct the client once, then restore any stored
@@ -82,6 +85,13 @@ interface AuthState {
   retryRestore: () => Promise<void>;
   /** User chose to continue into the local experience despite that failure. */
   acknowledgeRestoreError: () => void;
+  /**
+   * Ask again, without interrupting, whether the stored session is valid.
+   * Runs only after an unreachable-service restore the user already chose to
+   * continue past; see `shouldResumeRestoreQuietly`. Never shows the startup
+   * error again and never moves through `restoring`.
+   */
+  resumeRestoreQuietly: () => Promise<void>;
   /** Ask the server to send a one-time code. Resolves true when it accepted,
    *  so the form can move to code entry without inspecting store internals. */
   beginEmailOtp: (email: string) => Promise<boolean>;
@@ -108,8 +118,9 @@ interface AuthState {
   signOut: () => Promise<void>;
   /** Server-side revoke-all (every device), then local credential clear. */
   signOutEverywhere: () => Promise<void>;
-  /** Permanently delete the account on the server, then sign out locally.
-   *  Resolves true only after the server confirmed the deletion. */
+  /** Request deletion of the account on the server, then sign out locally.
+   *  Resolves true once the server accepted the request; `deletionOutcome`
+   *  says whether it was confirmed complete or is still being finished. */
   deleteAccount: () => Promise<boolean>;
 }
 
@@ -304,6 +315,30 @@ function restoreSingleFlight(work: () => Promise<void>): Promise<void> {
 }
 
 /**
+ * A sign-in waits for any restore still running. The quiet foreground restore
+ * leaves the app usable, so a sign-in can begin while it runs; letting both
+ * finish in either order could re-apply the old session over the new one, or
+ * let a rejected old refresh token discard the credentials just saved.
+ */
+async function settleRestoreInFlight(
+  operation: AuthOperation,
+  set: (partial: Partial<AuthState>) => void,
+  get: () => AuthState,
+): Promise<boolean> {
+  const running = restoreInFlight;
+  if (!running) return true;
+  await running.catch(() => {});
+  if (get().status === "signedIn") {
+    // The restore found a live session; this sign-in has nothing to add.
+    set({ operation: "idle" });
+    return false;
+  }
+  // A non-quiet restore resets `operation` when it lands; claim it again.
+  set({ operation, authErrorCode: null });
+  return true;
+}
+
+/**
  * Forget the process-level restore lifecycle so the next `initialize()` runs
  * again. Used ONLY by tests, which drive several independent bootstrap
  * scenarios through one module instance; app code never calls it.
@@ -411,6 +446,21 @@ function resolveClient(
   return client;
 }
 
+/**
+ * The app started while the identity service was unreachable and the user
+ * chose to continue locally. Nothing asked again until they found Retry, so a
+ * signed-in player who opened the app offline stayed `unknown` all day: every
+ * save was local only and queued nothing for verification, even after the
+ * phone was back online. Coming back to the foreground in that state asks
+ * again quietly. Only that state: never a keystore failure (asking again
+ * cannot fix it), never while an auth request runs, never a signed-out user.
+ */
+export function shouldResumeRestoreQuietly(state: Pick<AuthState,
+  "status" | "restoreErrorCode" | "restoreErrorAcknowledged" | "operation">): boolean {
+  return state.status === "unknown" && state.restoreErrorCode === "service_unavailable" &&
+    state.restoreErrorAcknowledged && state.operation === "idle";
+}
+
 /** Build the client (once) and restore. Never rejects. */
 async function bootstrap(
   set: (partial: Partial<AuthState>) => void,
@@ -438,6 +488,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   sessionsStatus: "idle",
   sessionsErrorCode: null,
   pendingSessionAction: null,
+  deletionOutcome: null,
 
   setClient: (client) => set({ client }),
 
@@ -468,6 +519,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   acknowledgeRestoreError: () => set({ restoreErrorAcknowledged: true }),
+
+  resumeRestoreQuietly: async () => {
+    const state = get();
+    if (!shouldResumeRestoreQuietly(state) || !state.client) return;
+    const client = state.client;
+    return restoreSingleFlight(async () => {
+      /* Re-checked inside the single flight: a Retry or sign-in that started
+         meanwhile owns the outcome. */
+      if (!shouldResumeRestoreQuietly(get())) return;
+      /* Never touches `operation`: a sign-in may claim it while this runs, and
+         that sign-in waits for this restore before going on. */
+      await guardedRestore(client, (partial) => {
+        const { operation: _ignored, ...rest } = partial;
+        set(rest);
+      });
+    });
+  },
 
   beginEmailOtp: async (email) => {
     const client = get().client;
@@ -500,6 +568,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     if (get().operation !== "idle" || get().status === "signedIn") return false;
     set({ operation: "verifyingOtp", authErrorCode: null });
+    if (!(await settleRestoreInFlight("verifyingOtp", set, get))) return false;
 
     let result: LoginResult;
     try {
@@ -528,6 +597,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     if (get().operation !== "idle" || get().status === "signedIn") return false;
     set({ operation: "signingIn", authErrorCode: null });
+    if (!(await settleRestoreInFlight("signingIn", set, get))) return false;
     let result: LoginResult | null;
     try {
       result = await obtain(client);
@@ -652,9 +722,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   deleteAccount: async () => {
     const client = get().client;
     if (!client || get().pendingSessionAction !== null) return false;
-    set({ pendingSessionAction: "delete-account", accountErrorCode: null });
+    set({ pendingSessionAction: "delete-account", accountErrorCode: null, deletionOutcome: null });
+    let outcome: DeletionOutcome;
     try {
-      await client.deleteAccount();
+      outcome = await client.deleteAccount();
     } catch (err) {
       if (isAuthLost(err)) {
         set(signedOut({ accountErrorCode: codeOf(err) }));
@@ -664,7 +735,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
     beginSessionGeneration();
-    set(signedOut({ accountErrorCode: null }));
+    set({ ...signedOut({ accountErrorCode: null }), deletionOutcome: outcome });
     return true;
   },
 
