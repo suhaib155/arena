@@ -15,6 +15,7 @@ import {
   requestForegroundPermission,
 } from "@/services/moveTracker";
 import { resolveReadiness, type PermissionStatus } from "@/lib/moveReadiness";
+import { SCREEN_ON_FACT } from "@/lib/screenAwake";
 import type { ReadinessTone } from "@/components/ReadinessChip";
 import type { IoniconName } from "@/types";
 import { tapFeedback } from "@/lib/haptics";
@@ -163,6 +164,7 @@ export default function MoveStartScreen() {
         <FadeSlideIn delay={STAGGER_MS * 3}>
           <View style={styles.facts}>
             <Fact icon="phone-portrait-outline" text="Foreground only — no background tracking" />
+            <Fact icon="sunny-outline" text={SCREEN_ON_FACT} />
             <Fact
               icon="shield-checkmark-outline"
               text="Signed in, saving sends the route to verify it"

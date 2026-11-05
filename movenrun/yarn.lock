@@ -2894,6 +2894,7 @@ __metadata:
     expo-file-system: "npm:~19.0.23"
     expo-font: "npm:~14.0.12"
     expo-haptics: "npm:~15.0.8"
+    expo-keep-awake: "npm:~15.0.8"
     expo-linking: "npm:~8.0.12"
     expo-location: "npm:~19.0.8"
     expo-router: "npm:~6.0.24"
