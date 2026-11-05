@@ -315,6 +315,17 @@ function restoreSingleFlight(work: () => Promise<void>): Promise<void> {
 }
 
 /**
+ * A sign-in waits for any restore still running. The quiet foreground restore
+ * leaves the app usable, so a sign-in can begin while it runs; letting both
+ * finish in either order could re-apply the old session over the new one, or
+ * let a rejected old refresh token discard the credentials just saved.
+ */
+async function settleRestoreInFlight(): Promise<void> {
+  const running = restoreInFlight;
+  if (running) await running.catch(() => {});
+}
+
+/**
  * Forget the process-level restore lifecycle so the next `initialize()` runs
  * again. Used ONLY by tests, which drive several independent bootstrap
  * scenarios through one module instance; app code never calls it.
@@ -537,6 +548,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ operation: "idle", authErrorCode: "client_unavailable" });
       return false;
     }
+    /* Waited for BEFORE the guard: a restore's result resets `operation`, and
+       the checks below then run synchronously with the set that claims it. */
+    await settleRestoreInFlight();
     if (get().operation !== "idle" || get().status === "signedIn") return false;
     set({ operation: "verifyingOtp", authErrorCode: null });
 
@@ -565,6 +579,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ operation: "idle", authErrorCode: "client_unavailable" });
       return false;
     }
+    /* Waited for BEFORE the guard: a restore's result resets `operation`, and
+       the checks below then run synchronously with the set that claims it. */
+    await settleRestoreInFlight();
     if (get().operation !== "idle" || get().status === "signedIn") return false;
     set({ operation: "signingIn", authErrorCode: null });
     let result: LoginResult | null;

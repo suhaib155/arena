@@ -114,3 +114,57 @@ test("the root navigator resumes the restore when the app returns to the foregro
   const s = readFileSync(join(process.cwd(), "app/_layout.tsx"), "utf8");
   assert.match(s, /AppState\.addEventListener\("change"[\s\S]{0,120}next === "active"\) void resumeRestoreQuietly\(\)/);
 });
+
+test("a sign-in that starts during a slow quiet restore waits for it, so its tokens survive", async () => {
+  /* The old stored refresh token is dead; the restore answers only after the
+     sign-in has begun. Without the wait, the rejected restore would discard
+     the credentials the sign-in just saved and leave the player signed out. */
+  const store = createSecureSessionStore(createTestSecureBackend());
+  await store.save(TOKENS());
+  let releaseRestore: () => void = () => {};
+  const restoreGate = new Promise<void>((r) => { releaseRestore = r; });
+  let phase: "offline" | "slow" | "online" = "offline";
+  globalThis.fetch = (async (input: string) => {
+    if (phase === "offline") throw new TypeError("Network request failed");
+    if (phase === "slow") {
+      await restoreGate;
+      return json(401, { error: { code: "session_expired" } });
+    }
+    const url = String(input);
+    if (url.endsWith("/identity/me")) {
+      return json(200, { user: { id: "usr_new", status: "active", createdAt: FUTURE() }, session: {}, identities: [] });
+    }
+    if (url.endsWith("/identity/wallets")) return json(200, { wallets: [] });
+    return json(404, {});
+  }) as typeof fetch;
+  resetAuthBootstrapForTests();
+  const client = new IdentityApiClient({ baseUrl: "https://identity.test", store });
+  useAuthStore.setState({
+    status: "unknown", operation: "idle", lastRestore: null, authErrorCode: null,
+    restoreErrorCode: null, restoreErrorAcknowledged: false, user: null, identities: [], wallets: [], client,
+  });
+  await state().initialize();
+  state().acknowledgeRestoreError();
+  phase = "slow";
+
+  const quiet = state().resumeRestoreQuietly();
+  let obtainedWhileRestoring = false;
+  const signIn = state().signInWith(async () => {
+    obtainedWhileRestoring = restoreRunning;
+    phase = "online";
+    const fresh = { ...TOKENS(), accessToken: "access-new", refreshToken: "refresh-new" };
+    await store.save(fresh);
+    return { user: { id: "usr_new", status: "active", createdAt: FUTURE() } } as never;
+  });
+  let restoreRunning = true;
+  releaseRestore();
+  await quiet;
+  restoreRunning = false;
+  await signIn;
+
+  assert.equal(obtainedWhileRestoring, false, "the sign-in waited for the restore to settle");
+  assert.equal(state().status, "signedIn");
+  assert.equal(state().user?.id, "usr_new");
+  const kept = await store.load();
+  assert.equal(kept?.refreshToken, "refresh-new", "the new sign-in's credentials were not discarded");
+});
