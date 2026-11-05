@@ -64,6 +64,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      # The app source checked here must be the owner-approved build commit.
+      # Update this pin only together with a new owner approval.
+      - name: App source equals the approved build commit
+        env:
+          APPROVED_BUILD_SHA: 77b57dea97748d9e3bd4bc2ff0aaa3adbc6c53a0
+        run: |
+          set -euo pipefail
+          git cat-file -e "${APPROVED_BUILD_SHA}^{commit}"
+          if git diff --quiet "$APPROVED_BUILD_SHA" HEAD -- movenrun; then
+            echo "movenrun/ is identical to ${APPROVED_BUILD_SHA}" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::movenrun/ differs from the approved build commit ${APPROVED_BUILD_SHA}"
+            exit 1
+          fi
 
       # Same toolchain as the preview build workflow: Node 20, Yarn 4 via Corepack.
       - uses: actions/setup-node@v4
