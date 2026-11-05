@@ -94,7 +94,11 @@ test("a bridge never excuses an over-speed pair: quality and anomaly gates still
   const tampered: MovementObservation = { ...observation, points: shifted, endTime: last,
     session: { ...observation.session!, finishedAt: last + 1_000 } };
   assert.deepEqual(structuralRejections(tampered, now), []);
-  assert.equal(verifyMovement(tampered, deps(now)).status, "rejected");
+  const verdict = verifyMovement(tampered, deps(now));
+  assert.equal(verdict.status, "rejected");
+  // The on-foot quality gate itself refuses the pair: only an explicit break
+  // resets its speed check, an unobserved bridge does not.
+  assert.deepEqual(verdict.rejectionReasons, ["Route measurement quality needs review"]);
   const { session: _session, ...legacy } = tampered;
   assert.equal(gps.validateRoute(toValidatable(legacy) as never).isAnomaly, true);
   assert.equal(verifyMovement(legacy, deps(now)).status, "rejected");

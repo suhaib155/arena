@@ -20,6 +20,8 @@ import { once } from "node:events";
 import { Pool } from "pg";
 
 import { resolveApiConfig } from "./config.js";
+import { PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS } from "../identity/domain/errors.js";
+import { JWKS_RETRY_AFTER_FAILURE_MS } from "../identity/providers/supabaseAuth.js";
 import { captureWalk, line, type WalkScenario } from "../movement/testing/syntheticWalks.js";
 import type { ObservedPoint } from "../movement/domain/types.js";
 
@@ -141,12 +143,12 @@ test("compatibility candidate: app client, security API and movement rules on Po
     const down = await call("/identity/auth/google/complete", { accessToken: mint(randomUUID()) });
     assert.equal(down.status, 503);
     assert.deepEqual(await down.json(), { error: { code: "provider_unavailable" } });
-    assert.equal(down.headers.get("retry-after"), "10");
+    assert.equal(down.headers.get("retry-after"), String(PROVIDER_UNAVAILABLE_RETRY_AFTER_SECONDS));
     assert.equal(down.headers.get("cache-control"), "no-store");
     assert.equal((await pool.query("select count(*)::int as n from users")).rows[0].n, 0);
     provider.jwksUp = true;
     // The verifier waits out its ten-second retry gap before fetching again.
-    await new Promise((resolve) => setTimeout(resolve, 10_500));
+    await new Promise((resolve) => setTimeout(resolve, JWKS_RETRY_AFTER_FAILURE_MS + 500));
 
     // Google sign-in through the security line.
     const subject = randomUUID();
@@ -202,6 +204,16 @@ test("compatibility candidate: app client, security API and movement rules on Po
     assert.equal(legacy.verification.status, "rejected");
     assert.equal(legacy.verification.distanceMeters, null);
 
+    // 3b. A phone left still for five minutes, whose drift still produces five
+    //     accepted fixes, is held to the short-route evidence policy (MR-A-01)
+    //     and rejected as drift.
+    const still = captureWalk({ seed: 103, epochMs: epoch + 2 * 60_000, accuracyM: 10, sigmaM: 4, legs: [{ kind: "still", seconds: 315 }] });
+    assert.ok(still.accepted.length < 10, "really the short-route lane");
+    const drift = await client.submit(toRequest("compat-short-stationary", still.accepted, still.session));
+    assert.equal(drift.verification.status, "rejected");
+    assert.equal(drift.verification.distanceMeters, null);
+    assert.ok(drift.verification.rejectionReasons.some((r: string) => /short route/i.test(r)), drift.verification.rejectionReasons.join("; "));
+
     // 4. Impossible jump: one fix 2 km away for a second. Rejected, and the
     //    whole estimate is reversed.
     const long = captureWalk(longerWalk(epoch));
@@ -226,7 +238,7 @@ test("compatibility candidate: app client, security API and movement rules on Po
     const raw = await (await call("/movement/verify/compat-long-honest", undefined, accessToken!)).json();
     for (const key of ["xp", "capturedZones", "owned", "ownership", "lockedMove", "trustScore"]) assert.ok(!(key in raw), key);
     const stored = await pool.query("select * from movement_verifications");
-    assert.equal(stored.rowCount, 5, "five sessions, the retry adds no row");
+    assert.equal(stored.rowCount, 6, "six sessions, the retry adds no row");
     assert.ok(!JSON.stringify(stored.rows).includes(String(walk.accepted[0]!.lat).slice(0, 8)));
 
     // 7. Provider outage after sign-in: the signed-in player keeps verifying
@@ -242,7 +254,7 @@ test("compatibility candidate: app client, security API and movement rules on Po
     const deleted = await call("/identity/account/delete", { confirm: "DELETE" }, accessToken!);
     assert.equal(deleted.status, 200);
     const deletedBody = await deleted.json();
-    assert.equal(deletedBody.erased.movementSessions, 6);
+    assert.equal(deletedBody.erased.movementSessions, 7);
     assert.equal(deletedBody.signInRecord, "removed");
     assert.deepEqual(provider.deleted, [subject]);
     assert.equal((await pool.query("select count(*)::int as n from movement_verifications")).rows[0].n, 0);
