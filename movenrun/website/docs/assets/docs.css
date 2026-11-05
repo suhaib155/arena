@@ -7,8 +7,8 @@
 
 :root {
   --morning: #F8FAF7; --cloud: #FFFFFF; --mist: #F1F6F3; --pale-sky: #EAF6FF;
-  --ink: #111827; --graphite: #667085; --silver: #A3AAB8;
-  --blue: #246BFE; --green: #18C987; --mint: #58F2B3; --coral: #FF6B4A;
+  --ink: #111827; --graphite: #667085; --silver: #687082;
+  --blue: #1D5FE6; --green: #18C987; --mint: #58F2B3; --coral: #FF6B4A;
   --gold: #F7B955; --violet: #7657FF; --dust: #D0D5DD;
   --font-display: "Sora", system-ui, sans-serif;
   --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
@@ -163,6 +163,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 .darticle .lead { font-size: 17.5px; color: var(--graphite); margin-bottom: 22px; text-wrap: pretty; }
 .darticle ul, .darticle ol { margin: 0 0 16px; padding-left: 24px; }
 .darticle li { margin-bottom: 8px; color: #2A3342; }
+.darticle p a, .darticle li a, .darticle td a, .dfoot a { text-decoration: underline; text-underline-offset: 2px; }
 .darticle strong { color: var(--ink); }
 .wp-meta { font: 500 13px var(--font-body); color: var(--silver); margin-bottom: 20px; }
 

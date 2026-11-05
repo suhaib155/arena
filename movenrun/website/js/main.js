@@ -664,49 +664,9 @@
       h.el.style.stroke = CLUB_COLORS[h.club][1];
     });
   }
-  var warFlipTimer = null;
-  function startWarFlips() {
-    if (warFlipTimer || REDUCED) return;
-    warFlipTimer = setInterval(function () {
-      for (var i = 0; i < 3; i++) {
-        var h = warAreas[Math.floor(Math.random() * warAreas.length)];
-        h.club = (h.club + 1 + Math.floor(Math.random() * 3)) % 4;
-        h.el.style.transitionDelay = "0s";
-        h.el.style.fill = CLUB_COLORS[h.club][0];
-        h.el.style.stroke = CLUB_COLORS[h.club][1];
-      }
-    }, 1800);
-  }
-
-  /* leaderboard reorder */
-  (function () {
-    var wrap = $("#boardRows");
-    if (!wrap || REDUCED) return;
-    var rows = $all(".board-row", wrap);
-    var order = [0, 1, 2, 3];
-    var counts = [218, 204, 187, 142];
-    setInterval(function () {
-      var rect = wrap.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) return;
-      /* a chasing club gains ground; occasionally overtakes */
-      var i = 1 + Math.floor(Math.random() * 3);
-      counts[order[i]] += 4 + Math.floor(Math.random() * 9);
-      if (counts[order[i]] > counts[order[i - 1]]) {
-        var tmp = order[i]; order[i] = order[i - 1]; order[i - 1] = tmp;
-      }
-      var rowH = rows[0].offsetHeight + 10;
-      order.forEach(function (club, pos) {
-        var row = rows[club];
-        var domIdx = club;
-        row.style.transform = "translateY(" + ((pos - domIdx) * rowH) + "px)";
-        var span = row.querySelector(".club-info span");
-        span.textContent = counts[club] + " areas";
-        var trend = row.querySelector(".club-trend");
-        trend.className = "club-trend " + (pos < domIdx || (pos === domIdx && Math.random() < 0.6) ? "up" : "down");
-        trend.textContent = trend.classList.contains("up") ? "▲" : "▼";
-      });
-    }, 2600);
-  })();
+  /* The district map and the club board are static mockups: they paint once
+     and never change on their own, so nothing on the page imitates live
+     activity between players. */
 
   /* ───────────────────────── roadmap ───────────────────────────── */
   var roadTrack = $("#roadmapTrack");
@@ -773,7 +733,6 @@
       }
       if (e.target.id === "warMapWrap" || e.target.classList.contains("clubs-map")) {
         setTimeout(paintWar, 150);
-        startWarFlips();
       }
       io.unobserve(e.target);
     });
