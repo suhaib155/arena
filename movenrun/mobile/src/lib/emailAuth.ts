@@ -74,6 +74,8 @@ export function authErrorMessage(code: string | null): string | null {
       return "Too many attempts. Please wait a moment and try again.";
     case "provider_not_configured":
       return "This sign-in method isn't available yet.";
+    case "provider_unavailable":
+      return "Sign-in is briefly unavailable. Please try again in a moment. You can keep playing as a guest.";
     case "sign_in_failed":
       return "Sign-in didn't complete. Please try again.";
     case "registration_closed":

@@ -46,6 +46,7 @@ test("every public error code maps to fixed, non-technical copy", () => {
     "code_expired",
     "too_many_attempts",
     "provider_not_configured",
+    "provider_unavailable",
     "session_invalid",
   ];
   for (const code of codes) {
@@ -62,4 +63,11 @@ test("an unknown code collapses to one neutral message and leaks nothing", () =>
   assert.equal(unknown, "Something went wrong. Please try again.");
   // Crucially, an unknown code can never disclose account existence.
   assert.equal(unknown, authErrorMessage("some_other_backend_code"));
+});
+
+test("a provider outage reads as temporary, never as a missing sign-in method", () => {
+  const outage = authErrorMessage("provider_unavailable")!;
+  assert.match(outage, /try again/i);
+  assert.notEqual(outage, authErrorMessage("provider_not_configured"));
+  assert.notEqual(outage, authErrorMessage("some_unknown_code"));
 });

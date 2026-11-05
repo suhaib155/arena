@@ -239,6 +239,7 @@
     registration_busy: "Lots of new players are joining right now. Please try again in a little while.",
     timeout: "MovenRun took too long to answer. It may have been starting up; please try again in a moment.",
     network: "We couldn't reach MovenRun. Check your connection and try again.",
+    provider_unavailable: "Sign-in is briefly unavailable. Please wait a moment and try again.",
   };
 
   function message(err) {
