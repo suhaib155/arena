@@ -16,6 +16,7 @@
  * The store owns the last two as separate fields. Platform-free on purpose: no
  * fetch, no storage, no React.
  */
+import { defineTransitions } from "@movenrun/shared/state-machine";
 
 /**
  * Session truth only. Deliberately has no "authenticating" and no "error"
@@ -34,6 +35,27 @@ export type AuthStatus =
   | "signedOut"
   /** The server confirmed this session. */
   | "signedIn";
+
+/**
+ * Where session truth may move, as data. Every `status` write in the auth
+ * store follows one of these edges; a test drives the real store through
+ * restore, retry, sign-in and sign-out and checks each observed move.
+ *
+ *  - `unknown`   → `restoring` (bootstrap or Retry), `signedOut` (no backend
+ *                  configured), `signedIn` (a sign-in after the user chose to
+ *                  continue past a recoverable restore failure).
+ *  - `restoring` → whatever the restore concluded: `signedIn`, `signedOut`,
+ *                  or back to `unknown` when the server could not be asked.
+ *  - `signedOut` → `signedIn` (a confirmed sign-in) or `restoring` (Retry).
+ *  - `signedIn`  → `signedOut` (sign-out, deletion, or the server rejecting
+ *                  the session).
+ */
+export const AUTH_STATUS_TRANSITIONS = defineTransitions<AuthStatus>({
+  unknown: ["restoring", "signedOut", "signedIn"],
+  restoring: ["signedIn", "signedOut", "unknown"],
+  signedOut: ["signedIn", "restoring"],
+  signedIn: ["signedOut"],
+});
 
 /** The single auth request that may be in flight. Only one at a time. */
 export type AuthOperation = "idle" | "sendingOtp" | "verifyingOtp" | "signingIn";

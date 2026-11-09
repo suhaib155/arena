@@ -25,6 +25,7 @@ import type {
   ProviderEventStore,
   VerifiedProviderEvent,
 } from "./types.js";
+import { assertNever } from "@movenrun/shared/state-machine";
 
 export interface ProviderEventServiceOptions {
   store: ProviderEventStore;
@@ -132,20 +133,28 @@ export class ProviderEventService {
 
     try {
       const outcome = await handler.handle(claimed, data);
-      if (outcome.kind === "processed") {
-        const done = await this.store.markProcessed(claimed.id, token, this.now());
-        if (done) await this.audit.record("provider_event_processed", { subjectId: claimed.id });
-        return done;
+      // Exhaustive on purpose: a new outcome kind is a compile error here
+      // rather than silently treated as a retry.
+      switch (outcome.kind) {
+        case "processed": {
+          const done = await this.store.markProcessed(claimed.id, token, this.now());
+          if (done) await this.audit.record("provider_event_processed", { subjectId: claimed.id });
+          return done;
+        }
+        case "terminal": {
+          const term = await this.store.markTerminal(claimed.id, token, outcome.errorClass, this.now());
+          if (term) await this.audit.record("provider_event_terminal", {
+            subjectId: claimed.id,
+            metadata: { errorClass: outcome.errorClass },
+          });
+          return term;
+        }
+        case "retry":
+          return this.settleRetry(claimed, token, outcome.errorClass);
+        default:
+          // Unreachable by type; at runtime the catch below settles it as a retry.
+          return assertNever(outcome, "provider event outcome");
       }
-      if (outcome.kind === "terminal") {
-        const term = await this.store.markTerminal(claimed.id, token, outcome.errorClass, this.now());
-        if (term) await this.audit.record("provider_event_terminal", {
-          subjectId: claimed.id,
-          metadata: { errorClass: outcome.errorClass },
-        });
-        return term;
-      }
-      return this.settleRetry(claimed, token, outcome.errorClass);
     } catch (err) {
       // A throwing handler is a retryable failure by default — bounded below.
       const errorClass = err instanceof Error ? err.name : "unknown_error";

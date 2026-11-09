@@ -12,7 +12,7 @@ import { distanceDiagnostics } from "@/lib/distanceDiagnostics";
 import type { TrackPoint } from "@/lib/geo";
 import type { TrackingGap } from "@/lib/trackPoints";
 import type { TrackerMode } from "./moveTracker";
-import { INITIAL_VERIFICATION, type VerificationState } from "@/lib/movementVerification";
+import { canMoveVerification, INITIAL_VERIFICATION, type VerificationState } from "@/lib/movementVerification";
 import { onVerificationPrivacyReset, captureVerificationScope, isVerificationScopeCurrent, type VerificationScope } from "./verificationPrivacy";
 
 export interface FinishedSession {
@@ -134,10 +134,13 @@ export function getVerificationState(): VerificationState {
 /**
  * Record a transition. Ignored when it names a session that is no longer the
  * one held, so a response arriving after the user has started a new session
- * can never label the new one with the old one's verdict.
+ * can never label the new one with the old one's verdict. Also ignored when
+ * the move is not an edge of `VERIFICATION_TRANSITIONS`, so nothing can move a
+ * settled verdict back to waiting.
  */
 export function setVerificationState(clientSessionId: string, state: VerificationState): void {
   if (!last || last.clientSessionId !== clientSessionId) return;
+  if (!canMoveVerification(lastVerification, state)) return;
   lastVerification = state;
   publishVerification();
 }
