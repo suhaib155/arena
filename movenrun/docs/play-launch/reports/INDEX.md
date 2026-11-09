@@ -8,6 +8,7 @@ Newest first.
 
 | Date | Milestone | Code commit | Report |
 |---|---|---|---|
+| 2026-11-09 | State machines made explicit: nine typed transition tables proven against the code, catalogue and gate, one guard on verification state | d8c527b | [MOVENRUN_2026-11-09_STATE_MACHINES_FINAL_REPORT_d8c527b.md](MOVENRUN_2026-11-09_STATE_MACHINES_FINAL_REPORT_d8c527b.md) |
 | 2026-10-17 | Owner review answered: #112 claim after admission and once per Supabase session, X-24 preflight, decision records (X-24 still not granted) | 7e3a9c9 | [MOVENRUN_2026-10-17_X24_PREFLIGHT_GOOGLE_EXCHANGE_HOLD_FINAL_REPORT_7e3a9c9.md](MOVENRUN_2026-10-17_X24_PREFLIGHT_GOOGLE_EXCHANGE_HOLD_FINAL_REPORT_7e3a9c9.md) |
 | 2026-10-17 | Security reconciliation after X-26 closed: admission race and client-address fixes, X-24 candidate, strict CSP, single-use Google exchange, G2 holding model | 5b4170c | [MOVENRUN_2026-10-17_SECURITY_RECONCILIATION_X24_CANDIDATE_FINAL_REPORT_5b4170c.md](MOVENRUN_2026-10-17_SECURITY_RECONCILIATION_X24_CANDIDATE_FINAL_REPORT_5b4170c.md) |
 | 2026-10-16 | X-26 incident closed (secret revoked, verified), X-07 hook attached | 82c729e | [MOVENRUN_2026-10-16_X26_CLOSED_X07_ATTACHED_FINAL_REPORT_82c729e.md](MOVENRUN_2026-10-16_X26_CLOSED_X07_ATTACHED_FINAL_REPORT_82c729e.md) |
