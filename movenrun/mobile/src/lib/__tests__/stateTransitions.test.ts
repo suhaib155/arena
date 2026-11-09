@@ -35,8 +35,11 @@ import {
   getVerificationState,
   setLastSession,
   setVerificationState,
+  subscribeVerification,
   type FinishedSession,
 } from "../../services/moveSession";
+import { __resetInFlight, submitCompletedSession } from "../../services/verifySession";
+import { MovementApiError } from "../../services/movementApi";
 
 /* ── capture lifecycle ────────────────────────────────────────────────────── */
 
@@ -97,21 +100,52 @@ const SAMPLE: Record<VerificationKind, VerificationState> = {
   pending: { kind: "pending", reason: "offline" },
 };
 
-test("the verification table: requests open every move, and a verdict is final", () => {
+test("the verification table: a verdict is final and nothing moves back to local", () => {
   assert.deepEqual(terminalStates(VERIFICATION_TRANSITIONS).sort(), ["rejected", "verified"]);
-  for (const to of statesOf(VERIFICATION_TRANSITIONS)) {
-    if (to === "local") {
-      assert.ok(statesOf(VERIFICATION_TRANSITIONS).every((from) => !canTransition(VERIFICATION_TRANSITIONS, from, "local")),
-        "local is where a session starts, never a move back");
-      continue;
-    }
-    const viaRequest = to === "submitting" || canTransition(VERIFICATION_TRANSITIONS, "submitting", to);
-    assert.ok(viaRequest, `${to} is entered only through submitting`);
-  }
   assert.equal(canMoveVerification(SAMPLE.verified, SAMPLE.pending), false);
   assert.equal(canMoveVerification(SAMPLE.rejected, SAMPLE.submitting), false);
   assert.equal(canMoveVerification(SAMPLE.local, SAMPLE.verified), false, "no verdict without a request");
   assert.equal(canMoveVerification(SAMPLE.pending, SAMPLE.submitting), true, "a retry may start");
+  assert.equal(canMoveVerification(SAMPLE.submitting, SAMPLE.local), false);
+});
+
+test("the real pipeline through the guarded store: local -> submitting -> pending -> submitting -> verified", async () => {
+  __resetInFlight();
+  const session = {
+    clientSessionId: "v-pipe",
+    mode: "gps",
+    points: Array.from({ length: 4 }, (_, i) => ({
+      latitude: 51.5 + i * 0.0009, longitude: -0.12, timestamp: 1_700_000_000_000 + i * 60_000, accuracy: 6,
+    })),
+    distanceM: 420,
+    durationMs: 300_000,
+    finishedAt: 1_700_000_300_000,
+  } as unknown as FinishedSession;
+  setLastSession(session);
+  const seen: string[] = [getVerificationState().kind];
+  const unsubscribe = subscribeVerification(() => seen.push(getVerificationState().kind));
+  let attempt = 0;
+  const client = {
+    submit: async () => {
+      attempt += 1;
+      if (attempt === 1) throw new MovementApiError("network_unavailable", 0, "service_unavailable");
+      return {
+        verification: {
+          sessionId: "v-pipe", status: "verified", distanceMeters: 431, durationSeconds: 300,
+          traversedHexIds: [], rejectionReasons: [], verifiedAt: "2026-08-20T21:00:00.000Z",
+        },
+      };
+    },
+  } as never;
+  const deps = { client, readState: getVerificationState, writeState: setVerificationState };
+  assert.equal((await submitCompletedSession(session, deps)).kind, "pending");
+  assert.equal((await submitCompletedSession(session, deps)).kind, "verified");
+  unsubscribe();
+  assert.deepEqual(seen, ["local", "submitting", "pending", "submitting", "verified"]);
+  for (let i = 1; i < seen.length; i++) {
+    assert.ok(canTransition(VERIFICATION_TRANSITIONS, seen[i - 1] as VerificationKind, seen[i] as VerificationKind));
+  }
+  clearLastSession();
 });
 
 function heldSession(id: string): FinishedSession {

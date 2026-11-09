@@ -27,12 +27,12 @@ code that writes one.
 | Machine | Type | States | Table | Proof |
 |---|---|---|---|---|
 | Capture lifecycle (phone) | `CaptureState`, `mobile/src/lib/sessionLifecycle.ts` | idle, starting, active, paused, finished | `CAPTURE_TRANSITIONS` | `mobile/src/lib/__tests__/stateTransitions.test.ts` walks every state against every event, both directions |
-| Server check of one session (phone) | `VerificationState`, `mobile/src/lib/movementVerification.ts` | local, submitting, verified, rejected, pending | `VERIFICATION_TRANSITIONS`, enforced in `setVerificationState` | same file; a late `pending` cannot relabel a `verified` session |
-| Session truth (phone) | `AuthStatus`, `mobile/src/lib/authLifecycle.ts` | unknown, restoring, signedOut, signedIn | `AUTH_STATUS_TRANSITIONS` | `mobile/src/store/__tests__/authStatusTransitions.test.ts` drives the real auth store |
+| Server check of one session (phone) | `VerificationState`, `mobile/src/lib/movementVerification.ts` | local, submitting, verified, rejected, pending | `VERIFICATION_TRANSITIONS`, enforced in `setVerificationState` | same file; runs the real submission pipeline through the guarded store, and a late `pending` cannot relabel a `verified` session |
+| Session truth (phone) | `AuthStatus`, `mobile/src/lib/authLifecycle.ts` | unknown, restoring, signedOut, signedIn | `AUTH_STATUS_TRANSITIONS` | `mobile/src/store/__tests__/authStatusTransitions.test.ts` drives the real auth store (restore, Retry, sign-in, sign-out, offline account refresh) |
 | Identity sessions (server) | `SessionStatus`, `backend/src/identity/domain/types.ts` | active, rotated, revoked | `SESSION_STATUS_TRANSITIONS`, `backend/src/identity/domain/transitions.ts` | `transitions.test.ts` beside it |
-| Embedded-wallet provisioning | `ProvisioningState`, same types file | requested, provisioning, active, failed_transient, failed_terminal | `PROVISIONING_TRANSITIONS` | `transitions.test.ts` |
+| Embedded-wallet provisioning | `ProvisioningState`, same types file | requested, provisioning, active, failed_transient, failed_terminal | `PROVISIONING_TRANSITIONS` | `transitions.test.ts` drives the provisioning service: success, transient retry, terminal, re-entry |
 | Wallet ownership | `WalletOwnershipStatus` | unverified, verified, revoked | `WALLET_OWNERSHIP_TRANSITIONS` | `transitions.test.ts` |
-| User | `UserStatus` | active, disabled | `USER_STATUS_TRANSITIONS` | `transitions.test.ts` |
+| User | `UserStatus` | active, disabled | `USER_STATUS_TRANSITIONS` | table checks only (no production writer of `disabled`) |
 | Provider (webhook) events | `ProviderEventState`, `backend/src/identity/webhooks/types.ts` | received, processing, processed, retryable_failure, terminal_failure, ignored | `PROVIDER_EVENT_TRANSITIONS` (also a DB CHECK) | `transitions.test.ts`; outcome handling in `eventService.ts` is an exhaustive switch |
 | Route lifecycle (legacy GPS worker) | `PersistedRouteStatus`, `backend/src/repositories/route.repository.ts` | SUBMITTED, PROCESSING, VERIFIED, REJECTED | `ROUTE_STATUS_TRANSITIONS` (plain object; the module imports nothing) | `backend/src/services/route.service.test.ts` |
 
@@ -112,6 +112,8 @@ pass to change safely.
 6. **Stale-lease reclaims of provider events do not check `maxAttempts`.**
    Only `settleRetry` does, so a handler that crashes the process could be
    reclaimed without limit. No production caller runs `process()` yet.
+7. **`UserRepository.disable()` is unguarded.** A second call rewrites
+   `disabledAt`. It has no production caller.
 
 ## Derived labels (not machines)
 

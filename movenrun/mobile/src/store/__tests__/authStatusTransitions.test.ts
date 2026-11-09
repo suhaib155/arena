@@ -142,3 +142,20 @@ test("sign-in from signed out, then sign-out, stay inside the table", async () =
   assert.deepEqual(signOut, ["signedIn->signedOut"]);
   assertAllowed([...signIn, ...signOut]);
 });
+
+test("an account refresh that cannot reach the server moves signedIn -> unknown", async () => {
+  let reachable = true;
+  await freshStore({
+    stored: true,
+    fetch: async (url) => {
+      if (!reachable) throw new TypeError("Network request failed");
+      return liveServer(url);
+    },
+  });
+  await state().initialize();
+  assert.equal(state().status, "signedIn");
+  reachable = false;
+  const moves = await observe(() => state().refresh());
+  assert.deepEqual(moves, ["signedIn->unknown"]);
+  assertAllowed(moves);
+});

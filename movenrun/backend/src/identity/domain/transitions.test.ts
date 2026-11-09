@@ -20,10 +20,12 @@ import { InMemorySessionRepository, InMemoryAuditEventRepository } from "../repo
 import { InMemoryProviderEventStore } from "../webhooks/eventStore.memory.js";
 import { ProviderEventService } from "../webhooks/eventService.js";
 import { AuditService } from "../services/audit.service.js";
+import { createHarness } from "../testDoubles/harness.js";
+import { EmbeddedWalletProviderDouble } from "../testDoubles/index.js";
+import { EMBEDDED_WALLET_SOURCE } from "../services/authOrchestrator.service.js";
 
 function assertPath<S extends string>(table: TransitionTable<S>, path: S[]): void {
   for (let i = 1; i < path.length; i++) {
-    if (path[i] === path[i - 1]) continue;
     assert.ok(canTransition(table, path[i - 1], path[i]), `${path[i - 1]} -> ${path[i]} is not in the table`);
   }
 }
@@ -142,4 +144,61 @@ test("processed, ignored, retried and exhausted events all stay inside the table
   assertPath(PROVIDER_EVENT_TRANSITIONS, path);
   assert.deepEqual(path, ["received", "processing", "retryable_failure", "processing", "terminal_failure"]);
   assert.equal((await store.findById(record.id))!.state, "terminal_failure", "the retry budget ends in a terminal state");
+});
+
+/* ── embedded-wallet provisioning ─────────────────────────────────────────── */
+
+/** Records every provisioning and ownership state the service writes. */
+function provisioningHarness(embeddedProvider?: EmbeddedWalletProviderDouble) {
+  const h = createHarness(embeddedProvider ? { embeddedProvider } : {});
+  const provisioning: string[] = [];
+  const ownership: string[] = [];
+  const update = h.stores.wallets.update.bind(h.stores.wallets);
+  h.stores.wallets.update = async (id, patch) => {
+    if (patch.provisioningState) provisioning.push(patch.provisioningState);
+    if (patch.ownershipStatus) ownership.push(patch.ownershipStatus);
+    return update(id, patch);
+  };
+  return { h, provisioning, ownership };
+}
+
+async function requestedWallet(h: ReturnType<typeof createHarness>) {
+  const user = await h.identity.authenticate({ provider: "google", providerSubject: `p-${Math.random()}` });
+  return h.provisioning.request(user.user.id, EMBEDDED_WALLET_SOURCE);
+}
+
+test("provisioning success, transient retry and terminal failure follow PROVISIONING_TRANSITIONS", async () => {
+  {
+    const { h, provisioning, ownership } = provisioningHarness();
+    const w = await requestedWallet(h);
+    await h.provisioning.provision(w.id);
+    assertPath(PROVISIONING_TRANSITIONS, ["requested", ...provisioning] as never[]);
+    assert.deepEqual(provisioning, ["provisioning", "active"]);
+    assertPath(WALLET_OWNERSHIP_TRANSITIONS, ["unverified", ...ownership] as never[]);
+  }
+  {
+    const { h, provisioning } = provisioningHarness(new EmbeddedWalletProviderDouble({ transientFailures: 1 }));
+    const w = await requestedWallet(h);
+    await h.provisioning.provision(w.id).catch(() => {});
+    await h.provisioning.retry(w.id);
+    assert.deepEqual(provisioning, ["provisioning", "failed_transient", "provisioning", "active"]);
+    assertPath(PROVISIONING_TRANSITIONS, ["requested", ...provisioning] as never[]);
+  }
+  {
+    const { h, provisioning } = provisioningHarness(new EmbeddedWalletProviderDouble({ terminal: true }));
+    const w = await requestedWallet(h);
+    await h.provisioning.provision(w.id).catch(() => {});
+    await h.provisioning.retry(w.id).catch(() => {});
+    assert.deepEqual(provisioning, ["provisioning", "failed_terminal"], "a terminal failure is not retried");
+    assertPath(PROVISIONING_TRANSITIONS, ["requested", ...provisioning] as never[]);
+  }
+});
+
+test("an attempt that never settled is re-entered as provisioning -> provisioning", async () => {
+  const { h, provisioning } = provisioningHarness();
+  const w = await requestedWallet(h);
+  await h.stores.wallets.update(w.id, { provisioningState: "provisioning" });
+  await h.provisioning.provision(w.id);
+  assert.deepEqual(provisioning, ["provisioning", "provisioning", "active"]);
+  assertPath(PROVISIONING_TRANSITIONS, ["requested", ...provisioning] as never[]);
 });

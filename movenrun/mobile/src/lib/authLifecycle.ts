@@ -43,18 +43,20 @@ export type AuthStatus =
  *
  *  - `unknown`   → `restoring` (bootstrap or Retry), `signedOut` (no backend
  *                  configured), `signedIn` (a sign-in after the user chose to
- *                  continue past a recoverable restore failure).
+ *                  continue past a recoverable restore failure, or the quiet
+ *                  foreground restore, which skips `restoring`).
  *  - `restoring` → whatever the restore concluded: `signedIn`, `signedOut`,
  *                  or back to `unknown` when the server could not be asked.
  *  - `signedOut` → `signedIn` (a confirmed sign-in) or `restoring` (Retry).
  *  - `signedIn`  → `signedOut` (sign-out, deletion, or the server rejecting
- *                  the session).
+ *                  the session), or `unknown` (an account refresh, such as
+ *                  the Wallets screen's, that could not reach the server).
  */
 export const AUTH_STATUS_TRANSITIONS = defineTransitions<AuthStatus>({
   unknown: ["restoring", "signedOut", "signedIn"],
   restoring: ["signedIn", "signedOut", "unknown"],
   signedOut: ["signedIn", "restoring"],
-  signedIn: ["signedOut"],
+  signedIn: ["signedOut", "unknown"],
 });
 
 /** The single auth request that may be in flight. Only one at a time. */
