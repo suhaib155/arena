@@ -20,6 +20,7 @@
  * territory model to base such a claim on. Nothing in this module maps it onto
  * zone state, and a test enforces that.
  */
+import { canTransition, defineTransitions } from "@movenrun/shared/state-machine";
 import type { SessionMetadata } from "@movenrun/shared/session";
 import type { SealMethod } from "@movenrun/shared/sealing";
 
@@ -232,6 +233,31 @@ export type PendingReason =
   | "malformed_response";
 
 export const INITIAL_VERIFICATION: VerificationState = { kind: "local" };
+
+export type VerificationKind = VerificationState["kind"];
+
+/**
+ * Where one session's verification may move, as data.
+ *
+ * Every move goes through a request: `submitting` is written before any
+ * request starts and a verdict (or `pending`) only ever follows it. The server
+ * having spoken is final for that session: `verified` and `rejected` have no
+ * exits, so a late `pending` from a superseded attempt can never relabel a
+ * verified route as waiting. A brand-new session starts again from `local`
+ * when it is handed off, which is a new session and not a transition.
+ */
+export const VERIFICATION_TRANSITIONS = defineTransitions<VerificationKind>({
+  local: ["submitting"],
+  pending: ["submitting"],
+  submitting: ["verified", "rejected", "pending"],
+  verified: [],
+  rejected: [],
+});
+
+/** Whether moving from `from` to `to` is one of the edges above. */
+export function canMoveVerification(from: VerificationState, to: VerificationState): boolean {
+  return canTransition(VERIFICATION_TRANSITIONS, from.kind, to.kind);
+}
 
 /** Whether a state means "the server has spoken". */
 export function isSettled(state: VerificationState): boolean {

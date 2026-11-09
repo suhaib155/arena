@@ -51,6 +51,7 @@ import {
   type PauseInterval,
   type SessionMetadata,
 } from "@movenrun/shared/session";
+import { defineTransitions } from "@movenrun/shared/state-machine";
 
 export type CaptureState =
   | "idle"
@@ -58,6 +59,20 @@ export type CaptureState =
   | "active"
   | "paused"
   | "finished";
+
+/**
+ * The diagram above, as data. Every `ok` outcome of the functions below moves
+ * along one of these edges, and a test walks every state against every
+ * function to prove it. `finished` is terminal: a new session starts from a
+ * fresh {@link idleLifecycle}, never from a finished one.
+ */
+export const CAPTURE_TRANSITIONS = defineTransitions<CaptureState>({
+  idle: ["starting"],
+  starting: ["active", "idle"],
+  active: ["paused", "finished"],
+  paused: ["active", "finished"],
+  finished: [],
+});
 
 /** What a transition request did. */
 export type TransitionOutcome = "ok" | "ignored" | "invalid";

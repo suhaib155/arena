@@ -15,6 +15,21 @@
 
 export type PersistedRouteStatus = "SUBMITTED" | "PROCESSING" | "REJECTED" | "VERIFIED";
 
+/**
+ * The intended route lifecycle, as data (plain object: this module imports
+ * nothing). `VERIFIED` and `REJECTED` are final in intent. `update()` does not
+ * enforce this table and `processRouteJob` writes `PROCESSING` without reading
+ * the current status first, so a redelivered job can revisit a finished route;
+ * see `docs/STATE_MACHINES.md` for that open item.
+ */
+export const ROUTE_STATUS_TRANSITIONS: { readonly [K in PersistedRouteStatus]: readonly PersistedRouteStatus[] } =
+  Object.freeze({
+    SUBMITTED: Object.freeze(["PROCESSING"] as const),
+    PROCESSING: Object.freeze(["VERIFIED", "REJECTED"] as const),
+    VERIFIED: Object.freeze([] as const),
+    REJECTED: Object.freeze([] as const),
+  });
+
 /** A persisted route record. Safe scalar lifecycle metadata only — no raw GPS
  *  points, coordinates, or path are ever stored here. */
 export interface RouteRecord {

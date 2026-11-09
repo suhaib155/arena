@@ -17,7 +17,9 @@ import {
   type RouteJobInput,
 } from "./route.service.js";
 import { OracleService } from "./oracle.service.js";
+import { canTransition, defineTransitions } from "@movenrun/shared/state-machine";
 import {
+  ROUTE_STATUS_TRANSITIONS,
   InMemoryRouteRepository,
   RouteHashConflictError,
   type CreateRouteInput,
@@ -418,4 +420,46 @@ test("getRouteView returns null for an unknown route id (caller maps this to 404
   const repo = new InMemoryRouteRepository();
   const view = await getRouteView("does-not-exist", repo);
   assert.equal(view, null);
+});
+
+/* ── lifecycle table ──────────────────────────────────────────────────────── */
+
+/** A repository that records every status it is asked to write. */
+function recording(repo: InMemoryRouteRepository, statuses: string[]): RouteRepository {
+  return new Proxy(repo, {
+    get(target, prop, receiver) {
+      if (prop === "update") {
+        return async (id: string, patch: UpdateRoutePatch) => {
+          if (patch.status) statuses.push(patch.status);
+          return target.update(id, patch);
+        };
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+}
+
+test("ROUTE_STATUS_TRANSITIONS is a valid table whose final states are VERIFIED and REJECTED", () => {
+  const table = defineTransitions({ ...ROUTE_STATUS_TRANSITIONS });
+  assert.deepEqual(Object.keys(table).filter((s) => table[s as keyof typeof table].length === 0).sort(), ["REJECTED", "VERIFIED"]);
+});
+
+test("accepted and anomalous jobs move along ROUTE_STATUS_TRANSITIONS", async () => {
+  for (const [id, deps, final] of [
+    ["route-t1", {}, "VERIFIED"],
+    ["route-t2", { validateRoute: () => ({ isAnomaly: true, reasons: ["speed"], confidence: 0.1 }) }, "REJECTED"],
+  ] as const) {
+    const repo = new InMemoryRouteRepository();
+    const input: RouteJobInput = { routeId: id, walletAddress: WALLET, points: POINTS, startTime: 1000, endTime: 2000 };
+    await submitted(repo, input);
+    const statuses: string[] = ["SUBMITTED"];
+    await processRouteJob(input, baseDeps({ ...deps, repository: recording(repo, statuses) }));
+    for (let i = 1; i < statuses.length; i++) {
+      assert.ok(
+        canTransition(ROUTE_STATUS_TRANSITIONS, statuses[i - 1] as never, statuses[i] as never),
+        `${statuses[i - 1]} -> ${statuses[i]} is not in the table`,
+      );
+    }
+    assert.equal(statuses.at(-1), final);
+  }
 });
