@@ -1,3 +1,4 @@
+// PORTED from c8262ec test/v3/03-rewards.test.ts to the G5 draft patches. RESEARCH ONLY. Changes are marked (b) with the patch name.
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
@@ -8,7 +9,7 @@ import {
   deploySuite,
   publishSettlement,
   settlementAuthorization,
-} from "./helpers";
+} from "./portHelpers";
 
 const GROSS = 10_000n * ONE;
 const TOLL = 200n * ONE; // exactly two percent of the gross reward base
@@ -27,7 +28,7 @@ async function finalizedDay() {
   await (
     await publishSettlement(
       fx,
-      await settlementAuthorization({
+      await settlementAuthorization(fx, {
         dayId: 1,
         grossIssuance: GROSS,
         lockedClaims: LOCKED,
@@ -144,7 +145,7 @@ describe("V3 MovenRunRewards", () => {
     await (
       await publishSettlement(
         fx,
-        await settlementAuthorization({ dayId: 1, grossIssuance: 1_000n * ONE, merkleRoot: tree.root })
+        await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1_000n * ONE, merkleRoot: tree.root })
       )
     ).wait();
 
@@ -170,7 +171,7 @@ describe("V3 MovenRunRewards", () => {
     await (
       await publishSettlement(
         fx,
-        await settlementAuthorization({
+        await settlementAuthorization(fx, {
           dayId: 1,
           grossIssuance: 1_000n * ONE,
           lockedClaims: 980n * ONE,

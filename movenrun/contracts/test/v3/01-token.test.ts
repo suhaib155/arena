@@ -1,7 +1,8 @@
+// PORTED from c8262ec test/v3/01-token.test.ts to the G5 draft patches. RESEARCH ONLY. Changes are marked (b) with the patch name.
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { MAX_LIFETIME_MINTED, ONE } from "./helpers";
+import { MAX_LIFETIME_MINTED, ONE } from "./portHelpers";
 
 /**
  * MovenRunToken's own rules, exercised directly. The settlement and rewards slots are wired
