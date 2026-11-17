@@ -53,6 +53,10 @@ interface IMovenRunDeed is IERC721 {
         view
         returns (uint256);
 
+    /// @notice Number of ownership changes `tokenId` has been through, escrow legs included.
+    /// @dev Never resets. Two equal readings mean the deed did not move in between.
+    function ownershipNonceOf(uint256 tokenId) external view returns (uint256);
+
     /// @notice Whether a deed already exists for `tokenId`.
     function deedExists(uint256 tokenId) external view returns (bool);
 }

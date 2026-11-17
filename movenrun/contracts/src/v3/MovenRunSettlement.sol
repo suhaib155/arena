@@ -6,6 +6,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IMovenRunToken} from "./interfaces/IMovenRunToken.sol";
 import {IMovenRunRewards} from "./interfaces/IMovenRunRewards.sol";
+import {MovenRunSignerApproval} from "./libraries/MovenRunSignerApproval.sol";
 
 /// @title MovenRunSettlement
 /// @notice The sole issuance path for MovenRun movement rewards, and the onchain record of
@@ -20,7 +21,39 @@ import {IMovenRunRewards} from "./interfaces/IMovenRunRewards.sol";
 ///      signer. Both are chain-bound and contract-bound through the EIP-712 domain, expire,
 ///      and are single-use through the authorization nonce. Anyone may relay a fully
 ///      authorized settlement.
-contract MovenRunSettlement is AccessControl, EIP712 {
+///
+///      G5 DRAFT PATCH (H1, L5). Research copy, not deployed, not audited:
+///      - a day can be published only after it has closed on the wall clock, measured from an
+///        immutable genesis fixed at construction, so day ids cannot be spent ahead of time;
+///      - one publication may issue at most MAX_POOL_MULTIPLE x (season budget / 90), so a
+///        backlog of unissued budget can never be released in a single call;
+///      - skipped days are forfeited on the record (DaysForfeited) instead of silently;
+///      - an authorization may not be valid for longer than MAX_AUTHORIZATION_LIFETIME.
+///
+///      G5 DRAFT PATCH (valve hardening, RESEARCH/PROPOSED, unaudited; all values hypothetical):
+///      - epoch cap: at most LIQUID_EPOCH_CAP of liquid allowance may be raised per VALVE_EPOCH
+///        (epochs counted from genesis), so no single action can open the 400M allocation;
+///      - monotonic budget: raises are counted per epoch and over the lifetime and are never
+///        given back by a reduction, a halt or a lapse; the lifetime total is capped at the
+///        player allocation;
+///      - approval expiry: allowance raised in one epoch lapses when that epoch ends;
+///      - emergency halt: the guardian (or the delayed administrator) can halt the valve,
+///        zeroing the allowance and refusing every raise, including one already queued in the
+///        timelock, until the delayed administrator resumes it;
+///      - the minimum timelock delay is enforced by MovenRunTimelock (MIN_DELAY_FLOOR).
+///
+///      G5 DRAFT PATCH (issue ledger, 28 Oct, RESEARCH/PROPOSED, unaudited):
+///      - rolling liquid window: liquid movement rewards are also charged to the wall-clock day
+///        they are published on, and the sum over the current day and the previous
+///        ROLLING_WINDOW_DAYS days may not exceed LIQUID_EPOCH_CAP. Any 30-day interval touches at
+///        most 31 day buckets, so no 30-day interval can issue more than one epoch cap, whatever
+///        the calendar epoch boundary or the order in which withheld days are published;
+///      - a halted valve also refuses toll credits, so a halt stops every new liquid reward.
+///
+///      Signer replacement (issue ledger I-06b): a new settlement or reconciliation signer
+///      needs a prior approval from SIGNER_APPROVER_ROLE, which the delayed administrator
+///      cannot grant itself, so the timelock alone can no longer replace both keys.
+contract MovenRunSettlement is AccessControl, EIP712, MovenRunSignerApproval {
     /// @notice Role permitted to pause new settlement publication and nothing else.
     bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
 
@@ -40,6 +73,17 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     uint256 public constant MAX_AUTOMATIC_BURN_BPS = 6_000;
     /// @notice Basis-point denominator.
     uint256 public constant BPS_DENOMINATOR = 10_000;
+    /// @notice G5 patch: ceiling on one publication, in multiples of the nominal daily budget.
+    uint256 public constant MAX_POOL_MULTIPLE = 2;
+    /// @notice G5 patch: longest validity an authorization may carry.
+    uint64 public constant MAX_AUTHORIZATION_LIFETIME = 7 days;
+    /// @notice G5 patch: length of one settlement day.
+    uint64 public constant SETTLEMENT_DAY = 1 days;
+    /// @notice G5 valve patch: length of one valve epoch.
+    uint64 public constant VALVE_EPOCH = 30 days;
+    /// @notice G5 valve patch: most liquid allowance that may be raised in one epoch
+    ///         (30 nominal season-one days of 100,000 MOVE). Hypothetical.
+    uint256 public constant LIQUID_EPOCH_CAP = 3_000_000 ether;
 
     /// @notice EIP-712 type of a daily settlement authorization.
     bytes32 public constant SETTLEMENT_AUTHORIZATION_TYPEHASH =
@@ -84,11 +128,24 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     IMovenRunToken public immutable moveToken;
     /// @notice The reward distribution contract funded by each settlement.
     IMovenRunRewards public immutable rewards;
+    /// @notice G5 patch: start of settlement day one. Day d closes at genesis + d days.
+    uint64 public immutable genesis;
 
     /// @notice Lifetime MOVE issued through the movement settlement path.
     uint256 public lifetimeMovementIssued;
-    /// @notice Remaining capacity for newly created liquid movement rewards. Starts at zero.
-    uint256 public liquidIssuanceAllowance;
+    /// @dev Raw allowance; only meaningful in `_allowanceEpoch` and while the valve is not halted.
+    uint256 private _liquidAllowance;
+    uint64 private _allowanceEpoch;
+    /// @notice G5 valve patch: allowance raised per epoch (monotonic).
+    mapping(uint64 epoch => uint256 raised) public epochLiquidRaised;
+    /// @notice G5 valve patch: allowance raised over the lifetime (monotonic).
+    uint256 public lifetimeLiquidAuthorized;
+    /// @notice G5 valve patch: true while the valve is halted.
+    bool public valveHalted;
+    /// @notice G5 issue-ledger patch: days before the current one that the rolling window covers.
+    uint64 public constant ROLLING_WINDOW_DAYS = 30;
+    /// @notice G5 issue-ledger patch: liquid movement rewards published on each wall-clock day.
+    mapping(uint64 wallDay => uint256 issued) public liquidPublishedOnDay;
     /// @notice Highest settlement day published so far.
     uint32 public lastSettledDay;
     /// @notice Highest season whose budget has been derived.
@@ -132,6 +189,8 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     event LiquidIssuanceAllowanceReduced(uint256 removedAmount, uint256 newAllowance);
     event RulesVersionUpdated(uint16 previousVersion, uint16 newVersion);
     event PublicationPauseUpdated(bool paused, address indexed actor);
+    event DaysForfeited(uint32 firstDay, uint32 lastDay);
+    event ValveHaltUpdated(bool halted, address indexed actor);
 
     error ZeroAddress();
     error SignerReuse();
@@ -152,6 +211,13 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     error DailyPoolExceeded(uint256 grossIssuance, uint256 dailyPool);
     error PlayerAllocationExceeded(uint256 requested, uint256 remaining);
     error LiquidIssuanceAllowanceExceeded(uint256 requested, uint256 available);
+    error DayNotYetClosed(uint32 dayId, uint64 closesAt);
+    error PublicationAboveDailyCeiling(uint256 grossIssuance, uint256 ceiling);
+    error AuthorizationLifetimeTooLong(uint64 expiry, uint64 maximum);
+    error ValveIsHalted();
+    error RollingLiquidCapExceeded(uint256 requested, uint256 remainingInWindow);
+    error EpochReleaseCapExceeded(uint256 requested, uint256 remainingThisEpoch);
+    error LifetimeLiquidBudgetExceeded(uint256 requested, uint256 remaining);
 
     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
     /// @param guardian Emergency address permitted to pause new publication only.
@@ -184,9 +250,13 @@ contract MovenRunSettlement is AccessControl, EIP712 {
         settlementSigner = settlementSigner_;
         reconciliationSigner = reconciliationSigner_;
         rulesVersion = initialRulesVersion;
+        genesis = uint64(block.timestamp);
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(GUARDIAN_ROLE, guardian);
+        // The guardian holds the approver role at first so the constructor keeps its shape.
+        // A deployment must hand it to a party separate from the timelock proposer.
+        _initSignerApprover(guardian);
     }
 
     // ---------------------------------------------------------------------
@@ -203,11 +273,21 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     ) external {
         if (publicationPaused) revert PublicationIsPaused();
         if (block.timestamp > authorization.expiry) revert AuthorizationExpired(authorization.expiry);
+        if (authorization.expiry > block.timestamp + MAX_AUTHORIZATION_LIFETIME) {
+            revert AuthorizationLifetimeTooLong(
+                authorization.expiry,
+                uint64(block.timestamp) + MAX_AUTHORIZATION_LIFETIME
+            );
+        }
         if (authorization.rulesVersion != rulesVersion) {
             revert UnexpectedRulesVersion(authorization.rulesVersion, rulesVersion);
         }
         if (authorization.dayId == 0 || authorization.dayId <= lastSettledDay) {
             revert DayNotAdvancing(authorization.dayId, lastSettledDay);
+        }
+        {
+            uint64 closesAt = genesis + uint64(authorization.dayId) * SETTLEMENT_DAY;
+            if (block.timestamp < closesAt) revert DayNotYetClosed(authorization.dayId, closesAt);
         }
         if (_settlements[authorization.dayId].published) revert DayAlreadySettled(authorization.dayId);
         if (authorizationNonceUsed[authorization.nonce]) {
@@ -236,13 +316,23 @@ contract MovenRunSettlement is AccessControl, EIP712 {
         if (authorization.grossIssuance > pool) {
             revert DailyPoolExceeded(authorization.grossIssuance, pool);
         }
-
-        if (authorization.liquidMovementClaims > liquidIssuanceAllowance) {
-            revert LiquidIssuanceAllowanceExceeded(
-                authorization.liquidMovementClaims,
-                liquidIssuanceAllowance
-            );
+        {
+            uint256 ceiling = (seasonBudget[derivedSeason] * MAX_POOL_MULTIPLE) / SEASON_LENGTH_DAYS;
+            if (authorization.grossIssuance > ceiling) {
+                revert PublicationAboveDailyCeiling(authorization.grossIssuance, ceiling);
+            }
         }
+
+        if ((authorization.liquidMovementClaims > 0 || authorization.tollCredits > 0) && valveHalted) {
+            revert ValveIsHalted();
+        }
+        {
+            uint256 available = liquidIssuanceAllowance();
+            if (authorization.liquidMovementClaims > available) {
+                revert LiquidIssuanceAllowanceExceeded(authorization.liquidMovementClaims, available);
+            }
+        }
+        if (authorization.liquidMovementClaims > 0) _chargeRollingWindow(authorization.liquidMovementClaims);
 
         uint256 remainingAllocation = PLAYER_MOVEMENT_ALLOCATION - lifetimeMovementIssued;
         if (authorization.grossIssuance > remainingAllocation) {
@@ -250,9 +340,13 @@ contract MovenRunSettlement is AccessControl, EIP712 {
         }
 
         unchecked {
-            liquidIssuanceAllowance -= authorization.liquidMovementClaims;
+            // Non-zero only when the allowance belongs to the current epoch (checked above).
+            _liquidAllowance -= authorization.liquidMovementClaims;
             lifetimeMovementIssued += authorization.grossIssuance;
             seasonIssued[derivedSeason] += authorization.grossIssuance;
+        }
+        if (authorization.dayId > lastSettledDay + 1) {
+            emit DaysForfeited(lastSettledDay + 1, authorization.dayId - 1);
         }
         lastSettledDay = authorization.dayId;
 
@@ -446,6 +540,7 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     function setSettlementSigner(address newSigner) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newSigner == address(0)) revert ZeroAddress();
         if (newSigner == reconciliationSigner) revert SignerReuse();
+        _consumeSignerApproval(newSigner);
         emit SettlementSignerUpdated(settlementSigner, newSigner);
         settlementSigner = newSigner;
     }
@@ -454,6 +549,7 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     function setReconciliationSigner(address newSigner) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newSigner == address(0)) revert ZeroAddress();
         if (newSigner == settlementSigner) revert SignerReuse();
+        _consumeSignerApproval(newSigner);
         emit ReconciliationSignerUpdated(reconciliationSigner, newSigner);
         reconciliationSigner = newSigner;
     }
@@ -461,12 +557,79 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     /// @notice Raises the ceiling on newly created liquid movement rewards.
     /// @dev Delayed administration only. The allowance starts at zero, so no liquid movement
     ///      reward can be issued until MovenRun deliberately opens capacity for it.
+    ///      G5 valve patch: bounded per epoch and over the lifetime, lapses at epoch end,
+    ///      refused while halted.
     function raiseLiquidIssuanceAllowance(uint256 additionalAmount)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        liquidIssuanceAllowance += additionalAmount;
-        emit LiquidIssuanceAllowanceRaised(additionalAmount, liquidIssuanceAllowance);
+        if (valveHalted) revert ValveIsHalted();
+        uint64 epoch = currentValveEpoch();
+        uint256 raised = epochLiquidRaised[epoch];
+        if (raised + additionalAmount > LIQUID_EPOCH_CAP) {
+            revert EpochReleaseCapExceeded(additionalAmount, LIQUID_EPOCH_CAP - raised);
+        }
+        uint256 lifetime = lifetimeLiquidAuthorized;
+        if (lifetime + additionalAmount > PLAYER_MOVEMENT_ALLOCATION) {
+            revert LifetimeLiquidBudgetExceeded(additionalAmount, PLAYER_MOVEMENT_ALLOCATION - lifetime);
+        }
+        epochLiquidRaised[epoch] = raised + additionalAmount;
+        lifetimeLiquidAuthorized = lifetime + additionalAmount;
+        if (_allowanceEpoch != epoch) {
+            // Whatever was left from an earlier epoch has lapsed.
+            _allowanceEpoch = epoch;
+            _liquidAllowance = 0;
+        }
+        _liquidAllowance += additionalAmount;
+        emit LiquidIssuanceAllowanceRaised(additionalAmount, _liquidAllowance);
+    }
+
+    /// @notice Remaining capacity for newly created liquid movement rewards. Starts at zero.
+    /// @dev G5 valve patch: zero while halted and once the epoch it was raised in has ended.
+    function liquidIssuanceAllowance() public view returns (uint256) {
+        if (valveHalted || _allowanceEpoch != currentValveEpoch()) return 0;
+        return _liquidAllowance;
+    }
+
+    /// @notice G5 issue-ledger patch: liquid published in the current rolling window.
+    function rollingLiquidPublished() public view returns (uint256 total) {
+        uint64 today = uint64(block.timestamp) / SETTLEMENT_DAY;
+        for (uint64 i = 0; i <= ROLLING_WINDOW_DAYS && i <= today; ++i) {
+            total += liquidPublishedOnDay[today - i];
+        }
+    }
+
+    /// @notice G5 issue-ledger patch: liquid that may still be published today under the rolling window.
+    function rollingLiquidRemaining() public view returns (uint256) {
+        uint256 used = rollingLiquidPublished();
+        return used >= LIQUID_EPOCH_CAP ? 0 : LIQUID_EPOCH_CAP - used;
+    }
+
+    function _chargeRollingWindow(uint256 amount) private {
+        uint256 remaining = rollingLiquidRemaining();
+        if (amount > remaining) revert RollingLiquidCapExceeded(amount, remaining);
+        liquidPublishedOnDay[uint64(block.timestamp) / SETTLEMENT_DAY] += amount;
+    }
+
+    /// @notice G5 valve patch: index of the current valve epoch, counted from genesis.
+    function currentValveEpoch() public view returns (uint64) {
+        return (uint64(block.timestamp) - genesis) / VALVE_EPOCH;
+    }
+
+    /// @notice G5 valve patch: halts the valve. Guardian or delayed administration.
+    function haltValve() external {
+        if (!hasRole(GUARDIAN_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, GUARDIAN_ROLE);
+        }
+        valveHalted = true;
+        _liquidAllowance = 0;
+        emit ValveHaltUpdated(true, msg.sender);
+    }
+
+    /// @notice G5 valve patch: resumes the valve with a zero allowance. Delayed administration only.
+    function resumeValve() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        valveHalted = false;
+        emit ValveHaltUpdated(false, msg.sender);
     }
 
     /// @notice Lowers the liquid issuance ceiling. Available to the guardian as a safety action.
@@ -474,12 +637,14 @@ contract MovenRunSettlement is AccessControl, EIP712 {
         if (!hasRole(GUARDIAN_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert AccessControlUnauthorizedAccount(msg.sender, GUARDIAN_ROLE);
         }
-        uint256 current = liquidIssuanceAllowance;
+        uint256 current = liquidIssuanceAllowance();
         uint256 reduction = removedAmount > current ? current : removedAmount;
         unchecked {
-            liquidIssuanceAllowance = current - reduction;
+            // Reductions never give epoch or lifetime headroom back (monotonic budget).
+            _liquidAllowance = current - reduction;
         }
-        emit LiquidIssuanceAllowanceReduced(reduction, liquidIssuanceAllowance);
+        _allowanceEpoch = currentValveEpoch();
+        emit LiquidIssuanceAllowanceReduced(reduction, current - reduction);
     }
 
     /// @notice Updates the rules version new authorizations must declare.

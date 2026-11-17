@@ -1,10 +1,18 @@
+// PORTED from c8262ec test/v3/05-contests.test.ts to the G5 draft patches. RESEARCH ONLY. Changes are marked (b) with the patch name.
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import {
   ONE,
   RULES_VERSION,
-  SCORE_TYPES,
+  DAY,
+  DAY_SCORES_TYPES,
+  closeScoringDay,
+  dayScoresAuthorization,
+  playOutContest,
+  settleAfterGrace,
+  submitDayScores,
+  waitOutChallengeWindow,
   Suite,
   claimDeed,
   configureCityCap,
@@ -16,8 +24,7 @@ import {
   fundLockedMove,
   nextNonce,
   signDeclaration,
-  submitScore,
-} from "./helpers";
+} from "./portHelpers";
 import { cityCells } from "./cells";
 
 const CITY = 7;
@@ -37,24 +44,20 @@ async function contestSuite() {
   return fx;
 }
 
-/** Moves time to the scoring window, records both sides, then settles from an unrelated account. */
+/**
+ * (b) H2: the original posted each side separately as soon as the window opened. Patched, each
+ * day is posted for BOTH sides together under two keys, only after that day has closed, and
+ * settlement waits for the submission grace. Same scores, same outcomes.
+ */
 async function playOut(
   fx: Suite,
   contestId: bigint,
-  challenger: string,
-  defender: string,
+  _challenger: string,
+  _defender: string,
   challengerScores: bigint[],
   defenderScores: bigint[]
 ) {
-  await time.increase(NOTICE_PERIOD + 60);
-  for (let day = 0; day < challengerScores.length; day += 1) {
-    await (await submitScore(fx, contestId, challenger, day, challengerScores[day])).wait();
-  }
-  for (let day = 0; day < defenderScores.length; day += 1) {
-    await (await submitScore(fx, contestId, defender, day, defenderScores[day])).wait();
-  }
-  await time.increase(SCORING_WINDOW + 60);
-  return fx.contests.connect(fx.relayer).settleContest(contestId);
+  return playOutContest(fx, contestId, challengerScores, defenderScores);
 }
 
 describe("V3 MovenRunContests", () => {
@@ -117,6 +120,7 @@ describe("V3 MovenRunContests", () => {
       await (await claimDeed(fx, fx.bob, cell, CITY)).wait();
 
       const fee = 25n * ONE;
+      await waitOutChallengeWindow(fx, cell); // (b) N1: a pending deed cannot be escrowed
       const authorization = await declarationAuthorization({
         challenger: fx.alice.address,
         tokenId: cell,
@@ -195,6 +199,7 @@ describe("V3 MovenRunContests", () => {
         "HolderCityCapReached"
       );
       await (await claimDeed(fx, fx.carol, cells[2], CITY)).wait();
+      await waitOutChallengeWindow(fx, cells[2]); // (b) N1: otherwise DeedPending fires first
       await expect(
         fx.deed.connect(fx.carol).transferFrom(fx.carol.address, fx.alice.address, cells[2])
       ).to.be.revertedWithCustomError(fx.deed, "HolderCityCapReached");
@@ -313,31 +318,38 @@ describe("V3 MovenRunContests", () => {
       await (await claimDeed(fx, fx.bob, cell, CITY)).wait();
       await (await declareContest(fx, fx.alice, cell)).wait();
 
-      await expect(submitScore(fx, 1n, fx.alice.address, 0, 10n)).to.be.revertedWithCustomError(
+      // (b) H2: before the window opens day 0 has not closed. Was ScoringNotOpen; now
+      // ScoringDayNotClosed (a day is accepted only after it has closed).
+      await expect(submitDayScores(fx, 1n, 0, 10n, 0n)).to.be.revertedWithCustomError(
         fx.contests,
-        "ScoringNotOpen"
+        "ScoringDayNotClosed"
       );
 
+      // (b) H2: "off the roster" is now structural. DayScoresAuthorization names no participant,
+      // so a score can only ever land on the contest's own challenger and defender.
+      const fields = DAY_SCORES_TYPES.DayScoresAuthorization.map((f) => f.name);
+      expect(fields).to.not.include("participant");
+
       await time.increase(NOTICE_PERIOD + 60);
-      await expect(submitScore(fx, 1n, fx.carol.address, 0, 10n)).to.be.revertedWithCustomError(
-        fx.contests,
-        "NotAContestant"
-      );
-      await expect(submitScore(fx, 1n, fx.alice.address, 7, 10n)).to.be.revertedWithCustomError(
+      await expect(submitDayScores(fx, 1n, 7, 10n, 0n)).to.be.revertedWithCustomError(
         fx.contests,
         "InvalidScoringDay"
       );
 
-      await (await submitScore(fx, 1n, fx.alice.address, 0, 10n)).wait();
-      await expect(submitScore(fx, 1n, fx.alice.address, 0, 99n))
+      await closeScoringDay(fx, 1n, 0);
+      await (await submitDayScores(fx, 1n, 0, 10n, 0n)).wait();
+      await expect(submitDayScores(fx, 1n, 0, 99n, 0n))
         .to.be.revertedWithCustomError(fx.contests, "ScoringDayAlreadySubmitted")
         .withArgs(0);
 
-      await time.increase(SCORING_WINDOW + 60);
-      await expect(submitScore(fx, 1n, fx.alice.address, 1, 10n)).to.be.revertedWithCustomError(
+      // (b) H2: the window is extended by the 1-day grace. Still refused once the grace is over.
+      const c = await fx.contests.contestOf(1n);
+      await time.increaseTo(Number(c.scoringEnd) + DAY + 1);
+      await expect(submitDayScores(fx, 1n, 1, 10n, 0n)).to.be.revertedWithCustomError(
         fx.contests,
         "ScoringNotOpen"
       );
+      await settleAfterGrace(fx, 1n);
     });
 
     it("refuses a score the contest signer did not sign", async () => {
@@ -345,25 +357,21 @@ describe("V3 MovenRunContests", () => {
       const cell = cityCells(1)[0];
       await (await claimDeed(fx, fx.bob, cell, CITY)).wait();
       await (await declareContest(fx, fx.alice, cell)).wait();
-      await time.increase(NOTICE_PERIOD + 60);
+      await closeScoringDay(fx, 1n, 0);
 
-      const authorization = {
-        contestId: 1n,
-        participant: fx.alice.address,
-        scoringDay: 0,
-        score: 10_000n,
-        rulesVersion: RULES_VERSION,
-        nonce: nextNonce(),
-        expiry: (await time.latest()) + 3600,
-      };
-      const forged = await fx.alice.signTypedData(
-        domain("MovenRunContests", fx.chainId, fx.addresses.contests),
-        SCORE_TYPES,
-        authorization
-      );
+      // (b) H2: forged primary signature (was InvalidScoreSignature, still is) and, new,
+      // a forged co-signature is refused separately.
+      const dom = domain("MovenRunContests", fx.chainId, fx.addresses.contests);
+      const auth = await dayScoresAuthorization(1n, 0, 10_000n, 0n);
+      const forged = await fx.alice.signTypedData(dom, DAY_SCORES_TYPES, auth);
+      const good = await fx.contestCoSigner.signTypedData(dom, DAY_SCORES_TYPES, auth);
       await expect(
-        fx.contests.connect(fx.alice).submitScore(authorization, forged)
+        fx.contests.connect(fx.alice).submitDayScores(auth, forged, good)
       ).to.be.revertedWithCustomError(fx.contests, "InvalidScoreSignature");
+      const goodPrimary = await fx.contestScoreSigner.signTypedData(dom, DAY_SCORES_TYPES, auth);
+      await expect(
+        fx.contests.connect(fx.alice).submitDayScores(auth, goodPrimary, forged)
+      ).to.be.revertedWithCustomError(fx.contests, "InvalidCoSignature");
     });
 
     it("counts only the best three days of the seven", async () => {
@@ -371,10 +379,10 @@ describe("V3 MovenRunContests", () => {
       const cell = cityCells(1)[0];
       await (await claimDeed(fx, fx.bob, cell, CITY)).wait();
       await (await declareContest(fx, fx.alice, cell)).wait();
-      await time.increase(NOTICE_PERIOD + 60);
 
       for (const [day, score] of [[0, 10n], [1, 90n], [2, 20n], [3, 80n], [4, 5n], [5, 70n], [6, 1n]] as const) {
-        await (await submitScore(fx, 1n, fx.alice.address, day, score)).wait();
+        await closeScoringDay(fx, 1n, day); // (b) H2: each day only after it closes
+        await (await submitDayScores(fx, 1n, day, score, 0n)).wait();
       }
       expect(await fx.contests.sideTotalOf(1n, fx.alice.address)).to.equal(240n);
       expect(await fx.contests.COUNTED_SCORING_DAYS()).to.equal(3);

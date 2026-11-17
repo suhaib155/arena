@@ -15,8 +15,15 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 ///      the two percent toll rate, the sixty percent automatic-charge ceiling, the seventy
 ///      two hour contest notice, the seven day scoring window, and the thirty and fourteen
 ///      day cooldown periods. No timelock proposal can change any of them.
+///
+///      The delay may never be set below MIN_DELAY_FLOOR, at construction or later through
+///      updateDelay, so a short timelock can be neither deployed nor configured.
 contract MovenRunTimelock is TimelockController {
+    /// @notice Lowest delay the timelock accepts.
+    uint256 public constant MIN_DELAY_FLOOR = 48 hours;
+
     error DelayMustBeNonZero();
+    error DelayBelowFloor(uint256 delay, uint256 floor);
 
     /// @param minDelay Minimum delay in seconds between scheduling and execution.
     /// @param proposers Addresses permitted to schedule operations, expected to be a multisignature.
@@ -29,5 +36,12 @@ contract MovenRunTimelock is TimelockController {
         address admin
     ) TimelockController(minDelay, proposers, executors, admin) {
         if (minDelay == 0) revert DelayMustBeNonZero();
+        if (minDelay < MIN_DELAY_FLOOR) revert DelayBelowFloor(minDelay, MIN_DELAY_FLOOR);
+    }
+
+    /// @dev The self-administered delay change keeps the floor.
+    function updateDelay(uint256 newDelay) public override {
+        if (newDelay < MIN_DELAY_FLOOR) revert DelayBelowFloor(newDelay, MIN_DELAY_FLOOR);
+        super.updateDelay(newDelay);
     }
 }

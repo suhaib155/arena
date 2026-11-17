@@ -4,7 +4,7 @@ import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signer
 
 export const RULES_VERSION = 1;
 export const HOME_ADVANTAGE_BPS = 500;
-export const TIMELOCK_DELAY = 3600;
+export const TIMELOCK_DELAY = 48 * 3600; // equals the timelock production floor
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export const ZERO_BYTES32 = "0x" + "0".repeat(64);
 export const SUITE_VERSION = "movenrun-v3.0.0";

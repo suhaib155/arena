@@ -56,6 +56,7 @@ contract MovenRunToken is ERC20, ERC20Permit, AccessControl, IMovenRunToken {
     error LifetimeCapExceeded(uint256 requested, uint256 remaining);
     error BurnExceedsIssuance(uint256 burnAmount, uint256 grossAmount);
     error LockedBalanceNotTransferable(address account, uint256 requested, uint256 liquidAvailable);
+    error LockedRecipientIsReserve();
 
     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
     /// @param bootstrapper_ Address permitted to run the one-time wiring, then discarded.
@@ -142,6 +143,8 @@ contract MovenRunToken is ERC20, ERC20Permit, AccessControl, IMovenRunToken {
     function releaseLocked(address to, uint256 amount) external {
         if (msg.sender != rewards) revert NotRewards();
         if (to == address(0)) revert ZeroAddress();
+        // Locking the reserve's own balance would stop it paying out every later claim.
+        if (to == msg.sender) revert LockedRecipientIsReserve();
 
         _transfer(msg.sender, to, amount);
         _lockedBalances[to] += amount;

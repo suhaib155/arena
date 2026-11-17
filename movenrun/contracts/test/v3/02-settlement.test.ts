@@ -1,3 +1,4 @@
+// PORTED from c8262ec test/v3/02-settlement.test.ts to the G5 draft patches. RESEARCH ONLY. Changes are marked (b) with the patch name.
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
@@ -15,13 +16,13 @@ import {
   publishSettlement,
   settlementAuthorization,
   signSettlement,
-} from "./helpers";
+} from "./portHelpers";
 
 describe("V3 MovenRunSettlement", () => {
   describe("dual independent authorization", () => {
     it("publishes when both independent signers authorize the identical settlement", async () => {
       const fx: Suite = await loadFixture(deploySuite);
-      const authorization = await settlementAuthorization({ dayId: 1, grossIssuance: 1_000n * ONE });
+      const authorization = await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1_000n * ONE });
 
       await expect(publishSettlement(fx, authorization))
         .to.emit(fx.settlement, "SettlementPublished")
@@ -34,7 +35,7 @@ describe("V3 MovenRunSettlement", () => {
 
     it("refuses a settlement signed twice by the same key", async () => {
       const fx: Suite = await loadFixture(deploySuite);
-      const authorization = await settlementAuthorization({ dayId: 1, grossIssuance: 1_000n * ONE });
+      const authorization = await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1_000n * ONE });
       const dom = domain("MovenRunSettlement", fx.chainId, fx.addresses.settlement);
       const single = await fx.settlementSigner.signTypedData(dom, SETTLEMENT_TYPES, authorization);
 
@@ -45,7 +46,7 @@ describe("V3 MovenRunSettlement", () => {
 
     it("refuses when either signature comes from the wrong key", async () => {
       const fx: Suite = await loadFixture(deploySuite);
-      const authorization = await settlementAuthorization({ dayId: 1, grossIssuance: 1_000n * ONE });
+      const authorization = await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1_000n * ONE });
       const dom = domain("MovenRunSettlement", fx.chainId, fx.addresses.settlement);
       const { settlementSignature, reconciliationSignature } = await signSettlement(fx, authorization);
       const impostor = await fx.alice.signTypedData(dom, SETTLEMENT_TYPES, authorization);
@@ -91,7 +92,7 @@ describe("V3 MovenRunSettlement", () => {
   describe("authorization binding", () => {
     it("refuses an expired authorization", async () => {
       const fx: Suite = await loadFixture(deploySuite);
-      const authorization = await settlementAuthorization({
+      const authorization = await settlementAuthorization(fx, {
         dayId: 1,
         grossIssuance: 1_000n * ONE,
         expiry: (await time.latest()) + 60,
@@ -105,10 +106,10 @@ describe("V3 MovenRunSettlement", () => {
 
     it("refuses a replayed nonce", async () => {
       const fx: Suite = await loadFixture(deploySuite);
-      const first = await settlementAuthorization({ dayId: 1, grossIssuance: 1_000n * ONE });
+      const first = await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1_000n * ONE });
       await (await publishSettlement(fx, first)).wait();
 
-      const second = await settlementAuthorization({
+      const second = await settlementAuthorization(fx, {
         dayId: 2,
         grossIssuance: 1_000n * ONE,
         nonce: first.nonce,
@@ -120,7 +121,7 @@ describe("V3 MovenRunSettlement", () => {
 
     it("refuses an authorization declaring the wrong rules version", async () => {
       const fx: Suite = await loadFixture(deploySuite);
-      const authorization = await settlementAuthorization({
+      const authorization = await settlementAuthorization(fx, {
         dayId: 1,
         grossIssuance: 1_000n * ONE,
         rulesVersion: RULES_VERSION + 1,
@@ -132,7 +133,7 @@ describe("V3 MovenRunSettlement", () => {
 
     it("refuses signatures bound to another chain or another contract", async () => {
       const fx: Suite = await loadFixture(deploySuite);
-      const authorization = await settlementAuthorization({ dayId: 1, grossIssuance: 1_000n * ONE });
+      const authorization = await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1_000n * ONE });
 
       const wrongChain = domain("MovenRunSettlement", fx.chainId + 1, fx.addresses.settlement);
       const wrongContract = domain("MovenRunSettlement", fx.chainId, fx.addresses.rewards);
@@ -161,16 +162,16 @@ describe("V3 MovenRunSettlement", () => {
     it("refuses day zero and any day that does not advance", async () => {
       const fx: Suite = await loadFixture(deploySuite);
       await expect(
-        publishSettlement(fx, await settlementAuthorization({ dayId: 0, grossIssuance: 0n, seasonId: 1 }))
+        publishSettlement(fx, await settlementAuthorization(fx, { dayId: 0, grossIssuance: 0n, seasonId: 1 }))
       ).to.be.revertedWithCustomError(fx.settlement, "DayNotAdvancing");
 
       await (
-        await publishSettlement(fx, await settlementAuthorization({ dayId: 5, grossIssuance: 1n * ONE }))
+        await publishSettlement(fx, await settlementAuthorization(fx, { dayId: 5, grossIssuance: 1n * ONE }))
       ).wait();
 
       for (const dayId of [5, 4, 1]) {
         await expect(
-          publishSettlement(fx, await settlementAuthorization({ dayId, grossIssuance: 1n * ONE }))
+          publishSettlement(fx, await settlementAuthorization(fx, { dayId, grossIssuance: 1n * ONE }))
         )
           .to.be.revertedWithCustomError(fx.settlement, "DayNotAdvancing")
           .withArgs(dayId, 5);
@@ -182,7 +183,7 @@ describe("V3 MovenRunSettlement", () => {
       await expect(
         publishSettlement(
           fx,
-          await settlementAuthorization({ dayId: 1, grossIssuance: 1n * ONE, seasonId: 2 })
+          await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1n * ONE, seasonId: 2 })
         )
       )
         .to.be.revertedWithCustomError(fx.settlement, "SeasonMismatch")
@@ -192,7 +193,7 @@ describe("V3 MovenRunSettlement", () => {
     it("refuses to skip a season so the decay chain cannot be jumped", async () => {
       const fx: Suite = await loadFixture(deploySuite);
       await expect(
-        publishSettlement(fx, await settlementAuthorization({ dayId: 181, grossIssuance: 1n * ONE }))
+        publishSettlement(fx, await settlementAuthorization(fx, { dayId: 181, grossIssuance: 1n * ONE }))
       )
         .to.be.revertedWithCustomError(fx.settlement, "SeasonSequenceViolation")
         .withArgs(3, 0);
@@ -200,7 +201,7 @@ describe("V3 MovenRunSettlement", () => {
 
     it("keeps a finalized day immutable", async () => {
       const fx: Suite = await loadFixture(deploySuite);
-      const first = await settlementAuthorization({
+      const first = await settlementAuthorization(fx, {
         dayId: 1,
         grossIssuance: 1_000n * ONE,
         merkleRoot: ethers.id("original"),
@@ -210,7 +211,7 @@ describe("V3 MovenRunSettlement", () => {
       await expect(
         publishSettlement(
           fx,
-          await settlementAuthorization({
+          await settlementAuthorization(fx, {
             dayId: 1,
             grossIssuance: 5n * ONE,
             merkleRoot: ethers.id("rewritten"),
@@ -226,13 +227,13 @@ describe("V3 MovenRunSettlement", () => {
     it("holds each day inside the pool its season allows", async () => {
       const fx: Suite = await loadFixture(deploySuite);
       await expect(
-        publishSettlement(fx, await settlementAuthorization({ dayId: 1, grossIssuance: DAY_ONE_POOL + 1n }))
+        publishSettlement(fx, await settlementAuthorization(fx, { dayId: 1, grossIssuance: DAY_ONE_POOL + 1n }))
       )
         .to.be.revertedWithCustomError(fx.settlement, "DailyPoolExceeded")
         .withArgs(DAY_ONE_POOL + 1n, DAY_ONE_POOL);
 
       await (
-        await publishSettlement(fx, await settlementAuthorization({ dayId: 1, grossIssuance: DAY_ONE_POOL }))
+        await publishSettlement(fx, await settlementAuthorization(fx, { dayId: 1, grossIssuance: DAY_ONE_POOL }))
       ).wait();
       expect(await fx.settlement.seasonIssued(1)).to.equal(DAY_ONE_POOL);
     });
@@ -254,7 +255,7 @@ describe("V3 MovenRunSettlement", () => {
         const dayId = (season - 1) * 90 + 1;
         const pool: bigint = await fx.settlement.dailyPoolOf(dayId).catch(() => 0n);
         const gross = pool > 0n ? pool : 1n * ONE;
-        await (await publishSettlement(fx, await settlementAuthorization({ dayId, grossIssuance: gross }))).wait();
+        await (await publishSettlement(fx, await settlementAuthorization(fx, { dayId, grossIssuance: gross }))).wait();
         issued += gross;
 
         const scheduleBudget: bigint = await fx.settlement.seasonScheduleBudget(season);
@@ -297,7 +298,7 @@ describe("V3 MovenRunSettlement", () => {
       await expect(
         publishSettlement(
           fx,
-          await settlementAuthorization({
+          await settlementAuthorization(fx, {
             dayId: 1,
             grossIssuance: gross,
             tollBase,
@@ -311,7 +312,7 @@ describe("V3 MovenRunSettlement", () => {
       await (
         await publishSettlement(
           fx,
-          await settlementAuthorization({
+          await settlementAuthorization(fx, {
             dayId: 1,
             grossIssuance: gross,
             tollBase,
@@ -326,7 +327,7 @@ describe("V3 MovenRunSettlement", () => {
       await expect(
         publishSettlement(
           fx,
-          await settlementAuthorization({
+          await settlementAuthorization(fx, {
             dayId: 1,
             grossIssuance: 1_000n * ONE,
             tollBase: 1_001n * ONE,
@@ -342,7 +343,7 @@ describe("V3 MovenRunSettlement", () => {
       await expect(
         publishSettlement(
           fx,
-          await settlementAuthorization({
+          await settlementAuthorization(fx, {
             dayId: 1,
             grossIssuance: 1_000n * ONE,
             lockedClaims: 999n * ONE,
@@ -363,7 +364,7 @@ describe("V3 MovenRunSettlement", () => {
 
       // Day one carries no toll; day two carries the maximum toll on the same gross.
       await (
-        await publishSettlement(fx, await settlementAuthorization({ dayId: 1, grossIssuance: gross }))
+        await publishSettlement(fx, await settlementAuthorization(fx, { dayId: 1, grossIssuance: gross }))
       ).wait();
       const mintedAfterUntolled: bigint = await fx.token.cumulativeMinted();
       const supplyAfterUntolled: bigint = await fx.token.totalSupply();
@@ -372,7 +373,7 @@ describe("V3 MovenRunSettlement", () => {
       await (
         await publishSettlement(
           fx,
-          await settlementAuthorization({ dayId: 2, grossIssuance: gross, tollBase, tollCredits: toll })
+          await settlementAuthorization(fx, { dayId: 2, grossIssuance: gross, tollBase, tollCredits: toll })
         )
       ).wait();
 
@@ -402,7 +403,7 @@ describe("V3 MovenRunSettlement", () => {
       await (
         await publishSettlement(
           fx,
-          await settlementAuthorization({
+          await settlementAuthorization(fx, {
             dayId: 1,
             grossIssuance: gross,
             tollBase: gross,
@@ -424,7 +425,7 @@ describe("V3 MovenRunSettlement", () => {
       await expect(
         publishSettlement(
           fx,
-          await settlementAuthorization({
+          await settlementAuthorization(fx, {
             dayId: 1,
             grossIssuance: 1_000n * ONE,
             liquidMovementClaims: 1n,
@@ -444,7 +445,7 @@ describe("V3 MovenRunSettlement", () => {
       await (
         await publishSettlement(
           fx,
-          await settlementAuthorization({
+          await settlementAuthorization(fx, {
             dayId: 1,
             grossIssuance: 1_000n * ONE,
             liquidMovementClaims: 500n * ONE,
@@ -480,7 +481,7 @@ describe("V3 MovenRunSettlement", () => {
       await expect(
         publishSettlement(
           fx,
-          await settlementAuthorization({ dayId: 1, grossIssuance: gross, automaticBurn: ceiling + 1n })
+          await settlementAuthorization(fx, { dayId: 1, grossIssuance: gross, automaticBurn: ceiling + 1n })
         )
       )
         .to.be.revertedWithCustomError(fx.settlement, "AutomaticBurnExceedsCap")
@@ -489,7 +490,7 @@ describe("V3 MovenRunSettlement", () => {
       await (
         await publishSettlement(
           fx,
-          await settlementAuthorization({ dayId: 1, grossIssuance: gross, automaticBurn: ceiling })
+          await settlementAuthorization(fx, { dayId: 1, grossIssuance: gross, automaticBurn: ceiling })
         )
       ).wait();
 
@@ -505,7 +506,7 @@ describe("V3 MovenRunSettlement", () => {
 
       await (await fx.settlement.connect(fx.guardian).pausePublication()).wait();
       await expect(
-        publishSettlement(fx, await settlementAuthorization({ dayId: 1, grossIssuance: 1n * ONE }))
+        publishSettlement(fx, await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1n * ONE }))
       ).to.be.revertedWithCustomError(fx.settlement, "PublicationIsPaused");
 
       await expect(
@@ -518,7 +519,7 @@ describe("V3 MovenRunSettlement", () => {
         fx.settlement.interface.encodeFunctionData("unpausePublication", [])
       );
       await (
-        await publishSettlement(fx, await settlementAuthorization({ dayId: 1, grossIssuance: 1n * ONE }))
+        await publishSettlement(fx, await settlementAuthorization(fx, { dayId: 1, grossIssuance: 1n * ONE }))
       ).wait();
     });
   });

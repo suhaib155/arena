@@ -7,6 +7,12 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IMovenRunDeed} from "./interfaces/IMovenRunDeed.sol";
 import {MovenRunH3} from "./libraries/MovenRunH3.sol";
 
+/// @notice Hook the claims contract exposes so a void can settle claim counters (G5 patch,
+///         RESEARCH/PROPOSED, unaudited). See docs/contracts/DEED_VOID_LIFECYCLE.md.
+interface IMovenRunDeedVoidHook {
+    function onDeedVoided(uint256 tokenId, address holder, bool administrative) external;
+}
+
 /// @title MovenRunDeed
 /// @notice Permanent ERC-721 ownership of a single eligible solid H3 resolution-8 cell.
 /// @dev The token id is the canonical H3 cell identifier itself, so one cell can only ever
@@ -30,8 +36,32 @@ import {MovenRunH3} from "./libraries/MovenRunH3.sol";
 ///      capacity is taken at declaration time as a reservation, which the settlement then
 ///      either consumes or releases, so a validly declared contest can never become
 ///      un-settleable because the challenger has since filled their own city capacity.
+///
+///      G5 DRAFT PATCH (N1). Research copy, not deployed, not audited:
+///      - every new deed is PENDING for CHALLENGE_WINDOW: it cannot be transferred, sold or
+///        contested, and off-chain toll accrual must read isFinal() and pay nothing before it;
+///      - while pending, a holder of VOIDER_ROLE (granted only by the delayed administrator,
+///        expected to be a multisig distinct from every attestation signer) may void the deed
+///        with a reason code; the cell is freed and may be claimed again;
+///      - after the window there is deliberately no administrative revoke (seizure risk); the
+///        only path out is the holder's own relinquish();
+///      - burns keep every counter exact (city count, holder count, total).
+///
+///      G5 DRAFT PATCH (void lifecycle, RESEARCH/PROPOSED, unaudited): a void is either a
+///      FAULT void (voidPendingDeed: attestation abuse, ring, fraud; claim counters stay
+///      spent) or an ADMINISTRATIVE void (voidPendingDeedAdministrative: operator error such
+///      as a wrong region map or a signer bug; irrevocable, and the claims contract restores
+///      the cluster slot once per cluster per city after a cooldown). Either way the claims
+///      contract is told through IMovenRunDeedVoidHook so it can record the outcome.
 contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     using MovenRunH3 for uint64;
+
+    /// @notice G5 patch: role permitted to void a deed while it is still pending.
+    bytes32 public constant VOIDER_ROLE = keccak256("MOVENRUN_DEED_VOIDER_ROLE");
+    /// @notice G5 patch: period after mint during which a deed is pending.
+    uint64 public constant CHALLENGE_WINDOW = 7 days;
+    /// @notice G5 patch: time from which a deed is final.
+    mapping(uint256 tokenId => uint64 finalAt) public finalAt;
 
     /// @notice The only contract permitted to create initial deeds.
     address public claimsContract;
@@ -40,7 +70,7 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     /// @notice Address permitted to perform the one-time wiring, then discarded.
     address public bootstrapper;
 
-    /// @notice Total deeds in existence. Deeds are never burned, so this only increases.
+    /// @notice Total deeds in existence. G5 patch: decreases on void or relinquish.
     uint256 public totalDeeds;
 
     mapping(uint256 tokenId => uint32 cityId) private _cityOf;
@@ -55,6 +85,10 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     mapping(uint32 cityId => uint256 cap) private _cityCap;
     mapping(uint32 cityId => bool configured) private _cityCapConfigured;
 
+    /// @dev Counts every ownership change of a token id, escrow legs, burns and re-mints
+    ///      included. It never resets, so a value read once identifies one unbroken holding.
+    mapping(uint256 tokenId => uint256 nonce) private _ownershipNonce;
+
     string private _baseTokenURI;
 
     event ContractsConfigured(address indexed claimsContract, address indexed contestsContract);
@@ -66,6 +100,9 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     event CityReservationConsumed(address indexed holder, uint32 indexed cityId);
     event CityReservationReleased(address indexed holder, uint32 indexed cityId);
     event BaseTokenURIUpdated(string baseTokenURI);
+    event DeedVoided(uint256 indexed tokenId, address indexed holder, uint8 reasonCode, address voidedBy);
+    event DeedRelinquished(uint256 indexed tokenId, address indexed holder);
+    event DeedVoidClassified(uint256 indexed tokenId, bool administrative);
 
     error ZeroAddress();
     error NotBootstrapper();
@@ -80,6 +117,10 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     error HolderCityCapReached(address holder, uint32 cityId, uint256 capPerHolder);
     error EscrowReservedForContests(uint256 tokenId);
     error WinnerNotAContestant(address winner);
+    error DeedPending(uint256 tokenId, uint64 finalAt);
+    error DeedAlreadyFinal(uint256 tokenId);
+    error NotDeedHolder(address caller);
+    error CityCapBelowMinimum(uint32 cityId);
 
     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
     /// @param bootstrapper_ Address permitted to run the one-time wiring, then discarded.
@@ -130,6 +171,7 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
         if (_ownerOf(tokenId) != address(0)) revert DeedAlreadyExists(tokenId);
 
         _cityOf[tokenId] = cityId;
+        finalAt[tokenId] = uint64(block.timestamp) + CHALLENGE_WINDOW;
         unchecked {
             _cityDeedCount[cityId] += 1;
             totalDeeds += 1;
@@ -153,6 +195,9 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (cityId == 0) revert InvalidCityId();
+        // A cap of zero would refuse every receiver, freezing each deed already in the city
+        // and every contest there. With a cap of one or more a holder can always leave.
+        if (capPerHolder == 0) revert CityCapBelowMinimum(cityId);
         _cityCap[cityId] = capPerHolder;
         _cityCapConfigured[cityId] = true;
         emit CityConcentrationCapConfigured(cityId, capPerHolder);
@@ -193,6 +238,8 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
         if (msg.sender != contests) revert NotContestsContract();
 
         address holder = ownerOf(tokenId);
+        uint64 final_ = finalAt[tokenId];
+        if (block.timestamp < final_) revert DeedPending(tokenId, final_);
         _transfer(holder, contests, tokenId);
 
         emit DeedEscrowed(tokenId, holder);
@@ -253,6 +300,9 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     {
         address from = super._update(to, tokenId, auth);
         address contests = contestsContract;
+        unchecked {
+            _ownershipNonce[tokenId] += 1;
+        }
 
         if (contests != address(0)) {
             if (to == contests) {
@@ -267,10 +317,66 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
         }
 
         uint32 cityId = _cityOf[tokenId];
+        if (from != address(0) && to != address(0)) {
+            uint64 final_ = finalAt[tokenId];
+            if (block.timestamp < final_) revert DeedPending(tokenId, final_);
+        }
         if (from != address(0)) _releaseHolderSlot(from, cityId);
         if (to != address(0)) _occupyHolderSlot(to, cityId);
+        if (to == address(0)) {
+            // Burn: keep every counter exact so the cell can be claimed again.
+            unchecked {
+                _cityDeedCount[cityId] -= 1;
+                totalDeeds -= 1;
+            }
+            delete _cityOf[tokenId];
+            delete finalAt[tokenId];
+        }
 
         return from;
+    }
+
+    // ---------------------------------------------------------------------
+    // G5 patch: void and relinquish
+    // ---------------------------------------------------------------------
+
+    /// @notice Voids a deed that is still pending. VOIDER_ROLE only.
+    /// @dev FAULT class: the claim counters it consumed stay spent (see DEED_VOID_LIFECYCLE.md).
+    function voidPendingDeed(uint256 tokenId, uint8 reasonCode) external onlyRole(VOIDER_ROLE) {
+        _voidPending(tokenId, reasonCode, false);
+    }
+
+    /// @notice G5 patch: irrevocable administrative void of a pending deed (operator error, not
+    ///         the claimant's fault). VOIDER_ROLE only, inside the pending window only.
+    function voidPendingDeedAdministrative(uint256 tokenId, uint8 reasonCode) external onlyRole(VOIDER_ROLE) {
+        _voidPending(tokenId, reasonCode, true);
+    }
+
+    function _voidPending(uint256 tokenId, uint8 reasonCode, bool administrative) private {
+        address holder = ownerOf(tokenId);
+        if (block.timestamp >= finalAt[tokenId]) revert DeedAlreadyFinal(tokenId);
+        _burn(tokenId);
+        emit DeedVoided(tokenId, holder, reasonCode, msg.sender);
+        emit DeedVoidClassified(tokenId, administrative);
+        address claims = claimsContract;
+        // The claims contract is always a contract in a real wiring; the code-length guard
+        // only keeps a fixture that wires an EOA as the claims contract working.
+        if (claims.code.length > 0) {
+            IMovenRunDeedVoidHook(claims).onDeedVoided(tokenId, holder, administrative);
+        }
+    }
+
+    /// @notice The holder gives a deed up for good. Not possible while the deed is escrowed.
+    function relinquish(uint256 tokenId) external {
+        address holder = ownerOf(tokenId);
+        if (holder != msg.sender) revert NotDeedHolder(msg.sender);
+        _burn(tokenId);
+        emit DeedRelinquished(tokenId, holder);
+    }
+
+    /// @notice Whether a deed has passed its challenge window.
+    function isFinal(uint256 tokenId) external view returns (bool) {
+        return _ownerOf(tokenId) != address(0) && block.timestamp >= finalAt[tokenId];
     }
 
     /// @dev Takes one of a holder's city slots, refusing to exceed their own cap. Capacity
@@ -349,6 +455,11 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
         uint256 used = _holderCityCount[holder][cityId] + _holderCityReserved[holder][cityId];
         uint256 cap = _cityCap[cityId];
         return used >= cap ? 0 : cap - used;
+    }
+
+    /// @inheritdoc IMovenRunDeed
+    function ownershipNonceOf(uint256 tokenId) external view returns (uint256) {
+        return _ownershipNonce[tokenId];
     }
 
     /// @inheritdoc IMovenRunDeed

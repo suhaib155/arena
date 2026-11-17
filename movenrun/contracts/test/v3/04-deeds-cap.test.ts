@@ -1,3 +1,4 @@
+// PORTED from c8262ec test/v3/04-deeds-cap.test.ts to the G5 draft patches. RESEARCH ONLY. Changes are marked (b) with the patch name.
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
@@ -7,11 +8,13 @@ import {
   claimDeed,
   configureCityCap,
   deploySuite,
-  eligibilityAttestation,
+  claimWithAttestation,
+  eligibilityAttestationV2,
+  ELIGIBILITY_TYPES_V2,
+  waitOutChallengeWindow,
   execViaTimelock,
   fundLockedMove,
-  signEligibility,
-} from "./helpers";
+} from "./portHelpers";
 import { cellAt, cityCells, childOf, parentOf } from "./cells";
 
 const CITY = 7;
@@ -129,82 +132,60 @@ describe("V3 MovenRunDeed and the per-holder city cap", () => {
       const fx = await openSuite();
       const cells = cityCells(3);
 
-      const expired = await eligibilityAttestation({
+      const expired = await eligibilityAttestationV2({
         claimant: fx.alice.address,
         h3CellId: cells[0],
         cityId: CITY,
         expiry: (await time.latest()) + 60,
       });
-      const expiredSignature = await signEligibility(fx, expired);
       await time.increase(120);
-      await expect(
-        fx.deedClaims.connect(fx.alice).claim(expired, expiredSignature, 0)
-      ).to.be.revertedWithCustomError(fx.deedClaims, "AttestationExpired");
+      await expect(claimWithAttestation(fx, fx.alice, expired)).to.be.revertedWithCustomError(
+        fx.deedClaims,
+        "AttestationExpired"
+      );
 
-      const first = await eligibilityAttestation({
-        claimant: fx.alice.address,
-        h3CellId: cells[0],
-        cityId: CITY,
-      });
-      await (await fx.deedClaims.connect(fx.alice).claim(first, await signEligibility(fx, first), 0)).wait();
+      const first = await eligibilityAttestationV2({ claimant: fx.alice.address, h3CellId: cells[0], cityId: CITY });
+      await (await claimWithAttestation(fx, fx.alice, first)).wait();
 
       const replayed = { ...first, h3CellId: cells[1] };
-      await expect(
-        fx.deedClaims.connect(fx.alice).claim(replayed, await signEligibility(fx, replayed), 0)
-      ).to.be.revertedWithCustomError(fx.deedClaims, "AttestationAlreadyUsed");
-
-      const other = await eligibilityAttestation({
-        claimant: fx.alice.address,
-        h3CellId: cells[1],
-        cityId: CITY,
-      });
-      await expect(
-        fx.deedClaims.connect(fx.bob).claim(other, await signEligibility(fx, other), 0)
-      ).to.be.revertedWithCustomError(fx.deedClaims, "WrongClaimant");
-
-      const forged = await eligibilityAttestation({
-        claimant: fx.bob.address,
-        h3CellId: cells[2],
-        cityId: CITY,
-      });
-      const forgedSignature = await fx.alice.signTypedData(
-        { name: "MovenRunDeedClaims", version: "3", chainId: fx.chainId, verifyingContract: fx.addresses.deedClaims },
-        {
-          DeedEligibilityAttestation: [
-            { name: "claimant", type: "address" },
-            { name: "h3CellId", type: "uint64" },
-            { name: "cityId", type: "uint32" },
-            { name: "solidGround", type: "bool" },
-            { name: "tenureDays", type: "uint32" },
-            { name: "distinctCrossers", type: "uint32" },
-            { name: "trafficDays", type: "uint32" },
-            { name: "relatedTrafficExcluded", type: "bool" },
-            { name: "claimFee", type: "uint256" },
-            { name: "rulesVersion", type: "uint16" },
-            { name: "nonce", type: "uint256" },
-            { name: "expiry", type: "uint64" },
-          ],
-        },
-        forged
+      await expect(claimWithAttestation(fx, fx.alice, replayed)).to.be.revertedWithCustomError(
+        fx.deedClaims,
+        "AttestationAlreadyUsed"
       );
+
+      const other = await eligibilityAttestationV2({ claimant: fx.alice.address, h3CellId: cells[1], cityId: CITY });
+      await expect(claimWithAttestation(fx, fx.bob, other)).to.be.revertedWithCustomError(
+        fx.deedClaims,
+        "WrongClaimant"
+      );
+
+      // (b) H3: an attestation signed by a key that is not a registered eligibility signer.
+      // Was InvalidAttestationSignature; now SignersNotAscendingOrUnknown (the threshold
+      // check names the offending signer). Even with one valid co-signature it is refused.
+      const forged = await eligibilityAttestationV2({ claimant: fx.bob.address, h3CellId: cells[2], cityId: CITY });
       await expect(
-        fx.deedClaims.connect(fx.bob).claim(forged, forgedSignature, 0)
-      ).to.be.revertedWithCustomError(fx.deedClaims, "InvalidAttestationSignature");
+        claimWithAttestation(fx, fx.bob, forged, [fx.alice, fx.eligibilityCoSigner])
+      ).to.be.revertedWithCustomError(fx.deedClaims, "SignersNotAscendingOrUnknown");
+      // (b) H3: the same attestation under only one valid key falls below the threshold of 2.
+      await expect(claimWithAttestation(fx, fx.bob, forged, [fx.deedSigner])).to.be.revertedWithCustomError(
+        fx.deedClaims,
+        "ThresholdNotMet"
+      );
+      void ELIGIBILITY_TYPES_V2;
     });
   });
 
   describe("claim fee", () => {
     it("refuses a quoted fee above the caller's stated maximum", async () => {
       const fx = await openSuite();
-      const attestation = await eligibilityAttestation({
+      const attestation = await eligibilityAttestationV2({
         claimant: fx.alice.address,
         h3CellId: cellAt(12.9716, 77.5946),
         cityId: CITY,
         claimFee: 100n * ONE,
       });
-      const signature = await signEligibility(fx, attestation);
 
-      await expect(fx.deedClaims.connect(fx.alice).claim(attestation, signature, 99n * ONE))
+      await expect(claimWithAttestation(fx, fx.alice, attestation, undefined, 99n * ONE))
         .to.be.revertedWithCustomError(fx.deedClaims, "ClaimFeeAboveMaximum")
         .withArgs(100n * ONE, 99n * ONE);
     });
@@ -232,6 +213,20 @@ describe("V3 MovenRunDeed and the per-holder city cap", () => {
   describe("per-holder, per-city concentration", () => {
     it("refuses any claim in a city the timelock has not opened", async () => {
       const fx: Suite = await loadFixture(deploySuite);
+      // (b) H3 / M1: a city with a city-wide cap of 0 is closed, and that check now runs before
+      // the per-holder one, so the refusal is CityWideCapReached(city, 0).
+      await expect(claimDeed(fx, fx.alice, cellAt(12.9716, 77.5946), CITY))
+        .to.be.revertedWithCustomError(fx.deedClaims, "CityWideCapReached")
+        .withArgs(CITY, 0);
+
+      // The original property is still asserted: with the city-wide cap open but no per-holder
+      // cap configured, the claim is refused with the original CityCapNotConfigured(city).
+      await execViaTimelock(
+        fx,
+        fx.addresses.deedClaims,
+        fx.deedClaims.interface.encodeFunctionData("setCityWideCap", [CITY, 100]),
+        ethers.id("wide-only")
+      );
       await expect(claimDeed(fx, fx.alice, cellAt(12.9716, 77.5946), CITY))
         .to.be.revertedWithCustomError(fx.deedClaims, "CityCapNotConfigured")
         .withArgs(CITY);
@@ -293,6 +288,12 @@ describe("V3 MovenRunDeed and the per-holder city cap", () => {
       await (await claimDeed(fx, fx.alice, cells[0], CITY)).wait();
       await (await claimDeed(fx, fx.alice, cells[1], CITY)).wait();
 
+      // (b) N1: a new deed is pending for 7 days. The transfer is refused inside the window
+      // and the original behaviour is asserted once the window has passed.
+      await expect(
+        fx.deed.connect(fx.alice).transferFrom(fx.alice.address, fx.bob.address, cells[1])
+      ).to.be.revertedWithCustomError(fx.deed, "DeedPending");
+      await waitOutChallengeWindow(fx, cells[1]);
       await (
         await fx.deed.connect(fx.alice).transferFrom(fx.alice.address, fx.bob.address, cells[1])
       ).wait();
@@ -310,6 +311,7 @@ describe("V3 MovenRunDeed and the per-holder city cap", () => {
       await (await claimDeed(fx, fx.alice, cells[0], CITY)).wait();
       await (await claimDeed(fx, fx.alice, cells[1], CITY)).wait();
       await (await claimDeed(fx, fx.bob, cells[2], CITY)).wait();
+      await waitOutChallengeWindow(fx, cells[2]); // (b) N1: otherwise DeedPending fires first
 
       await expect(fx.deed.connect(fx.bob).transferFrom(fx.bob.address, fx.alice.address, cells[2]))
         .to.be.revertedWithCustomError(fx.deed, "HolderCityCapReached")
@@ -376,7 +378,9 @@ describe("V3 MovenRunDeed and the per-holder city cap", () => {
         "ClaimsArePaused"
       );
 
-      // A pause stops new issuance only; deeds already held stay freely transferable.
+      // A pause stops new issuance only; deeds already held stay freely transferable
+      // (once final: (b) N1 holds a new deed for its 7-day window).
+      await waitOutChallengeWindow(fx, cells[0]);
       await (
         await fx.deed.connect(fx.alice).transferFrom(fx.alice.address, fx.bob.address, cells[0])
       ).wait();
