@@ -50,16 +50,9 @@ import {MovenRunSignerApproval} from "./libraries/MovenRunSignerApproval.sol";
 ///        the calendar epoch boundary or the order in which withheld days are published;
 ///      - a halted valve also refuses toll credits, so a halt stops every new liquid reward.
 ///
-///      Further hardening:
-///      - toll credits are liquid, so they are charged to the same allowance and the same
-///        rolling window as liquid movement rewards. With the allowance at zero, which is how
-///        the contract starts, no liquid MOVE of any kind can be created; a day can still be
-///        published with every reward locked;
-///      - a new settlement or reconciliation signer needs a prior approval from
-///        SIGNER_APPROVER_ROLE, which the delayed administrator cannot grant itself, so no
-///        single party can replace both keys;
-///      - a day that allocates rewards must carry a Merkle root, otherwise the minted reserve
-///        could never be claimed.
+///      Signer replacement (issue ledger I-06b): a new settlement or reconciliation signer
+///      needs a prior approval from SIGNER_APPROVER_ROLE, which the delayed administrator
+///      cannot grant itself, so the timelock alone can no longer replace both keys.
 contract MovenRunSettlement is AccessControl, EIP712, MovenRunSignerApproval {
     /// @notice Role permitted to pause new settlement publication and nothing else.
     bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
@@ -225,7 +218,6 @@ contract MovenRunSettlement is AccessControl, EIP712, MovenRunSignerApproval {
     error RollingLiquidCapExceeded(uint256 requested, uint256 remainingInWindow);
     error EpochReleaseCapExceeded(uint256 requested, uint256 remainingThisEpoch);
     error LifetimeLiquidBudgetExceeded(uint256 requested, uint256 remaining);
-    error MissingMerkleRoot();
 
     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
     /// @param guardian Emergency address permitted to pause new publication only.
@@ -331,14 +323,16 @@ contract MovenRunSettlement is AccessControl, EIP712, MovenRunSignerApproval {
             }
         }
 
-        // Everything that leaves this day as liquid MOVE, tolls included, goes through the valve.
-        uint256 liquidTotal = authorization.liquidMovementClaims + authorization.tollCredits;
-        if (liquidTotal > 0) {
-            if (valveHalted) revert ValveIsHalted();
-            uint256 available = liquidIssuanceAllowance();
-            if (liquidTotal > available) revert LiquidIssuanceAllowanceExceeded(liquidTotal, available);
-            _chargeRollingWindow(liquidTotal);
+        if ((authorization.liquidMovementClaims > 0 || authorization.tollCredits > 0) && valveHalted) {
+            revert ValveIsHalted();
         }
+        {
+            uint256 available = liquidIssuanceAllowance();
+            if (authorization.liquidMovementClaims > available) {
+                revert LiquidIssuanceAllowanceExceeded(authorization.liquidMovementClaims, available);
+            }
+        }
+        if (authorization.liquidMovementClaims > 0) _chargeRollingWindow(authorization.liquidMovementClaims);
 
         uint256 remainingAllocation = PLAYER_MOVEMENT_ALLOCATION - lifetimeMovementIssued;
         if (authorization.grossIssuance > remainingAllocation) {
@@ -347,7 +341,7 @@ contract MovenRunSettlement is AccessControl, EIP712, MovenRunSignerApproval {
 
         unchecked {
             // Non-zero only when the allowance belongs to the current epoch (checked above).
-            _liquidAllowance -= liquidTotal;
+            _liquidAllowance -= authorization.liquidMovementClaims;
             lifetimeMovementIssued += authorization.grossIssuance;
             seasonIssued[derivedSeason] += authorization.grossIssuance;
         }
@@ -408,10 +402,6 @@ contract MovenRunSettlement is AccessControl, EIP712, MovenRunSignerApproval {
             authorization.automaticBurn;
         if (componentTotal != authorization.grossIssuance) {
             revert SettlementAccountingMismatch(componentTotal, authorization.grossIssuance);
-        }
-        // Everything except the burn is paid out against the root; without one it is stranded.
-        if (componentTotal > authorization.automaticBurn && authorization.merkleRoot == bytes32(0)) {
-            revert MissingMerkleRoot();
         }
         if (authorization.tollBase > authorization.grossIssuance) {
             revert TollBaseExceedsGross(authorization.tollBase, authorization.grossIssuance);

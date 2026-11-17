@@ -313,10 +313,25 @@ describe("G5 issue ledger: counter release and issue counterexamples (patched, R
         .to.be.revertedWithCustomError(factory, "DelayBelowFloor");
     });
 
-    it("OPEN-ISSUE I-06b the timelock alone replaces BOTH settlement signers, and the two new keys then publish settlement days", async () => {
+    it("FIXED I-06b the timelock alone cannot replace settlement signers; approved keys publish settlement days", async () => {
       const f = await fx();
       const s = await ethers.getSigners();
       const [x, y] = [s[16], s[17]];
+      // FIXED I-06b: without an approval from SIGNER_APPROVER_ROLE the timelock alone is refused.
+      const refused = f.timelock.connect(f.admin).scheduleBatch(
+        [f.addresses.settlement], [0n],
+        [f.settlement.interface.encodeFunctionData("setSettlementSigner", [x.address])],
+        ethers.ZeroHash, ethers.id("i06b-refused"), TIMELOCK_DELAY);
+      await refused;
+      await time.increase(TIMELOCK_DELAY + 1);
+      await expect(f.timelock.connect(f.admin).executeBatch(
+        [f.addresses.settlement], [0n],
+        [f.settlement.interface.encodeFunctionData("setSettlementSigner", [x.address])],
+        ethers.ZeroHash, ethers.id("i06b-refused")))
+        .to.be.revertedWithCustomError(f.settlement, "SignerAdditionNotApproved");
+      // Independent approval from the approver role, then the same two keys can be installed.
+      await (await f.settlement.connect(f.guardian).approveSignerAddition(x.address)).wait();
+      await (await f.settlement.connect(f.guardian).approveSignerAddition(y.address)).wait();
       await execBatchViaTimelock(f, [f.addresses.settlement, f.addresses.settlement], [
         f.settlement.interface.encodeFunctionData("setSettlementSigner", [x.address]),
         f.settlement.interface.encodeFunctionData("setReconciliationSigner", [y.address]),
