@@ -262,7 +262,9 @@ describe("G5 hardening: void lifecycle, valve, signer roles (patched, RESEARCH/P
       const genesis = Number(await f.settlement.genesis());
       const CEIL = 200_000n * ONE;
       // Same attack as before: nothing published for 59 days, raise 2 hours before epoch 1 ends.
-      await time.increaseTo(genesis + 2 * VALVE_EPOCH - 3 * 3600);
+      // The raise itself is executed through the timelock, which moves the clock forward by
+      // the delay, so start that much earlier to land the raise 3 hours before the boundary.
+      await time.increaseTo(genesis + 2 * VALVE_EPOCH - 3 * 3600 - TIMELOCK_DELAY);
       await raise(f, EPOCH_CAP, "e6a");
       let day = 31;
       let liquid = 0n;
