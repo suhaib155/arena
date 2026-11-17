@@ -256,7 +256,9 @@ describe("G5 hardening: void lifecycle, valve, signer roles (patched, RESEARCH/P
     // Rewritten by the issue-ledger patch (28 Oct). Was "E6 epoch boundary (documented limit)",
     // which asserted that more than one epoch cap could be drawn within about three hours.
     it("FIXED E6 epoch boundary: withheld days spent across the boundary are refused by the rolling window; no 30-day interval issues more than one epoch cap", async () => {
-      const f = await fx();
+      // A fresh deployment, not the shared fixture: the chain clock only moves forward, so a
+      // genesis taken from the shared fixture can already be more than 60 days in the past.
+      const f = await deploySuite();
       const genesis = Number(await f.settlement.genesis());
       const CEIL = 200_000n * ONE;
       // Same attack as before: nothing published for 59 days, raise 2 hours before epoch 1 ends.
