@@ -11,13 +11,15 @@ import {IMovenRunDeed} from "./interfaces/IMovenRunDeed.sol";
 ///      holders. It takes no protocol fee, never holds a deed, and never holds seller
 ///      proceeds: payment goes straight from buyer to seller in the same call. Purchases
 ///      settle in MOVE, so the token's own transfer rules apply and locked MOVE can never
-///      pay for a deed. A listing whose deed has since moved, including into contest
-///      escrow, fails closed. There is no administrator, no seizure path and no pause, so
+///      pay for a deed. A listing is bound to the holding it was made under: once the deed
+///      has moved at all, including into contest escrow and back, the listing is dead for
+///      good and the seller has to list again, so an old price can never come back to life. There is no administrator, no seizure path and no pause, so
 ///      voluntary transfers stay available even while claims or settlements are paused.
 contract MovenRunMarketplace is ReentrancyGuard {
     struct Listing {
         address seller;
         uint256 price;
+        uint256 ownershipNonce;
     }
 
     /// @notice The MovenRun MOVE token used for settlement.
@@ -59,7 +61,11 @@ contract MovenRunMarketplace is ReentrancyGuard {
             !deed.isApprovedForAll(msg.sender, address(this))
         ) revert MarketplaceNotApproved(tokenId);
 
-        _listings[tokenId] = Listing({seller: msg.sender, price: price});
+        _listings[tokenId] = Listing({
+            seller: msg.sender,
+            price: price,
+            ownershipNonce: deed.ownershipNonceOf(tokenId)
+        });
 
         emit DeedListed(tokenId, msg.sender, price);
     }
@@ -84,7 +90,9 @@ contract MovenRunMarketplace is ReentrancyGuard {
         if (listing.price > maxPrice) revert PriceAboveMaximum(listing.price, maxPrice);
 
         address holder = deed.ownerOf(tokenId);
-        if (holder != listing.seller) revert ListingStale(tokenId, holder, listing.seller);
+        if (holder != listing.seller || deed.ownershipNonceOf(tokenId) != listing.ownershipNonce) {
+            revert ListingStale(tokenId, holder, listing.seller);
+        }
 
         delete _listings[tokenId];
 
@@ -103,7 +111,9 @@ contract MovenRunMarketplace is ReentrancyGuard {
     function isListingLive(uint256 tokenId) external view returns (bool) {
         Listing memory listing = _listings[tokenId];
         if (listing.seller == address(0)) return false;
+        if (!deed.deedExists(tokenId)) return false;
         if (deed.ownerOf(tokenId) != listing.seller) return false;
+        if (deed.ownershipNonceOf(tokenId) != listing.ownershipNonce) return false;
         return
             deed.getApproved(tokenId) == address(this) ||
             deed.isApprovedForAll(listing.seller, address(this));

@@ -85,6 +85,10 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     mapping(uint32 cityId => uint256 cap) private _cityCap;
     mapping(uint32 cityId => bool configured) private _cityCapConfigured;
 
+    /// @dev Counts every ownership change of a token id, escrow legs, burns and re-mints
+    ///      included. It never resets, so a value read once identifies one unbroken holding.
+    mapping(uint256 tokenId => uint256 nonce) private _ownershipNonce;
+
     string private _baseTokenURI;
 
     event ContractsConfigured(address indexed claimsContract, address indexed contestsContract);
@@ -116,6 +120,7 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     error DeedPending(uint256 tokenId, uint64 finalAt);
     error DeedAlreadyFinal(uint256 tokenId);
     error NotDeedHolder(address caller);
+    error CityCapBelowMinimum(uint32 cityId);
 
     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
     /// @param bootstrapper_ Address permitted to run the one-time wiring, then discarded.
@@ -190,6 +195,9 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (cityId == 0) revert InvalidCityId();
+        // A cap of zero would refuse every receiver, freezing each deed already in the city
+        // and every contest there. With a cap of one or more a holder can always leave.
+        if (capPerHolder == 0) revert CityCapBelowMinimum(cityId);
         _cityCap[cityId] = capPerHolder;
         _cityCapConfigured[cityId] = true;
         emit CityConcentrationCapConfigured(cityId, capPerHolder);
@@ -292,6 +300,9 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
     {
         address from = super._update(to, tokenId, auth);
         address contests = contestsContract;
+        unchecked {
+            _ownershipNonce[tokenId] += 1;
+        }
 
         if (contests != address(0)) {
             if (to == contests) {
@@ -444,6 +455,11 @@ contract MovenRunDeed is ERC721, AccessControl, IMovenRunDeed {
         uint256 used = _holderCityCount[holder][cityId] + _holderCityReserved[holder][cityId];
         uint256 cap = _cityCap[cityId];
         return used >= cap ? 0 : cap - used;
+    }
+
+    /// @inheritdoc IMovenRunDeed
+    function ownershipNonceOf(uint256 tokenId) external view returns (uint256) {
+        return _ownershipNonce[tokenId];
     }
 
     /// @inheritdoc IMovenRunDeed

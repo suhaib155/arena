@@ -16,14 +16,11 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 ///      two hour contest notice, the seven day scoring window, and the thirty and fourteen
 ///      day cooldown periods. No timelock proposal can change any of them.
 ///
-///      G5 DRAFT PATCH (RESEARCH/PROPOSED, unaudited): the delay may never be set below
-///      MIN_DELAY_FLOOR, at construction or later through updateDelay, so a one-second
-///      timelock cannot be deployed or configured. The floor is one hour so the original
-///      fixture (TIMELOCK_DELAY = 3600) runs unchanged; the proposed production floor is
-///      48 hours (see DEED_VOID_LIFECYCLE.md, valve section).
+///      The delay may never be set below MIN_DELAY_FLOOR, at construction or later through
+///      updateDelay, so a short timelock can be neither deployed nor configured.
 contract MovenRunTimelock is TimelockController {
-    /// @notice G5 patch: lowest delay the timelock accepts.
-    uint256 public constant MIN_DELAY_FLOOR = 1 hours;
+    /// @notice Lowest delay the timelock accepts.
+    uint256 public constant MIN_DELAY_FLOOR = 48 hours;
 
     error DelayMustBeNonZero();
     error DelayBelowFloor(uint256 delay, uint256 floor);
@@ -42,7 +39,7 @@ contract MovenRunTimelock is TimelockController {
         if (minDelay < MIN_DELAY_FLOOR) revert DelayBelowFloor(minDelay, MIN_DELAY_FLOOR);
     }
 
-    /// @dev G5 patch: the self-administered delay change keeps the floor.
+    /// @dev The self-administered delay change keeps the floor.
     function updateDelay(uint256 newDelay) public override {
         if (newDelay < MIN_DELAY_FLOOR) revert DelayBelowFloor(newDelay, MIN_DELAY_FLOOR);
         super.updateDelay(newDelay);

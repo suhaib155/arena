@@ -6,6 +6,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IMovenRunToken} from "./interfaces/IMovenRunToken.sol";
 import {IMovenRunRewards} from "./interfaces/IMovenRunRewards.sol";
+import {MovenRunSignerApproval} from "./libraries/MovenRunSignerApproval.sol";
 
 /// @title MovenRunSettlement
 /// @notice The sole issuance path for MovenRun movement rewards, and the onchain record of
@@ -48,7 +49,18 @@ import {IMovenRunRewards} from "./interfaces/IMovenRunRewards.sol";
 ///        most 31 day buckets, so no 30-day interval can issue more than one epoch cap, whatever
 ///        the calendar epoch boundary or the order in which withheld days are published;
 ///      - a halted valve also refuses toll credits, so a halt stops every new liquid reward.
-contract MovenRunSettlement is AccessControl, EIP712 {
+///
+///      Further hardening:
+///      - toll credits are liquid, so they are charged to the same allowance and the same
+///        rolling window as liquid movement rewards. With the allowance at zero, which is how
+///        the contract starts, no liquid MOVE of any kind can be created; a day can still be
+///        published with every reward locked;
+///      - a new settlement or reconciliation signer needs a prior approval from
+///        SIGNER_APPROVER_ROLE, which the delayed administrator cannot grant itself, so no
+///        single party can replace both keys;
+///      - a day that allocates rewards must carry a Merkle root, otherwise the minted reserve
+///        could never be claimed.
+contract MovenRunSettlement is AccessControl, EIP712, MovenRunSignerApproval {
     /// @notice Role permitted to pause new settlement publication and nothing else.
     bytes32 public constant GUARDIAN_ROLE = keccak256("MOVENRUN_GUARDIAN_ROLE");
 
@@ -213,6 +225,7 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     error RollingLiquidCapExceeded(uint256 requested, uint256 remainingInWindow);
     error EpochReleaseCapExceeded(uint256 requested, uint256 remainingThisEpoch);
     error LifetimeLiquidBudgetExceeded(uint256 requested, uint256 remaining);
+    error MissingMerkleRoot();
 
     /// @param admin Delayed administrator, expected to be MovenRunTimelock.
     /// @param guardian Emergency address permitted to pause new publication only.
@@ -249,6 +262,9 @@ contract MovenRunSettlement is AccessControl, EIP712 {
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(GUARDIAN_ROLE, guardian);
+        // The guardian holds the approver role at first so the constructor keeps its shape.
+        // A deployment must hand it to a party separate from the timelock proposer.
+        _initSignerApprover(guardian);
     }
 
     // ---------------------------------------------------------------------
@@ -315,16 +331,14 @@ contract MovenRunSettlement is AccessControl, EIP712 {
             }
         }
 
-        if ((authorization.liquidMovementClaims > 0 || authorization.tollCredits > 0) && valveHalted) {
-            revert ValveIsHalted();
-        }
-        {
+        // Everything that leaves this day as liquid MOVE, tolls included, goes through the valve.
+        uint256 liquidTotal = authorization.liquidMovementClaims + authorization.tollCredits;
+        if (liquidTotal > 0) {
+            if (valveHalted) revert ValveIsHalted();
             uint256 available = liquidIssuanceAllowance();
-            if (authorization.liquidMovementClaims > available) {
-                revert LiquidIssuanceAllowanceExceeded(authorization.liquidMovementClaims, available);
-            }
+            if (liquidTotal > available) revert LiquidIssuanceAllowanceExceeded(liquidTotal, available);
+            _chargeRollingWindow(liquidTotal);
         }
-        if (authorization.liquidMovementClaims > 0) _chargeRollingWindow(authorization.liquidMovementClaims);
 
         uint256 remainingAllocation = PLAYER_MOVEMENT_ALLOCATION - lifetimeMovementIssued;
         if (authorization.grossIssuance > remainingAllocation) {
@@ -333,7 +347,7 @@ contract MovenRunSettlement is AccessControl, EIP712 {
 
         unchecked {
             // Non-zero only when the allowance belongs to the current epoch (checked above).
-            _liquidAllowance -= authorization.liquidMovementClaims;
+            _liquidAllowance -= liquidTotal;
             lifetimeMovementIssued += authorization.grossIssuance;
             seasonIssued[derivedSeason] += authorization.grossIssuance;
         }
@@ -394,6 +408,10 @@ contract MovenRunSettlement is AccessControl, EIP712 {
             authorization.automaticBurn;
         if (componentTotal != authorization.grossIssuance) {
             revert SettlementAccountingMismatch(componentTotal, authorization.grossIssuance);
+        }
+        // Everything except the burn is paid out against the root; without one it is stranded.
+        if (componentTotal > authorization.automaticBurn && authorization.merkleRoot == bytes32(0)) {
+            revert MissingMerkleRoot();
         }
         if (authorization.tollBase > authorization.grossIssuance) {
             revert TollBaseExceedsGross(authorization.tollBase, authorization.grossIssuance);
@@ -532,6 +550,7 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     function setSettlementSigner(address newSigner) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newSigner == address(0)) revert ZeroAddress();
         if (newSigner == reconciliationSigner) revert SignerReuse();
+        _consumeSignerApproval(newSigner);
         emit SettlementSignerUpdated(settlementSigner, newSigner);
         settlementSigner = newSigner;
     }
@@ -540,6 +559,7 @@ contract MovenRunSettlement is AccessControl, EIP712 {
     function setReconciliationSigner(address newSigner) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newSigner == address(0)) revert ZeroAddress();
         if (newSigner == settlementSigner) revert SignerReuse();
+        _consumeSignerApproval(newSigner);
         emit ReconciliationSignerUpdated(reconciliationSigner, newSigner);
         reconciliationSigner = newSigner;
     }

@@ -318,9 +318,9 @@ describe("G5 focused: valve, toll leakage, signer concentration (patched)", () =
       await expect(factory.deploy(0, [f.admin.address], [f.admin.address], ZERO_ADDRESS))
         .to.be.revertedWithCustomError(factory, "DelayMustBeNonZero");
       await expect(factory.deploy(1, [f.admin.address], [f.admin.address], ZERO_ADDRESS))
-        .to.be.revertedWithCustomError(factory, "DelayBelowFloor").withArgs(1n, 3600n);
-      const t = await factory.deploy(3600, [f.admin.address], [f.admin.address], ZERO_ADDRESS);
-      expect(await t.getMinDelay()).to.equal(3600n);
+        .to.be.revertedWithCustomError(factory, "DelayBelowFloor").withArgs(1n, 48n * 3600n);
+      const t = await factory.deploy(48 * 3600, [f.admin.address], [f.admin.address], ZERO_ADDRESS);
+      expect(await t.getMinDelay()).to.equal(BigInt(48 * 3600));
     });
 
     it("HOLDS C6: contest signer and co-signer must stay distinct, in either rotation direction", async () => {

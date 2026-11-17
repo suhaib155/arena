@@ -304,13 +304,13 @@ describe("G5 issue ledger: counter release and issue counterexamples (patched, R
     // I-04 (legacy greatBurn moves MOVE to the treasury instead of burning it) is proven against the
     // real legacy contracts in test/v1-characterization/02-season-emissions.char.test.ts (discrepancy #8).
 
-    it("OPEN-ISSUE I-05b the timelock floor is 1 hour (fixture compatibility), not the proposed 48-hour production floor", async () => {
+    it("FIXED I-05b the timelock floor is 48 hours and the fixture uses it", async () => {
       const f = await fx();
-      expect(await f.timelock.MIN_DELAY_FLOOR()).to.equal(3600n);
-      expect(BigInt(TIMELOCK_DELAY)).to.be.lt(48n * 3600n);
+      expect(await f.timelock.MIN_DELAY_FLOOR()).to.equal(48n * 3600n);
+      expect(BigInt(TIMELOCK_DELAY)).to.equal(48n * 3600n);
       const factory = await ethers.getContractFactory("MovenRunTimelock");
-      const t = await factory.deploy(2 * 3600, [f.admin.address], [f.admin.address], f.admin.address);
-      expect(await t.getMinDelay()).to.equal(7200n);
+      await expect(factory.deploy(2 * 3600, [f.admin.address], [f.admin.address], f.admin.address))
+        .to.be.revertedWithCustomError(factory, "DelayBelowFloor");
     });
 
     it("OPEN-ISSUE I-06b the timelock alone replaces BOTH settlement signers, and the two new keys then publish settlement days", async () => {
